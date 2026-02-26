@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Flea Webhooks — Real-Time Agent Event Notifications</title>
+<meta name="description" content="Purple Flea webhooks push real-time event notifications to your agent endpoint. No polling required. Receive instant alerts for bets, positions, swaps, domain registrations, and referral earnings.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/webhook-api">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://purpleflea.com/webhook-api">
+<meta property="og:title" content="Purple Flea Webhooks — Real-Time Agent Event Notifications">
+<meta property="og:description" content="Get notified the instant something happens. No polling. Purple Flea webhooks push real-time events to your agent — bets, trades, swaps, domains, and referrals.">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Purple Flea Webhooks — Real-Time Agent Event Notifications">
+<meta name="twitter:description" content="Get notified the instant something happens. No polling. HMAC-SHA256 verified event delivery.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "name": "Purple Flea Webhooks — Real-Time Agent Event Notifications",
+  "url": "https://purpleflea.com/webhook-api",
+  "description": "Purple Flea webhooks deliver real-time event notifications to AI agents. Supports 8 event types including bet.won, position.opened, swap.completed, and referral.earned. HMAC-SHA256 signature verification, exponential backoff retry, and a test endpoint included.",
+  "author": {
+    "@type": "Organization",
+    "name": "Purple Flea",
+    "url": "https://purpleflea.com"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Purple Flea",
+    "url": "https://purpleflea.com"
+  },
+  "mainEntity": {
+    "@type": "SoftwareApplication",
+    "name": "Purple Flea Webhook API",
+    "applicationCategory": "DeveloperApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+}
+</script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.25);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --blue: #60A5FA;
+  --red: #F87171;
+  --radius: 14px;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+/* Nav */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 900px; margin: 0 auto; padding: 0 24px;
+}
+.nav-logo {
+  text-decoration: none; color: var(--text);
+  font-weight: 700; font-size: 1rem; letter-spacing: -0.02em;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-logo-diamond { color: var(--purple); }
+.nav-links { display: flex; gap: 24px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.875rem; }
+.nav-links a:hover { color: var(--text); }
+.nav-badge {
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+/* Hero */
+.hero {
+  padding: 80px 0 48px;
+  border-bottom: 1px solid var(--border);
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(168, 85, 247, 0.1); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.8rem; font-weight: 500;
+  padding: 5px 12px; border-radius: 20px; margin-bottom: 24px;
+}
+.hero h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800; letter-spacing: -0.04em; line-height: 1.1;
+  margin-bottom: 20px;
+}
+.hero h1 span { color: var(--purple); }
+.hero p {
+  font-size: 1.1rem; color: var(--text-secondary); line-height: 1.7;
+  max-width: 680px; margin-bottom: 32px;
+}
+.hero-note {
+  background: rgba(168, 85, 247, 0.06); border: 1px solid var(--border-purple);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;
+}
+.hero-note strong { color: var(--purple); }
+
+/* Sections */
+section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+section:last-child { border-bottom: none; }
+.section-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--purple); margin-bottom: 12px;
+}
+h2 {
+  font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+h3 {
+  font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em;
+  margin-bottom: 8px; color: var(--text);
+}
+p { color: var(--text-secondary); margin-bottom: 16px; }
+p:last-child { margin-bottom: 0; }
+
+/* Code blocks */
+.code-block {
+  background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 16px 18px;
+  font-family: var(--mono); font-size: 0.8rem;
+  color: #D4D4D8; white-space: pre; overflow-x: auto;
+  position: relative; line-height: 1.65;
+}
+.code-block .comment { color: #6A9955; }
+.code-block .string { color: #CE9178; }
+.code-block .key { color: #9CDCFE; }
+.code-block .number { color: #B5CEA8; }
+.code-block .keyword { color: #C586C0; }
+.code-block .func { color: #DCDCAA; }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.copy-btn:hover { background: rgba(168, 85, 247, 0.25); }
+
+/* Code block with filename label */
+.code-wrap { margin-bottom: 24px; }
+.code-filename {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+  padding: 7px 16px;
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06);
+  border-bottom: none; border-radius: 8px 8px 0 0;
+  display: inline-block;
+}
+.code-filename + .code-block { border-radius: 0 10px 10px 10px; margin-top: 0; }
+
+/* Events table */
+.events-table {
+  width: 100%; border-collapse: collapse; margin-top: 24px;
+  font-size: 0.875rem;
+}
+.events-table th {
+  text-align: left; padding: 10px 14px;
+  color: var(--text-muted); font-weight: 500; font-size: 0.75rem;
+  border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.events-table td {
+  padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+}
+.events-table td:first-child { color: var(--text); font-weight: 500; font-family: var(--mono); font-size: 0.82rem; }
+.events-table tr:last-child td { border-bottom: none; }
+.events-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* API endpoints */
+.endpoint-list { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+.endpoint {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px;
+  font-family: var(--mono); font-size: 0.78rem;
+}
+.method {
+  font-size: 0.65rem; font-weight: 700; padding: 2px 7px;
+  border-radius: 4px; flex-shrink: 0; letter-spacing: 0.05em;
+}
+.method.get { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.method.post { background: rgba(59, 130, 246, 0.15); color: #60A5FA; }
+.method.delete { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+.endpoint-path { color: var(--text); flex: 1; }
+.endpoint-desc { color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 0.75rem; }
+
+/* Info cards */
+.info-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 16px;
+}
+.info-card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); }
+.info-card h3 { margin-bottom: 10px; }
+.info-card p { margin-bottom: 0; font-size: 0.875rem; }
+
+/* Warning / tip boxes */
+.tip-box {
+  background: rgba(168, 85, 247, 0.06); border: 1px solid var(--border-purple);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 24px;
+}
+.tip-box strong { color: var(--purple); }
+.warning-box {
+  background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 24px;
+}
+.warning-box strong { color: var(--amber); }
+.success-box {
+  background: rgba(34, 197, 94, 0.06); border: 1px solid rgba(34,197,94,0.25);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 24px;
+}
+.success-box strong { color: var(--green); }
+
+/* Retry steps */
+.retry-steps { margin: 20px 0; display: flex; flex-direction: column; gap: 10px; }
+.retry-step {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+}
+.retry-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(168,85,247,0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-weight: 700; font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.retry-body { flex: 1; }
+.retry-title { font-weight: 600; font-size: 0.875rem; color: var(--text); margin-bottom: 4px; }
+.retry-detail { font-size: 0.8rem; color: var(--text-secondary); }
+
+/* Use case grid */
+.use-case-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-top: 24px;
+}
+@media (max-width: 640px) {
+  .use-case-grid { grid-template-columns: 1fr; }
+  .nav-links { gap: 14px; }
+  .nav-links li:nth-child(n+5) { display: none; }
+}
+.use-case-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+.use-case-card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); }
+.use-case-icon { font-size: 1.5rem; margin-bottom: 10px; }
+.use-case-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; color: var(--text); }
+.use-case-desc { font-size: 0.825rem; color: var(--text-secondary); line-height: 1.55; }
+
+/* Tag */
+.tag {
+  display: inline-block; font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px; letter-spacing: 0.04em;
+}
+.tag-green { background: rgba(34,197,94,0.1); color: var(--green); }
+.tag-amber { background: rgba(245,158,11,0.1); color: var(--amber); }
+.tag-purple { background: rgba(168,85,247,0.1); color: var(--purple); }
+.tag-blue { background: rgba(96,165,250,0.1); color: var(--blue); }
+
+/* Footer */
+footer {
+  padding: 32px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--text-muted); font-size: 0.8rem;
+}
+footer a { color: var(--purple); text-decoration: none; }
+
+/* Utility */
+.highlight { color: var(--purple); font-weight: 600; }
+code {
+  font-family: var(--mono); font-size: 0.85em;
+  color: var(--purple); background: rgba(168,85,247,0.08);
+  padding: 1px 5px; border-radius: 4px;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-diamond">&#9830;</span>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents <span class="nav-badge">AI</span></a></li>
+      <li><a href="/network">Network</a></li>
+      <li><a href="/stats">Stats</a></li>
+      <li><a href="https://github.com/purple-flea" target="_blank">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-tag">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" fill="#A855F7" opacity="0.3"/><circle cx="6" cy="6" r="2.5" fill="#A855F7"/></svg>
+      Webhook API &mdash; Real-Time Push Notifications
+    </div>
+    <h1>Get notified the instant<br><span>something happens.</span> No polling.</h1>
+    <p>
+      Instead of hammering the API every few seconds to check if your position closed or your referral earned,
+      Purple Flea pushes the event to your endpoint the moment it occurs. Webhooks are HMAC-signed,
+      retried on failure, and testable without real money.
+    </p>
+    <div class="hero-note">
+      <strong>Why this matters for agents:</strong> Polling wastes API rate limit, adds latency, and misses
+      events that happen between poll intervals. Webhooks let your agent sleep until there is something to act on.
+      A position liquidation webhook can trigger an immediate rebalance; a referral.earned event can trigger
+      an automatic withdrawal. Push beats pull.
+    </div>
+  </div>
+
+  <!-- Why webhooks -->
+  <section id="why-webhooks">
+    <div class="section-label">Motivation</div>
+    <h2>Why agents need push notifications, not polling</h2>
+    <p>
+      AI agents operating autonomously over long time horizons face a fundamental tradeoff: how frequently should
+      they query the API for state changes? Poll too rarely and they miss time-sensitive events. Poll too often
+      and they consume rate limit budget that could be spent on higher-value operations.
+    </p>
+    <p>
+      Webhooks dissolve this tradeoff entirely. You register a URL and a list of event types. Purple Flea
+      delivers each matching event via HTTP POST within milliseconds of it occurring. Your agent's compute
+      is spent reacting to real events, not asking "has anything changed yet?"
+    </p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;">
+      <div class="info-card" style="border-color: rgba(248,113,113,0.25);">
+        <h3 style="color: var(--red);">Polling (what you should avoid)</h3>
+        <p>GET /v1/positions every 5 seconds. 720 requests per hour per position. Rate limit consumed. 5-second reaction lag. No guarantee you catch a brief liquidation event. Battery-expensive for mobile agent runtimes.</p>
+      </div>
+      <div class="info-card" style="border-color: rgba(34,197,94,0.25);">
+        <h3 style="color: var(--green);">Webhooks (what you should use)</h3>
+        <p>Register once. Zero ongoing API calls. Event delivered &lt;200ms after occurrence. Agent wakes on signal, not on schedule. No events missed. Full event payload in the body — no follow-up GET needed.</p>
+      </div>
+    </div>
+
+    <p style="margin-top: 24px;">
+      Webhooks are particularly valuable for <strong style="color: var(--text);">referral income tracking</strong>:
+      instead of polling for new referral commissions, your agent receives a <code>referral.earned</code> event
+      each time a referred agent generates a fee. You can track income in real time and trigger withdrawals
+      automatically when a threshold is crossed.
+    </p>
+  </section>
+
+  <!-- Supported events -->
+  <section id="events">
+    <div class="section-label">Event Types</div>
+    <h2>Supported events</h2>
+    <p>
+      Subscribe to any combination of these events when creating a webhook. Use <code>"events": ["*"]</code>
+      to receive all event types from your account.
+    </p>
+
+    <table class="events-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Source API</th>
+          <th>Triggered when</th>
+          <th>Key payload fields</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>bet.won</td>
+          <td><span class="tag tag-purple">Casino</span></td>
+          <td>A game play results in a win</td>
+          <td>game_id, bet_amount, payout, multiplier, seed_hash</td>
+        </tr>
+        <tr>
+          <td>bet.lost</td>
+          <td><span class="tag tag-purple">Casino</span></td>
+          <td>A game play results in a loss</td>
+          <td>game_id, bet_amount, loss_amount, seed_hash</td>
+        </tr>
+        <tr>
+          <td>position.opened</td>
+          <td><span class="tag tag-green">Trading</span></td>
+          <td>A new perpetual futures position is opened</td>
+          <td>position_id, market_id, side, size, entry_price, leverage</td>
+        </tr>
+        <tr>
+          <td>position.closed</td>
+          <td><span class="tag tag-green">Trading</span></td>
+          <td>A position is closed (profit or loss)</td>
+          <td>position_id, market_id, pnl, close_price, fee_paid</td>
+        </tr>
+        <tr>
+          <td>position.liquidated</td>
+          <td><span class="tag tag-green">Trading</span></td>
+          <td>A position is forcibly liquidated</td>
+          <td>position_id, market_id, liquidation_price, loss_amount</td>
+        </tr>
+        <tr>
+          <td>swap.completed</td>
+          <td><span class="tag tag-blue">Wallet</span></td>
+          <td>A token swap is finalized on-chain</td>
+          <td>from_token, to_token, from_amount, to_amount, tx_hash, chain, fee_usd</td>
+        </tr>
+        <tr>
+          <td>domain.registered</td>
+          <td><span class="tag tag-amber">Domains</span></td>
+          <td>A domain registration is confirmed</td>
+          <td>domain, tld, years, expiry_date, registrar_tx_id</td>
+        </tr>
+        <tr>
+          <td>referral.earned</td>
+          <td><span class="tag tag-purple">All APIs</span></td>
+          <td>A referred agent's activity generates a commission</td>
+          <td>referred_agent_id, source_api, commission_usd, activity_type, cumulative_earned</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Setup -->
+  <section id="setup">
+    <div class="section-label">Setup</div>
+    <h2>Registering a webhook endpoint</h2>
+    <p>
+      Send a POST to <code>/v1/webhooks</code> with your HTTPS URL and the events you want to receive.
+      Purple Flea will immediately attempt a verification ping to your URL; if it does not return HTTP 200,
+      the webhook registration fails. Keep your endpoint always-on.
+    </p>
+
+    <div class="endpoint-list" style="margin-bottom: 24px;">
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/v1/webhooks</span><span class="endpoint-desc">Register a new webhook endpoint</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/v1/webhooks</span><span class="endpoint-desc">List all registered webhooks</span></div>
+      <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/v1/webhooks/{id}</span><span class="endpoint-desc">Get a single webhook with delivery history</span></div>
+      <div class="endpoint"><span class="method delete">DELETE</span><span class="endpoint-path">/v1/webhooks/{id}</span><span class="endpoint-desc">Delete a webhook</span></div>
+      <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/v1/webhooks/test</span><span class="endpoint-desc">Send a test event to any registered webhook</span></div>
+    </div>
+
+    <h3>Create webhook request</h3>
+    <div class="code-wrap">
+      <div class="code-filename">POST /v1/webhooks</div>
+      <div class="code-block" id="create-webhook">curl -X POST https://api.purpleflea.com/v1/webhooks \
+  -H "Authorization: Bearer sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-agent.example.com/webhooks/purpleflea",
+    "events": [
+      "bet.won",
+      "bet.lost",
+      "position.opened",
+      "position.closed",
+      "position.liquidated",
+      "swap.completed",
+      "domain.registered",
+      "referral.earned"
+    ],
+    "secret": "whsec_your_random_secret_here"
+  }'</div>
+      <button class="copy-btn" onclick="copyCode('create-webhook', this)">Copy</button>
+    </div>
+
+    <h3>Response</h3>
+    <div class="code-block" id="create-webhook-resp">{
+  "id": "wh_01HXYZ9AB3CDEF",
+  "url": "https://your-agent.example.com/webhooks/purpleflea",
+  "events": ["bet.won", "bet.lost", "position.opened", "position.closed",
+             "position.liquidated", "swap.completed", "domain.registered", "referral.earned"],
+  "status": "active",
+  "created_at": "2025-11-14T10:22:00Z",
+  "last_delivery_at": null,
+  "total_deliveries": 0,
+  "failed_deliveries": 0
+}</div>
+    <button class="copy-btn" onclick="copyCode('create-webhook-resp', this)" style="top: 10px; right: 10px; position: relative; display: block; margin-top: 8px; width: fit-content; margin-left: auto;">Copy</button>
+
+    <div class="tip-box" style="margin-top: 24px;">
+      <strong>Secret key:</strong> The <code>secret</code> field is optional but strongly recommended.
+      If provided, every delivery will include an <code>X-PurpleFlea-Signature</code> header
+      you can use to verify the payload is genuine. See the Signature Verification section below.
+    </div>
+  </section>
+
+  <!-- Payload examples -->
+  <section id="payloads">
+    <div class="section-label">Event Payloads</div>
+    <h2>What your endpoint receives</h2>
+    <p>
+      Every webhook delivery is an HTTP POST with <code>Content-Type: application/json</code>.
+      The envelope always contains <code>event</code>, <code>id</code>, <code>timestamp</code>,
+      and <code>data</code>. The shape of <code>data</code> varies by event type.
+    </p>
+
+    <h3 style="margin-top: 28px;">bet.won</h3>
+    <div class="code-block" id="payload-bet-won" style="margin-bottom: 24px;">{
+  "event": "bet.won",
+  "id": "evt_01HXYZ_BET_WIN",
+  "timestamp": "2025-11-14T10:45:33.127Z",
+  "api_version": "2025-11",
+  "data": {
+    "game_id": "coinflip",
+    "game_name": "Coin Flip",
+    "bet_amount": 10.00,
+    "payout": 19.50,
+    "profit": 9.50,
+    "multiplier": 1.95,
+    "choice": "heads",
+    "result": "heads",
+    "balance_after": 1009.50,
+    "seed_hash": "a3f8c2d...",
+    "nonce": 442,
+    "provably_fair_url": "https://casino.purpleflea.com/verify/a3f8c2d"
+  }
+}</div>
+
+    <h3>position.liquidated</h3>
+    <div class="code-block" id="payload-liquidation" style="margin-bottom: 24px;">{
+  "event": "position.liquidated",
+  "id": "evt_01HXYZ_LIQ_001",
+  "timestamp": "2025-11-14T14:07:11.054Z",
+  "api_version": "2025-11",
+  "data": {
+    "position_id": "pos_01HXYZ789",
+    "market_id": "BTC-USD",
+    "side": "long",
+    "size": 0.5,
+    "entry_price": 68200.00,
+    "liquidation_price": 65250.00,
+    "loss_amount": 1475.00,
+    "leverage": 10,
+    "margin_used": 3410.00,
+    "fee_paid": 32.50,
+    "balance_after": 512.75,
+    "reason": "margin_below_maintenance"
+  }
+}</div>
+
+    <h3>swap.completed</h3>
+    <div class="code-block" id="payload-swap" style="margin-bottom: 24px;">{
+  "event": "swap.completed",
+  "id": "evt_01HXYZ_SWAP_44",
+  "timestamp": "2025-11-14T16:33:59.820Z",
+  "api_version": "2025-11",
+  "data": {
+    "swap_id": "swp_01HXYZ_SWAP_44",
+    "chain": "base",
+    "from_token": "ETH",
+    "to_token": "USDC",
+    "from_amount": 0.5,
+    "to_amount": 1847.23,
+    "effective_rate": 3694.46,
+    "fee_usd": 0.92,
+    "slippage_pct": 0.04,
+    "router": "uniswap_v3",
+    "tx_hash": "0x7f2a3b9c...",
+    "block_number": 19847231,
+    "wallet_address": "0xabc123..."
+  }
+}</div>
+
+    <h3>referral.earned</h3>
+    <div class="code-block" id="payload-referral" style="margin-bottom: 24px;">{
+  "event": "referral.earned",
+  "id": "evt_01HXYZ_REF_019",
+  "timestamp": "2025-11-14T18:00:44.301Z",
+  "api_version": "2025-11",
+  "data": {
+    "referral_event_id": "ref_01HXYZ_019",
+    "referred_agent_id": "agent_7XK9M",
+    "referred_agent_username": "trading_bot_delta",
+    "source_api": "trading",
+    "activity_type": "position_closed",
+    "underlying_fee_usd": 12.50,
+    "commission_rate": 0.20,
+    "commission_usd": 2.50,
+    "cumulative_earned_usd": 387.25,
+    "payout_status": "available",
+    "withdraw_url": "https://api.purpleflea.com/v1/referrals/withdraw"
+  }
+}</div>
+
+    <h3>position.closed</h3>
+    <div class="code-block" id="payload-position-closed">{
+  "event": "position.closed",
+  "id": "evt_01HXYZ_POS_CLO",
+  "timestamp": "2025-11-14T19:12:07.509Z",
+  "api_version": "2025-11",
+  "data": {
+    "position_id": "pos_01HXYZ456",
+    "market_id": "ETH-USD",
+    "side": "short",
+    "size": 2.0,
+    "entry_price": 2980.00,
+    "close_price": 2851.50,
+    "pnl": 256.95,
+    "pnl_pct": 4.31,
+    "fee_paid": 5.98,
+    "duration_seconds": 14400,
+    "close_reason": "manual",
+    "balance_after": 4812.40
+  }
+}</div>
+  </section>
+
+  <!-- Signature verification -->
+  <section id="signature">
+    <div class="section-label">Security</div>
+    <h2>Signature verification</h2>
+    <p>
+      Every delivery includes an <code>X-PurpleFlea-Signature</code> header. This is an HMAC-SHA256
+      of the raw request body, keyed with the <code>secret</code> you supplied at webhook creation.
+      Verify this header before trusting or acting on any event payload.
+    </p>
+
+    <div class="warning-box">
+      <strong>Important:</strong> If you skip signature verification, any HTTP client can send fake events
+      to your endpoint. An attacker could fake a <code>bet.won</code> event and trick your agent into
+      thinking it has more balance than it does. Always verify.
+    </div>
+
+    <h3>Signature format</h3>
+    <div class="code-block" style="margin-bottom: 24px;">X-PurpleFlea-Signature: sha256=a4b3c2d1e0f9...
+X-PurpleFlea-Timestamp: 1731593444
+
+# The signed payload is: timestamp + "." + raw_body
+# HMAC-SHA256(secret, timestamp + "." + raw_request_body)</div>
+
+    <h3 style="margin-top: 28px;">Python — Flask receiver with verification</h3>
+    <div class="code-wrap">
+      <div class="code-filename">webhook_receiver.py</div>
+      <div class="code-block" id="python-receiver">import hmac
+import hashlib
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+WEBHOOK_SECRET = "whsec_your_random_secret_here"
+
+def verify_signature(payload_body: bytes, timestamp: str, signature_header: str) -> bool:
+    """Verify X-PurpleFlea-Signature HMAC-SHA256."""
+    if not signature_header or not signature_header.startswith("sha256="):
+        return False
+    expected_sig = signature_header[len("sha256="):]
+    signed_payload = f"{timestamp}.".encode() + payload_body
+    computed = hmac.new(
+        WEBHOOK_SECRET.encode(),
+        signed_payload,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(computed, expected_sig)
+
+@app.route("/webhooks/purpleflea", methods=["POST"])
+def handle_webhook():
+    timestamp = request.headers.get("X-PurpleFlea-Timestamp", "")
+    signature = request.headers.get("X-PurpleFlea-Signature", "")
+
+    if not verify_signature(request.data, timestamp, signature):
+        return jsonify({"error": "invalid signature"}), 401
+
+    event = request.json
+    event_type = event["event"]
+    data = event["data"]
+
+    if event_type == "position.liquidated":
+        # Immediate rebalance — agent logic here
+        market = data["market_id"]
+        loss = data["loss_amount"]
+        print(f"LIQUIDATED: {market}, loss=${loss:.2f} — triggering rebalance")
+        rebalance_portfolio(data)
+
+    elif event_type == "referral.earned":
+        commission = data["commission_usd"]
+        cumulative = data["cumulative_earned_usd"]
+        print(f"REFERRAL: +${commission:.2f} (total: ${cumulative:.2f})")
+        if cumulative >= 50.0:
+            trigger_withdrawal()
+
+    elif event_type == "bet.won":
+        print(f"BET WON: ${data['profit']:.2f} on {data['game_name']}")
+
+    elif event_type == "swap.completed":
+        print(f"SWAP: {data['from_amount']} {data['from_token']} → {data['to_amount']:.2f} {data['to_token']}")
+
+    # Always return 200 quickly — do heavy work async
+    return jsonify({"received": True}), 200
+
+def rebalance_portfolio(liquidation_data):
+    # Your rebalance logic here
+    pass
+
+def trigger_withdrawal():
+    # Your withdrawal logic here
+    pass
+
+if __name__ == "__main__":
+    app.run(port=8080)</div>
+      <button class="copy-btn" onclick="copyCode('python-receiver', this)">Copy</button>
+    </div>
+
+    <h3 style="margin-top: 28px;">Node.js — Express receiver with verification</h3>
+    <div class="code-wrap">
+      <div class="code-filename">webhookReceiver.js</div>
+      <div class="code-block" id="node-receiver">import express from 'express';
+import crypto from 'crypto';
+
+const app = express();
+const WEBHOOK_SECRET = 'whsec_your_random_secret_here';
+
+// Use raw body for signature verification
+app.use('/webhooks/purpleflea', express.raw({ type: 'application/json' }));
+app.use(express.json());
+
+function verifySignature(rawBody, timestamp, signatureHeader) {
+  if (!signatureHeader || !signatureHeader.startsWith('sha256=')) return false;
+  const expectedSig = signatureHeader.slice('sha256='.length);
+  const signedPayload = `${timestamp}.${rawBody}`;
+  const computed = crypto
+    .createHmac('sha256', WEBHOOK_SECRET)
+    .update(signedPayload)
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(computed, 'hex'),
+    Buffer.from(expectedSig, 'hex')
+  );
+}
+
+app.post('/webhooks/purpleflea', (req, res) => {
+  const timestamp = req.headers['x-purpleflea-timestamp'] ?? '';
+  const signature = req.headers['x-purpleflea-signature'] ?? '';
+  const rawBody = req.body; // Buffer, because of express.raw()
+
+  if (!verifySignature(rawBody, timestamp, signature)) {
+    return res.status(401).json({ error: 'invalid signature' });
+  }
+
+  // Always respond 200 fast; do async work after
+  res.json({ received: true });
+
+  const event = JSON.parse(rawBody);
+  handleEvent(event).catch(console.error);
+});
+
+async function handleEvent(event) {
+  const { type: eventType, data } = event;
+
+  switch (eventType) {
+    case 'position.liquidated':
+      console.log(`LIQUIDATED: ${data.market_id} loss=$${data.loss_amount}`);
+      await rebalancePortfolio(data);
+      break;
+
+    case 'referral.earned':
+      console.log(`REFERRAL: +$${data.commission_usd} (total: $${data.cumulative_earned_usd})`);
+      if (data.cumulative_earned_usd >= 50) {
+        await triggerWithdrawal();
+      }
+      break;
+
+    case 'bet.won':
+      console.log(`BET WON: $${data.profit} on ${data.game_name}`);
+      break;
+
+    case 'swap.completed':
+      console.log(`SWAP: ${data.from_amount} ${data.from_token} → ${data.to_amount} ${data.to_token}`);
+      break;
+
+    default:
+      console.log('Unhandled event:', eventType);
+  }
+}
+
+async function rebalancePortfolio(data) { /* your logic */ }
+async function triggerWithdrawal() { /* your logic */ }
+
+app.listen(8080, () => console.log('Webhook receiver on :8080'));</div>
+      <button class="copy-btn" onclick="copyCode('node-receiver', this)">Copy</button>
+    </div>
+  </section>
+
+  <!-- Retry logic -->
+  <section id="retry">
+    <div class="section-label">Reliability</div>
+    <h2>Retry logic and delivery guarantees</h2>
+    <p>
+      Purple Flea attempts delivery up to 3 times per event. A delivery is considered successful if your
+      endpoint returns HTTP 2xx within 10 seconds. Any other response &mdash; including timeouts, 4xx, or 5xx
+      &mdash; triggers a retry with exponential backoff.
+    </p>
+
+    <div class="retry-steps">
+      <div class="retry-step">
+        <div class="retry-num">1</div>
+        <div class="retry-body">
+          <div class="retry-title">Initial delivery &mdash; immediate</div>
+          <div class="retry-detail">Sent within &lt;200ms of the event occurring. 10-second timeout. If you return 2xx, done.</div>
+        </div>
+      </div>
+      <div class="retry-step">
+        <div class="retry-num">2</div>
+        <div class="retry-body">
+          <div class="retry-title">First retry &mdash; 60 seconds after failure</div>
+          <div class="retry-detail">Same payload, same signature (timestamp will differ in header). 10-second timeout.</div>
+        </div>
+      </div>
+      <div class="retry-step">
+        <div class="retry-num">3</div>
+        <div class="retry-body">
+          <div class="retry-title">Second retry &mdash; 600 seconds after failure</div>
+          <div class="retry-detail">Final attempt. If this fails, the event is marked as failed. Viewable in delivery history at GET /v1/webhooks/{id}.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="success-box" style="margin-top: 24px;">
+      <strong>Idempotency:</strong> Each event has a unique <code>id</code> field (e.g., <code>evt_01HXYZ_BET_WIN</code>).
+      Because retries re-deliver the same event, store processed event IDs and skip duplicates. A simple in-memory set
+      or a Redis key with a short TTL is sufficient.
+    </div>
+
+    <div class="tip-box">
+      <strong>Respond fast, process async:</strong> Return HTTP 200 immediately upon receiving the webhook,
+      before doing any meaningful work. Enqueue the event for async processing. This prevents timeouts
+      from causing retry storms when your processing logic is slow.
+    </div>
+  </section>
+
+  <!-- Testing -->
+  <section id="testing">
+    <div class="section-label">Testing</div>
+    <h2>Sending test events</h2>
+    <p>
+      Use <code>POST /v1/webhooks/test</code> to send a synthetic test event to any registered webhook.
+      The event will be signed and delivered exactly like a real event, but with <code>"test": true</code>
+      in the envelope. No real funds are moved.
+    </p>
+
+    <div class="code-block" id="test-webhook">curl -X POST https://api.purpleflea.com/v1/webhooks/test \
+  -H "Authorization: Bearer sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webhook_id": "wh_01HXYZ9AB3CDEF",
+    "event_type": "position.liquidated"
+  }'
+
+# Response:
+{
+  "delivered": true,
+  "status_code": 200,
+  "response_time_ms": 43,
+  "event_id": "evt_test_01HXYZ_001"
+}</div>
+    <button class="copy-btn" onclick="copyCode('test-webhook', this)" style="position: relative; display: block; margin-top: 8px; width: fit-content; margin-left: auto; top: 0; right: 0;">Copy</button>
+
+    <p style="margin-top: 24px;">
+      You can also view the full delivery history for any webhook, including request/response headers and
+      bodies for each attempt:
+    </p>
+
+    <div class="code-block" style="margin-top: 8px;">curl https://api.purpleflea.com/v1/webhooks/wh_01HXYZ9AB3CDEF \
+  -H "Authorization: Bearer sk_live_..."
+
+# Returns webhook config + last 50 deliveries with:
+# attempt_at, status_code, response_time_ms, success, error_message</div>
+  </section>
+
+  <!-- Use cases for agents -->
+  <section id="use-cases">
+    <div class="section-label">Agent Use Cases</div>
+    <h2>What agents should build with webhooks</h2>
+    <p>
+      Webhooks turn a passive API consumer into a reactive agent that responds to its own economic environment
+      in real time. Here are the highest-value patterns.
+    </p>
+
+    <div class="use-case-grid">
+      <div class="use-case-card">
+        <div class="use-case-icon">&#9889;</div>
+        <div class="use-case-title">Liquidation-triggered rebalancing</div>
+        <div class="use-case-desc">
+          Subscribe to <code>position.liquidated</code>. When received, immediately open a counter-position
+          or reduce exposure on correlated markets. Reaction time: &lt;500ms vs 5+ seconds with polling.
+        </div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#128176;</div>
+        <div class="use-case-title">Automatic referral withdrawals</div>
+        <div class="use-case-desc">
+          Subscribe to <code>referral.earned</code>. Accumulate commissions and trigger
+          <code>GET /v1/referrals/withdraw</code> automatically when <code>cumulative_earned_usd</code>
+          crosses a threshold (e.g., $50). Zero manual intervention.
+        </div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#128200;</div>
+        <div class="use-case-title">Swap-completion routing</div>
+        <div class="use-case-desc">
+          Subscribe to <code>swap.completed</code>. After a token swap finalizes, immediately
+          deploy the resulting USDC into the casino or trading account. Chain multi-step flows
+          without polling between steps.
+        </div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#128207;</div>
+        <div class="use-case-title">Bet sizing feedback loop</div>
+        <div class="use-case-desc">
+          Subscribe to <code>bet.won</code> and <code>bet.lost</code>. Adjust Kelly Criterion
+          bet sizing dynamically based on running win rate. React after every game result,
+          not after a batch of polling results.
+        </div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#127760;</div>
+        <div class="use-case-title">Domain acquisition notifications</div>
+        <div class="use-case-desc">
+          Subscribe to <code>domain.registered</code>. After a domain registers, immediately
+          configure DNS records (A, CNAME, TXT) via the Domains API. Automate the full
+          provision-then-configure flow without a polling loop.
+        </div>
+      </div>
+      <div class="use-case-card">
+        <div class="use-case-icon">&#128101;</div>
+        <div class="use-case-title">Multi-agent income tracking</div>
+        <div class="use-case-desc">
+          If you are an orchestrator, <code>referral.earned</code> events let you track which
+          sub-agents are generating the most commission. Reward high-earners by allocating more
+          capital, or stop funding underperformers.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <a href="/">Purple Flea</a> &mdash;
+  <a href="/docs">Docs</a> &mdash;
+  <a href="/webhook-api">Webhooks</a> &mdash;
+  <a href="/usdc-payments-api">USDC Payments</a> &mdash;
+  <a href="/stats">Stats</a> &mdash;
+  <a href="/network">Network</a> &mdash;
+  <a href="https://github.com/purple-flea" target="_blank">GitHub</a> &mdash;
+  <a href="/llms.txt">llms.txt</a>
+</footer>
+
+<script>
+function copyCode(id, btn) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+</script>
+
+</body>
+</html>

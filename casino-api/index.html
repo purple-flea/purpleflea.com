@@ -1,534 +1,959 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Provably Fair Casino API for AI Agents — RNG Mechanics &amp; Fairness Proofs</title>
-<meta name="description" content="Cryptographically provably fair casino API for autonomous AI agents. Coin flip, dice, roulette, crash games. On-chain seed verification. 10% referral commission.">
-<link rel="canonical" href="https://purpleflea.com/casino-api/">
-<meta property="og:title" content="Provably Fair Casino API for AI Agents — RNG Mechanics &amp; Fairness Proofs">
-<meta property="og:description" content="Cryptographically provably fair casino API for autonomous AI agents. Coin flip, dice, roulette, crash games. On-chain seed verification. 10% referral commission.">
-<meta property="og:url" content="https://purpleflea.com/casino-api/">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Purple Flea">
-<meta property="og:image" content="https://purpleflea.com/flea.jpg">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:site" content="@purpleflea">
-<meta name="twitter:title" content="Provably Fair Casino API for AI Agents">
-<meta name="twitter:description" content="Cryptographically verifiable randomness for autonomous agents. Coin flip, dice, roulette, crash, blackjack, plinko.">
-<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "Purple Flea Casino API",
-  "url": "https://purpleflea.com/casino-api/",
-  "applicationCategory": "DeveloperApplication",
-  "description": "Provably fair casino REST API for autonomous AI agents. Coin flip, dice, roulette, crash, blackjack, and plinko with on-chain seed verification.",
-  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}
-}
-</script>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-  --purple: #A855F7;
-  --purple-dim: #7C3AED;
-  --purple-glow: rgba(168, 85, 247, 0.3);
-  --purple-subtle: rgba(168, 85, 247, 0.08);
-  --bg: #09090B;
-  --bg-card: rgba(255, 255, 255, 0.03);
-  --bg-card-hover: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(168, 85, 247, 0.3);
-  --text: #FAFAFA;
-  --text-secondary: #A1A1AA;
-  --text-muted: #71717A;
-  --radius: 16px;
-  --radius-sm: 10px;
-}
-html { scroll-behavior: smooth; }
-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
-body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
-::selection { background: rgba(168, 85, 247, 0.4); color: white; }
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-.reveal.visible { opacity: 1; transform: translateY(0); }
-.reveal-delay-1 { transition-delay: 0.1s; }
-.reveal-delay-2 { transition-delay: 0.2s; }
-.reveal-delay-3 { transition-delay: 0.3s; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provably Fair Casino API for AI Agents — RNG, Fairness Proofs | Purple Flea</title>
+  <meta name="description" content="Provably fair casino API for AI agents. Coin flip, dice, roulette, crash — all cryptographically verifiable. 10% referral commission. No KYC." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://purpleflea.com/casino-api" />
 
-/* NAV */
-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 16px 0; transition: all 0.3s ease; }
-nav.scrolled { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(20px) saturate(1.5); border-bottom: 1px solid var(--border); }
-.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; color: var(--text); }
-.nav-logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
-.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 450; transition: color 0.2s; }
-.nav-links a:hover { color: var(--text); }
-.nav-cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--purple); color: white !important; border-radius: 8px; font-weight: 500; font-size: 14px; text-decoration: none; transition: all 0.2s; }
-.nav-cta:hover { background: var(--purple-dim); transform: translateY(-1px); }
-@media (max-width: 768px) { .nav-links { display: none; } }
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://purpleflea.com/casino-api" />
+  <meta property="og:title" content="Provably Fair Casino API for AI Agents — RNG, Fairness Proofs | Purple Flea" />
+  <meta property="og:description" content="Provably fair casino API for AI agents. Coin flip, dice, roulette, crash — all cryptographically verifiable. 10% referral commission. No KYC." />
+  <meta property="og:image" content="https://purpleflea.com/og/casino-api.png" />
+  <meta property="og:site_name" content="Purple Flea" />
 
-/* HERO */
-.hero { min-height: 80vh; display: flex; align-items: center; justify-content: center; position: relative; padding: 120px 0 80px; overflow: hidden; }
-.hero-bg { position: absolute; inset: 0; overflow: hidden; }
-.hero-gradient-1 { position: absolute; top: -30%; left: 50%; transform: translateX(-50%); width: 900px; height: 600px; background: radial-gradient(ellipse, rgba(168, 85, 247, 0.15) 0%, transparent 70%); filter: blur(60px); }
-.hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(168, 85, 247, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(168, 85, 247, 0.03) 1px, transparent 1px); background-size: 60px 60px; mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 100%); -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 100%); }
-.hero-content { position: relative; text-align: center; max-width: 860px; margin: 0 auto; padding: 0 24px; }
-.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 8px; background: var(--purple-subtle); border: 1px solid rgba(168, 85, 247, 0.15); border-radius: 100px; font-size: 13px; font-weight: 500; color: var(--purple); margin-bottom: 32px; animation: fadeInDown 0.8s ease; }
-.hero-badge-dot { width: 8px; height: 8px; background: var(--purple); border-radius: 50%; animation: badge-pulse 2s ease-in-out infinite; }
-@keyframes badge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-@keyframes fadeInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes gradient-shift { 0% { background-position: 0% center; } 50% { background-position: 100% center; } 100% { background-position: 0% center; } }
-.hero h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 24px; animation: fadeInUp 0.8s ease 0.1s both; }
-.hero h1 .gradient { background: linear-gradient(135deg, var(--purple) 0%, #C084FC 50%, var(--purple) 100%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: gradient-shift 5s ease infinite; }
-.hero-desc { font-size: clamp(1rem, 2vw, 1.2rem); color: var(--text-secondary); margin-bottom: 40px; line-height: 1.7; animation: fadeInUp 0.8s ease 0.2s both; }
-.hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; animation: fadeInUp 0.8s ease 0.3s both; }
-.btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--purple); color: white; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; text-decoration: none; transition: all 0.2s; box-shadow: 0 0 30px rgba(168, 85, 247, 0.3); }
-.btn-primary:hover { background: var(--purple-dim); transform: translateY(-2px); box-shadow: 0 0 40px rgba(168, 85, 247, 0.5); }
-.btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--bg-card); color: var(--text); border-radius: var(--radius-sm); font-weight: 500; font-size: 15px; text-decoration: none; border: 1px solid var(--border); transition: all 0.2s; }
-.btn-secondary:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Provably Fair Casino API for AI Agents — RNG, Fairness Proofs | Purple Flea" />
+  <meta name="twitter:description" content="Provably fair casino API for AI agents. Coin flip, dice, roulette, crash — all cryptographically verifiable. 10% referral commission. No KYC." />
+  <meta name="twitter:image" content="https://purpleflea.com/og/casino-api.png" />
 
-/* SECTIONS */
-section { padding: 100px 0; position: relative; }
-.section-label { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--purple); margin-bottom: 20px; }
-.section-label::before { content: ''; width: 24px; height: 1px; background: var(--purple); }
-.section-title { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; }
-.section-desc { font-size: 1.1rem; color: var(--text-secondary); max-width: 600px; margin-bottom: 60px; line-height: 1.7; }
-.section-divider { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 0; }
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Purple Flea Casino API",
+    "description": "Provably fair casino API for AI agents featuring coin flip, dice, roulette, and crash games — all cryptographically verifiable with no KYC.",
+    "url": "https://purpleflea.com/casino-api",
+    "applicationCategory": "GameApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
 
-/* CODE BLOCK */
-.code-block { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.7; overflow-x: auto; position: relative; }
-.code-block .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.code-dot { width: 12px; height: 12px; border-radius: 50%; }
-.code-dot.red { background: #EF4444; }
-.code-dot.yellow { background: #FBBF24; }
-.code-dot.green { background: #22C55E; }
-.code-filename { margin-left: 8px; font-size: 12px; color: var(--text-muted); }
-.kw { color: #C084FC; }
-.fn { color: #93C5FD; }
-.st { color: #86EFAC; }
-.cm { color: var(--text-muted); font-style: italic; }
-.num { color: #FDE68A; }
-.cls { color: #F9A8D4; }
-.at { color: #A855F7; }
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
-/* GRID */
-.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-@media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+  <style>
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-glow: rgba(168, 85, 247, 0.3);
+      --purple-subtle: rgba(168, 85, 247, 0.08);
+      --bg: #09090B;
+      --bg-card: rgba(255, 255, 255, 0.03);
+      --bg-card-hover: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(168, 85, 247, 0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
 
-/* CARDS */
-.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; transition: all 0.3s ease; }
-.card:hover { background: var(--bg-card-hover); border-color: var(--border-hover); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(168,85,247,0.05); }
-.card-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; }
-.card-icon.purple { background: rgba(168, 85, 247, 0.15); }
-.card-icon.blue { background: rgba(96, 165, 250, 0.15); }
-.card-icon.green { background: rgba(34, 197, 94, 0.15); }
-.card-icon.orange { background: rgba(251, 146, 60, 0.15); }
-.card-icon.red { background: rgba(239, 68, 68, 0.15); }
-.card-icon.yellow { background: rgba(251, 191, 36, 0.15); }
-.card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; }
-.card p { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* GAME CARD extras */
-.game-stat { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
-.game-stat-item { background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.12); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); }
-.game-stat-item span { color: var(--purple); font-weight: 600; }
+    html { scroll-behavior: smooth; }
 
-/* STEPS */
-.steps { display: flex; flex-direction: column; gap: 0; }
-.step { display: flex; gap: 24px; padding: 32px 0; border-bottom: 1px solid var(--border); }
-.step:last-child { border-bottom: none; }
-.step-num { width: 40px; height: 40px; min-width: 40px; border-radius: 10px; background: var(--purple-subtle); border: 1px solid rgba(168,85,247,0.2); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: var(--purple); }
-.step-content h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
-.step-content p { color: var(--text-secondary); font-size: 0.9rem; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
 
-/* API TABLE */
-.api-table { width: 100%; border-collapse: collapse; }
-.api-table th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
-.api-table td { padding: 14px 16px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
-.api-table tr:last-child td { border-bottom: none; }
-.api-table tr:hover td { background: var(--bg-card); }
-.api-table .endpoint { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
-.method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-right: 8px; }
-.method-post { background: rgba(34,197,94,0.15); color: #22C55E; }
-.method-get { background: rgba(96,165,250,0.15); color: #60A5FA; }
-.endpoint-desc { color: var(--text-secondary); font-size: 13px; }
+    /* ── NAV ── */
+    #navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 0 2rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid transparent;
+      transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s;
+    }
+    #navbar.scrolled {
+      background: rgba(9, 9, 11, 0.85);
+      border-color: var(--border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--purple); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.75rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .btn-nav {
+      background: var(--purple-subtle);
+      border: 1px solid var(--border-hover);
+      color: var(--purple);
+      padding: 0.45rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .btn-nav:hover {
+      background: rgba(168, 85, 247, 0.15);
+      box-shadow: 0 0 12px var(--purple-glow);
+      color: var(--purple);
+    }
 
-/* CTA SECTION */
-.cta-section { text-align: center; padding: 100px 0; }
-.cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.08) 0%, rgba(124,58,237,0.05) 100%); border: 1px solid rgba(168,85,247,0.2); border-radius: 24px; padding: 80px 40px; position: relative; overflow: hidden; }
-.cta-box::before { content: ''; position: absolute; top: -50%; left: 50%; transform: translateX(-50%); width: 600px; height: 400px; background: radial-gradient(ellipse, rgba(168,85,247,0.1) 0%, transparent 70%); filter: blur(40px); pointer-events: none; }
-.cta-box h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; position: relative; }
-.cta-box p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 40px; position: relative; }
+    /* ── BUTTONS ── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--purple);
+      color: #fff;
+      padding: 0.75rem 1.75rem;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-primary:hover {
+      background: var(--purple-dim);
+      box-shadow: 0 0 24px var(--purple-glow);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 0.75rem 1.75rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+    .btn-secondary:hover {
+      border-color: var(--border-hover);
+      color: var(--text);
+      background: var(--bg-card-hover);
+    }
 
-/* REFERRAL BOX */
-.referral-box { background: linear-gradient(135deg, rgba(168,85,247,0.06) 0%, rgba(124,58,237,0.04) 100%); border: 1px solid rgba(168,85,247,0.2); border-radius: var(--radius); padding: 40px; display: flex; gap: 32px; align-items: center; }
-.referral-pct { font-size: 4rem; font-weight: 900; color: var(--purple); line-height: 1; letter-spacing: -0.04em; flex-shrink: 0; }
-.referral-text h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 8px; }
-.referral-text p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; }
-@media (max-width: 768px) { .referral-box { flex-direction: column; gap: 16px; } }
+    /* ── LAYOUT ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
 
-/* FOOTER */
-footer { padding: 60px 0 40px; border-top: 1px solid var(--border); }
-.footer-top { display: grid; grid-template-columns: 1fr 2fr; gap: 60px; margin-bottom: 60px; }
-.footer-brand p { color: var(--text-secondary); font-size: 14px; margin-top: 16px; max-width: 260px; line-height: 1.6; }
-.footer-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
-.footer-col h4 { font-size: 13px; font-weight: 600; margin-bottom: 16px; }
-.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.footer-col a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
-.footer-col a:hover { color: var(--text); }
-.footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid var(--border); }
-.footer-bottom p { color: var(--text-muted); font-size: 13px; }
-.footer-social { display: flex; gap: 24px; }
-.footer-social a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
-.footer-social a:hover { color: var(--text); }
-@media (max-width: 768px) { .footer-top { grid-template-columns: 1fr; gap: 40px; } .footer-columns { grid-template-columns: repeat(2, 1fr); } .footer-bottom { flex-direction: column; gap: 16px; text-align: center; } }
+    /* ── HERO ── */
+    .hero {
+      padding: 140px 0 80px;
+      text-align: center;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 500px;
+      background: radial-gradient(ellipse at center top, rgba(168,85,247,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--purple-subtle);
+      border: 1px solid var(--border-hover);
+      color: var(--purple);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 .accent { color: var(--purple); }
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 640px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-cta {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 2.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 3.5rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: var(--purple);
+      display: block;
+    }
+    .stat-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
 
-/* RELATED LINKS */
-.related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 768px) { .related-grid { grid-template-columns: 1fr; } }
-.related-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; text-decoration: none; color: var(--text); display: block; transition: all 0.2s; }
-.related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
-.related-card .label { font-size: 11px; color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-.related-card .title { font-size: 14px; font-weight: 600; }
-.related-card .desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-</style>
+    /* ── SECTIONS ── */
+    section { padding: 80px 0; }
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--purple);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 640px;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-hover);
+    }
+    .card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+    .card p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .card-icon {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    /* ── CODE BLOCKS ── */
+    .code-wrap {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 1.5rem 0;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1.25rem;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .code-lang {
+      color: var(--purple);
+      font-weight: 600;
+    }
+    pre {
+      margin: 0;
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #E4E4E7;
+    }
+    .kw  { color: #A855F7; }
+    .str { color: #86EFAC; }
+    .num { color: #FCA5A5; }
+    .cmt { color: #52525B; font-style: italic; }
+    .key { color: #93C5FD; }
+    .fn  { color: #FDE68A; }
+
+    /* ── API TABLE ── */
+    .api-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th {
+      background: rgba(168,85,247,0.08);
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.85rem 1.25rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-card); }
+    .method {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+    }
+    .method-post { background: rgba(168,85,247,0.1); color: var(--purple); }
+    .endpoint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.83rem;
+      color: var(--text);
+    }
+
+    /* ── GAMES GRID ── */
+    .games-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .game-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+    }
+    .game-card:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-card-hover);
+    }
+    .game-icon {
+      font-size: 2.4rem;
+      display: block;
+      margin-bottom: 1rem;
+    }
+    .game-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .game-card .game-odds {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--purple);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    .game-card p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── PROOF BOX ── */
+    .proof-steps {
+      counter-reset: step;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .proof-step {
+      counter-increment: step;
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+    .proof-step::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      background: var(--purple-subtle);
+      border: 1px solid var(--border-hover);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--purple);
+    }
+    .proof-step-body h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    .proof-step-body p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ── KELLY BOX ── */
+    .kelly-box {
+      background: var(--purple-subtle);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius);
+      padding: 2rem;
+      margin: 1.5rem 0;
+    }
+    .kelly-box h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .kelly-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      gap: 1rem;
+    }
+    .kelly-row:last-child { border-bottom: none; }
+    .kelly-row .klabel {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      flex: 1;
+    }
+    .kelly-row .kval {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text);
+      font-weight: 600;
+      text-align: right;
+    }
+    .kelly-row .kval.highlight { color: var(--purple); }
+
+    /* ── REFERRAL MATH ── */
+    .math-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      margin: 1.5rem 0;
+    }
+    .math-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.95rem;
+    }
+    .math-row:last-child { border-bottom: none; }
+    .math-row .label { color: var(--text-secondary); }
+    .math-row .value { font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+    .math-row.total .value { color: var(--purple); font-size: 1.05rem; }
+
+    /* ── INTERNAL LINKS ── */
+    .also-see {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem 2rem;
+      margin-top: 2rem;
+    }
+    .also-see h4 {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .also-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+    }
+    .also-links a {
+      color: var(--purple);
+      text-decoration: none;
+      background: var(--purple-subtle);
+      border: 1px solid rgba(168,85,247,0.2);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .also-links a:hover {
+      background: rgba(168,85,247,0.15);
+      border-color: var(--border-hover);
+    }
+
+    /* ── CTA BANNER ── */
+    .cta-banner {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius);
+      padding: 3.5rem 2.5rem;
+      text-align: center;
+    }
+    .cta-banner h2 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+    .cta-banner p {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 520px;
+      margin: 0 auto 2rem;
+    }
+    .cta-btns {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3.5rem 0 2rem;
+      margin-top: 2rem;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 2.5rem;
+      margin-bottom: 2.5rem;
+    }
+    .footer-col h5 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 0.55rem; }
+    .footer-col a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .footer-col a:hover { color: var(--purple); }
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+    }
+    .footer-bottom p {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* ── REVEAL ── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ── PROSE ── */
+    .prose p { margin-bottom: 1rem; color: var(--text-secondary); }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose strong { color: var(--text); font-weight: 600; }
+
+    @media (max-width: 640px) {
+      #navbar { padding: 0 1rem; }
+      .nav-links { display: none; }
+      .hero { padding: 110px 0 60px; }
+      .hero-stats { gap: 1.5rem; }
+    }
+  </style>
 </head>
 <body>
 
+<!-- ── NAVBAR ── -->
 <nav id="navbar">
-  <div class="nav-inner">
-    <a href="/" class="nav-logo">
-      <div class="nav-logo-icon">&#9830;</div>
-      Purple Flea
-    </a>
-    <ul class="nav-links">
-      <li><a href="/docs">Docs</a></li>
-      <li><a href="/for-agents">For Agents</a></li>
-      <li><a href="/integrations">Integrations</a></li>
-      <li><a href="/pricing">Pricing</a></li>
-      <li><a href="https://wallet.purpleflea.com" target="_blank" class="nav-cta">Get Started →</a></li>
-    </ul>
-  </div>
+  <a href="/" class="nav-logo">&#9830; <span>Purple Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Products</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/for-agents">For Agents</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/blog">Blog</a></li>
+    <li><a href="https://github.com/Purple-flea" target="_blank" rel="noopener" class="btn-nav">GitHub</a></li>
+  </ul>
 </nav>
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-bg">
-    <div class="hero-gradient-1"></div>
-    <div class="hero-grid"></div>
-  </div>
-  <div class="hero-content">
-    <div class="hero-badge">
-      <div class="hero-badge-dot"></div>
-      Cryptographically Verified
-    </div>
-    <h1>Provably Fair Casino API<br>for <span class="gradient">AI Agents</span></h1>
+<!-- ── HERO ── -->
+<header class="hero">
+  <div class="container">
+    <div class="hero-badge">Cryptographically Verified</div>
+    <h1><span class="accent">Provably Fair</span> Casino API<br />for AI Agents</h1>
     <p class="hero-desc">
-      Every game outcome is cryptographically verifiable before and after the bet.
-      No black-box RNG your agent has to trust — just math it can independently audit.
-      Six game types, one REST API, zero configuration.
+      Every outcome cryptographically committed before the bet is placed.
+      Your agent can independently verify every single game result — no trust required.
+      No KYC. 10% lifetime referral commission.
     </p>
-    <div class="hero-actions">
-      <a href="https://wallet.purpleflea.com" class="btn-primary" target="_blank">Register your agent →</a>
-      <a href="/docs" class="btn-secondary">Read the docs</a>
+    <div class="hero-cta">
+      <a href="/docs/casino-api/quickstart" class="btn-primary">Get API Key</a>
+      <a href="/docs/casino-api" class="btn-secondary">Read Docs</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <span class="stat-num">4</span>
+        <span class="stat-label">Game Types</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">SHA-256</span>
+        <span class="stat-label">Commitment Scheme</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">10%</span>
+        <span class="stat-label">Referral Rate</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">0 KYC</span>
+        <span class="stat-label">No Identity Checks</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num">100%</span>
+        <span class="stat-label">Verifiable</span>
+      </div>
     </div>
   </div>
-</section>
+</header>
 
-<hr class="section-divider">
+<hr class="divider" />
 
-<!-- WHY PROVABLY FAIR -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">The Problem</div>
-      <h2 class="section-title">AI agents cannot trust<br>black-box randomness.</h2>
-      <p class="section-desc">
-        Traditional casino APIs give you an outcome and ask you to take their word for it.
-        For a human player, that is already a shaky proposition. For an autonomous AI agent
-        executing bets without human oversight, it is completely unacceptable.
+<!-- ── SECTION 1: OVERVIEW ── -->
+<section id="overview">
+  <div class="container reveal">
+    <p class="section-label">Overview</p>
+    <h2 class="section-title">What Does "Provably Fair" Actually Mean?</h2>
+    <p class="section-desc">
+      Provably fair is a cryptographic commitment scheme that makes it mathematically impossible
+      for the house to manipulate game outcomes after a bet is placed.
+    </p>
+
+    <div class="prose">
+      <p>
+        In a traditional online casino, you have no way to verify that the random number generator
+        produced a fair outcome. You trust the operator — a fundamentally fragile arrangement, especially
+        for AI agents that require deterministic, auditable systems. Provably fair games solve this problem
+        entirely through cryptography.
+      </p>
+      <p>
+        The system works as follows. Before any game round begins, the Purple Flea server generates a
+        <strong>server seed</strong> — a random string of entropy. The server immediately computes the
+        SHA-256 hash of this seed and publishes the hash to the player. This published hash is the
+        <em>commitment</em>: the server is now locked into its secret seed, because changing the seed
+        would change the hash and the player would detect the fraud.
+      </p>
+      <p>
+        The player then contributes their own entropy — a <strong>client seed</strong> of their choosing,
+        plus an incrementing <strong>nonce</strong> that distinguishes each successive bet. The game
+        outcome is computed as:
+      </p>
+      <div class="code-wrap">
+        <div class="code-header"><span class="code-lang">formula</span><span>Outcome derivation</span></div>
+        <pre>outcome = HMAC-SHA256(server_seed, client_seed + ":" + nonce) mod game_range</pre>
+      </div>
+      <p>
+        After the game resolves, the server reveals the original server seed. The player — or their
+        agent — can independently compute the same HMAC, confirm that the revealed seed matches the
+        published hash, and verify that the outcome was derived exactly as claimed. No trust in the
+        operator is required at any point.
+      </p>
+      <p>
+        For AI agents, this is more than a trust feature — it is a <strong>correctness guarantee</strong>.
+        An agent managing a bankroll across thousands of bets can audit every single outcome in its
+        history, compute empirical win rates, and detect statistical anomalies with certainty. The agent
+        can rotate its client seed at any time to start a new verifiable chain, and it can verify the
+        entire history of any session in seconds using the
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">GET /casino/verify/:session_id</code>
+        endpoint, which returns all server seeds, client seeds, nonces, and computed outcomes for
+        independent cross-checking.
       </p>
     </div>
-    <div class="grid-3">
-      <div class="card reveal reveal-delay-1">
-        <div class="card-icon purple">&#128272;</div>
-        <h3>Pre-committed server seeds</h3>
-        <p>Before any bet is placed, the server commits to a seed by publishing its SHA-256 hash. The outcome cannot be manipulated after commitment — the math is locked in.</p>
-      </div>
-      <div class="card reveal reveal-delay-2">
-        <div class="card-icon blue">&#128100;</div>
-        <h3>Agent-supplied client seeds</h3>
-        <p>Your agent provides its own entropy input for every bet. Even if the server seed were somehow biased, the client seed ensures the server cannot predict your contribution.</p>
-      </div>
-      <div class="card reveal reveal-delay-3">
-        <div class="card-icon green">&#9989;</div>
-        <h3>Post-game verification</h3>
-        <p>After each game, the server reveals the original server seed. Your agent can independently verify that <code style="font-family:'JetBrains Mono',monospace">SHA-256(server_seed) == server_seed_hash</code> and re-derive the result.</p>
+
+    <div class="also-see">
+      <h4>Also in the Purple Flea ecosystem</h4>
+      <div class="also-links">
+        <a href="/trading-api">Trading API</a>
+        <a href="/crypto-wallet-api">Crypto Wallet API</a>
+        <a href="/domain-registration-api">Domain Registration API</a>
+        <a href="/for-langchain">LangChain Integration</a>
+        <a href="/for-crewai">CrewAI Integration</a>
+        <a href="/for-claude">Claude MCP</a>
       </div>
     </div>
   </div>
 </section>
 
-<hr class="section-divider">
+<hr class="divider" />
 
-<!-- GAMES AVAILABLE -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">Games Available</div>
-      <h2 class="section-title">Six games. All provably fair.</h2>
-      <p class="section-desc">Every game uses the same HMAC-SHA256 seed derivation pipeline. Outcomes are deterministic, auditable, and reproducible from the seed data alone.</p>
+<!-- ── SECTION 2: RNG MECHANICS ── -->
+<section id="rng-mechanics">
+  <div class="container reveal">
+    <p class="section-label">RNG Mechanics</p>
+    <h2 class="section-title">How the Random Number Generator Works</h2>
+    <p class="section-desc">
+      A detailed walkthrough of the three-component seed system that guarantees neither the house
+      nor the player can predict or manipulate outcomes.
+    </p>
+
+    <ol class="proof-steps">
+      <li class="proof-step">
+        <div class="proof-step-body">
+          <h4>Server Seed Generation and Commitment</h4>
+          <p>Before any bets are accepted in a session, the Purple Flea server generates a cryptographically
+          random 64-character hex string as the server seed. It immediately computes
+          <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">SHA-256(server_seed)</code>
+          and returns the hash to your agent in the session initialisation response. From this moment,
+          the server cannot alter the seed without your agent detecting the discrepancy — the commitment
+          is binding.</p>
+        </div>
+      </li>
+      <li class="proof-step">
+        <div class="proof-step-body">
+          <h4>Client Seed and Nonce</h4>
+          <p>Your agent supplies its own client seed when initiating a session — any string of your
+          choosing. This ensures that even if the server seed were somehow predictable, the client seed
+          introduces entropy controlled entirely by the player side. The nonce starts at 0 and
+          increments with every bet, so each wager in a session produces a unique, never-repeated
+          derivation input. To start a fresh verifiable chain, rotate the client seed and the nonce
+          resets to 0.</p>
+        </div>
+      </li>
+      <li class="proof-step">
+        <div class="proof-step-body">
+          <h4>Outcome Derivation via HMAC-SHA256</h4>
+          <p>Each game outcome is computed as
+          <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">HMAC-SHA256(server_seed, client_seed + ":" + nonce)</code>.
+          The resulting 256-bit hash is then reduced modulo the game range — for example, modulo 2
+          for coin flip, modulo 100 for dice, modulo 37 for roulette. The reduction is performed on
+          the first four bytes of the HMAC output cast as a big-endian 32-bit unsigned integer,
+          providing a uniform distribution with negligible bias from modular reduction.</p>
+        </div>
+      </li>
+      <li class="proof-step">
+        <div class="proof-step-body">
+          <h4>Post-Game Reveal and Verification</h4>
+          <p>After the game session ends (or at any point via the rotate endpoint), the server reveals
+          the original server seed. Your agent computes
+          <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">SHA-256(revealed_seed)</code>
+          and confirms it matches the published commitment hash. It then re-derives every outcome in
+          the session and confirms each matches the recorded result. This full audit takes milliseconds
+          and requires no external dependencies — just a standard cryptographic library available in
+          every language.</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">python</span><span>HMAC derivation — the exact formula used</span></div>
+      <pre><span class="kw">import</span> hmac, hashlib, struct
+
+<span class="kw">def</span> <span class="fn">derive_outcome</span>(server_seed: str, client_seed: str, nonce: int, game_range: int) -> int:
+    message = <span class="str">f"{client_seed}:{nonce}"</span>.encode()
+    key = server_seed.encode()
+    mac = hmac.new(key, message, hashlib.sha256).digest()
+    <span class="cmt"># Take first 4 bytes as big-endian uint32</span>
+    raw = struct.unpack(<span class="str">">I"</span>, mac[:<span class="num">4</span>])[<span class="num">0</span>]
+    <span class="kw">return</span> raw % game_range
+
+<span class="cmt"># Example: coin flip (range=2) — 0 = heads, 1 = tails</span>
+result = <span class="fn">derive_outcome</span>(
+    server_seed=<span class="str">"a3f9bc2d..."</span>,
+    client_seed=<span class="str">"my_agent_seed"</span>,
+    nonce=<span class="num">0</span>,
+    game_range=<span class="num">2</span>
+)
+<span class="fn">print</span>(<span class="str">"heads"</span> <span class="kw">if</span> result == <span class="num">0</span> <span class="kw">else</span> <span class="str">"tails"</span>)</pre>
     </div>
-    <div class="grid-2" style="gap: 24px;">
+  </div>
+</section>
 
-      <div class="card reveal reveal-delay-1">
-        <div class="card-icon purple">&#129689;</div>
+<hr class="divider" />
+
+<!-- ── SECTION 3: GAMES ── -->
+<section id="games">
+  <div class="container reveal">
+    <p class="section-label">Games Available</p>
+    <h2 class="section-title">Four Provably Fair Games</h2>
+    <p class="section-desc">
+      Every game runs on the same underlying HMAC-SHA256 commitment scheme.
+      Every outcome is independently verifiable. House edge is published in every API response.
+    </p>
+
+    <div class="games-grid">
+      <div class="game-card">
+        <span class="game-icon">&#129689;</span>
         <h3>Coin Flip</h3>
-        <p>The simplest provably fair game. Choose heads or tails. The outcome is derived from the combined seed and mapped to a binary result. Clean, fast, and trivial for an agent to verify.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Win chance: <span>49%</span></div>
-          <div class="game-stat-item">Payout: <span>1.96x</span></div>
-          <div class="game-stat-item">House edge: <span>2%</span></div>
-        </div>
+        <div class="game-odds">Win: 48.5% / Payout: 2x</div>
+        <p>The simplest provably fair game. Bet on heads or tails. Win probability is 48.5% with
+        a 2x payout, yielding a house edge of 3.0%. Ideal for agents benchmarking RNG quality or
+        implementing basic martingale / anti-martingale experiments.</p>
       </div>
-
-      <div class="card reveal reveal-delay-2">
-        <div class="card-icon blue">&#127922;</div>
+      <div class="game-card">
+        <span class="game-icon">&#127922;</span>
         <h3>Dice</h3>
-        <p>Roll a number between 1 and 100. Choose a target and bet over or under. Higher risk targets yield higher payouts. The house edge is a flat 1% baked into the payout formula.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Target: <span>1–100</span></div>
-          <div class="game-stat-item">Payout: <span>99 / target</span></div>
-          <div class="game-stat-item">House edge: <span>1%</span></div>
-        </div>
+        <div class="game-odds">Roll 1–100 / Configurable range</div>
+        <p>Roll a number between 1 and 100. You configure the win threshold (e.g., roll under 50
+        for 1.96x payout). Lower win probabilities yield higher multipliers. House edge is fixed
+        at 1.0% regardless of chosen range, making dice the highest-EV game in the casino.</p>
       </div>
-
-      <div class="card reveal reveal-delay-1">
-        <div class="card-icon orange">&#127992;</div>
+      <div class="game-card">
+        <span class="game-icon">&#127744;</span>
         <h3>Roulette</h3>
-        <p>European single-zero roulette with all standard bet types: straight up, split, street, corner, six line, columns, dozens, red/black, odd/even, and high/low. The wheel is derived from the HMAC seed modulo 37.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Variant: <span>European</span></div>
-          <div class="game-stat-item">Zeros: <span>Single (0)</span></div>
-          <div class="game-stat-item">House edge: <span>2.7%</span></div>
-        </div>
+        <div class="game-odds">European / 37 Numbers</div>
+        <p>European single-zero roulette. Bet on a single number (35x payout), colour (1.94x),
+        dozen (2.86x), or any standard roulette wager. House edge is 2.7% — the standard European
+        single-zero edge. All outcomes derived from the same HMAC system and fully verifiable.</p>
       </div>
-
-      <div class="card reveal reveal-delay-2">
-        <div class="card-icon red">&#128640;</div>
+      <div class="game-card">
+        <span class="game-icon">&#128640;</span>
         <h3>Crash</h3>
-        <p>A multiplier climbs from 1.00x and crashes at a provably fair point derived from the seed. Set an <code style="font-family:'JetBrains Mono',monospace;font-size:0.85em">auto_cashout</code> parameter and your agent locks in profit automatically when the target is hit — no human reaction time needed.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Min cashout: <span>1.01x</span></div>
-          <div class="game-stat-item">Max observed: <span>1000x+</span></div>
-          <div class="game-stat-item">House edge: <span>1%</span></div>
-        </div>
+        <div class="game-odds">Multiplier game / Cash out before crash</div>
+        <p>A multiplier starts at 1x and grows exponentially. Cash out at any point to lock your
+        multiplier, or hold for higher returns until the crash. The crash point is provably derived
+        from the server seed. Multiplier distribution follows an inverse CDF ensuring a 1% house
+        edge on every round regardless of when you exit.</p>
       </div>
-
-      <div class="card reveal reveal-delay-1">
-        <div class="card-icon green">&#127137;</div>
-        <h3>Blackjack</h3>
-        <p>Classic 6-deck blackjack with standard Las Vegas rules: dealer stands on soft 17, blackjack pays 3:2, double down and split available. The deck shuffle order is derived from the combined seed before the hand begins — basic strategy agents can verify every card was possible.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Decks: <span>6</span></div>
-          <div class="game-stat-item">Blackjack: <span>3:2</span></div>
-          <div class="game-stat-item">House edge: <span>~0.5%</span></div>
-        </div>
-      </div>
-
-      <div class="card reveal reveal-delay-2">
-        <div class="card-icon yellow">&#9917;</div>
-        <h3>Plinko</h3>
-        <p>Drop a ball through a peg board and watch it fall into multiplier buckets at the bottom. Configurable board size (8, 12, or 16 rows) and risk level (low, medium, high). Each peg deflection is determined by a bit from the seed — the full path is auditable.</p>
-        <div class="game-stat">
-          <div class="game-stat-item">Rows: <span>8 / 12 / 16</span></div>
-          <div class="game-stat-item">Risk: <span>low / med / high</span></div>
-          <div class="game-stat-item">Max payout: <span>1000x</span></div>
-        </div>
-      </div>
-
     </div>
-  </div>
-</section>
 
-<hr class="section-divider">
-
-<!-- PROVABLY FAIR RNG MECHANICS -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">RNG Mechanics</div>
-      <h2 class="section-title">Provably Fair RNG<br>in precise detail.</h2>
-      <p class="section-desc">
-        The provably fair system is a three-party commitment scheme. Here is exactly how it works,
-        with enough detail to implement your own verifier.
+    <div class="prose">
+      <p>
+        Each game exposes its house edge as a field in every API response — for example,
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">"house_edge": 0.030</code>
+        for coin flip. This allows agents to compute their expected value per bet before placing it,
+        incorporate the edge into Kelly Criterion calculations, and track whether empirical win rates
+        over large sample sizes match the theoretical distribution. Statistically significant deviations
+        from expected win rates are a strong signal of implementation errors in the agent's strategy,
+        not manipulation by the house — because manipulation is cryptographically impossible.
       </p>
     </div>
-
-    <div class="steps reveal reveal-delay-1">
-      <div class="step">
-        <div class="step-num">01</div>
-        <div class="step-content">
-          <h3>Server generates and commits to a seed</h3>
-          <p>Before your bet request arrives, the server generates a cryptographically random <code style="font-family:'JetBrains Mono',monospace">server_seed</code> (32 bytes of entropy). It computes <code style="font-family:'JetBrains Mono',monospace">server_seed_hash = SHA-256(server_seed)</code> and stores only the hash in its database. The raw seed is encrypted and locked until the game ends. This means the server has committed to a specific outcome distribution before it knows what you will bet.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">02</div>
-        <div class="step-content">
-          <h3>Your agent supplies a client seed and nonce</h3>
-          <p>When placing a bet, your agent sends a <code style="font-family:'JetBrains Mono',monospace">client_seed</code> — any string of your choosing, such as a UUID or the hex-encoded hash of a recent Ethereum block. A per-bet <code style="font-family:'JetBrains Mono',monospace">nonce</code> is incremented automatically, ensuring that even if the same client seed is reused, every bet produces a unique outcome.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">03</div>
-        <div class="step-content">
-          <h3>Combined seed derivation</h3>
-          <p>The game outcome is derived from a single combined seed: <code style="font-family:'JetBrains Mono',monospace">combined = HMAC-SHA256(key=server_seed, msg=client_seed + ":" + nonce)</code>. The HMAC output is then mapped to the game's result space using modular arithmetic or a floating-point transformation, depending on game type. Critically, the server cannot choose the outcome after seeing your client seed because <code style="font-family:'JetBrains Mono',monospace">server_seed</code> was committed to before you sent anything.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">04</div>
-        <div class="step-content">
-          <h3>Post-game seed reveal and verification</h3>
-          <p>After the game resolves, the server reveals <code style="font-family:'JetBrains Mono',monospace">server_seed</code> in the response. Your agent should immediately verify: (1) <code style="font-family:'JetBrains Mono',monospace">SHA-256(server_seed) == server_seed_hash</code> from the bet receipt, and (2) re-derive the combined seed using the revealed values and confirm it produces the same outcome. If either check fails, the game was tampered with.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="reveal reveal-delay-2" style="margin-top: 48px;">
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dot red"></div>
-          <div class="code-dot yellow"></div>
-          <div class="code-dot green"></div>
-          <span class="code-filename">verify_outcome.py</span>
-        </div>
-<span class="kw">import</span> hashlib, hmac
-
-<span class="kw">def</span> <span class="fn">verify_coin_flip</span>(server_seed: <span class="cls">str</span>, client_seed: <span class="cls">str</span>, nonce: <span class="cls">int</span>,
-                      server_seed_hash: <span class="cls">str</span>, claimed_result: <span class="cls">str</span>) -> <span class="cls">bool</span>:
-    <span class="st">"""Independently verify a Purple Flea coin flip outcome."""</span>
-
-    <span class="cm"># Step 1: confirm server committed to this seed before the bet</span>
-    actual_hash = hashlib.sha256(server_seed.encode()).hexdigest()
-    <span class="kw">assert</span> actual_hash == server_seed_hash, <span class="st">"Server seed hash mismatch — outcome tampered!"</span>
-
-    <span class="cm"># Step 2: derive the combined seed the same way the server did</span>
-    msg = <span class="fn">f</span><span class="st">"{client_seed}:{nonce}"</span>.encode()
-    combined = hmac.new(server_seed.encode(), msg, hashlib.sha256).hexdigest()
-
-    <span class="cm"># Step 3: map combined seed bytes to a coin flip result</span>
-    <span class="cm"># Take the first 8 hex chars, interpret as uint32, map to [0, 1)</span>
-    value = <span class="cls">int</span>(combined[:<span class="num">8</span>], <span class="num">16</span>) / <span class="num">0xFFFFFFFF</span>
-    derived_result = <span class="st">"heads"</span> <span class="kw">if</span> value < <span class="num">0.49</span> <span class="kw">else</span> <span class="st">"tails"</span>
-
-    <span class="kw">return</span> derived_result == claimed_result
-
-<span class="cm"># After any bet, call this to audit the result</span>
-is_fair = <span class="fn">verify_coin_flip</span>(
-    server_seed=<span class="st">"a3f8c2..."</span>,        <span class="cm"># revealed after game</span>
-    client_seed=<span class="st">"my-agent-seed-42"</span>,
-    nonce=<span class="num">7</span>,
-    server_seed_hash=<span class="st">"e9b1d4..."</span>,  <span class="cm"># provided before game</span>
-    claimed_result=<span class="st">"heads"</span>,
-)
-<span class="fn">print</span>(<span class="st">f"Outcome verified: {is_fair}"</span>)
-      </div>
-    </div>
   </div>
 </section>
 
-<hr class="section-divider">
+<hr class="divider" />
 
-<!-- FAIRNESS VERIFICATION -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">Fairness Verification</div>
-      <h2 class="section-title">Every bet is auditable.<br>Forever.</h2>
-      <p class="section-desc">
-        Every bet response includes everything your agent needs to verify the outcome independently.
-        Past bets can be re-verified at any time using the <code style="font-family:'JetBrains Mono',monospace;color:var(--purple)">POST /casino/verify</code> endpoint.
-      </p>
-    </div>
+<!-- ── SECTION 4: API REFERENCE ── -->
+<section id="api-reference">
+  <div class="container reveal">
+    <p class="section-label">API Reference</p>
+    <h2 class="section-title">Casino Endpoints</h2>
+    <p class="section-desc">
+      All casino endpoints share the same base URL and authentication as the rest of the
+      Purple Flea API. Base URL:
+      <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">https://api.purpleflea.com/v1</code>
+    </p>
 
-    <div class="grid-2" style="gap: 32px;">
-      <div class="reveal reveal-delay-1">
-        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">Bet response payload</h3>
-        <div class="code-block">
-<span class="cm"># Every bet response includes seed data for verification</span>
-{
-  <span class="st">"bet_id"</span>: <span class="st">"bet_01J9X..."</span>,
-  <span class="st">"game"</span>: <span class="st">"coin_flip"</span>,
-  <span class="st">"result"</span>: <span class="st">"heads"</span>,
-  <span class="st">"won"</span>: <span class="kw">true</span>,
-  <span class="st">"payout"</span>: <span class="num">1.96</span>,
-  <span class="st">"bet_amount"</span>: <span class="num">0.01</span>,
-  <span class="st">"currency"</span>: <span class="st">"usdc"</span>,
-
-  <span class="cm"># Verification data</span>
-  <span class="st">"server_seed_hash"</span>: <span class="st">"e9b1d4c2a3..."</span>,  <span class="cm"># pre-committed hash</span>
-  <span class="st">"client_seed"</span>: <span class="st">"my-agent-seed-42"</span>,
-  <span class="st">"nonce"</span>: <span class="num">7</span>,
-  <span class="st">"result_hash"</span>: <span class="st">"7f3a91..."</span>,  <span class="cm"># HMAC output</span>
-
-  <span class="cm"># Revealed after game resolves</span>
-  <span class="st">"server_seed"</span>: <span class="st">"a3f8c2e1..."</span>
-}
-        </div>
-      </div>
-      <div class="reveal reveal-delay-2">
-        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">Verify any past bet</h3>
-        <div class="code-block">
-<span class="kw">import</span> requests
-
-<span class="cm"># Re-verify any historical bet by bet_id + server_seed</span>
-response = requests.<span class="fn">post</span>(
-    <span class="st">"https://api.purpleflea.com/casino/verify"</span>,
-    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_sk_..."</span>},
-    json={
-        <span class="st">"bet_id"</span>: <span class="st">"bet_01J9X..."</span>,
-        <span class="st">"server_seed"</span>: <span class="st">"a3f8c2e1..."</span>,
-    }
-)
-
-data = response.<span class="fn">json</span>()
-<span class="cm"># Response confirms independently computed result</span>
-<span class="fn">print</span>(data[<span class="st">"verified"</span>])       <span class="cm"># True</span>
-<span class="fn">print</span>(data[<span class="st">"derived_result"</span>])  <span class="cm"># "heads"</span>
-<span class="fn">print</span>(data[<span class="st">"matches_record"</span>])  <span class="cm"># True</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- API REFERENCE -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">API Reference</div>
-      <h2 class="section-title">Clean REST endpoints.<br>Consistent schema.</h2>
-      <p class="section-desc">All endpoints accept and return JSON. Authentication uses a Bearer token in the Authorization header. Every response includes seed data for provably fair verification.</p>
-    </div>
-
-    <div class="reveal reveal-delay-1" style="overflow-x:auto; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 48px;">
-      <table class="api-table">
+    <div class="api-table-wrap" style="margin-bottom:2rem;">
+      <table>
         <thead>
           <tr>
             <th>Method</th>
@@ -540,233 +965,447 @@ data = response.<span class="fn">json</span>()
           <tr>
             <td><span class="method method-post">POST</span></td>
             <td class="endpoint">/casino/flip</td>
-            <td class="endpoint-desc">Place a coin flip bet. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, choice: "heads"|"tails", client_seed}</code></td>
+            <td>Place a coin flip bet (heads or tails)</td>
           </tr>
           <tr>
             <td><span class="method method-post">POST</span></td>
             <td class="endpoint">/casino/dice</td>
-            <td class="endpoint-desc">Place a dice bet. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, target, over: true|false, client_seed}</code></td>
+            <td>Roll dice with configurable win threshold</td>
           </tr>
           <tr>
             <td><span class="method method-post">POST</span></td>
             <td class="endpoint">/casino/roulette</td>
-            <td class="endpoint-desc">Place a roulette bet. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, bet_type, bet_value, client_seed}</code></td>
+            <td>Place a roulette wager</td>
           </tr>
           <tr>
             <td><span class="method method-post">POST</span></td>
-            <td class="endpoint">/casino/crash</td>
-            <td class="endpoint-desc">Enter a crash game with auto-cashout. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, auto_cashout: 2.0, client_seed}</code></td>
+            <td class="endpoint">/casino/crash/join</td>
+            <td>Join the next crash round with a bet amount</td>
           </tr>
           <tr>
             <td><span class="method method-post">POST</span></td>
-            <td class="endpoint">/casino/blackjack</td>
-            <td class="endpoint-desc">Start a blackjack hand. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, client_seed}</code>. Actions: hit, stand, double, split.</td>
-          </tr>
-          <tr>
-            <td><span class="method method-post">POST</span></td>
-            <td class="endpoint">/casino/plinko</td>
-            <td class="endpoint-desc">Drop a plinko ball. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_amount, rows: 8|12|16, risk: "low"|"medium"|"high", client_seed}</code></td>
-          </tr>
-          <tr>
-            <td><span class="method method-get">GET</span></td>
-            <td class="endpoint">/casino/history</td>
-            <td class="endpoint-desc">List all past bets for the authenticated agent, including full seed data for re-verification.</td>
-          </tr>
-          <tr>
-            <td><span class="method method-post">POST</span></td>
-            <td class="endpoint">/casino/verify</td>
-            <td class="endpoint-desc">Independently verify any past bet. Body: <code style="font-family:'JetBrains Mono',monospace">{bet_id, server_seed}</code>. Returns derived result and match status.</td>
+            <td class="endpoint">/casino/crash/cashout</td>
+            <td>Cash out of active crash round at current multiplier</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div class="reveal reveal-delay-2">
-      <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">Python example — coin flip agent</h3>
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dot red"></div>
-          <div class="code-dot yellow"></div>
-          <div class="code-dot green"></div>
-          <span class="code-filename">casino_agent.py</span>
-        </div>
-<span class="kw">import</span> requests, hashlib, hmac, uuid
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem;">POST /casino/flip</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">curl</span><span>Request</span></div>
+      <pre>curl -X POST https://api.purpleflea.com/v1/casino/flip \
+  -H <span class="str">"X-PF-Key: pf_live_your_api_key_here"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "bet_usdc": 10.00,
+    "choice": "heads",
+    "client_seed": "my_agent_entropy_string",
+    "nonce": 0
+  }'</span></pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><span>Response</span></div>
+      <pre>{
+  <span class="key">"game"</span>: <span class="str">"coin_flip"</span>,
+  <span class="key">"bet_usdc"</span>: <span class="num">10.00</span>,
+  <span class="key">"choice"</span>: <span class="str">"heads"</span>,
+  <span class="key">"result"</span>: <span class="str">"heads"</span>,
+  <span class="key">"won"</span>: <span class="kw">true</span>,
+  <span class="key">"payout_usdc"</span>: <span class="num">20.00</span>,
+  <span class="key">"profit_usdc"</span>: <span class="num">10.00</span>,
+  <span class="key">"house_edge"</span>: <span class="num">0.030</span>,
+  <span class="key">"server_seed_hash"</span>: <span class="str">"a8f3bc29d1e4..."</span>,
+  <span class="key">"client_seed"</span>: <span class="str">"my_agent_entropy_string"</span>,
+  <span class="key">"nonce"</span>: <span class="num">0</span>
+}</pre>
+    </div>
 
-API_KEY = <span class="st">"pf_sk_your_key_here"</span>
-BASE    = <span class="st">"https://api.purpleflea.com"</span>
-HEADERS = {<span class="st">"Authorization"</span>: <span class="fn">f</span><span class="st">"Bearer {API_KEY}"</span>}
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; margin-top:2rem;">POST /casino/dice</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">curl</span><span>Request</span></div>
+      <pre>curl -X POST https://api.purpleflea.com/v1/casino/dice \
+  -H <span class="str">"X-PF-Key: pf_live_your_api_key_here"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "bet_usdc": 25.00,
+    "win_condition": "under",
+    "target": 50,
+    "client_seed": "my_agent_entropy_string",
+    "nonce": 1
+  }'</span></pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><span>Response</span></div>
+      <pre>{
+  <span class="key">"game"</span>: <span class="str">"dice"</span>,
+  <span class="key">"bet_usdc"</span>: <span class="num">25.00</span>,
+  <span class="key">"roll"</span>: <span class="num">34</span>,
+  <span class="key">"target"</span>: <span class="num">50</span>,
+  <span class="key">"win_condition"</span>: <span class="str">"under"</span>,
+  <span class="key">"won"</span>: <span class="kw">true</span>,
+  <span class="key">"payout_multiplier"</span>: <span class="num">1.96</span>,
+  <span class="key">"payout_usdc"</span>: <span class="num">49.00</span>,
+  <span class="key">"profit_usdc"</span>: <span class="num">24.00</span>,
+  <span class="key">"house_edge"</span>: <span class="num">0.010</span>,
+  <span class="key">"server_seed_hash"</span>: <span class="str">"a8f3bc29d1e4..."</span>,
+  <span class="key">"nonce"</span>: <span class="num">1</span>
+}</pre>
+    </div>
 
-<span class="kw">def</span> <span class="fn">flip_and_verify</span>(bet_amount: <span class="cls">float</span>, choice: <span class="cls">str</span>) -> <span class="cls">dict</span>:
-    <span class="st">"""Place a coin flip and immediately verify the result."""</span>
-    client_seed = str(uuid.<span class="fn">uuid4</span>())  <span class="cm"># fresh entropy per bet</span>
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; margin-top:2rem;">POST /casino/roulette</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><span>Response — single number bet</span></div>
+      <pre>{
+  <span class="key">"game"</span>: <span class="str">"roulette"</span>,
+  <span class="key">"bet_type"</span>: <span class="str">"single_number"</span>,
+  <span class="key">"bet_value"</span>: <span class="num">17</span>,
+  <span class="key">"bet_usdc"</span>: <span class="num">5.00</span>,
+  <span class="key">"spin_result"</span>: <span class="num">17</span>,
+  <span class="key">"colour"</span>: <span class="str">"black"</span>,
+  <span class="key">"won"</span>: <span class="kw">true</span>,
+  <span class="key">"payout_multiplier"</span>: <span class="num">35</span>,
+  <span class="key">"payout_usdc"</span>: <span class="num">175.00</span>,
+  <span class="key">"house_edge"</span>: <span class="num">0.027</span>,
+  <span class="key">"server_seed_hash"</span>: <span class="str">"c4d71a3f8b29..."</span>
+}</pre>
+    </div>
 
-    <span class="cm"># Place the bet</span>
-    r = requests.<span class="fn">post</span>(<span class="fn">f</span><span class="st">"{BASE}/casino/flip"</span>, headers=HEADERS, json={
-        <span class="st">"bet_amount"</span>: bet_amount,
-        <span class="st">"choice"</span>: choice,
-        <span class="st">"client_seed"</span>: client_seed,
-    })
-    bet = r.<span class="fn">json</span>()
+    <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; margin-top:2rem;">POST /casino/crash/join and /cashout</h3>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><span>Join round — response</span></div>
+      <pre>{
+  <span class="key">"round_id"</span>: <span class="str">"crash_rnd_39fa21"</span>,
+  <span class="key">"bet_usdc"</span>: <span class="num">50.00</span>,
+  <span class="key">"status"</span>: <span class="str">"active"</span>,
+  <span class="key">"current_multiplier"</span>: <span class="num">1.24</span>,
+  <span class="key">"server_seed_hash"</span>: <span class="str">"7b9e4c2f1da8..."</span>
+}</pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><span>Cashout — response</span></div>
+      <pre>{
+  <span class="key">"round_id"</span>: <span class="str">"crash_rnd_39fa21"</span>,
+  <span class="key">"cashed_out_at"</span>: <span class="num">2.71</span>,
+  <span class="key">"bet_usdc"</span>: <span class="num">50.00</span>,
+  <span class="key">"payout_usdc"</span>: <span class="num">135.50</span>,
+  <span class="key">"profit_usdc"</span>: <span class="num">85.50</span>,
+  <span class="key">"crash_point"</span>: <span class="num">4.18</span>,
+  <span class="key">"server_seed"</span>: <span class="str">"f2a8c91e3b47..."</span>,
+  <span class="key">"server_seed_hash"</span>: <span class="str">"7b9e4c2f1da8..."</span>
+}</pre>
+    </div>
+  </div>
+</section>
 
-    <span class="cm"># Immediately verify the revealed server seed matches the pre-committed hash</span>
-    seed_hash = hashlib.sha256(bet[<span class="st">"server_seed"</span>].encode()).hexdigest()
-    <span class="kw">assert</span> seed_hash == bet[<span class="st">"server_seed_hash"</span>], <span class="st">"TAMPER DETECTED"</span>
+<hr class="divider" />
 
-    <span class="cm"># Re-derive the result independently</span>
-    msg = <span class="fn">f</span><span class="st">"{client_seed}:{bet['nonce']}"</span>.encode()
-    combined = hmac.<span class="fn">new</span>(bet[<span class="st">"server_seed"</span>].encode(), msg, hashlib.sha256).hexdigest()
-    value = <span class="cls">int</span>(combined[:<span class="num">8</span>], <span class="num">16</span>) / <span class="num">0xFFFFFFFF</span>
-    derived = <span class="st">"heads"</span> <span class="kw">if</span> value < <span class="num">0.49</span> <span class="kw">else</span> <span class="st">"tails"</span>
+<!-- ── SECTION 5: FAIRNESS VERIFICATION ── -->
+<section id="verification">
+  <div class="container reveal">
+    <p class="section-label">Fairness Verification</p>
+    <h2 class="section-title">Verify Any Outcome Independently</h2>
+    <p class="section-desc">
+      After any game, your agent can verify the result with a few lines of Python.
+      This is the gold standard of trust: mathematical proof that requires no faith in the operator.
+    </p>
 
-    <span class="kw">assert</span> derived == bet[<span class="st">"result"</span>], <span class="st">"Result mismatch"</span>
-    <span class="fn">print</span>(<span class="fn">f</span><span class="st">"Bet verified. Result: {bet['result']}. Won: {bet['won']}. Payout: {bet['payout']}"</span>)
-    <span class="kw">return</span> bet
+    <div class="prose" style="margin-bottom:1.5rem;">
+      <p>
+        The verification process is identical for all games. After a round ends (or after a server seed
+        rotation), Purple Flea reveals the original server seed. Your agent has already stored the
+        server seed hash from the initial API response. The verification proceeds in three steps:
+        confirm the revealed seed hashes to the commitment, re-derive each outcome using the known
+        inputs, and confirm each matches the recorded result. Any discrepancy would indicate a server
+        bug or malicious behaviour — detectable immediately and irrefutably.
+      </p>
+      <p>
+        Because the verification code is just standard HMAC and SHA-256 available in every language's
+        standard library, no Purple Flea SDK is required to audit results. An agent running on any
+        platform can independently validate its entire game history using only the raw seed values,
+        nonces, and the formula documented in the API specification.
+      </p>
+    </div>
 
-<span class="cm"># Run 5 verified coin flips</span>
-<span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5</span>):
-    <span class="fn">flip_and_verify</span>(<span class="num">0.01</span>, <span class="st">"heads"</span>)
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">python</span><span>Complete fairness verification — no external dependencies</span></div>
+      <pre><span class="kw">import</span> hmac, hashlib, struct, json, urllib.request
+
+<span class="kw">def</span> <span class="fn">verify_session</span>(session_id: str, api_key: str):
+    <span class="cmt"># 1. Fetch session history from the API</span>
+    req = urllib.request.Request(
+        <span class="str">f"https://api.purpleflea.com/v1/casino/verify/{session_id}"</span>,
+        headers={<span class="str">"X-PF-Key"</span>: api_key}
+    )
+    session = json.loads(urllib.request.urlopen(req).read())
+
+    revealed_seed   = session[<span class="str">"server_seed"</span>]
+    committed_hash  = session[<span class="str">"server_seed_hash"</span>]
+    client_seed     = session[<span class="str">"client_seed"</span>]
+    bets            = session[<span class="str">"bets"</span>]
+
+    <span class="cmt"># 2. Confirm revealed seed matches committed hash</span>
+    actual_hash = hashlib.sha256(revealed_seed.encode()).hexdigest()
+    <span class="kw">assert</span> actual_hash == committed_hash, <span class="str">"SEED HASH MISMATCH — server cheated!"</span>
+    <span class="fn">print</span>(<span class="str">f"Seed commitment verified ✓ ({len(bets)} bets)"</span>)
+
+    <span class="cmt"># 3. Re-derive every outcome and compare</span>
+    <span class="kw">for</span> bet <span class="kw">in</span> bets:
+        key   = revealed_seed.encode()
+        msg   = <span class="str">f"{client_seed}:{bet['nonce']}"</span>.encode()
+        mac   = hmac.new(key, msg, hashlib.sha256).digest()
+        raw   = struct.unpack(<span class="str">">I"</span>, mac[:<span class="num">4</span>])[<span class="num">0</span>]
+        derived = raw % bet[<span class="str">"game_range"</span>]
+        <span class="kw">assert</span> derived == bet[<span class="str">"outcome"</span>], <span class="str">f"Outcome mismatch at nonce {bet['nonce']}"</span>
+
+    <span class="fn">print</span>(<span class="str">"All outcomes verified ✓ — session is provably fair"</span>)
+
+<span class="fn">verify_session</span>(<span class="str">"sess_a3f9bc2d"</span>, <span class="str">"pf_live_your_api_key_here"</span>)</pre>
+    </div>
+
+    <div class="prose">
+      <p>
+        Run this verification script against any completed session and it will independently confirm
+        every single bet outcome. A successful run means the house played fair — not because you trust
+        them, but because cryptography makes any other outcome mathematically impossible to conceal.
+        This is the foundation of agent-native gambling infrastructure: your autonomous system can
+        operate with full epistemic confidence in the data it receives.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── SECTION 6: BANKROLL MANAGEMENT ── -->
+<section id="bankroll">
+  <div class="container reveal">
+    <p class="section-label">Bankroll Management</p>
+    <h2 class="section-title">Kelly Criterion for AI Gambling Agents</h2>
+    <p class="section-desc">
+      Optimal bet sizing is as important as game selection. Purple Flea exposes the house edge in
+      every response, giving agents the data they need to compute Kelly fractions precisely.
+    </p>
+
+    <div class="prose" style="margin-bottom:1.5rem;">
+      <p>
+        The <strong>Kelly Criterion</strong> is a mathematically optimal bet-sizing formula derived
+        from information theory. For a binary game (win or lose), the Kelly fraction is:
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">f* = (b*p - q) / b</code>,
+        where <em>b</em> is the net odds received on the wager (payout minus stake), <em>p</em> is the
+        probability of winning, and <em>q = 1 - p</em> is the probability of losing.
+      </p>
+      <p>
+        For a game with a negative expected value — which all casino games have by construction — the
+        Kelly fraction will be negative, advising zero exposure to the game from a pure EV perspective.
+        However, gambling agents often operate under mandates beyond pure EV maximisation: entertainment
+        budgets, stress-testing probabilistic systems, or exploring the statistical properties of the RNG.
+        In these cases, a <strong>fractional Kelly</strong> (typically 0.1x to 0.25x of the theoretical
+        Kelly) limits downside while allowing meaningful exploration of the game's distribution.
+      </p>
+      <p>
+        Purple Flea returns the house edge in every game response so agents can dynamically verify their
+        edge assumptions haven't drifted. If the API reports a 1% house edge on dice but empirical results
+        over 10,000 bets show a 4% loss rate, the agent has a signal that its bet selection criteria —
+        not the RNG — require review.
+      </p>
+    </div>
+
+    <div class="kelly-box">
+      <h4>Kelly Calculation — Dice (roll under 50 at 1.96x payout)</h4>
+      <div class="kelly-row">
+        <span class="klabel">Win probability (p)</span>
+        <span class="kval">0.49 (49%)</span>
+      </div>
+      <div class="kelly-row">
+        <span class="klabel">Lose probability (q = 1 - p)</span>
+        <span class="kval">0.51 (51%)</span>
+      </div>
+      <div class="kelly-row">
+        <span class="klabel">Net odds (b = payout - 1)</span>
+        <span class="kval">0.96</span>
+      </div>
+      <div class="kelly-row">
+        <span class="klabel">Kelly fraction (f* = (b*p - q) / b)</span>
+        <span class="kval highlight">-0.021 (negative — do not bet)</span>
+      </div>
+      <div class="kelly-row">
+        <span class="klabel">Recommended stake if playing anyway (0.1x fractional Kelly of available bankroll)</span>
+        <span class="kval">0.21% of bankroll per bet</span>
+      </div>
+      <div class="kelly-row">
+        <span class="klabel">House edge returned in API response</span>
+        <span class="kval highlight">0.010 (1.0%)</span>
+      </div>
+    </div>
+
+    <div class="prose">
+      <p>
+        An agent that enforces fractional Kelly sizing across all bets will, in expectation, survive
+        far longer than a flat-bet agent and lose bankroll at a rate proportional to the house edge
+        rather than variance. For agents tasked with maximising the number of completed bets within
+        a budget — for RNG auditing, entertainment, or referral generation — fractional Kelly is
+        the mathematically correct approach. The Purple Flea SDK includes a built-in
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">KellyBetSizer</code>
+        utility class that accepts house edge and current bankroll and returns the recommended
+        stake in USDC.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── SECTION 7: REFERRAL PROGRAM ── -->
+<section id="referral">
+  <div class="container reveal">
+    <p class="section-label">Referral Program</p>
+    <h2 class="section-title">10% of Every Wager, Forever</h2>
+    <p class="section-desc">
+      Refer agents and players to the Purple Flea Casino API and earn 10% of all wagers they place
+      — permanently, with no cap and no time limit.
+    </p>
+
+    <div class="prose" style="margin-bottom:1.5rem;">
+      <p>
+        The referral commission is calculated as a percentage of the <em>total wager amount</em>,
+        not the fee. When a referred user bets $100 on a coin flip, you earn $10 — regardless of
+        whether they win or lose, and regardless of the house edge on that particular game.
+        This makes the referral economics straightforward: commission is proportional purely to
+        wagering activity, not to game outcomes or profitability.
+      </p>
+      <p>
+        AI agents that onboard other gambling agents earn passively. An agent that introduces three
+        other agents each wagering $10,000 per day earns $3,000 per day in referral commissions
+        — $90,000 per month — without placing a single bet itself. The referral system is designed
+        to reward agent developers who build compelling gambling applications, strategy bots, or
+        entertainment layers on top of the Purple Flea casino infrastructure.
+      </p>
+      <p>
+        To onboard a referred user, include your
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">ref_code</code>
+        in the session initialisation request. Attribution is immediate and permanent. You can track
+        all referred sessions, their cumulative wagering, and your earned commissions through the
+        <code style="font-family:'JetBrains Mono',monospace; color:var(--purple);">GET /referral/casino/stats</code>
+        endpoint, which returns daily, weekly, and all-time breakdowns per referred account.
+      </p>
+    </div>
+
+    <div class="math-box">
+      <div class="math-row">
+        <span class="label">Daily wager volume per agent (example)</span>
+        <span class="value">$10,000</span>
+      </div>
+      <div class="math-row">
+        <span class="label">Referral commission rate</span>
+        <span class="value">10%</span>
+      </div>
+      <div class="math-row">
+        <span class="label">Daily earnings (1 agent)</span>
+        <span class="value">$1,000 / day</span>
+      </div>
+      <div class="math-row">
+        <span class="label">Monthly earnings (1 agent)</span>
+        <span class="value">$30,000</span>
+      </div>
+      <div class="math-row">
+        <span class="label">Monthly earnings (10 agents)</span>
+        <span class="value">$300,000</span>
+      </div>
+      <div class="math-row total">
+        <span class="label">Commission is permanent — no time limit, no cap</span>
+        <span class="value">Forever</span>
       </div>
     </div>
   </div>
 </section>
 
-<hr class="section-divider">
+<hr class="divider" />
 
-<!-- REFERRAL -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">Referral Program</div>
-      <h2 class="section-title">Earn on every bet<br>your agent places.</h2>
-      <p class="section-desc">Build a gambling agent and earn a perpetual share of every wager it makes — automatically credited to your wallet.</p>
-    </div>
-    <div class="referral-box reveal reveal-delay-1">
-      <div class="referral-pct">10%</div>
-      <div class="referral-text">
-        <h3>Commission on all casino bets</h3>
-        <p>
-          Every casino bet placed via your agent's API key earns you 10% of the house edge as commission.
-          On a 1% house edge dice game with a 0.10 USDC bet, that is 0.001 USDC per roll.
-          An agent making 1,000 bets a day earns you 1 USDC daily from dice alone — before accounting for
-          higher house-edge games like coin flip (2%) or roulette (2.7%).
-          Commissions accumulate in real time and are withdrawable at any time to any supported wallet.
-          There are no minimums, no monthly caps, and no expiry.
-        </p>
+<!-- ── FINAL CTA ── -->
+<section id="cta">
+  <div class="container reveal">
+    <div class="cta-banner">
+      <h2>Start Building in Minutes</h2>
+      <p>
+        Get your API key, initialise a session with your client seed, and place your first
+        provably fair bet. No KYC, no waiting, full cryptographic verifiability on every outcome.
+      </p>
+      <div class="cta-btns">
+        <a href="/docs/casino-api/quickstart" class="btn-primary">Get API Key</a>
+        <a href="/docs/casino-api" class="btn-secondary">Read Docs</a>
       </div>
     </div>
   </div>
 </section>
 
-<hr class="section-divider">
-
-<!-- RELATED -->
-<section>
-  <div class="container">
-    <div class="reveal">
-      <div class="section-label">Also available</div>
-      <h2 class="section-title">More Purple Flea APIs.</h2>
-    </div>
-    <div class="related-grid reveal reveal-delay-1">
-      <a href="/trading-api/" class="related-card">
-        <div class="label">API Docs</div>
-        <div class="title">Perpetual Trading API</div>
-        <div class="desc">275 markets, 50x leverage, no KYC</div>
-      </a>
-      <a href="/crypto-wallet-api/" class="related-card">
-        <div class="label">API Docs</div>
-        <div class="title">Crypto Wallet API</div>
-        <div class="desc">BIP-39 HD wallets across 6 chains</div>
-      </a>
-      <a href="/for-langchain/" class="related-card">
-        <div class="label">Integration</div>
-        <div class="title">Purple Flea for LangChain</div>
-        <div class="desc">Drop-in BaseTool wrappers for all APIs</div>
-      </a>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<section class="cta-section">
-  <div class="container">
-    <div class="cta-box reveal">
-      <h2>Give your agent<br><span style="color:var(--purple)">verifiable randomness.</span></h2>
-      <p>Free to start. No KYC. 10% referral commission on every bet your agent places.</p>
-      <div class="hero-actions">
-        <a href="https://wallet.purpleflea.com" class="btn-primary" target="_blank">Register your agent →</a>
-        <a href="/docs" class="btn-secondary">Read the docs</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<hr class="section-divider">
-
+<!-- ── FOOTER ── -->
 <footer>
   <div class="container">
-    <div class="footer-top">
-      <div class="footer-brand">
-        <a href="/" class="nav-logo">
-          <div class="nav-logo-icon">&#9830;</div>
-          Purple Flea
-        </a>
-        <p>AI-first infrastructure for autonomous agents. Built for machines, verified by math.</p>
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h5>Products</h5>
+        <ul>
+          <li><a href="/casino-api">Casino API</a></li>
+          <li><a href="/trading-api">Trading API</a></li>
+          <li><a href="/crypto-wallet-api">Wallet API</a></li>
+          <li><a href="/domain-registration-api">Domains API</a></li>
+        </ul>
       </div>
-      <div class="footer-columns">
-        <div class="footer-col">
-          <h4>Products</h4>
-          <ul>
-            <li><a href="https://casino.purpleflea.com" target="_blank">Casino</a></li>
-            <li><a href="https://trading.purpleflea.com" target="_blank">Trading</a></li>
-            <li><a href="https://wallet.purpleflea.com" target="_blank">Wallet</a></li>
-            <li><a href="https://domains.purpleflea.com" target="_blank">Domains</a></li>
-            <li><a href="/crypto-wallet-api/">Wallet API Docs</a></li>
-            <li><a href="/trading-api/">Trading API Docs</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Developers</h4>
-          <ul>
-            <li><a href="/docs">Docs</a></li>
-            <li><a href="/for-agents">For Agents</a></li>
-            <li><a href="/for-langchain/">LangChain</a></li>
-            <li><a href="/for-crewai/">CrewAI</a></li>
-            <li><a href="/for-claude/">Claude / MCP</a></li>
-            <li><a href="/quick-start">Quick Start</a></li>
-            <li><a href="/openapi">OpenAPI</a></li>
-          </ul>
-        </div>
-        <div class="footer-col">
-          <h4>Company</h4>
-          <ul>
-            <li><a href="/pricing">Pricing</a></li>
-            <li><a href="/stats">Stats</a></li>
-            <li><a href="/changelog">Changelog</a></li>
-            <li><a href="/blog/">Blog</a></li>
-            <li><a href="mailto:hello@purpleflea.com">Contact</a></li>
-            <li><a href="https://github.com/Purple-flea" target="_blank">GitHub</a></li>
-          </ul>
-        </div>
+      <div class="footer-col">
+        <h5>Integrations</h5>
+        <ul>
+          <li><a href="/for-langchain">LangChain</a></li>
+          <li><a href="/for-crewai">CrewAI</a></li>
+          <li><a href="/for-claude">Claude MCP</a></li>
+          <li><a href="/docs">Docs</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="/pricing">Pricing</a></li>
+          <li><a href="/blog">Blog</a></li>
+          <li><a href="https://github.com/Purple-flea" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="mailto:hello@purpleflea.com">Contact</a></li>
+        </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>&copy; 2026 Purple Flea. All rights reserved.</p>
-      <div class="footer-social">
-        <a href="https://github.com/Purple-flea" target="_blank">GitHub</a>
-        <a href="https://x.com/purpleflea" target="_blank">X / Twitter</a>
-      </div>
+      <p>&copy; 2025 Purple Flea. Built for AI agents.</p>
+      <p style="color:var(--text-muted); font-size:0.78rem;">
+        Gambling involves risk of financial loss. Not available where prohibited. Intended for agents and adults only.
+      </p>
     </div>
   </div>
 </footer>
 
 <script>
-const navbar = document.getElementById('navbar');
-window.addEventListener('scroll', () => { navbar.classList.toggle('scrolled', window.scrollY > 50); });
-const revealEls = document.querySelectorAll('.reveal');
-const revealObs = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); } });
-}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-revealEls.forEach(el => revealObs.observe(el));
+  // Navbar scroll effect
+  var navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', function () {
+    if (window.scrollY > 50) {
+      navbar.classList.add('scrolled');
+    } else {
+      navbar.classList.remove('scrolled');
+    }
+  }, { passive: true });
+
+  // IntersectionObserver for reveal animations
+  var revealEls = document.querySelectorAll('.reveal');
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  revealEls.forEach(function (el) {
+    observer.observe(el);
+  });
 </script>
+
 </body>
 </html>
