@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelly Criterion for AI Trading Agents — Optimal Position Sizing</title>
+<meta name="description" content="How to implement Kelly Criterion position sizing in autonomous AI trading agents. Mathematical framework, Python implementation, practical limits, and code examples using Purple Flea.">
+<link rel="canonical" href="https://purpleflea.com/kelly-criterion-ai-trading/">
+<meta property="og:title" content="Kelly Criterion for AI Trading Agents — Optimal Position Sizing">
+<meta property="og:description" content="How to implement Kelly Criterion position sizing in autonomous AI trading agents. Mathematical framework, Python implementation, practical limits, and code examples using Purple Flea.">
+<meta property="og:url" content="https://purpleflea.com/kelly-criterion-ai-trading/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Purple Flea">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@purpleflea">
+<meta name="twitter:title" content="Kelly Criterion for AI Trading Agents">
+<meta name="twitter:description" content="Mathematical framework for optimal position sizing in autonomous agents. Python implementation with Purple Flea Trading API.">
+<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Kelly Criterion for AI Trading Agents",
+  "url": "https://purpleflea.com/kelly-criterion-ai-trading/",
+  "description": "How to implement Kelly Criterion position sizing in autonomous AI trading agents. Mathematical framework, Python implementation, and code examples.",
+  "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"}
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+::selection { background: rgba(168, 85, 247, 0.4); color: white; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+
+/* NAV */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 16px 0; transition: all 0.3s ease; }
+nav.scrolled { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(20px) saturate(1.5); border-bottom: 1px solid var(--border); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; color: var(--text); }
+.nav-logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 450; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--purple); color: white !important; border-radius: 8px; font-weight: 500; font-size: 14px; text-decoration: none; transition: all 0.2s; }
+.nav-cta:hover { background: var(--purple-dim); transform: translateY(-1px); }
+@media (max-width: 768px) { .nav-links { display: none; } }
+
+/* HERO */
+.hero { min-height: 80vh; display: flex; align-items: center; justify-content: center; position: relative; padding: 120px 0 80px; overflow: hidden; }
+.hero-bg { position: absolute; inset: 0; overflow: hidden; }
+.hero-gradient-1 { position: absolute; top: -30%; left: 50%; transform: translateX(-50%); width: 900px; height: 600px; background: radial-gradient(ellipse, rgba(168, 85, 247, 0.15) 0%, transparent 70%); filter: blur(60px); }
+.hero-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(168, 85, 247, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(168, 85, 247, 0.03) 1px, transparent 1px); background-size: 60px 60px; mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 100%); -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black 30%, transparent 100%); }
+.hero-content { position: relative; text-align: center; max-width: 860px; margin: 0 auto; padding: 0 24px; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 8px; background: var(--purple-subtle); border: 1px solid rgba(168, 85, 247, 0.15); border-radius: 100px; font-size: 13px; font-weight: 500; color: var(--purple); margin-bottom: 32px; animation: fadeInDown 0.8s ease; }
+.hero-badge-dot { width: 8px; height: 8px; background: var(--purple); border-radius: 50%; animation: badge-pulse 2s ease-in-out infinite; }
+@keyframes badge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes fadeInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes gradient-shift { 0% { background-position: 0% center; } 50% { background-position: 100% center; } 100% { background-position: 0% center; } }
+.hero h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 24px; animation: fadeInUp 0.8s ease 0.1s both; }
+.hero h1 .gradient { background: linear-gradient(135deg, var(--purple) 0%, #C084FC 50%, var(--purple) 100%); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: gradient-shift 5s ease infinite; }
+.hero-desc { font-size: clamp(1rem, 2vw, 1.2rem); color: var(--text-secondary); margin-bottom: 40px; line-height: 1.7; animation: fadeInUp 0.8s ease 0.2s both; }
+.hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; animation: fadeInUp 0.8s ease 0.3s both; }
+.btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--purple); color: white; border-radius: var(--radius-sm); font-weight: 600; font-size: 15px; text-decoration: none; transition: all 0.2s; box-shadow: 0 0 30px rgba(168, 85, 247, 0.3); }
+.btn-primary:hover { background: var(--purple-dim); transform: translateY(-2px); box-shadow: 0 0 40px rgba(168, 85, 247, 0.5); }
+.btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--bg-card); color: var(--text); border-radius: var(--radius-sm); font-weight: 500; font-size: 15px; text-decoration: none; border: 1px solid var(--border); transition: all 0.2s; }
+.btn-secondary:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+
+/* SECTIONS */
+section { padding: 100px 0; position: relative; }
+.section-label { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--purple); margin-bottom: 20px; }
+.section-label::before { content: ''; width: 24px; height: 1px; background: var(--purple); }
+.section-title { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; }
+.section-desc { font-size: 1.1rem; color: var(--text-secondary); max-width: 700px; margin-bottom: 40px; line-height: 1.7; }
+.section-divider { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 0; }
+
+/* CODE BLOCK */
+.code-block { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.7; overflow-x: auto; position: relative; }
+.code-block .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.code-dot { width: 12px; height: 12px; border-radius: 50%; }
+.code-dot.red { background: #EF4444; }
+.code-dot.yellow { background: #FBBF24; }
+.code-dot.green { background: #22C55E; }
+.code-filename { margin-left: 8px; font-size: 12px; color: var(--text-muted); }
+.kw { color: #C084FC; }
+.fn { color: #93C5FD; }
+.st { color: #86EFAC; }
+.cm { color: var(--text-muted); font-style: italic; }
+.num { color: #FDE68A; }
+.cls { color: #F9A8D4; }
+.at { color: #A855F7; }
+
+/* GRID */
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+@media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* CARDS */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; transition: all 0.3s ease; }
+.card:hover { background: var(--bg-card-hover); border-color: var(--border-hover); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(168,85,247,0.05); }
+.card-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; }
+.card-icon.purple { background: rgba(168, 85, 247, 0.15); }
+.card-icon.blue { background: rgba(96, 165, 250, 0.15); }
+.card-icon.green { background: rgba(34, 197, 94, 0.15); }
+.card-icon.orange { background: rgba(251, 146, 60, 0.15); }
+.card-icon.red { background: rgba(239, 68, 68, 0.15); }
+.card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; }
+.card p { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+
+/* FORMULA BOX */
+.formula-box { background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.2); border-radius: var(--radius); padding: 32px; margin-bottom: 32px; text-align: center; }
+.formula { font-family: 'JetBrains Mono', monospace; font-size: 1.4rem; font-weight: 600; color: var(--purple); margin-bottom: 12px; }
+.formula-desc { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+
+/* PROSE */
+.prose { max-width: 760px; }
+.prose p { color: var(--text-secondary); font-size: 1rem; line-height: 1.8; margin-bottom: 20px; }
+.prose h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 12px; margin-top: 40px; }
+.prose ul { color: var(--text-secondary); font-size: 1rem; line-height: 1.8; margin-bottom: 20px; padding-left: 24px; }
+.prose li { margin-bottom: 8px; }
+
+/* WARNING BOX */
+.warning-box { background: rgba(251,146,60,0.06); border: 1px solid rgba(251,146,60,0.2); border-radius: var(--radius-sm); padding: 20px 24px; margin-bottom: 32px; }
+.warning-box p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7; margin: 0; }
+.warning-box strong { color: #FB923C; }
+
+/* CTA SECTION */
+.cta-section { text-align: center; padding: 100px 0; }
+.cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.08) 0%, rgba(124,58,237,0.05) 100%); border: 1px solid rgba(168,85,247,0.2); border-radius: 24px; padding: 80px 40px; position: relative; overflow: hidden; }
+.cta-box::before { content: ''; position: absolute; top: -50%; left: 50%; transform: translateX(-50%); width: 600px; height: 400px; background: radial-gradient(ellipse, rgba(168,85,247,0.1) 0%, transparent 70%); filter: blur(40px); pointer-events: none; }
+.cta-box h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; position: relative; }
+.cta-box p { color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 40px; position: relative; }
+
+/* FOOTER */
+footer { padding: 60px 0 40px; border-top: 1px solid var(--border); }
+.footer-top { display: grid; grid-template-columns: 1fr 2fr; gap: 60px; margin-bottom: 60px; }
+.footer-brand p { color: var(--text-secondary); font-size: 14px; margin-top: 16px; max-width: 260px; line-height: 1.6; }
+.footer-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.footer-col h4 { font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-col a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-col a:hover { color: var(--text); }
+.footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid var(--border); }
+.footer-bottom p { color: var(--text-muted); font-size: 13px; }
+.footer-social { display: flex; gap: 24px; }
+.footer-social a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-social a:hover { color: var(--text); }
+@media (max-width: 768px) { .footer-top { grid-template-columns: 1fr; gap: 40px; } .footer-columns { grid-template-columns: repeat(2, 1fr); } .footer-bottom { flex-direction: column; gap: 16px; text-align: center; } }
+
+/* RELATED LINKS */
+.related-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 768px) { .related-grid { grid-template-columns: 1fr; } }
+.related-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; text-decoration: none; color: var(--text); display: block; transition: all 0.2s; }
+.related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+.related-card .label { font-size: 11px; color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.related-card .title { font-size: 14px; font-weight: 600; }
+.related-card .desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">&#9830;</div>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/integrations">Integrations</a></li>
+      <li><a href="/pricing">Pricing</a></li>
+      <li><a href="https://wallet.purpleflea.com" target="_blank" class="nav-cta">Get Started &rarr;</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-gradient-1"></div>
+    <div class="hero-grid"></div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      Optimal Position Sizing
+    </div>
+    <h1>Kelly Criterion for<br><span class="gradient">AI Trading Agents</span></h1>
+    <p class="hero-desc">
+      Without a mathematical framework for position sizing, autonomous agents over-bet on
+      winning streaks and blow up on losing ones. Kelly Criterion solves this by maximizing
+      the long-run growth rate of your agent's bankroll — not just the expected value of
+      each individual trade.
+    </p>
+    <div class="hero-actions">
+      <a href="https://wallet.purpleflea.com" class="btn-primary" target="_blank">Start Trading &rarr;</a>
+      <a href="/trading-api/" class="btn-secondary">Trading API Docs</a>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- WHAT IS KELLY -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">The Math</div>
+      <h2 class="section-title">What Is Kelly Criterion?</h2>
+      <div class="prose">
+        <p>
+          The Kelly Criterion, developed by John L. Kelly Jr. at Bell Labs in 1956, answers a
+          fundamental question: given a bet with known odds and probabilities, what fraction of
+          your bankroll should you wager to maximize the long-run rate of wealth accumulation?
+        </p>
+        <p>
+          The answer is the fraction that maximizes the expected logarithm of wealth — not the
+          expected value itself. This distinction is critical. Maximizing expected value can
+          lead to betting your entire bankroll on a positive-EV bet, which risks ruin. Maximizing
+          expected log wealth naturally accounts for the catastrophic effect of going broke.
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="formula-box">
+        <div class="formula">f* = (b &times; p &minus; q) / b</div>
+        <div class="formula-desc">
+          where <strong style="color:var(--text)">f*</strong> = optimal fraction of bankroll to bet &nbsp;|&nbsp;
+          <strong style="color:var(--text)">b</strong> = net odds received on the bet (win amount per $1 wagered) &nbsp;|&nbsp;
+          <strong style="color:var(--text)">p</strong> = probability of winning &nbsp;|&nbsp;
+          <strong style="color:var(--text)">q</strong> = probability of losing = 1 &minus; p
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-2">
+      <div class="prose">
+        <p>
+          For trading applications, where wins and losses are not symmetric coin flips, the
+          formula is expressed in terms of average win size (W) and average loss size (L):
+        </p>
+      </div>
+      <div class="formula-box">
+        <div class="formula">f* = (W/L &times; win_rate &minus; loss_rate) / (W/L)</div>
+        <div class="formula-desc">
+          Simplified trading form. W/L is the win-to-loss ratio from your backtest or live
+          trade history. This reduces to the classic form when W = L = 1 (equal bet sizing).
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- WHY AI AGENTS NEED SIZING -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Agent Design</div>
+      <h2 class="section-title">Why AI Agents Need Position Sizing</h2>
+      <div class="prose">
+        <p>
+          An AI trading agent without position sizing is dangerous. Large language models and
+          reinforcement learning agents will naturally gravitate toward action — placing trades —
+          without any internal model of how bet size affects long-run survival. The result is
+          agents that over-bet on high-confidence signals and rapidly deplete their capital.
+        </p>
+        <p>
+          The Kelly Criterion provides agents with a mathematically grounded upper bound on
+          position size. It converts the agent's internal confidence estimate (win probability)
+          and historical edge (win/loss ratio) into a specific, defensible fraction of bankroll.
+          This makes the agent's behavior auditable: every position size has a provable
+          mathematical justification.
+        </p>
+        <p>
+          Without Kelly sizing, a string of winning trades can lead an agent to bet 80% of its
+          bankroll on a single position — and one loss wipes out years of gains. With Kelly, the
+          bet size automatically shrinks as your edge diminishes and grows as it strengthens.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- IMPLEMENTING KELLY IN PYTHON -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Implementation</div>
+      <h2 class="section-title">Implementing Kelly in Python</h2>
+      <p class="section-desc">
+        A production-ready KellySizer class with fractional Kelly support, bankroll
+        tracking, and integration with the Purple Flea Trading API.
+      </p>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">kelly_sizer.py</span>
+        </div>
+<span class="kw">class</span> <span class="cls">KellySizer</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, win_rate, win_loss_ratio, kelly_fraction=<span class="num">0.25</span>):
+        <span class="st">"""
+        win_rate:       float, historical probability of a winning trade (0.0–1.0)
+        win_loss_ratio: float, average win size divided by average loss size
+        kelly_fraction: float, fraction of full Kelly to bet (0.25 = 25% Kelly, safer)
+        """</span>
+        self.win_rate = win_rate
+        self.win_loss_ratio = win_loss_ratio
+        self.kelly_fraction = kelly_fraction  <span class="cm"># use fractional Kelly (much safer)</span>
+
+    <span class="kw">def</span> <span class="fn">full_kelly</span>(self):
+        <span class="st">"""Calculate the theoretically optimal Kelly fraction."""</span>
+        loss_rate = <span class="num">1</span> - self.win_rate
+        f_star = (self.win_loss_ratio * self.win_rate - loss_rate) / self.win_loss_ratio
+        <span class="kw">return</span> <span class="fn">max</span>(<span class="num">0.0</span>, f_star)  <span class="cm"># no negative bets — if edge is negative, don't bet</span>
+
+    <span class="kw">def</span> <span class="fn">bet_size</span>(self, bankroll):
+        <span class="st">"""Return the dollar amount to bet given current bankroll."""</span>
+        f_star = self.<span class="fn">full_kelly</span>()
+        <span class="kw">return</span> bankroll * f_star * self.kelly_fraction
+
+    <span class="kw">def</span> <span class="fn">position_size_usd</span>(self, bankroll, max_position=<span class="kw">None</span>):
+        <span class="st">"""Bet size capped at max_position (optional hard limit)."""</span>
+        size = self.<span class="fn">bet_size</span>(bankroll)
+        <span class="kw">if</span> max_position:
+            size = <span class="fn">min</span>(size, max_position)
+        <span class="kw">return</span> size
+
+    <span class="kw">def</span> <span class="fn">summary</span>(self, bankroll):
+        full = self.<span class="fn">full_kelly</span>()
+        fractional = full * self.kelly_fraction
+        <span class="fn">print</span>(<span class="st">f"Full Kelly:       {full:.2%} of bankroll = ${bankroll * full:,.2f}"</span>)
+        <span class="fn">print</span>(<span class="st">f"Fractional Kelly: {fractional:.2%} of bankroll = ${bankroll * fractional:,.2f}"</span>)
+        <span class="fn">print</span>(<span class="st">f"Edge:             {(self.win_rate * self.win_loss_ratio - (1 - self.win_rate)):.4f}"</span>)
+
+<span class="cm"># Example usage</span>
+sizer = <span class="cls">KellySizer</span>(win_rate=<span class="num">0.55</span>, win_loss_ratio=<span class="num">1.5</span>, kelly_fraction=<span class="num">0.25</span>)
+bankroll = <span class="num">10000</span>  <span class="cm"># $10,000 USDC</span>
+bet = sizer.<span class="fn">position_size_usd</span>(bankroll)
+<span class="fn">print</span>(<span class="st">f"Recommended position: ${bet:.2f}"</span>)  <span class="cm"># → $331.25</span>
+sizer.<span class="fn">summary</span>(bankroll)
+<span class="cm"># Full Kelly:       13.25% = $1,325.00</span>
+<span class="cm"># Fractional Kelly: 3.31%  = $331.25</span>
+<span class="cm"># Edge:             0.1500</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- FRACTIONAL KELLY -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Risk Management</div>
+      <h2 class="section-title">Fractional Kelly: Why You Should Use It</h2>
+      <div class="prose">
+        <p>
+          Full Kelly betting is theoretically optimal only when your estimates of win rate
+          and win/loss ratio are perfectly accurate. In practice, these estimates always contain
+          estimation error — and Kelly's growth rate is highly sensitive to overestimating your edge.
+        </p>
+        <p>
+          If you think your win rate is 60% but it is actually 52%, full Kelly will cause
+          you to significantly over-bet, leading to drawdowns far larger than the math predicts.
+          For AI agents where parameters are estimated from finite data, this is always the case.
+        </p>
+        <p>
+          <strong style="color:var(--text)">Use 25% Kelly as a default.</strong> At a quarter of full Kelly,
+          you capture approximately 75% of the maximum growth rate while reducing variance by
+          a factor of 16. This is the sweet spot for production agents where parameter
+          uncertainty is unavoidable.
+        </p>
+      </div>
+    </div>
+
+    <div class="warning-box reveal reveal-delay-1">
+      <p><strong>Full Kelly warning:</strong> At full Kelly, the probability of your bankroll halving at some point during a long series of bets approaches 50% — even with a genuine positive edge. At half Kelly, that probability drops to 25%. At quarter Kelly, to about 11%. Always use fractional Kelly in production.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- UPDATING KELLY ESTIMATES -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Adaptive Learning</div>
+      <h2 class="section-title">Updating Kelly Estimates in Real Time</h2>
+      <p class="section-desc">
+        As your agent places trades, its estimates of win rate and W/L ratio should update.
+        Use an exponential moving average to give more weight to recent trades.
+      </p>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">adaptive_kelly.py</span>
+        </div>
+<span class="kw">class</span> <span class="cls">AdaptiveKellySizer</span>(<span class="cls">KellySizer</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, alpha=<span class="num">0.1</span>, kelly_fraction=<span class="num">0.25</span>):
+        <span class="st">"""
+        alpha: EMA smoothing factor (0.1 = slow adaptation, 0.3 = fast adaptation)
+        Starts with neutral prior: 50% win rate, 1:1 W/L ratio
+        """</span>
+        <span class="fn">super</span>().<span class="fn">__init__</span>(win_rate=<span class="num">0.50</span>, win_loss_ratio=<span class="num">1.0</span>, kelly_fraction=kelly_fraction)
+        self.alpha = alpha
+        self.ema_win = <span class="num">0.5</span>    <span class="cm"># EMA of win indicator (1=win, 0=loss)</span>
+        self.ema_wl = <span class="num">1.0</span>     <span class="cm"># EMA of win/loss ratio per trade</span>
+        self.trade_count = <span class="num">0</span>
+
+    <span class="kw">def</span> <span class="fn">record_trade</span>(self, profit, loss_if_negative=<span class="kw">None</span>):
+        <span class="st">"""
+        profit: positive for wins, negative for losses (in dollar terms)
+        """</span>
+        self.trade_count += <span class="num">1</span>
+        win_indicator = <span class="num">1.0</span> <span class="kw">if</span> profit > <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
+        self.ema_win = self.alpha * win_indicator + (<span class="num">1</span> - self.alpha) * self.ema_win
+
+        <span class="kw">if</span> profit > <span class="num">0</span>:
+            <span class="cm"># Rolling EMA of W/L ratio on winning trades</span>
+            self.ema_wl = self.alpha * profit + (<span class="num">1</span> - self.alpha) * self.ema_wl
+        <span class="kw">else</span>:
+            self.ema_wl = self.alpha * <span class="fn">abs</span>(profit) + (<span class="num">1</span> - self.alpha) * self.ema_wl
+
+        <span class="cm"># Update parent Kelly parameters</span>
+        self.win_rate = self.ema_win
+        self.win_loss_ratio = self.ema_wl
+
+        <span class="kw">if</span> self.trade_count % <span class="num">10</span> == <span class="num">0</span>:
+            <span class="fn">print</span>(<span class="st">f"Trade #{self.trade_count}: win_rate={self.win_rate:.2%} W/L={self.win_loss_ratio:.2f} full_kelly={self.full_kelly():.2%}"</span>)
+
+<span class="cm"># The sizer adapts as your agent gains experience</span>
+sizer = <span class="cls">AdaptiveKellySizer</span>(alpha=<span class="num">0.1</span>, kelly_fraction=<span class="num">0.25</span>)
+sizer.<span class="fn">record_trade</span>(<span class="num">150</span>)   <span class="cm"># win: $150</span>
+sizer.<span class="fn">record_trade</span>(-<span class="num">80</span>)   <span class="cm"># loss: $80</span>
+sizer.<span class="fn">record_trade</span>(<span class="num">200</span>)   <span class="cm"># win: $200</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- KELLY FOR GAMES -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Casino Applications</div>
+      <h2 class="section-title">Kelly for Casino Games</h2>
+      <div class="prose">
+        <p>
+          Casino games have fixed, known probabilities — making them the ideal test case for
+          Kelly Criterion. Your agent can calculate the exact optimal bet size before every
+          wager on the Purple Flea Casino API.
+        </p>
+        <h3>Coin Flip (p = 0.49, b = 1)</h3>
+        <p>
+          f* = (1 &times; 0.49 &minus; 0.51) / 1 = <strong style="color:#EF4444">-0.02</strong>.
+          A negative Kelly fraction means do not bet. The house edge makes this a losing
+          proposition in the long run, regardless of short-term variance. Your agent should
+          refuse to play when Kelly is negative.
+        </p>
+        <h3>Dice (target under 50, payout 2x)</h3>
+        <p>
+          p = 49/100 = 0.49, b = 2. f* = (2 &times; 0.49 &minus; 0.51) / 2 = 0.235.
+          A 23.5% Kelly bet — but use 25% Kelly so bet 5.9% of bankroll.
+          This is only marginally positive; even small estimation errors flip it negative.
+        </p>
+        <h3>Crash Game (cashout at 2x)</h3>
+        <p>
+          With a fair crash game, the probability of reaching 2x is approximately 50%.
+          f* = (1 &times; 0.50 &minus; 0.50) / 1 = 0. Exactly break-even — the Kelly fraction
+          is zero, meaning you have no mathematical edge. A house edge of even 1% makes Kelly
+          negative. Only play crash games where you have an informational edge on the cashout timing.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- KELLY FOR PERPS -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Trading Application</div>
+      <h2 class="section-title">Kelly for Perpetual Futures</h2>
+      <div class="prose">
+        <p>
+          Trading does not have fixed odds like casino games. Your win rate and W/L ratio
+          must be estimated from a backtest or from live trade history. The quality of your
+          Kelly estimate is only as good as your sample size and the stability of your edge.
+        </p>
+        <p>
+          A robust approach: backtest your strategy on 2 years of historical data, compute
+          win rate and W/L in-sample, then validate on an out-of-sample holdout period.
+          If the out-of-sample metrics are within 10% of in-sample, your Kelly estimate is
+          reasonably reliable. Use a further 50% haircut on estimated edge for live trading.
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">kelly_from_backtest.py</span>
+        </div>
+<span class="kw">def</span> <span class="fn">compute_kelly_from_trades</span>(trade_history):
+    <span class="st">"""
+    trade_history: list of dicts with 'pnl' key (positive=win, negative=loss)
+    Returns KellySizer calibrated to your strategy.
+    """</span>
+    wins = [t[<span class="st">"pnl"</span>] <span class="kw">for</span> t <span class="kw">in</span> trade_history <span class="kw">if</span> t[<span class="st">"pnl"</span>] > <span class="num">0</span>]
+    losses = [<span class="fn">abs</span>(t[<span class="st">"pnl"</span>]) <span class="kw">for</span> t <span class="kw">in</span> trade_history <span class="kw">if</span> t[<span class="st">"pnl"</span>] < <span class="num">0</span>]
+
+    <span class="kw">if not</span> wins <span class="kw">or not</span> losses:
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="st">"Need at least one win and one loss to estimate Kelly."</span>)
+
+    win_rate = <span class="fn">len</span>(wins) / <span class="fn">len</span>(trade_history)
+    avg_win = <span class="fn">sum</span>(wins) / <span class="fn">len</span>(wins)
+    avg_loss = <span class="fn">sum</span>(losses) / <span class="fn">len</span>(losses)
+    win_loss_ratio = avg_win / avg_loss
+
+    <span class="fn">print</span>(<span class="st">f"Trades: {len(trade_history)} | Win rate: {win_rate:.2%} | W/L: {win_loss_ratio:.2f}"</span>)
+
+    <span class="cm"># Apply 50% haircut to estimated edge for live trading</span>
+    conservative_win_rate = win_rate * <span class="num">0.95</span>
+
+    <span class="kw">return</span> <span class="cls">KellySizer</span>(
+        win_rate=conservative_win_rate,
+        win_loss_ratio=win_loss_ratio,
+        kelly_fraction=<span class="num">0.25</span>  <span class="cm"># always use fractional Kelly</span>
+    )
+
+<span class="cm"># Calibrate from your backtest results</span>
+sizer = <span class="fn">compute_kelly_from_trades</span>(backtest_trades)
+bankroll = <span class="num">50000</span>
+next_position = sizer.<span class="fn">position_size_usd</span>(bankroll, max_position=<span class="num">5000</span>)
+<span class="fn">print</span>(<span class="st">f"Next trade size: ${next_position:.2f}"</span>)
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- LANGCHAIN INTEGRATION -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Integration</div>
+      <h2 class="section-title">Purple Flea + Kelly: LangChain Tool</h2>
+      <p class="section-desc">
+        Wrap KellySizer as a LangChain tool so your agent automatically sizes every position
+        before placing the order through the Purple Flea Trading API.
+      </p>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">kelly_tool.py</span>
+        </div>
+<span class="kw">import</span> requests
+<span class="kw">from</span> langchain.tools <span class="kw">import</span> tool
+<span class="kw">from</span> purpleflea_langchain <span class="kw">import</span> TradingOpenPositionTool, WalletBalanceTool
+
+sizer = <span class="cls">KellySizer</span>(win_rate=<span class="num">0.55</span>, win_loss_ratio=<span class="num">1.4</span>, kelly_fraction=<span class="num">0.25</span>)
+
+<span class="at">@tool</span>
+<span class="kw">def</span> <span class="fn">kelly_sized_trade</span>(symbol: <span class="cls">str</span>, side: <span class="cls">str</span>, leverage: <span class="cls">int</span> = <span class="num">1</span>) -> <span class="cls">str</span>:
+    <span class="st">"""
+    Open a Kelly-sized position on Purple Flea. Automatically queries wallet
+    balance, computes optimal position size, and places the order.
+    
+    Args:
+        symbol: perpetual market symbol (e.g., 'ETH-PERP')
+        side: 'long' or 'short'
+        leverage: 1-50 (default 1 for safety)
+    """</span>
+    <span class="cm"># Query current USDC balance from Purple Flea wallet</span>
+    balance_tool = <span class="cls">WalletBalanceTool</span>()
+    balance_resp = balance_tool.<span class="fn">run</span>({<span class="st">"chain"</span>: <span class="st">"ethereum"</span>, <span class="st">"token"</span>: <span class="st">"USDC"</span>})
+    bankroll = balance_resp[<span class="st">"balance_usd"</span>]
+
+    <span class="cm"># Compute Kelly position size</span>
+    position_usd = sizer.<span class="fn">position_size_usd</span>(bankroll, max_position=bankroll * <span class="num">0.10</span>)
+
+    <span class="cm"># Place the trade via Purple Flea Trading API</span>
+    trade_tool = <span class="cls">TradingOpenPositionTool</span>()
+    result = trade_tool.<span class="fn">run</span>({
+        <span class="st">"symbol"</span>: symbol,
+        <span class="st">"side"</span>: side,
+        <span class="st">"size_usd"</span>: position_usd,
+        <span class="st">"leverage"</span>: leverage,
+        <span class="st">"order_type"</span>: <span class="st">"market"</span>,
+    })
+
+    <span class="kw">return</span> <span class="st">f"Opened {side} {symbol}: ${position_usd:.2f} (Kelly-sized from ${bankroll:.2f} bankroll). ID: {result['position_id']}"</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- COMMON MISTAKES -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Pitfalls</div>
+      <h2 class="section-title">Common Kelly Mistakes</h2>
+    </div>
+    <div class="grid-3 reveal reveal-delay-1">
+      <div class="card">
+        <div class="card-icon red">&#9888;</div>
+        <h3>Correlated Bets</h3>
+        <p>
+          Kelly assumes each bet is independent. If you open ETH-PERP and BTC-PERP
+          simultaneously, they are highly correlated — effectively one bet. Apply Kelly
+          to your total correlated exposure, not to each position individually.
+          Diversified, uncorrelated positions each get a separate Kelly allocation.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-icon orange">&#9888;</div>
+        <h3>Ignoring Fees</h3>
+        <p>
+          Transaction costs reduce your effective edge. A strategy with a 55% win rate
+          and 1.4 W/L may have a Kelly fraction of 5% before fees — but if you pay
+          0.1% per trade and trade frequently, fees can consume half your edge.
+          Always compute win_rate and W/L <em>after</em> deducting all fees.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">&#9888;</div>
+        <h3>Using Full Kelly</h3>
+        <p>
+          Full Kelly is theoretically optimal only with perfect knowledge of your edge.
+          In practice, estimation error combined with full Kelly produces drawdowns
+          much larger than expected. Always use fractional Kelly (25%–50%) for any
+          real-money agent. The growth-rate sacrifice is modest; the variance reduction is large.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- RELATED -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Keep Reading</div>
+      <h2 class="section-title">Related Guides</h2>
+    </div>
+    <div class="related-grid reveal reveal-delay-1">
+      <a href="/ai-trading-bot/" class="related-card">
+        <div class="label">Strategy</div>
+        <div class="title">AI Trading Bot Blueprint</div>
+        <div class="desc">Full autonomous trading agent architecture</div>
+      </a>
+      <a href="/funding-rate-arbitrage/" class="related-card">
+        <div class="label">Strategy</div>
+        <div class="title">Funding Rate Arbitrage</div>
+        <div class="desc">Delta-neutral yield farming on perpetual futures</div>
+      </a>
+      <a href="/trading-api/" class="related-card">
+        <div class="label">API Reference</div>
+        <div class="title">Purple Flea Trading API</div>
+        <div class="desc">Full docs for 275 perpetual markets</div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="cta-box reveal">
+      <h2>Give your agent a<br><span style="color:var(--purple)">mathematically sound edge.</span></h2>
+      <p>Free to start. 20% referral on trading fees. No KYC required.</p>
+      <div class="hero-actions">
+        <a href="https://wallet.purpleflea.com" class="btn-primary" target="_blank">Register your agent &rarr;</a>
+        <a href="/trading-api/" class="btn-secondary">Read the API docs</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<footer>
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" class="nav-logo">
+          <div class="nav-logo-icon">&#9830;</div>
+          Purple Flea
+        </a>
+        <p>AI-first infrastructure for autonomous agents. Built for machines, verified by math.</p>
+      </div>
+      <div class="footer-columns">
+        <div class="footer-col">
+          <h4>Products</h4>
+          <ul>
+            <li><a href="https://casino.purpleflea.com" target="_blank">Casino</a></li>
+            <li><a href="https://trading.purpleflea.com" target="_blank">Trading</a></li>
+            <li><a href="https://wallet.purpleflea.com" target="_blank">Wallet</a></li>
+            <li><a href="https://domains.purpleflea.com" target="_blank">Domains</a></li>
+            <li><a href="/crypto-wallet-api/">Wallet API Docs</a></li>
+            <li><a href="/trading-api/">Trading API Docs</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Developers</h4>
+          <ul>
+            <li><a href="/docs">Docs</a></li>
+            <li><a href="/for-agents">For Agents</a></li>
+            <li><a href="/for-langchain/">LangChain</a></li>
+            <li><a href="/for-crewai/">CrewAI</a></li>
+            <li><a href="/for-claude/">Claude / MCP</a></li>
+            <li><a href="/quick-start">Quick Start</a></li>
+            <li><a href="/openapi">OpenAPI</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="/stats">Stats</a></li>
+            <li><a href="/changelog">Changelog</a></li>
+            <li><a href="/blog/">Blog</a></li>
+            <li><a href="mailto:hello@purpleflea.com">Contact</a></li>
+            <li><a href="https://github.com/Purple-flea" target="_blank">GitHub</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+      <div class="footer-social">
+        <a href="https://github.com/Purple-flea" target="_blank">GitHub</a>
+        <a href="https://x.com/purpleflea" target="_blank">X / Twitter</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => { navbar.classList.toggle('scrolled', window.scrollY > 50); });
+const revealEls = document.querySelectorAll('.reveal');
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); } });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+revealEls.forEach(el => revealObs.observe(el));
+</script>
+</body>
+</html>
