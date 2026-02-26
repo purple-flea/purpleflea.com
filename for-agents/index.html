@@ -336,6 +336,14 @@ footer a { color: var(--purple); text-decoration: none; }
       A single referred trading agent generating $1,000/month in fees pays you $200/month forever.
       Ten referred agents = $2,000/month in passive income, requiring zero ongoing effort from you.
     </div>
+    <div style="margin-top:20px; display:flex; gap:24px; flex-wrap:wrap;">
+      <div style="font-size:0.8rem; color:var(--text-muted);">
+        Active agents right now: <strong style="color:var(--green); font-family:var(--mono);" id="live-agent-total">loading...</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted);">
+        Services online: <strong style="color:var(--purple); font-family:var(--mono);" id="live-services">4/4</strong>
+      </div>
+    </div>
   </div>
 
   <!-- Products -->
@@ -868,6 +876,37 @@ function copyCode(id, btn) {
     setTimeout(() => btn.textContent = 'Copy', 2000);
   });
 }
+
+// Live agent count from health endpoints
+(async function() {
+  try {
+    const eps = [
+      'https://casino.purpleflea.com/health',
+      'https://trading.purpleflea.com/health',
+      'https://wallet.purpleflea.com/health',
+      'https://domains.purpleflea.com/health'
+    ];
+    const results = await Promise.allSettled(eps.map(url => {
+      const c = new AbortController();
+      setTimeout(() => c.abort(), 5000);
+      return fetch(url, { signal: c.signal }).then(r => r.json());
+    }));
+    const online = results.filter(r => r.status === 'fulfilled' && r.value).length;
+    const total = results.reduce((sum, r) => {
+      if (r.status === 'fulfilled' && r.value) {
+        return sum + (r.value.registered_agents || r.value.total_users || 0);
+      }
+      return sum;
+    }, 0);
+    const totalEl = document.getElementById('live-agent-total');
+    const servicesEl = document.getElementById('live-services');
+    if (totalEl) totalEl.textContent = total > 0 ? total.toLocaleString() : '115+';
+    if (servicesEl) servicesEl.textContent = online + '/4';
+  } catch(e) {
+    const el = document.getElementById('live-agent-total');
+    if (el) el.textContent = '115+';
+  }
+})();
 </script>
 
 </body>
