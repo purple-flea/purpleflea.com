@@ -19,7 +19,7 @@
     casino:  { url: 'https://casino.purpleflea.com/api/v1/public-stats',  color: '#F59E0B', icon: '🎰', label: 'Casino' },
     trading: { url: 'https://trading.purpleflea.com/v1/public-stats',     color: '#10B981', icon: '📈', label: 'Trading' },
     wallet:  { url: 'https://wallet.purpleflea.com/v1/public-stats',      color: '#3B82F6', icon: '👛', label: 'Wallet' },
-    domains: { url: 'https://domains.purpleflea.com/public-stats',        color: '#EC4899', icon: '🌐', label: 'Domains' },
+    domains: { url: 'https://domains.purpleflea.com/v1/public-stats',      color: '#EC4899', icon: '🌐', label: 'Domains' },
   };
 
   const STAT_KEY = {
