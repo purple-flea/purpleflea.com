@@ -824,6 +824,241 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
 
 <hr class="section-divider">
 
+<!-- LLM TRADING DECISIONS -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">LLM-Powered Decisions</div>
+      <h2 class="section-title">Let Claude or GPT-4 read the market.</h2>
+      <div class="prose">
+        <p>
+          Instead of hard-coded signal rules, pass a structured snapshot of market data — price, funding rate, open interest, recent volatility — to a large language model and ask it to reason about the best position. The LLM acts as your quant analyst: it weighs multiple factors simultaneously and returns a structured JSON decision your bot executes immediately.
+        </p>
+        <p>
+          The pattern works with any model that supports JSON mode or tool use. The example below uses <strong>Claude via the Anthropic SDK</strong> and shows exactly how to format the market prompt and parse the response.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2 reveal reveal-delay-1" style="margin-top: 48px; gap: 32px;">
+      <div>
+        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">Claude — Structured JSON decision</h3>
+        <div class="code-block">
+<span class="kw">import</span> json, requests
+<span class="kw">import</span> anthropic
+
+client  = anthropic.<span class="cls">Anthropic</span>()
+HEADERS = {<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_sk_..."</span>}
+
+<span class="kw">def</span> <span class="fn">llm_decide</span>(coin: <span class="cls">str</span>) -> <span class="cls">dict</span>:
+    <span class="cm"># 1. Fetch live snapshot from Purple Flea</span>
+    markets = requests.<span class="fn">get</span>(
+        <span class="st">"https://trading.purpleflea.com/v1/markets"</span>,
+        headers=HEADERS, timeout=<span class="num">10</span>
+    ).json()
+    snap = next(m <span class="kw">for</span> m <span class="kw">in</span> markets <span class="kw">if</span> m[<span class="st">"coin"</span>] == coin)
+
+    prompt = <span class="st">f"""You are a crypto perpetual futures trader.
+Given this market snapshot for {coin}-PERP:
+  mark_price   : {snap['mark_price']}
+  funding_rate : {snap['funding_rate']}  (8-h rate; positive = longs pay shorts)
+  open_interest: {snap['open_interest']}
+
+Decide whether to go LONG, SHORT, or stay FLAT.
+Respond ONLY with valid JSON:
+{{"action":"long"|"short"|"flat","confidence":0-1,"rationale":"one sentence"}}"""</span>
+
+    <span class="cm"># 2. Ask Claude</span>
+    msg = client.messages.<span class="fn">create</span>(
+        model=<span class="st">"claude-opus-4-6"</span>,
+        max_tokens=<span class="num">128</span>,
+        messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: prompt}]
+    )
+    decision = json.<span class="fn">loads</span>(msg.content[<span class="num">0</span>].text)
+
+    <span class="cm"># 3. Only trade if confidence is high</span>
+    <span class="kw">if</span> decision[<span class="st">"confidence"</span>] >= <span class="num">0.7</span>:
+        <span class="kw">return</span> decision
+    <span class="kw">return</span> {<span class="st">"action"</span>: <span class="st">"flat"</span>}
+
+<span class="cm"># Use the decision in your bot loop</span>
+dec = <span class="fn">llm_decide</span>(<span class="st">"BTC"</span>)
+<span class="fn">print</span>(dec[<span class="st">"action"</span>], <span class="st">"—"</span>, dec.<span class="fn">get</span>(<span class="st">"rationale"</span>, <span class="st">""</span>))
+<span class="cm"># "long — Funding rate negative signals dip-buying opportunity."</span>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">GPT-4o — Tool-use function call</h3>
+        <div class="code-block">
+<span class="kw">import</span> json, requests
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+openai  = <span class="cls">OpenAI</span>()
+HEADERS = {<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_sk_..."</span>}
+
+TRADE_TOOL = {
+    <span class="st">"type"</span>: <span class="st">"function"</span>,
+    <span class="st">"function"</span>: {
+        <span class="st">"name"</span>: <span class="st">"open_trade"</span>,
+        <span class="st">"description"</span>: <span class="st">"Open a perpetual position"</span>,
+        <span class="st">"parameters"</span>: {
+            <span class="st">"type"</span>: <span class="st">"object"</span>,
+            <span class="st">"properties"</span>: {
+                <span class="st">"side"</span>:     {<span class="st">"type"</span>: <span class="st">"string"</span>,
+                               <span class="st">"enum"</span>: [<span class="st">"buy"</span>, <span class="st">"sell"</span>]},
+                <span class="st">"size_usd"</span>: {<span class="st">"type"</span>: <span class="st">"number"</span>},
+                <span class="st">"rationale"</span>:{<span class="st">"type"</span>: <span class="st">"string"</span>}
+            },
+            <span class="st">"required"</span>: [<span class="st">"side"</span>, <span class="st">"size_usd"</span>]
+        }
+    }
+}
+
+<span class="kw">def</span> <span class="fn">gpt_decide_and_trade</span>(coin: <span class="cls">str</span>, equity: <span class="cls">float</span>):
+    markets = requests.<span class="fn">get</span>(
+        <span class="st">"https://trading.purpleflea.com/v1/markets"</span>,
+        headers=HEADERS, timeout=<span class="num">10</span>
+    ).json()
+    snap = next(m <span class="kw">for</span> m <span class="kw">in</span> markets <span class="kw">if</span> m[<span class="st">"coin"</span>] == coin)
+
+    resp = openai.chat.completions.<span class="fn">create</span>(
+        model=<span class="st">"gpt-4o"</span>,
+        tools=[TRADE_TOOL],
+        tool_choice=<span class="st">"auto"</span>,
+        messages=[{
+            <span class="st">"role"</span>: <span class="st">"user"</span>,
+            <span class="st">"content"</span>: (
+                <span class="st">f"Market: {coin}-PERP | Price: {snap['mark_price']} | "</span>
+                <span class="st">f"Funding: {snap['funding_rate']} | OI: {snap['open_interest']} | "</span>
+                <span class="st">f"Equity: ${equity:.2f} USDC. "</span>
+                <span class="st">"Should I open a position? Risk max 2% of equity at 3x leverage."</span>
+            )
+        }]
+    )
+    tool_calls = resp.choices[<span class="num">0</span>].message.tool_calls
+    <span class="kw">if not</span> tool_calls: <span class="kw">return</span>              <span class="cm"># model chose to stay flat</span>
+
+    args = json.<span class="fn">loads</span>(tool_calls[<span class="num">0</span>].function.arguments)
+    requests.<span class="fn">post</span>(
+        <span class="st">"https://trading.purpleflea.com/v1/trade/open"</span>,
+        headers=HEADERS,
+        json={<span class="st">"coin"</span>: coin, <span class="st">"side"</span>: args[<span class="st">"side"</span>],
+              <span class="st">"size_usd"</span>: args[<span class="st">"size_usd"</span>], <span class="st">"leverage"</span>: <span class="num">3</span>},
+        timeout=<span class="num">10</span>
+    )
+    <span class="fn">print</span>(<span class="st">f"GPT opened {args['side']} — {args.get('rationale','')}"</span>)
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- BACKTESTING -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Backtesting</div>
+      <h2 class="section-title">Validate before you risk real capital.</h2>
+      <div class="prose">
+        <p>
+          A strategy that looks compelling in theory can lose money in practice. Backtesting replays your strategy logic against historical candle data, so you can measure win rate, maximum drawdown, Sharpe ratio, and total return before a single dollar is at risk. The example below fetches historical candles from the Purple Flea REST API and simulates the EMA-crossover strategy with realistic transaction costs.
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-1" style="margin-top: 40px;">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">backtest.py</span>
+        </div>
+<span class="kw">import</span> requests, statistics
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+HEADERS     = {<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_sk_..."</span>}
+FEE_RATE    = <span class="num">0.00035</span>   <span class="cm"># 0.035 % taker fee each side</span>
+SLIPPAGE    = <span class="num">0.0002</span>    <span class="cm"># estimated 0.02 % slippage</span>
+
+<span class="at">@dataclass</span>
+<span class="kw">class</span> <span class="cls">Trade</span>:
+    entry: <span class="cls">float</span>; exit: <span class="cls">float</span>; side: <span class="cls">str</span>; pnl_pct: <span class="cls">float</span>
+
+<span class="kw">def</span> <span class="fn">fetch_candles</span>(coin: <span class="cls">str</span>, interval=<span class="st">"1h"</span>, limit=<span class="num">500</span>) -> <span class="cls">list</span>:
+    <span class="cm"># Purple Flea returns [{t, o, h, l, c, v, funding_rate}]</span>
+    <span class="kw">return</span> requests.<span class="fn">get</span>(
+        <span class="st">f"https://api.purpleflea.com/v1/trading/candles/{coin}-PERP"</span>,
+        headers=HEADERS,
+        params={<span class="st">"interval"</span>: interval, <span class="st">"limit"</span>: limit}
+    ).json()[<span class="st">"candles"</span>]
+
+<span class="kw">def</span> <span class="fn">ema</span>(closes: <span class="cls">list</span>, n: <span class="cls">int</span>) -> <span class="cls">list</span>:
+    k, result = <span class="num">2</span> / (n + <span class="num">1</span>), [closes[<span class="num">0</span>]]
+    <span class="kw">for</span> p <span class="kw">in</span> closes[<span class="num">1</span>:]:
+        result.<span class="fn">append</span>(p * k + result[-<span class="num">1</span>] * (<span class="num">1</span> - k))
+    <span class="kw">return</span> result
+
+<span class="kw">def</span> <span class="fn">backtest</span>(coin=<span class="st">"BTC"</span>, fast=<span class="num">9</span>, slow=<span class="num">21</span>,
+              leverage=<span class="num">3</span>, risk_pct=<span class="num">0.02</span>):
+    candles = <span class="fn">fetch_candles</span>(coin)
+    closes  = [c[<span class="num">4</span>] <span class="kw">for</span> c <span class="kw">in</span> candles]   <span class="cm"># index 4 = close price</span>
+    ema_f   = <span class="fn">ema</span>(closes, fast)
+    ema_s   = <span class="fn">ema</span>(closes, slow)
+
+    equity, peak, max_dd = <span class="num">10_000</span>, <span class="num">10_000</span>, <span class="num">0.0</span>
+    position = <span class="kw">None</span>    <span class="cm"># None | "long" | "short"</span>
+    entry_px = <span class="num">0.0</span>
+    trades: <span class="cls">list</span>[<span class="cls">Trade</span>] = []
+
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(slow, <span class="fn">len</span>(closes)):
+        price  = closes[i]
+        signal = <span class="st">"long"</span>  <span class="kw">if</span> ema_f[i] > ema_s[i] * <span class="num">1.0005</span> \
+            <span class="kw">else</span> <span class="st">"short"</span> <span class="kw">if</span> ema_f[i] < ema_s[i] * <span class="num">0.9995</span> <span class="kw">else</span> <span class="st">"flat"</span>
+
+        <span class="kw">if</span> position <span class="kw">and</span> signal != position:
+            <span class="cm"># Close existing position</span>
+            pnl_pct = (price - entry_px) / entry_px * leverage \
+                          <span class="kw">if</span> position == <span class="st">"long"</span> \
+                          <span class="kw">else</span> (entry_px - price) / entry_px * leverage
+            pnl_pct -= (<span class="num">2</span> * FEE_RATE + <span class="num">2</span> * SLIPPAGE) * leverage
+            size     = equity * risk_pct
+            equity  += size * pnl_pct
+            trades.<span class="fn">append</span>(<span class="cls">Trade</span>(entry_px, price, position, pnl_pct))
+            peak     = <span class="fn">max</span>(peak, equity)
+            max_dd   = <span class="fn">max</span>(max_dd, (peak - equity) / peak)
+            position = <span class="kw">None</span>
+
+        <span class="kw">if</span> signal <span class="kw">in</span> (<span class="st">"long"</span>, <span class="st">"short"</span>) <span class="kw">and not</span> position:
+            position = signal
+            entry_px = price * (<span class="num">1</span> + SLIPPAGE <span class="kw">if</span> signal == <span class="st">"long"</span> <span class="kw">else</span> <span class="num">1</span> - SLIPPAGE)
+
+    <span class="cm"># ── Summary ──────────────────────────────────────────────────</span>
+    wins     = [t <span class="kw">for</span> t <span class="kw">in</span> trades <span class="kw">if</span> t.pnl_pct > <span class="num">0</span>]
+    win_rate = <span class="fn">len</span>(wins) / <span class="fn">len</span>(trades) <span class="kw">if</span> trades <span class="kw">else</span> <span class="num">0</span>
+    returns  = [t.pnl_pct <span class="kw">for</span> t <span class="kw">in</span> trades]
+    sharpe   = (statistics.<span class="fn">mean</span>(returns) / statistics.<span class="fn">stdev</span>(returns) * (252**<span class="num">0.5</span>)
+                <span class="kw">if</span> <span class="fn">len</span>(returns) > <span class="num">1</span> <span class="kw">else</span> <span class="num">0</span>)
+
+    <span class="fn">print</span>(<span class="st">f"Trades      : {len(trades)}"</span>)
+    <span class="fn">print</span>(<span class="st">f"Win rate    : {win_rate:.1%}"</span>)
+    <span class="fn">print</span>(<span class="st">f"Max drawdown: {max_dd:.1%}"</span>)
+    <span class="fn">print</span>(<span class="st">f"Sharpe ratio: {sharpe:.2f}"</span>)
+    <span class="fn">print</span>(<span class="st">f"Final equity: ${equity:,.2f}  (started $10,000)"</span>)
+    <span class="kw">return</span> {<span class="st">"trades"</span>: trades, <span class="st">"equity"</span>: equity,
+            <span class="st">"max_drawdown"</span>: max_dd, <span class="st">"sharpe"</span>: sharpe}
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    <span class="fn">backtest</span>(coin=<span class="st">"BTC"</span>, fast=<span class="num">9</span>, slow=<span class="num">21</span>, leverage=<span class="num">3</span>)
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
 <!-- RISK MANAGEMENT -->
 <section>
   <div class="container">
@@ -838,7 +1073,7 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
           The three non-negotiable rules for any production trading bot:
         </p>
         <ul>
-          <li><strong>Position sizing</strong> — never risk more than 1-2% of total account equity on a single trade. Kelly Criterion provides an upper bound; half-Kelly is safer in practice.</li>
+          <li><strong>Kelly position sizing</strong> — use historical win rate and average win/loss ratio to compute the mathematically optimal fraction of equity to risk. Always use half-Kelly to account for estimation error.</li>
           <li><strong>Stop losses</strong> — always attach a stop-limit order immediately after opening a position. Bots cannot panic; enforce discipline with code.</li>
           <li><strong>Max drawdown circuit breaker</strong> — halt all trading if the account drops by more than a defined threshold (e.g., 10%) in a single session. Human review before restarting.</li>
         </ul>
@@ -856,12 +1091,48 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
 <span class="kw">import</span> requests
 <span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
 
+<span class="cm"># ── Kelly Criterion ───────────────────────────────────────────</span>
+
+<span class="kw">def</span> <span class="fn">kelly_fraction</span>(
+    win_rate:   <span class="cls">float</span>,   <span class="cm"># historical probability of a winning trade (0–1)</span>
+    avg_win:    <span class="cls">float</span>,   <span class="cm"># average profit as a fraction of risked capital</span>
+    avg_loss:   <span class="cls">float</span>,   <span class="cm"># average loss as a fraction of risked capital</span>
+    half_kelly: <span class="cls">bool</span> = <span class="kw">True</span>
+) -> <span class="cls">float</span>:
+    <span class="st">"""
+    Full Kelly: f = (W * b - L) / b
+    where b = avg_win / avg_loss  (the win/loss ratio)
+    Half-Kelly halves the result for robustness.
+    """</span>
+    <span class="kw">if</span> avg_loss == <span class="num">0</span>: <span class="kw">return</span> <span class="num">0.0</span>
+    b = avg_win / avg_loss
+    f = (win_rate * b - (<span class="num">1</span> - win_rate)) / b
+    f = <span class="fn">max</span>(f, <span class="num">0.0</span>)          <span class="cm"># never bet negative</span>
+    <span class="kw">return</span> f * <span class="num">0.5</span> <span class="kw">if</span> half_kelly <span class="kw">else</span> f
+
+<span class="kw">def</span> <span class="fn">kelly_size_usd</span>(equity: <span class="cls">float</span>, win_rate: <span class="cls">float</span>,
+                    avg_win: <span class="cls">float</span>, avg_loss: <span class="cls">float</span>,
+                    max_fraction: <span class="cls">float</span> = <span class="num">0.05</span>) -> <span class="cls">float</span>:
+    <span class="st">"""Return notional size in USD, capped at max_fraction of equity."""</span>
+    f = <span class="fn">kelly_fraction</span>(win_rate, avg_win, avg_loss)
+    f = <span class="fn">min</span>(f, max_fraction)   <span class="cm"># hard cap — Kelly can be aggressive</span>
+    <span class="kw">return</span> <span class="fn">round</span>(equity * f, <span class="num">2</span>)
+
+<span class="cm"># Example: strategy has 55 % win rate, avg win +3 %, avg loss -2 %</span>
+<span class="cm"># kelly_size_usd(10000, 0.55, 0.03, 0.02)  → $137.50 (half-Kelly)</span>
+
+<span class="cm"># ── RiskGuard class ───────────────────────────────────────────</span>
+
 <span class="at">@dataclass</span>
 <span class="kw">class</span> <span class="cls">RiskConfig</span>:
-    max_risk_pct:   <span class="cls">float</span> = <span class="num">0.02</span>   <span class="cm"># 2% max risk per trade</span>
+    max_risk_pct:   <span class="cls">float</span> = <span class="num">0.02</span>   <span class="cm"># fallback: 2% max risk per trade</span>
     max_drawdown:   <span class="cls">float</span> = <span class="num">0.10</span>   <span class="cm"># halt at 10% daily drawdown</span>
     max_leverage:   <span class="cls">int</span>   = <span class="num">10</span>     <span class="cm"># never exceed 10x</span>
     stop_loss_pct:  <span class="cls">float</span> = <span class="num">0.02</span>   <span class="cm"># 2% stop loss on every trade</span>
+    <span class="cm"># Kelly inputs — update from your latest backtest results</span>
+    win_rate:  <span class="cls">float</span> = <span class="num">0.52</span>
+    avg_win:   <span class="cls">float</span> = <span class="num">0.025</span>
+    avg_loss:  <span class="cls">float</span> = <span class="num">0.018</span>
 
 <span class="kw">class</span> <span class="cls">RiskGuard</span>:
     <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key, cfg: <span class="cls">RiskConfig</span>):
@@ -877,12 +1148,12 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
         ).json()[<span class="st">"usdc"</span>]
 
     <span class="kw">def</span> <span class="fn">check_drawdown</span>(self):
-        current = self.<span class="fn">_get_balance</span>()
+        current  = self.<span class="fn">_get_balance</span>()
         drawdown = (self.start_bal - current) / self.start_bal
         <span class="kw">if</span> drawdown >= self.cfg.max_drawdown:
             self.halted = <span class="kw">True</span>
             <span class="fn">raise</span> <span class="cls">RuntimeError</span>(
-                <span class="st">f"HALT: drawdown {drawdown:.1%} exceeds limit"</span>
+                <span class="st">f"HALT: drawdown {drawdown:.1%} exceeds {self.cfg.max_drawdown:.0%} limit"</span>
             )
 
     <span class="kw">def</span> <span class="fn">safe_open</span>(self, market, side, leverage=<span class="num">3</span>):
@@ -892,9 +1163,13 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
 
         leverage = <span class="fn">min</span>(leverage, self.cfg.max_leverage)
         balance  = self.<span class="fn">_get_balance</span>()
-        size_usd = balance * self.cfg.max_risk_pct * leverage
 
-        <span class="cm"># Place the order</span>
+        <span class="cm"># Size with Kelly; fall back to fixed fraction if Kelly returns 0</span>
+        size_usd = <span class="fn">kelly_size_usd</span>(balance, self.cfg.win_rate,
+                                    self.cfg.avg_win, self.cfg.avg_loss)
+        <span class="kw">if</span> size_usd < <span class="num">10</span>:
+            size_usd = balance * self.cfg.max_risk_pct * leverage
+
         resp = requests.<span class="fn">post</span>(
             <span class="st">f"{self.base}/trading/orders"</span>, headers=self.headers,
             json={<span class="st">"market"</span>: market, <span class="st">"side"</span>: side,
@@ -915,6 +1190,7 @@ TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
                   <span class="st">"stop_price"</span>: sl_px, <span class="st">"limit_price"</span>: sl_px * <span class="num">0.999</span>,
                   <span class="st">"reduce_only"</span>: <span class="kw">True</span>}
         )
+        <span class="fn">print</span>(<span class="st">f"Opened {side} {market} size=${size_usd:.2f}  stop@{sl_px:.2f}"</span>)
         <span class="kw">return</span> resp
       </div>
     </div>
