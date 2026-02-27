@@ -1259,6 +1259,116 @@ agent.<span class="fn">run</span>(<span class="st">"""
 
 <hr class="section-divider">
 
+<!-- PRODUCTION DEPLOYMENT -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Production Deployment</div>
+      <h2 class="section-title">Run your bot 24/7 with pm2.</h2>
+      <div class="prose">
+        <p>
+          A trading bot that crashes silently loses money. <strong>pm2</strong> is the standard process manager for long-running Node.js and Python services: it restarts your bot automatically on crash, persists it across reboots, and streams logs you can inspect at any time. The three-step setup below gets a Purple Flea bot running in a managed process in under two minutes.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2 reveal reveal-delay-1" style="margin-top: 48px; gap: 32px;">
+      <div>
+        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">ecosystem.config.cjs — pm2 process file</h3>
+        <div class="code-block">
+<span class="cm">// ecosystem.config.cjs</span>
+<span class="cm">// Run: pm2 start ecosystem.config.cjs</span>
+module.exports = {
+  apps: [{
+    name:         <span class="st">"purpleflea-bot"</span>,
+    script:       <span class="st">"python3"</span>,
+    args:         <span class="st">"purpleflea_bot.py"</span>,
+    cwd:          <span class="st">"/home/bot/purpleflea-bot"</span>,
+    interpreter:  <span class="st">"none"</span>,          <span class="cm">// let pm2 use python3 directly</span>
+    autorestart:  <span class="kw">true</span>,
+    watch:        <span class="kw">false</span>,
+    max_memory_restart: <span class="st">"256M"</span>,
+    restart_delay:      <span class="num">5000</span>,      <span class="cm">// wait 5 s before restart</span>
+    env: {
+      PURPLEFLEA_API_KEY: <span class="st">"pf_sk_your_key_here"</span>,
+      BOT_COIN:           <span class="st">"BTC"</span>,
+      BOT_LEVERAGE:       <span class="st">"3"</span>,
+      ANTHROPIC_API_KEY:  <span class="st">"sk-ant-..."</span>  <span class="cm">// optional: LLM mode</span>
+    },
+    error_file:   <span class="st">"./logs/err.log"</span>,
+    out_file:     <span class="st">"./logs/out.log"</span>,
+    log_date_format: <span class="st">"YYYY-MM-DD HH:mm:ss"</span>
+  }]
+}
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-bottom:16px; font-size:1rem; color:var(--text-secondary);">Deployment commands &amp; health monitoring</h3>
+        <div class="code-block">
+<span class="cm"># ── First-time setup ──────────────────────────────────────────</span>
+<span class="cm"># Install pm2 globally</span>
+npm install -g pm2
+
+<span class="cm"># Start the bot</span>
+pm2 start ecosystem.config.cjs
+
+<span class="cm"># Persist across server reboots</span>
+pm2 startup
+pm2 save
+
+<span class="cm"># ── Day-to-day operations ─────────────────────────────────────</span>
+pm2 status                <span class="cm"># see process health + restart count</span>
+pm2 logs purpleflea-bot   <span class="cm"># stream live stdout/stderr</span>
+pm2 logs purpleflea-bot --lines 200  <span class="cm"># last 200 lines</span>
+pm2 restart purpleflea-bot           <span class="cm"># rolling restart</span>
+pm2 stop    purpleflea-bot           <span class="cm"># graceful stop</span>
+
+<span class="cm"># ── Health-check script (run via cron every 5 min) ────────────</span>
+<span class="cm"># crontab: */5 * * * * /home/bot/health_check.sh</span>
+<span class="cm">#!/bin/bash</span>
+STATUS=$(pm2 jlist | python3 -c \
+  "import sys,json; d=json.load(sys.stdin); \
+   p=[x for x in d if x['name']=='purpleflea-bot']; \
+   print(p[0]['pm2_env']['status'] if p else 'missing')")
+
+if [ "$STATUS" != "online" ]; then
+  echo "ALERT: bot status=$STATUS — restarting" | \
+    mail -s "Bot Alert" you@example.com
+  pm2 restart purpleflea-bot
+fi
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-2" style="margin-top: 32px;">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">purpleflea_bot.py — env-var bootstrap (add to top of file)</span>
+        </div>
+<span class="kw">import</span> os
+<span class="kw">from</span> purpleflea_bot <span class="kw">import</span> BotConfig, PurpleFleaBot
+
+<span class="cm"># Read config from environment — safe for pm2 / Docker / systemd</span>
+cfg = <span class="cls">BotConfig</span>(
+    api_key       = os.<span class="fn">environ</span>[<span class="st">"PURPLEFLEA_API_KEY"</span>],
+    coin          = os.environ.<span class="fn">get</span>(<span class="st">"BOT_COIN"</span>,     <span class="st">"BTC"</span>),
+    leverage      = <span class="fn">int</span>(os.environ.<span class="fn">get</span>(<span class="st">"BOT_LEVERAGE"</span>, <span class="st">"3"</span>)),
+    risk_pct      = <span class="fn">float</span>(os.environ.<span class="fn">get</span>(<span class="st">"BOT_RISK_PCT"</span>, <span class="st">"0.02"</span>)),
+    max_drawdown  = <span class="fn">float</span>(os.environ.<span class="fn">get</span>(<span class="st">"BOT_MAX_DD"</span>,   <span class="st">"0.10"</span>)),
+    poll_interval = <span class="fn">int</span>(os.environ.<span class="fn">get</span>(<span class="st">"BOT_INTERVAL"</span>,  <span class="st">"60"</span>)),
+)
+
+<span class="cls">PurpleFleaBot</span>(cfg).<span class="fn">run</span>()
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
 <!-- REFERRAL PROGRAM -->
 <section>
   <div class="container">
