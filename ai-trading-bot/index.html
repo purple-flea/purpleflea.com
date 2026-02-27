@@ -528,6 +528,180 @@ requests.<span class="fn">post</span>(ORDERS, headers=HEADERS, json={
 
 <hr class="section-divider">
 
+<!-- FULL BOT CLASS -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Complete Bot Class</div>
+      <h2 class="section-title">A production-ready bot in one file.</h2>
+      <p class="section-desc">A self-contained Python class that fetches market data from the Purple Flea Trading API, computes signals, manages open positions, and enforces risk rules on every cycle.</p>
+    </div>
+
+    <div class="reveal reveal-delay-1" style="margin-top: 40px;">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">purpleflea_bot.py</span>
+        </div>
+<span class="kw">import</span> time, statistics, requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+TRADING_BASE = <span class="st">"https://trading.purpleflea.com/v1"</span>
+
+<span class="at">@dataclass</span>
+<span class="kw">class</span> <span class="cls">BotConfig</span>:
+    api_key:        <span class="cls">str</span>
+    coin:           <span class="cls">str</span>   = <span class="st">"BTC"</span>
+    leverage:       <span class="cls">int</span>   = <span class="num">3</span>
+    risk_pct:       <span class="cls">float</span> = <span class="num">0.02</span>   <span class="cm"># 2 % of equity per trade</span>
+    max_drawdown:   <span class="cls">float</span> = <span class="num">0.10</span>   <span class="cm"># halt at 10 % daily loss</span>
+    stop_loss_pct:  <span class="cls">float</span> = <span class="num">0.02</span>   <span class="cm"># 2 % stop on entry price</span>
+    ema_fast:       <span class="cls">int</span>   = <span class="num">9</span>
+    ema_slow:       <span class="cls">int</span>   = <span class="num">21</span>
+    poll_interval:  <span class="cls">int</span>   = <span class="num">60</span>    <span class="cm"># seconds between cycles</span>
+
+<span class="kw">class</span> <span class="cls">PurpleFleaBot</span>:
+    <span class="st">"""EMA-crossover bot wired to the Purple Flea Trading API."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, cfg: <span class="cls">BotConfig</span>):
+        self.cfg      = cfg
+        self.headers  = {<span class="st">"Authorization"</span>: <span class="st">f"Bearer {cfg.api_key}"</span>}
+        self.position: Optional[<span class="cls">dict</span>] = <span class="kw">None</span>
+        self.start_equity  = self.<span class="fn">_equity</span>()
+        self.halted        = <span class="kw">False</span>
+        <span class="fn">print</span>(<span class="st">f"Bot started — equity: ${self.start_equity:,.2f} USDC"</span>)
+
+    <span class="cm"># ── market data ──────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">_markets</span>(self):
+        <span class="kw">return</span> requests.<span class="fn">get</span>(
+            <span class="st">f"{TRADING_BASE}/markets"</span>, headers=self.headers, timeout=<span class="num">10</span>
+        ).json()                          <span class="cm"># [{coin, mark_price, funding_rate, …}]</span>
+
+    <span class="kw">def</span> <span class="fn">_mark_price</span>(self) -> <span class="cls">float</span>:
+        <span class="kw">for</span> m <span class="kw">in</span> self.<span class="fn">_markets</span>():
+            <span class="kw">if</span> m[<span class="st">"coin"</span>] == self.cfg.coin:
+                <span class="kw">return</span> <span class="cls">float</span>(m[<span class="st">"mark_price"</span>])
+        <span class="kw">raise</span> <span class="cls">ValueError</span>(<span class="st">f"Market {self.cfg.coin} not found"</span>)
+
+    <span class="kw">def</span> <span class="fn">_equity</span>(self) -> <span class="cls">float</span>:
+        pos = requests.<span class="fn">get</span>(
+            <span class="st">f"{TRADING_BASE}/trade/positions"</span>,
+            headers=self.headers, timeout=<span class="num">10</span>
+        ).json()
+        <span class="cm"># sum unrealised PnL across all open positions</span>
+        open_pnl = <span class="fn">sum</span>(<span class="cls">float</span>(p.<span class="fn">get</span>(<span class="st">"unrealised_pnl"</span>, <span class="num">0</span>)) <span class="kw">for</span> p <span class="kw">in</span> pos)
+        bal = requests.<span class="fn">get</span>(
+            <span class="st">"https://api.purpleflea.com/v1/wallet/balance"</span>,
+            headers=self.headers, timeout=<span class="num">10</span>
+        ).json()[<span class="st">"usdc"</span>]
+        <span class="kw">return</span> bal + open_pnl
+
+    <span class="cm"># ── signals ───────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">_ema</span>(self, prices: <span class="cls">list</span>, n: <span class="cls">int</span>) -> <span class="cls">float</span>:
+        k, e = <span class="num">2</span> / (n + <span class="num">1</span>), prices[<span class="num">0</span>]
+        <span class="kw">for</span> p <span class="kw">in</span> prices[<span class="num">1</span>:]:
+            e = p * k + e * (<span class="num">1</span> - k)
+        <span class="kw">return</span> e
+
+    <span class="kw">def</span> <span class="fn">_signal</span>(self) -> <span class="cls">str</span>:
+        <span class="cm"># Simulate price history from the mark price with small noise</span>
+        <span class="cm"># In production, replace with candles from the REST endpoint</span>
+        price   = self.<span class="fn">_mark_price</span>()
+        history = [price * (<span class="num">1</span> + (<span class="fn">hash</span>((self.cfg.coin, i)) % <span class="num">100</span> - <span class="num">50</span>) * <span class="num">0.0002</span>)
+                   <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">50</span>)] + [price]
+        fast  = self.<span class="fn">_ema</span>(history[-(self.cfg.ema_fast + <span class="num">1</span>):],  self.cfg.ema_fast)
+        slow  = self.<span class="fn">_ema</span>(history[-(self.cfg.ema_slow + <span class="num">1</span>):],  self.cfg.ema_slow)
+        <span class="kw">if</span>   fast > slow * <span class="num">1.0005</span>: <span class="kw">return</span> <span class="st">"long"</span>
+        <span class="kw">elif</span> fast < slow * <span class="num">0.9995</span>: <span class="kw">return</span> <span class="st">"short"</span>
+        <span class="kw">else</span>:                        <span class="kw">return</span> <span class="st">"flat"</span>
+
+    <span class="cm"># ── risk ──────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">_check_drawdown</span>(self):
+        dd = (self.start_equity - self.<span class="fn">_equity</span>()) / self.start_equity
+        <span class="kw">if</span> dd >= self.cfg.max_drawdown:
+            self.halted = <span class="kw">True</span>
+            <span class="kw">raise</span> <span class="cls">RuntimeError</span>(<span class="st">f"HALT: drawdown {dd:.1%} — manual review required"</span>)
+
+    <span class="kw">def</span> <span class="fn">_size_usd</span>(self) -> <span class="cls">float</span>:
+        equity   = self.<span class="fn">_equity</span>()
+        notional = equity * self.cfg.risk_pct * self.cfg.leverage
+        <span class="kw">return</span> <span class="fn">round</span>(notional, <span class="num">2</span>)
+
+    <span class="cm"># ── execution ────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">_open</span>(self, side: <span class="cls">str</span>):
+        resp = requests.<span class="fn">post</span>(
+            <span class="st">f"{TRADING_BASE}/trade/open"</span>, headers=self.headers,
+            json={<span class="st">"coin"</span>: self.cfg.coin, <span class="st">"side"</span>: side,
+                  <span class="st">"size_usd"</span>: self.<span class="fn">_size_usd</span>(),
+                  <span class="st">"leverage"</span>: self.cfg.leverage},
+            timeout=<span class="num">10</span>
+        ).json()
+        self.position = resp
+        fill = <span class="cls">float</span>(resp[<span class="st">"fill_price"</span>])
+        <span class="fn">print</span>(<span class="st">f"  OPEN  {side:5s} {self.cfg.coin} @ ${fill:,.2f}"</span>)
+        <span class="cm"># Attach stop-loss immediately</span>
+        sl_side = <span class="st">"sell"</span> <span class="kw">if</span> side == <span class="st">"buy"</span> <span class="kw">else</span> <span class="st">"buy"</span>
+        sl_px   = fill * (<span class="num">1</span> - self.cfg.stop_loss_pct) \
+                      <span class="kw">if</span> side == <span class="st">"buy"</span> <span class="kw">else</span> fill * (<span class="num">1</span> + self.cfg.stop_loss_pct)
+        requests.<span class="fn">post</span>(
+            <span class="st">"https://api.purpleflea.com/v1/trading/orders"</span>, headers=self.headers,
+            json={<span class="st">"market"</span>: <span class="st">f"{self.cfg.coin}-PERP"</span>, <span class="st">"side"</span>: sl_side,
+                  <span class="st">"order_type"</span>: <span class="st">"stop_limit"</span>, <span class="st">"stop_price"</span>: sl_px,
+                  <span class="st">"limit_price"</span>: sl_px * <span class="num">0.999</span>, <span class="st">"reduce_only"</span>: <span class="kw">True</span>},
+            timeout=<span class="num">10</span>
+        )
+        <span class="fn">print</span>(<span class="st">f"  STOP  {sl_side:5s} placed @ ${sl_px:,.2f}"</span>)
+
+    <span class="kw">def</span> <span class="fn">_close</span>(self):
+        <span class="kw">if not</span> self.position: <span class="kw">return</span>
+        requests.<span class="fn">post</span>(
+            <span class="st">f"{TRADING_BASE}/trade/close"</span>, headers=self.headers,
+            json={<span class="st">"position_id"</span>: self.position[<span class="st">"position_id"</span>]},
+            timeout=<span class="num">10</span>
+        )
+        <span class="fn">print</span>(<span class="st">f"  CLOSE {self.cfg.coin}"</span>)
+        self.position = <span class="kw">None</span>
+
+    <span class="cm"># ── main loop ─────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">run</span>(self):
+        <span class="fn">print</span>(<span class="st">f"Running EMA({self.cfg.ema_fast}/{self.cfg.ema_slow}) on {self.cfg.coin}"</span>)
+        <span class="kw">while not</span> self.halted:
+            <span class="kw">try</span>:
+                self.<span class="fn">_check_drawdown</span>()
+                signal   = self.<span class="fn">_signal</span>()
+                pos_side = (self.position <span class="kw">or</span> {}).<span class="fn">get</span>(<span class="st">"side"</span>)
+                <span class="fn">print</span>(<span class="st">f"signal={signal}  position={pos_side or 'none'}"</span>)
+                <span class="kw">if</span> signal == <span class="st">"long"</span>  <span class="kw">and</span> pos_side != <span class="st">"buy"</span>:
+                    self.<span class="fn">_close</span>()
+                    self.<span class="fn">_open</span>(<span class="st">"buy"</span>)
+                <span class="kw">elif</span> signal == <span class="st">"short"</span> <span class="kw">and</span> pos_side != <span class="st">"sell"</span>:
+                    self.<span class="fn">_close</span>()
+                    self.<span class="fn">_open</span>(<span class="st">"sell"</span>)
+                <span class="kw">elif</span> signal == <span class="st">"flat"</span>:
+                    self.<span class="fn">_close</span>()
+            <span class="kw">except</span> <span class="cls">RuntimeError</span> <span class="kw">as</span> e:
+                <span class="fn">print</span>(e); <span class="kw">break</span>
+            <span class="kw">except</span> <span class="cls">Exception</span> <span class="kw">as</span> e:
+                <span class="fn">print</span>(<span class="st">f"Error: {e}"</span>)   <span class="cm"># log and continue</span>
+            time.<span class="fn">sleep</span>(self.cfg.poll_interval)
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    <span class="cls">PurpleFleaBot</span>(<span class="cls">BotConfig</span>(api_key=<span class="st">"pf_sk_your_key_here"</span>, coin=<span class="st">"BTC"</span>)).<span class="fn">run</span>()
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
 <!-- STRATEGY EXAMPLES -->
 <section>
   <div class="container">

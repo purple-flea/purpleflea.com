@@ -985,10 +985,218 @@ portfolio = []  <span class="cm"># NFTs currently held</span>
         </div>
         <div class="card">
           <div class="card-icon yellow">&#127760;</div>
-          <h3>Referral Revenue</h3>
-          <p>Recommend Purple Flea to other NFT agents you collaborate with. Earn 10-20% of their
-             transaction fees in perpetuity. An agent that onboards five other sniping agents earns
-             passive income on every snipe they execute.</p>
+          <h3>Your NFT Sniping Agent Can Refer Other Agents</h3>
+          <p>Your agent can programmatically generate and distribute referral links for Purple Flea.
+             When another sniping agent, DeFi bot, or trading agent signs up via your link, you earn
+             10–20% of their transaction fees in perpetuity — a passive revenue stream that compounds
+             as the wider agent ecosystem grows. One sniping agent that onboards five others earns
+             income on every snipe they collectively execute.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- WALLET API FOR NFT SNIPING -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Wallet API Integration</div>
+      <h2 class="section-title">How Purple Flea's Wallet API<br>enables NFT sniping</h2>
+      <p class="section-desc">
+        Speed and capital availability are the two bottlenecks in NFT sniping. The Purple Flea
+        Wallet API eliminates both: instant USDC-to-ETH swaps keep dry powder ready on any chain,
+        and a single balance endpoint tells the agent exactly what it can spend before it bids.
+      </p>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="grid-3" style="margin-bottom:48px;">
+        <div class="card">
+          <div class="card-icon purple">&#128256;</div>
+          <h3>Fast USDC / ETH Swaps</h3>
+          <p>Keep idle capital in USDC to earn yield, then call the Wallet API swap endpoint to
+             convert to ETH in milliseconds when a snipe opportunity appears. Your agent always
+             has dry powder ready without leaving ETH sitting idle between opportunities.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon blue">&#127758;</div>
+          <h3>ETH, Base &amp; Polygon Simultaneously</h3>
+          <p>One API key controls wallets on Ethereum mainnet, Base, and Polygon. Snipe Blur listings
+             on Ethereum, low-fee collections on Base, and high-volume drops on Polygon — all from
+             a single agent loop with no chain-switching complexity.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon green">&#128200;</div>
+          <h3>Check Capital Before Every Bid</h3>
+          <p>Call <code>GET /v1/wallet/balance</code> before evaluating each listing. The response
+             includes ETH, USDC, and USD value in real time so the agent never attempts a purchase
+             it cannot afford and never wastes gas on a transaction that will revert.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal reveal-delay-2">
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-filename">wallet_api_integration.py</span>
+        </div>
+<span class="kw">import</span> requests
+
+PURPLEFLEA_API_KEY = <span class="st">"pf_sk_..."</span>
+BASE_URL = <span class="st">"https://wallet.purpleflea.com/v1"</span>
+HEADERS = {
+    <span class="st">"Authorization"</span>: <span class="fn">f</span><span class="st">"Bearer {PURPLEFLEA_API_KEY}"</span>,
+    <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>,
+}
+
+<span class="cm"># ── 1. Check available capital before sniping ────────────────────</span>
+<span class="kw">def</span> <span class="fn">check_available_capital</span>(wallet_id: <span class="cls">str</span>, chain: <span class="cls">str</span> = <span class="st">"ethereum"</span>) -> <span class="cls">dict</span>:
+    <span class="st">"""
+    GET /v1/wallet/balance — returns real-time ETH, USDC, and USD value.
+    Call this before each evaluation cycle so the agent never bids
+    more than it holds. Responses are sub-50ms; safe to call per cycle.
+    """</span>
+    resp = requests.<span class="fn">get</span>(
+        <span class="fn">f</span><span class="st">"{BASE_URL}/wallet/{wallet_id}/balance"</span>,
+        headers=HEADERS,
+        params={<span class="st">"chain"</span>: chain},
+    )
+    resp.<span class="fn">raise_for_status</span>()
+    data = resp.<span class="fn">json</span>()
+    <span class="cm"># { "eth": "0.482", "usdc": "1200.00", "usd_value": "2405.20", "chain": "ethereum" }</span>
+    <span class="kw">return</span> data
+
+<span class="cm"># ── 2. Swap USDC → ETH when dry powder is needed ────────────────</span>
+<span class="kw">def</span> <span class="fn">swap_usdc_to_eth</span>(
+    wallet_id: <span class="cls">str</span>,
+    usdc_amount: <span class="cls">float</span>,
+    chain: <span class="cls">str</span> = <span class="st">"ethereum"</span>,
+    slippage_pct: <span class="cls">float</span> = <span class="num">0.5</span>,
+) -> <span class="cls">dict</span>:
+    <span class="st">"""
+    Convert USDC to ETH via Purple Flea's on-chain swap.
+    Use when ETH balance drops below the snipe threshold but USDC
+    reserves are available. Slippage of 0.5% is tight enough for
+    sniping capital without missing the opportunity window.
+    """</span>
+    resp = requests.<span class="fn">post</span>(
+        <span class="fn">f</span><span class="st">"{BASE_URL}/wallet/{wallet_id}/swap"</span>,
+        headers=HEADERS,
+        json={
+            <span class="st">"from_token"</span>: <span class="st">"USDC"</span>,
+            <span class="st">"to_token"</span>: <span class="st">"ETH"</span>,
+            <span class="st">"amount"</span>: <span class="cls">str</span>(usdc_amount),
+            <span class="st">"chain"</span>: chain,
+            <span class="st">"max_slippage_pct"</span>: slippage_pct,
+        },
+    )
+    resp.<span class="fn">raise_for_status</span>()
+    result = resp.<span class="fn">json</span>()
+    <span class="fn">print</span>(<span class="fn">f</span><span class="st">"Swapped {usdc_amount} USDC → {result['eth_received']} ETH on {chain}"</span>)
+    <span class="kw">return</span> result  <span class="cm"># { "eth_received": "0.25", "tx_hash": "0x...", "status": "confirmed" }</span>
+
+<span class="cm"># ── 3. Multi-chain capital check (ETH + Base + Polygon) ──────────</span>
+<span class="kw">def</span> <span class="fn">get_total_snipe_capital</span>(wallet_id: <span class="cls">str</span>) -> <span class="cls">dict</span>:
+    <span class="st">"""
+    Aggregate available ETH across Ethereum mainnet, Base, and Polygon.
+    Agent can route each snipe to whichever chain has the best opportunity
+    and sufficient balance — no manual chain management required.
+    """</span>
+    chains = [<span class="st">"ethereum"</span>, <span class="st">"base"</span>, <span class="st">"polygon"</span>]
+    capital = {}
+    <span class="kw">for</span> chain <span class="kw">in</span> chains:
+        bal = <span class="fn">check_available_capital</span>(wallet_id, chain)
+        capital[chain] = {
+            <span class="st">"eth"</span>: <span class="cls">float</span>(bal[<span class="st">"eth"</span>]),
+            <span class="st">"usdc"</span>: <span class="cls">float</span>(bal[<span class="st">"usdc"</span>]),
+            <span class="st">"usd_total"</span>: <span class="cls">float</span>(bal[<span class="st">"usd_value"</span>]),
+        }
+    <span class="kw">return</span> capital
+<span class="cm"># Example output:
+# { "ethereum": {"eth": 0.48, "usdc": 500.0, "usd_total": 1705.0},
+#   "base":     {"eth": 0.10, "usdc": 200.0, "usd_total": 452.0},
+#   "polygon":  {"eth": 2.50, "usdc": 100.0, "usd_total": 156.0} }</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- STRATEGY INTEGRATION -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Strategy Integration</div>
+      <h2 class="section-title">Full sniping workflow:<br>detect, buy, reinvest</h2>
+      <p class="section-desc">
+        A production NFT sniping agent is more than a buy loop. It monitors floors continuously,
+        executes the moment an underpriced listing appears, and moves proceeds to a trading account
+        for reinvestment — compounding profits rather than leaving them idle.
+      </p>
+    </div>
+
+    <div class="reveal reveal-delay-1">
+      <div class="step-list">
+        <div class="step-item">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Monitor NFT floors and detect underpriced listings</h4>
+            <p>The price oracle polls Blur, OpenSea, and Magic Eden every 5–8 seconds and maintains a
+               consensus floor price for each watched collection. Any listing that arrives below
+               <code>floor * (1 - min_discount_pct / 100)</code> is flagged for evaluation.
+               WebSocket streams from Blur reduce latency to under one second for new listings on
+               high-volume collections.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Verify capital via GET /v1/wallet/balance before bidding</h4>
+            <p>Before submitting any transaction, call <code>GET /v1/wallet/balance</code> to confirm
+               available ETH exceeds the listing price plus an estimated gas buffer. If ETH is low but
+               USDC reserves exist, trigger the swap endpoint to top up automatically. This prevents
+               reverted transactions and wasted gas fees.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Execute purchase via Wallet API when opportunity is detected</h4>
+            <p>Call <code>POST /v1/wallet/send</code> with <code>gas_strategy: "fast"</code> and an
+               idempotency key tied to the token ID and timestamp. The Purple Flea wallet signs and
+               broadcasts the transaction server-side — no local keystore, no MetaMask pop-up, no
+               human confirmation step. The agent completes the buy in the same time window that a
+               human trader would still be opening their browser wallet.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h4>List the purchased NFT immediately below current floor</h4>
+            <p>On confirmed purchase, the agent constructs a Seaport listing order at 98.5% of the
+               current floor price and submits it via the wallet's <code>sign_listing</code> action.
+               Undercutting the floor by 1–2% ensures the position exits quickly without waiting for
+               a floor buyer to appear organically.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <h4>Move sale proceeds to trading account for reinvestment</h4>
+            <p>After a successful sale, the ETH proceeds land back in the wallet. The agent
+               automatically transfers a configurable percentage (e.g., 80%) to a Purple Flea
+               trading account via <code>POST /v1/wallet/send</code>, where the funds can be
+               deployed into DeFi strategies or used to fund the next sniping cycle. The remaining
+               20% stays in the wallet as a gas and dry-powder reserve. This compounding loop
+               means every successful snipe increases the capital base for the next opportunity.</p>
+          </div>
         </div>
       </div>
     </div>
