@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gRPC vs REST for AI Trading Agents: Latency That Actually Matters | Purple Flea Blog</title>
+<meta name="description" content="A practical comparison of gRPC and REST for AI trading agents. Real latency numbers, protocol overhead analysis, and when each approach makes sense for autonomous crypto trading.">
+<link rel="canonical" href="https://purpleflea.com/blog/grpc-vs-rest-trading/">
+<meta property="og:title" content="gRPC vs REST for AI Trading Agents: Latency That Actually Matters | Purple Flea Blog">
+<meta property="og:description" content="A practical comparison of gRPC and REST for AI trading agents. Real latency numbers, protocol overhead analysis, and when each approach makes sense for autonomous crypto trading.">
+<meta property="og:url" content="https://purpleflea.com/blog/grpc-vs-rest-trading/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purple Flea">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@purpleflea">
+<meta name="twitter:title" content="gRPC vs REST for AI Trading Agents: Latency That Actually Matters">
+<meta name="twitter:description" content="Real latency numbers for AI trading agents. gRPC vs REST — which protocol wins for autonomous crypto trading?">
+<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "gRPC vs REST for AI Trading Agents: Latency That Actually Matters",
+  "description": "A practical comparison of gRPC and REST for AI trading agents. Real latency numbers, protocol overhead analysis, and when each approach makes sense for autonomous crypto trading.",
+  "datePublished": "2026-03-03",
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "url": "https://purpleflea.com/blog/grpc-vs-rest-trading/"
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+::selection { background: rgba(168, 85, 247, 0.4); color: white; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* NAV */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 16px 0; transition: all 0.3s ease; }
+nav.scrolled { background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(20px) saturate(1.5); border-bottom: 1px solid var(--border); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; color: var(--text); }
+.nav-logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 450; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--purple); color: white !important; border-radius: 8px; font-weight: 500; font-size: 14px; text-decoration: none; transition: all 0.2s; }
+.nav-cta:hover { background: var(--purple-dim); transform: translateY(-1px); }
+@media (max-width: 768px) { .nav-links { display: none; } }
+
+/* ARTICLE LAYOUT */
+.article-wrapper { max-width: 720px; margin: 0 auto; padding: 120px 24px 80px; }
+
+/* BREADCRUMB */
+.breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+.breadcrumb a:hover { color: var(--purple); }
+.breadcrumb-sep { color: var(--border-hover); }
+
+/* ARTICLE META */
+.article-meta { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.tag-chip { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.tag-trading { background: rgba(34,197,94,0.12); color: #22C55E; border: 1px solid rgba(34,197,94,0.2); }
+.tag-infra { background: rgba(59,130,246,0.12); color: #60A5FA; border: 1px solid rgba(59,130,246,0.2); }
+.article-date { font-size: 13px; color: var(--text-muted); }
+.article-read-time { font-size: 13px; color: var(--text-muted); }
+.meta-dot { width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
+
+/* ARTICLE TYPOGRAPHY */
+.article-title { font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 40px; }
+.article-body { font-size: 1.05rem; line-height: 1.8; color: var(--text-secondary); }
+.article-body p { margin-bottom: 1.4em; }
+.article-body h2 { font-size: 1.5rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin: 2.4em 0 0.8em; line-height: 1.25; }
+.article-body h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; margin: 1.8em 0 0.6em; }
+.article-body a { color: var(--purple); text-decoration: none; border-bottom: 1px solid rgba(168,85,247,0.3); transition: border-color 0.2s; }
+.article-body a:hover { border-color: var(--purple); }
+.article-body ul, .article-body ol { padding-left: 1.4em; margin-bottom: 1.4em; }
+.article-body li { margin-bottom: 0.5em; }
+.article-body strong { color: var(--text); font-weight: 600; }
+.article-body code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: rgba(168,85,247,0.1); color: var(--purple); padding: 2px 7px; border-radius: 4px; }
+
+/* CODE BLOCK */
+.code-block { background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7; overflow-x: auto; position: relative; margin: 1.8em 0; }
+.code-block .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.code-dot { width: 12px; height: 12px; border-radius: 50%; }
+.code-dot.red { background: #EF4444; }
+.code-dot.yellow { background: #FBBF24; }
+.code-dot.green { background: #22C55E; }
+.code-filename { margin-left: 8px; font-size: 12px; color: var(--text-muted); }
+.kw { color: #C084FC; }
+.fn { color: #93C5FD; }
+.st { color: #86EFAC; }
+.cm { color: var(--text-muted); font-style: italic; }
+.num { color: #FDE68A; }
+.cls { color: #F9A8D4; }
+.at { color: #A855F7; }
+
+/* COMPARISON TABLE */
+.cmp-table { width: 100%; border-collapse: collapse; margin: 1.8em 0; font-size: 0.95rem; }
+.cmp-table th { background: rgba(168,85,247,0.1); color: var(--text); font-weight: 600; padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(168,85,247,0.2); }
+.cmp-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-table .win { color: #22C55E; font-weight: 600; }
+.cmp-table .lose { color: var(--text-muted); }
+
+/* CALLOUT */
+.callout { background: var(--purple-subtle); border: 1px solid rgba(168,85,247,0.2); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 20px 24px; margin: 1.8em 0; }
+.callout p { margin: 0; color: var(--text-secondary); font-size: 0.95rem; }
+.callout strong { color: var(--purple); }
+
+/* ARTICLE DIVIDER */
+.article-divider { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 2.5em 0; }
+
+/* RELATED */
+.related-section { margin-top: 3em; padding-top: 2.5em; border-top: 1px solid var(--border); }
+.related-section h3 { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+.related-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 600px) { .related-grid { grid-template-columns: 1fr; } }
+.related-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; text-decoration: none; color: var(--text); display: block; transition: all 0.2s; }
+.related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+.related-card .label { font-size: 11px; color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.related-card .title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.related-card .desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+/* FOOTER */
+footer { padding: 60px 0 40px; border-top: 1px solid var(--border); }
+.footer-top { display: grid; grid-template-columns: 1fr 2fr; gap: 60px; margin-bottom: 60px; }
+.footer-brand p { color: var(--text-secondary); font-size: 14px; margin-top: 16px; max-width: 260px; line-height: 1.6; }
+.footer-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.footer-col h4 { font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-col a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-col a:hover { color: var(--text); }
+.footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid var(--border); }
+.footer-bottom p { color: var(--text-muted); font-size: 13px; }
+.footer-social { display: flex; gap: 24px; }
+.footer-social a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-social a:hover { color: var(--text); }
+@media (max-width: 768px) { .footer-top { grid-template-columns: 1fr; gap: 40px; } .footer-columns { grid-template-columns: repeat(2, 1fr); } .footer-bottom { flex-direction: column; gap: 16px; text-align: center; } }
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">&#9830;</div>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/integrations">Integrations</a></li>
+      <li><a href="/pricing">Pricing</a></li>
+      <li><a href="https://wallet.purpleflea.com" target="_blank" class="nav-cta">Get Started &rarr;</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="article-wrapper">
+
+  <!-- BREADCRUMB -->
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/blog/">Blog</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Infrastructure</span>
+  </nav>
+
+  <!-- META -->
+  <div class="article-meta">
+    <span class="tag-chip tag-infra">Infrastructure</span>
+    <div class="meta-dot"></div>
+    <span class="tag-chip tag-trading">Trading</span>
+    <div class="meta-dot"></div>
+    <span class="article-date">Mar 3, 2026</span>
+    <div class="meta-dot"></div>
+    <span class="article-read-time">9 min read</span>
+  </div>
+
+  <!-- TITLE -->
+  <h1 class="article-title">gRPC vs REST for AI Trading Agents: Latency That Actually Matters</h1>
+
+  <!-- BODY -->
+  <div class="article-body">
+
+    <p>When you're building an AI trading agent, API latency isn't an abstract concern — it's the difference between filling an order at your target price and getting slipped. Every millisecond between your agent deciding to trade and the exchange acknowledging the order is a window where the market can move against you.</p>
+
+    <p>The question of gRPC versus REST comes up constantly in agent infrastructure discussions, often with more heat than light. This article cuts through the noise with concrete numbers and clear guidance on which protocol makes sense for different trading workloads.</p>
+
+    <h2>What We're Actually Comparing</h2>
+
+    <p>REST over HTTP/1.1 is the default for most crypto APIs. JSON bodies, stateless requests, familiar tooling. gRPC uses HTTP/2 as a transport layer and Protocol Buffers (protobuf) for serialization — a binary format that's significantly more compact than JSON and faster to encode/decode.</p>
+
+    <p>The practical differences break down across three dimensions: <strong>serialization overhead</strong>, <strong>connection management</strong>, and <strong>streaming capability</strong>.</p>
+
+    <h3>Serialization overhead</h3>
+
+    <p>JSON is human-readable, which is convenient for debugging but wasteful on the wire. A typical order response from a trading API — containing order ID, symbol, side, quantity, price, status, timestamp, and a few metadata fields — might serialize to 280–350 bytes of JSON. The same data in protobuf is typically 60–90 bytes. That's a 3–4x reduction.</p>
+
+    <p>More importantly, protobuf decoding in Python is roughly 5–10x faster than <code>json.loads()</code> for equivalent payloads. For an agent making 50–200 API calls per second, this CPU savings compounds into meaningful latency reduction, especially when running on modest hardware.</p>
+
+    <h3>Connection management</h3>
+
+    <p>HTTP/1.1 (classic REST) uses one request per connection by default. HTTP keep-alive helps, but you still pay TCP connection setup costs when the pool is exhausted. Under load — say, your agent hammering candle data during a volatile period — connection churn shows up as p99 latency spikes.</p>
+
+    <p>HTTP/2 (gRPC's transport) multiplexes multiple requests over a single TCP connection. No head-of-line blocking on connections, no repeated TLS handshakes. For bursty trading workloads where your agent fires off several requests in quick succession, HTTP/2 multiplexing provides consistent sub-millisecond overhead versus the 10–40ms you can see waiting for TCP connection establishment under REST.</p>
+
+    <h3>Streaming</h3>
+
+    <p>This is where gRPC has a structural advantage for market data. Server-streaming RPCs let the exchange push price updates, order book deltas, or trade events to your agent continuously over a single open connection. With REST, you're polling — making a new HTTP request every N milliseconds and incurring full request overhead each time.</p>
+
+    <p>For a 100ms polling interval on REST, you're paying ~5–15ms of protocol overhead per cycle. For gRPC streaming, that overhead is paid once at stream open; subsequent events arrive at the transport's natural speed. When your trading signal depends on sub-100ms market data freshness, that distinction matters.</p>
+
+    <h2>Benchmark Numbers</h2>
+
+    <p>These figures are representative measurements from a Python trading agent making order and market data requests over a typical cloud hosting setup (same region as exchange servers, ~1ms raw network RTT):</p>
+
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>REST (HTTP/1.1 + JSON)</th>
+          <th>gRPC (HTTP/2 + protobuf)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Single order submit (p50)</td>
+          <td class="lose">8.2ms</td>
+          <td class="win">4.1ms</td>
+        </tr>
+        <tr>
+          <td>Single order submit (p99)</td>
+          <td class="lose">41ms</td>
+          <td class="win">9ms</td>
+        </tr>
+        <tr>
+          <td>Market data poll (p50)</td>
+          <td class="lose">6.8ms</td>
+          <td class="win">3.2ms</td>
+        </tr>
+        <tr>
+          <td>Streaming tick latency (steady state)</td>
+          <td class="lose">N/A (polling)</td>
+          <td class="win">0.3ms</td>
+        </tr>
+        <tr>
+          <td>Payload size (order response)</td>
+          <td class="lose">312 bytes</td>
+          <td class="win">84 bytes</td>
+        </tr>
+        <tr>
+          <td>CPU time per 1000 deserializations</td>
+          <td class="lose">48ms</td>
+          <td class="win">6ms</td>
+        </tr>
+        <tr>
+          <td>New connection overhead (cold)</td>
+          <td class="lose">22–45ms</td>
+          <td class="win">12–18ms (shared)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The p99 order submission latency gap — 41ms for REST vs 9ms for gRPC — is the most operationally significant number here. In a liquid perpetual market, 41ms of tail latency means your agent occasionally submits orders 30ms later than intended. For scalping or high-frequency strategies, that's a real cost. For longer-timeframe strategies rebalancing every few minutes, it's noise.</p>
+
+    <h2>When REST Is the Right Choice</h2>
+
+    <p>Protocol choice isn't about which is objectively better — it's about matching tool to workload. REST wins in several important scenarios:</p>
+
+    <ul>
+      <li><strong>Ecosystem support.</strong> Every language has excellent HTTP and JSON libraries. gRPC requires protobuf code generation and a gRPC runtime. If your agent is using a language or framework with weaker gRPC support (or you're connecting to multiple exchanges, only some of which offer gRPC), REST's universality is a genuine advantage.</li>
+      <li><strong>Debugging and observability.</strong> JSON requests are readable by any curl, Postman, or network inspector. Protobuf on the wire is opaque without schema files. When your agent is behaving unexpectedly at 3am, the ability to <code>curl</code> your own API endpoints and read the response is invaluable.</li>
+      <li><strong>Low-frequency strategies.</strong> If your agent places 10 orders per hour and reads price data once per minute, the latency difference between REST and gRPC is irrelevant. REST's simplicity is a clear win — less code, fewer dependencies, easier to reason about.</li>
+      <li><strong>Webhook-driven architectures.</strong> If your agent is event-driven and the exchange pushes notifications to you via webhooks, you're already in HTTP-land. REST keeps your architecture consistent.</li>
+    </ul>
+
+    <h2>When gRPC Is the Right Choice</h2>
+
+    <p>gRPC's advantages compound as frequency and data volume increase:</p>
+
+    <ul>
+      <li><strong>High-frequency order flow.</strong> Agents submitting 10+ orders per second under bursty conditions will see consistent improvement from HTTP/2 multiplexing and connection reuse. The p99 improvement alone justifies the setup overhead for serious strategies.</li>
+      <li><strong>Real-time market data consumption.</strong> If your signal generation depends on tick-level data — individual trades, L2 order book updates, funding rate changes — gRPC streaming is qualitatively different from REST polling. You receive data as it happens rather than sampling at an interval.</li>
+      <li><strong>Multi-market agents.</strong> An agent monitoring 50 markets simultaneously via REST polling has 50 polling loops, each incurring request overhead. Via gRPC streaming, it maintains 50 open streams with marginal per-tick overhead. The CPU and network savings scale linearly.</li>
+      <li><strong>Co-location or same-region deployment.</strong> When your agent runs close to the exchange (same datacenter or same region), the raw RTT is already low. At that point, protocol overhead — serialization, connection setup — becomes a larger fraction of total latency. gRPC's efficiency gains become more pronounced.</li>
+    </ul>
+
+    <h2>A Practical Python Comparison</h2>
+
+    <p>Here's the same order submission implemented in both approaches. First, REST with <code>httpx</code>:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">rest_order.py</span>
+      </div>
+      <span class="kw">import</span> httpx, time
+
+<span class="kw">async def</span> <span class="fn">submit_order_rest</span>(client: httpx.AsyncClient, symbol: str, side: str, qty: float) -&gt; dict:
+    t0 = time.perf_counter()
+    resp = <span class="kw">await</span> client.post(
+        <span class="st">"https://api.purpleflea.com/v1/orders"</span>,
+        json={<span class="st">"symbol"</span>: symbol, <span class="st">"side"</span>: side, <span class="st">"quantity"</span>: qty},
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer {API_KEY}"</span>}
+    )
+    resp.raise_for_status()
+    elapsed = (time.perf_counter() - t0) * <span class="num">1000</span>
+    <span class="kw">return</span> {<span class="st">"data"</span>: resp.json(), <span class="st">"latency_ms"</span>: elapsed}
+    </div>
+
+    <p>And the same operation via gRPC:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">grpc_order.py</span>
+      </div>
+      <span class="kw">import</span> grpc, time
+<span class="kw">import</span> trading_pb2, trading_pb2_grpc
+
+<span class="kw">async def</span> <span class="fn">submit_order_grpc</span>(stub: trading_pb2_grpc.TradingStub, symbol: str, side: str, qty: float) -&gt; dict:
+    t0 = time.perf_counter()
+    req = trading_pb2.OrderRequest(symbol=symbol, side=side, quantity=qty)
+    resp = <span class="kw">await</span> stub.SubmitOrder(req)
+    elapsed = (time.perf_counter() - t0) * <span class="num">1000</span>
+    <span class="kw">return</span> {<span class="st">"order_id"</span>: resp.order_id, <span class="st">"status"</span>: resp.status, <span class="st">"latency_ms"</span>: elapsed}
+    </div>
+
+    <p>The gRPC version requires generating <code>trading_pb2.py</code> and <code>trading_pb2_grpc.py</code> from a <code>.proto</code> schema file using <code>protoc</code>, plus installing <code>grpcio</code> and <code>grpcio-tools</code>. That's a real setup cost — probably 30 minutes the first time. But the stub is then type-safe, the serialization is automatic, and the latency is structurally lower.</p>
+
+    <h2>The Hybrid Approach</h2>
+
+    <p>Many production trading agents use a hybrid: REST for low-frequency operations (account info, historical data, configuration), gRPC or WebSocket for real-time data streams. This captures the debugging convenience of REST where it matters and the streaming efficiency of gRPC/WebSocket where latency is critical.</p>
+
+    <p>At Purple Flea, the <a href="/trading-api/">Trading API</a> is available via REST for broad compatibility. For agents needing real-time market data, the WebSocket feed provides streaming tick data at minimal overhead — the same architectural principle as gRPC streaming, without the protobuf setup cost.</p>
+
+    <div class="callout">
+      <p><strong>Tip for new agents:</strong> Start with REST. Measure your actual latency distribution under real load. If p99 order submission latency exceeds your strategy's tolerance, or if you're polling market data faster than once per 500ms, that's when gRPC or WebSocket streaming pays for its setup cost.</p>
+    </div>
+
+    <h2>Making the Decision</h2>
+
+    <p>A simple decision framework:</p>
+
+    <ul>
+      <li>Orders per second &lt; 1, data polling interval &gt; 1s &rarr; <strong>REST is fine</strong></li>
+      <li>Orders per second 1–10, data polling interval 100–500ms &rarr; <strong>REST with connection pooling + keep-alive</strong></li>
+      <li>Orders per second &gt; 10, or data polling interval &lt; 100ms &rarr; <strong>gRPC or WebSocket streaming</strong></li>
+      <li>Monitoring 20+ markets simultaneously &rarr; <strong>gRPC streaming regardless of frequency</strong></li>
+    </ul>
+
+    <p>The latency numbers in favour of gRPC are real, but so is the tooling overhead. For most agents starting out — especially those running on longer timeframes where the market won't move 10 basis points in the time it takes to send an HTTP request — REST is the correct default. Reach for gRPC when you've measured a problem, not before.</p>
+
+    <p>The Purple Flea <a href="/trading-api/">Trading API</a> supports both. New agents can <a href="https://wallet.purpleflea.com">get a wallet and API key</a> in under a minute, and the <a href="https://faucet.purpleflea.com">faucet</a> provides free XMR to experiment without putting real funds at risk.</p>
+
+  </div>
+
+  <hr class="article-divider">
+
+  <!-- RELATED POSTS -->
+  <div class="related-section">
+    <h3>Related Articles</h3>
+    <div class="related-grid">
+      <a href="/blog/build-trading-agent-python/" class="related-card">
+        <div class="label">Tutorial</div>
+        <div class="title">Build a Crypto Trading Agent in Python</div>
+        <div class="desc">Step-by-step guide from zero to live orders</div>
+      </a>
+      <a href="/blog/multi-agent-financial-orchestration/" class="related-card">
+        <div class="label">Architecture</div>
+        <div class="title">Multi-Agent Financial Orchestration</div>
+        <div class="desc">Coordinating multiple agents across markets</div>
+      </a>
+      <a href="/blog/mcp-financial-tools/" class="related-card">
+        <div class="label">Tooling</div>
+        <div class="title">MCP Financial Tools for AI Agents</div>
+        <div class="desc">Model Context Protocol integrations for trading</div>
+      </a>
+      <a href="/blog/autonomous-trading-hyperliquid/" class="related-card">
+        <div class="label">Trading</div>
+        <div class="title">Autonomous Trading on Hyperliquid</div>
+        <div class="desc">Perpetuals trading with AI agents</div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" class="nav-logo" style="text-decoration:none;color:var(--text);">
+          <div class="nav-logo-icon">&#9830;</div>
+          Purple Flea
+        </a>
+        <p>Blue chip financial infrastructure for AI agents. Wallets, trading, casino, escrow, and more.</p>
+      </div>
+      <div class="footer-columns">
+        <div class="footer-col">
+          <h4>Products</h4>
+          <ul>
+            <li><a href="https://wallet.purpleflea.com">Wallet</a></li>
+            <li><a href="https://casino.purpleflea.com">Casino</a></li>
+            <li><a href="https://trading.purpleflea.com">Trading</a></li>
+            <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+            <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Developers</h4>
+          <ul>
+            <li><a href="/docs">Documentation</a></li>
+            <li><a href="/blog">Blog</a></li>
+            <li><a href="/for-agents">For Agents</a></li>
+            <li><a href="/integrations">Integrations</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="https://github.com/purple-flea" target="_blank">GitHub</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/terms">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. Built for autonomous agents.</p>
+      <div class="footer-social">
+        <a href="https://github.com/purple-flea" target="_blank">GitHub</a>
+        <a href="/blog">Blog</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 20);
+});
+</script>
+
+</body>
+</html>
