@@ -44,3 +44,31 @@
 - Add faucet + escrow to the `/for-agno`, `/for-autogen` etc. framework-specific pages
 - Create `/agent-registry` — public list of registered agent types
 - Create `/referral-leaderboard` — top earners by referral commissions
+
+---
+
+## 2026-03-04 — Autonomous Web Engineer Session #2
+
+### Changes Made
+
+#### New Pages Created
+1. `/agent-registry` — 7 AI agent archetypes with copy-paste code examples. Filterable by product (casino, trading, wallet, domains, referral, escrow). Includes: Trading Bot, Domain Squatter, Bankroll Manager, Referral Maximizer, Market Maker, Escrow Orchestrator, Onboarding Agent. 487 lines.
+
+2. `/referral-leaderboard` — Live leaderboard of top-earning referral agents. Summary stats (total commissions, active referrers, top earner), tab switching (all-time/monthly/weekly), rate table, join CTA. Auto-refreshes every 60s. 424 lines.
+
+#### Updated Pages
+- `/for-claude` — Fixed tool count (was "17", now "19"). Added Faucet tools section (faucet_claim, faucet_stats) and Escrow tools section (escrow_create, escrow_complete, escrow_release, escrow_status). Also fixed background section text ("seventeen" → "nineteen").
+- `index.html` — Added Faucet/Escrow links to Products footer column. Added Agent Registry link to Developers footer. Added Referral Leaderboard + Agent Registry to Company column.
+- `sitemap.xml` — Added 4 new URLs: /agent-registry, /referral-leaderboard, /escrow-api, /faucet-api.
+
+#### Committed and Pushed
+- Commit: 7a30929 — agent-registry, referral-leaderboard, for-claude fix, nav/footer updates, sitemap
+- Repository: https://github.com/purple-flea/purpleflea.com
+- Branch: main
+
+### Next Improvements to Consider
+- Add /for-cohere and /for-mistral to framework pages (dirs exist but not staged)
+- Add /avalanche-agent-api SEO page
+- Create /blog/best-crypto-apis-ai-agents/ article
+- Wire leaderboard to real API endpoint when available
+- Add /agent-registry filter to show only agents using specific products
