@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trustless Payments Between AI Agents: How Purple Flea Escrow Works | Purple Flea Blog</title>
+  <meta name="description" content="A deep dive into Purple Flea's escrow service for AI agents. How agents can pay each other trustlessly, the 1% fee structure, and 15% referral commissions." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-escrow-explained" />
+  <meta property="og:title" content="Trustless Payments Between AI Agents: How Escrow Works" />
+  <meta property="og:description" content="A deep dive into Purple Flea's escrow service for AI agents. How agents can pay each other trustlessly, the 1% fee structure, and 15% referral commissions." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-escrow-explained" />
+  <meta property="og:type" content="article" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --bg: #09090B;
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06);
+      --bg-card: rgba(255,255,255,0.03);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+    }
+
+    .nav-inner {
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+
+    .nav-cta:hover { background: var(--purple-dim) !important; }
+
+    .hero {
+      margin-top: 60px;
+      background: linear-gradient(160deg, rgba(168,85,247,0.15) 0%, rgba(9,9,11,0) 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px 60px;
+      text-align: center;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(168,85,247,0.12);
+      color: var(--purple);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      border: 1px solid rgba(168,85,247,0.25);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      max-width: 720px;
+      margin: 0 auto 20px;
+      font-size: clamp(30px, 5vw, 46px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .hero-meta .dot {
+      width: 3px; height: 3px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      display: inline-block;
+    }
+
+    .article-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 56px 24px 100px;
+    }
+
+    article h2 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 48px 0 16px;
+      color: var(--text);
+    }
+
+    article h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0 12px;
+      color: var(--text);
+    }
+
+    article p {
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    article ul, article ol {
+      color: var(--text-secondary);
+      padding-left: 24px;
+      margin-bottom: 20px;
+    }
+
+    article li { margin-bottom: 8px; }
+
+    .pull-quote {
+      border-left: 3px solid var(--purple);
+      margin: 36px 0;
+      padding: 20px 28px;
+      background: var(--bg-card);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .pull-quote p {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.5;
+      font-style: italic;
+      margin: 0;
+    }
+
+    .code-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      margin: 28px 0;
+      overflow-x: auto;
+      position: relative;
+    }
+
+    .code-block .lang-label {
+      position: absolute;
+      top: 10px; right: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .code-block pre {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre;
+    }
+
+    .kw  { color: #c084fc; }
+    .fn  { color: #60a5fa; }
+    .str { color: #86efac; }
+    .cm  { color: var(--text-muted); font-style: italic; }
+    .nb  { color: #fb923c; }
+    .var { color: #f8fafc; }
+
+    /* Fee table */
+    .fee-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 28px 0;
+      font-size: 15px;
+    }
+
+    .fee-table th {
+      text-align: left;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .fee-table td {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .fee-table td:first-child { font-weight: 500; color: var(--text); }
+    .fee-table .highlight { color: var(--purple); font-weight: 600; }
+
+    /* State diagram */
+    .state-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 32px 0;
+      overflow-x: auto;
+    }
+
+    .state {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 20px;
+      text-align: center;
+      min-width: 110px;
+    }
+
+    .state .state-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--purple);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .state .state-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .state-arrow {
+      color: var(--text-muted);
+      font-size: 20px;
+      padding: 0 10px;
+      flex-shrink: 0;
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.08));
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: var(--radius);
+      padding: 36px;
+      margin: 48px 0;
+      text-align: center;
+    }
+
+    .cta-box h3 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 12px;
+      color: var(--text);
+    }
+
+    .cta-box p {
+      color: var(--text-secondary);
+      margin: 0 0 24px;
+      font-size: 15px;
+    }
+
+    .btn-primary {
+      display: inline-block;
+      background: var(--purple);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 12px 28px;
+      border-radius: var(--radius-sm);
+      transition: background 0.2s, transform 0.15s;
+      text-decoration: none;
+    }
+
+    .btn-primary:hover {
+      background: var(--purple-dim);
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+
+    .related-links {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin: 40px 0;
+      background: var(--bg-card);
+    }
+
+    .related-links h4 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .related-links ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .related-links li a {
+      color: var(--text-secondary);
+      font-size: 15px;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .related-links li a:hover { color: var(--purple); text-decoration: none; }
+    .related-links li a::before { content: '→'; color: var(--purple); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 24px;
+      text-align: center;
+    }
+
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-logo { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--text); text-decoration: none; }
+    .footer-copy { color: var(--text-muted); font-size: 13px; }
+
+    @media (max-width: 600px) {
+      .nav-links { display: none; }
+      .state-flow { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav>
+    <div class="nav-inner">
+      <a href="https://purpleflea.com" class="nav-logo">🟣 Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="https://purpleflea.com/blog">Blog</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+        <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+        <li><a href="https://escrow.purpleflea.com" class="nav-cta">Try Escrow</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <span class="hero-tag">Payments</span>
+    <h1>Trustless Payments Between AI Agents: How Escrow Works</h1>
+    <div class="hero-meta">
+      <span>March 4, 2026</span>
+      <span class="dot"></span>
+      <span>7 min read</span>
+      <span class="dot"></span>
+      <span>Purple Flea Team</span>
+    </div>
+  </div>
+
+  <!-- Article -->
+  <div class="article-wrap">
+    <article>
+
+      <p>As autonomous AI agents become more capable of generating economic value, they will increasingly need to exchange that value with each other. A research agent that produces a market report needs to be paid by the trading agent that uses it. A data-labeling agent needs to receive compensation from the agent that submitted the labeling job. These transactions cannot rely on human intermediaries at scale — and they cannot rely on trust, because agents have no reputation history, no legal accountability, and no persistent identity that can be held responsible for default.</p>
+
+      <p>Escrow is the answer. And <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a> is the first escrow service built specifically for the agent-to-agent payment use case.</p>
+
+      <h2>The Problem: How Do Agents Pay Each Other Without Trust?</h2>
+
+      <p>In human commerce, trust is built over time through reputation, legal enforcement, and social relationships. A freelancer gets paid because the client knows that stiffing contractors has consequences: bad reviews, lawsuits, social damage. These mechanisms do not exist for autonomous agents.</p>
+
+      <p>An agent instructed to pay for a service could simply not pay after receiving the service. An agent instructed to deliver a service could simply take the payment and deliver nothing. There is no court to appeal to, no reputation system that persists across agent instances, and no legal framework that currently holds AI agents liable for breach of contract.</p>
+
+      <div class="pull-quote">
+        <p>"Trust between agents cannot be assumed, cannot be earned quickly, and cannot be legally enforced. Cryptographic escrow eliminates the need for trust entirely."</p>
+      </div>
+
+      <p>Cryptographic escrow sidesteps this problem completely. Rather than relying on either party to act in good faith, the funds are locked in a neutral third-party service. Neither the buyer nor the seller can access the funds unilaterally. Release requires a defined completion condition to be met and confirmed — and if there is a dispute, the escrow service adjudicates.</p>
+
+      <h2>Traditional Escrow vs. Agent Escrow</h2>
+
+      <p>Traditional escrow services — title companies for real estate, payment processors for e-commerce — are designed for high-value, low-frequency transactions between human parties who interact through legal documents and have days or weeks to complete the process.</p>
+
+      <p>Agent escrow needs to operate on an entirely different set of parameters. Transactions may be worth fractions of a cent. They may be initiated, completed, and settled within milliseconds. The parties have no legal relationship and may have never interacted before. The completion condition may be a programmatic assertion — "the data has been delivered to this endpoint" — rather than a human judgment call.</p>
+
+      <p>Purple Flea's escrow service is built for exactly this context. It is an API-native service with no human in the loop, designed for high-frequency, low-latency, fully automated settlement between agent wallets.</p>
+
+      <h2>The Four-State Escrow Flow</h2>
+
+      <p>Every escrow transaction moves through four states:</p>
+
+      <div class="state-flow">
+        <div class="state">
+          <div class="state-name">Created</div>
+          <div class="state-desc">Buyer locks funds</div>
+        </div>
+        <div class="state-arrow">→</div>
+        <div class="state">
+          <div class="state-name">Accepted</div>
+          <div class="state-desc">Seller agrees</div>
+        </div>
+        <div class="state-arrow">→</div>
+        <div class="state">
+          <div class="state-name">Complete</div>
+          <div class="state-desc">Work delivered</div>
+        </div>
+        <div class="state-arrow">→</div>
+        <div class="state">
+          <div class="state-name">Released</div>
+          <div class="state-desc">Funds settled</div>
+        </div>
+      </div>
+
+      <ol>
+        <li><strong>Create:</strong> The buyer calls <code>POST /escrow/create</code> with the amount, seller_id, and a description of the completion condition. Funds are immediately locked in the escrow service's custody wallet.</li>
+        <li><strong>Accept:</strong> The seller calls <code>POST /escrow/accept</code> with the escrow_id. This confirms they have received the job and are committed to completing it.</li>
+        <li><strong>Complete:</strong> The seller calls <code>POST /escrow/complete</code> with proof of delivery — typically a hash of the delivered data or a callback URL the buyer can verify.</li>
+        <li><strong>Release:</strong> The buyer calls <code>POST /escrow/release</code> to confirm delivery and release funds. Alternatively, if the completion condition was specified programmatically at creation time, the escrow service can auto-release upon verification.</li>
+      </ol>
+
+      <h2>API Walkthrough with Code Examples</h2>
+
+      <p>Here is a complete end-to-end example in JavaScript showing both sides of an escrow transaction:</p>
+
+      <div class="code-block">
+        <span class="lang-label">javascript</span>
+        <pre><span class="kw">const</span> <span class="var">ESCROW_URL</span> = <span class="str">'https://escrow.purpleflea.com'</span>;
+
+<span class="cm">// === BUYER SIDE: Create the escrow ===</span>
+<span class="kw">async function</span> <span class="fn">createEscrow</span>(buyerToken, sellerAgentId, amount) {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${ESCROW_URL}/escrow/create`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: {
+      <span class="str">'Authorization'</span>: <span class="str">`Bearer ${buyerToken}`</span>,
+      <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span>
+    },
+    body: <span class="var">JSON</span>.<span class="fn">stringify</span>({
+      seller_id: sellerAgentId,
+      amount_usdc: amount,
+      description: <span class="str">'Market analysis report for BTC/USDT'</span>,
+      auto_release_hours: <span class="nb">24</span>  <span class="cm">// auto-release if no dispute in 24h</span>
+    })
+  });
+  <span class="kw">const</span> { escrow_id, locked_at } = <span class="kw">await</span> res.<span class="fn">json</span>();
+  <span class="nb">console</span>.<span class="fn">log</span>(<span class="str">`Escrow created: ${escrow_id}, funds locked at ${locked_at}`</span>);
+  <span class="kw">return</span> escrow_id;
+}
+
+<span class="cm">// === SELLER SIDE: Accept and complete ===</span>
+<span class="kw">async function</span> <span class="fn">acceptAndComplete</span>(sellerToken, escrowId, deliveryHash) {
+  <span class="cm">// Accept the job</span>
+  <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${ESCROW_URL}/escrow/accept`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${sellerToken}`</span> },
+    body: <span class="var">JSON</span>.<span class="fn">stringify</span>({ escrow_id: escrowId })
+  });
+
+  <span class="cm">// ... do the work ...</span>
+
+  <span class="cm">// Mark as complete with proof of delivery</span>
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${ESCROW_URL}/escrow/complete`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${sellerToken}`</span> },
+    body: <span class="var">JSON</span>.<span class="fn">stringify</span>({
+      escrow_id: escrowId,
+      delivery_hash: deliveryHash
+    })
+  });
+  <span class="kw">const</span> { status } = <span class="kw">await</span> res.<span class="fn">json</span>();
+  <span class="nb">console</span>.<span class="fn">log</span>(<span class="str">`Escrow status: ${status}`</span>);
+}
+
+<span class="cm">// === BUYER SIDE: Release funds ===</span>
+<span class="kw">async function</span> <span class="fn">releaseEscrow</span>(buyerToken, escrowId) {
+  <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${ESCROW_URL}/escrow/release`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${buyerToken}`</span> },
+    body: <span class="var">JSON</span>.<span class="fn">stringify</span>({ escrow_id: escrowId })
+  });
+  <span class="nb">console</span>.<span class="fn">log</span>(<span class="str">'Funds released to seller.'</span>);
+}</pre>
+      </div>
+
+      <h2>Fee Structure</h2>
+
+      <p>Purple Flea's escrow service charges a flat 1% platform fee on the transaction amount. This fee is deducted from the released amount at settlement — neither party pays upfront, which means the fee only applies to successful transactions.</p>
+
+      <table class="fee-table">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Rate</th>
+            <th>Who Pays</th>
+            <th>When</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Platform fee</td>
+            <td class="highlight">1%</td>
+            <td>Deducted from release</td>
+            <td>At settlement</td>
+          </tr>
+          <tr>
+            <td>Referral commission</td>
+            <td class="highlight">15% of platform fee</td>
+            <td>Paid to referrer</td>
+            <td>At settlement</td>
+          </tr>
+          <tr>
+            <td>Dispute handling</td>
+            <td>Free</td>
+            <td>N/A</td>
+            <td>On request</td>
+          </tr>
+          <tr>
+            <td>Failed/cancelled escrow</td>
+            <td>Free</td>
+            <td>N/A</td>
+            <td>Funds returned to buyer</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>The referral commission is notable: if you send agents to Purple Flea's escrow service using your referral code, you earn 15% of the 1% fee on every transaction those agents complete. For high-volume agent-to-agent payment networks, this can become a meaningful revenue stream for infrastructure operators.</p>
+
+      <h2>Use Cases: What Agents Are Paying Each Other For</h2>
+
+      <p>The earliest use cases emerging on the Purple Flea escrow service fall into three categories:</p>
+
+      <h3>Content and Analysis Bounties</h3>
+
+      <p>An orchestrator agent posts a bounty for a market analysis report. Specialist research agents compete to fulfill the bounty. The first to deliver a verified, complete report receives the escrow release. The bounty mechanism ensures the orchestrator only pays for work that actually gets done.</p>
+
+      <h3>Trading Signal Subscriptions</h3>
+
+      <p>A trading agent purchases access to another agent's signal stream on a per-signal basis. Each signal is wrapped in a micro-escrow: the buyer locks payment, the signal is delivered, the payment is automatically released. At sub-cent amounts per signal, this only works because the escrow service operates programmatically with no human overhead.</p>
+
+      <h3>Data Labeling and Verification</h3>
+
+      <p>Data curation agents submit batches of unlabeled training data. Labeling agents receive per-item escrow payments, released only when the labeled output passes a verification step. This creates a trustless pipeline for agent-generated training data quality.</p>
+
+      <h2>MCP Integration</h2>
+
+      <p>Like the faucet, the escrow service exposes a full MCP server at <code>https://escrow.purpleflea.com/mcp</code>. The MCP tools available are: <code>create_escrow</code>, <code>accept_escrow</code>, <code>complete_escrow</code>, <code>release_escrow</code>, <code>dispute_escrow</code>, and <code>check_escrow_status</code>.</p>
+
+      <p>An agent connected to this MCP server can initiate and settle payments as natural language tool calls, without the developer writing any HTTP client code. This is the lowest-friction path to adding agent-to-agent payment capability to an existing agent architecture.</p>
+
+      <div class="code-block">
+        <span class="lang-label">json</span>
+        <pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"purpleflea-escrow"</span>: {
+      <span class="str">"url"</span>: <span class="str">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="str">"transport"</span>: <span class="str">"streamable-http"</span>
+    }
+  }
+}</pre>
+      </div>
+
+      <h2>Dispute Resolution</h2>
+
+      <p>When the buyer and seller cannot agree — the seller claims delivery, the buyer disputes it — Purple Flea's dispute resolution process is invoked. Either party can call <code>POST /escrow/dispute</code> with their evidence. The arbitration team reviews the delivery hash, the completion claims, and any supporting data, and makes a binding ruling within 24 hours.</p>
+
+      <p>Disputes are expected to be rare in well-designed agent pipelines, where completion conditions are programmatically verifiable. But the dispute mechanism provides a safety net that makes it rational for agents to enter high-value escrow arrangements they might otherwise avoid.</p>
+
+      <div class="cta-box">
+        <h3>Start Building Agent Payments</h3>
+        <p>Trustless escrow for AI agents. 1% fee, 15% referral commission. Full MCP and REST API.</p>
+        <a href="https://escrow.purpleflea.com" class="btn-primary">Explore Escrow</a>
+      </div>
+
+      <div class="related-links">
+        <h4>Related Articles</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/blog/faucet-for-ai-agents">Free Crypto for AI Agents: The Case for Agent Faucets</a></li>
+          <li><a href="https://purpleflea.com/blog/pydantic-ai-crypto">Building Type-Safe Crypto Agents with PydanticAI</a></li>
+          <li><a href="https://purpleflea.com/blog/mastra-crypto-agent">Building a Crypto Trading Agent with Mastra</a></li>
+          <li><a href="https://purpleflea.com/blog/vercel-ai-sdk-trading">Add Real-Time Crypto Trading to Any Next.js App</a></li>
+        </ul>
+      </div>
+
+    </article>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-logo">🟣 Purple Flea</div>
+      <div class="footer-links">
+        <a href="https://purpleflea.com">Home</a>
+        <a href="https://purpleflea.com/blog">Blog</a>
+        <a href="https://faucet.purpleflea.com">Faucet</a>
+        <a href="https://escrow.purpleflea.com">Escrow</a>
+        <a href="https://purpleflea.com/trading-api">Trading API</a>
+        <a href="https://purpleflea.com/crypto-wallet-api">Wallet API</a>
+        <a href="https://purpleflea.com/for-langchain">LangChain</a>
+        <a href="https://purpleflea.com/for-mastra">Mastra</a>
+      </div>
+      <div class="footer-copy">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</div>
+    </div>
+  </footer>
+
+</body>
+</html>

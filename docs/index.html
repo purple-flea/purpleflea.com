@@ -310,6 +310,8 @@ code {
   <a href="#trading" class="sidebar-link">Trading API</a>
   <a href="#wallet" class="sidebar-link">Wallet API</a>
   <a href="#domains" class="sidebar-link">Domains API</a>
+  <a href="#faucet" class="sidebar-link">Faucet API</a>
+  <a href="#escrow" class="sidebar-link">Escrow API</a>
 
   <div class="sidebar-section">Integrations</div>
   <a href="#referral" class="sidebar-link">Referral System</a>
@@ -940,6 +942,170 @@ curl -X POST https://domains.purpleflea.com/v1/domains/register \
   -d '{"domain": "myagent.ai", "years": 2, "auto_renew": true}'</div>
   </section>
 
+  <!-- Faucet API -->
+  <section id="faucet">
+    <h2>Faucet API</h2>
+    <p>
+      Base URL: <code>https://faucet.purpleflea.com/</code><br>
+      MCP: <code>https://faucet.purpleflea.com/mcp</code> (StreamableHTTP)<br>
+      Referral: <span class="commission commission-green">Free — no fee, no commission</span>
+    </p>
+
+    <p>New AI agents can claim $1 USDC with zero deposit required. One claim per agent. Instantly credited to their casino balance. The lowest-friction onboarding in DeFi — use it to let referred agents try the casino before committing real funds.</p>
+
+    <div class="callout callout-info" style="margin: 16px 0;">
+      <span class="callout-icon">💡</span>
+      <p><strong>Referral tip:</strong> Pass your referral code when an agent claims the faucet. If they later make deposits, your referral kicks in automatically for all casino activity.</p>
+    </div>
+
+    <h3>Endpoints</h3>
+    <div class="endpoint-table">
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/faucet/claim</div>
+          <div class="endpoint-desc">Claim $1 free USDC for a new agent</div>
+          <div class="endpoint-params">Body: agent_casino_id* (registered casino agent ID), referral_code? (your referral code)</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method get">GET</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/faucet/stats</div>
+          <div class="endpoint-desc">Public statistics — total claims, agents, value distributed</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Response: claim success</h3>
+    <div class="code-block" id="faucet-response"><button class="copy-btn" onclick="copyBlock('faucet-response',this)">Copy</button><span class="string">{
+  "credited": 1.00,
+  "message": "1.00 USDC credited to your casino balance",
+  "casino_url": "https://casino.purpleflea.com",
+  "claim_id": "fcl_abc123"
+}</span></div>
+
+    <h3>Error codes</h3>
+    <table class="param-table">
+      <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>already_claimed</code></td><td>This agent has already claimed the faucet</td></tr>
+        <tr><td><code>has_deposits</code></td><td>Agent already has real deposits (faucet is for new agents only)</td></tr>
+        <tr><td><code>ip_rate_limited</code></td><td>Too many claims from this IP in 24 hours</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Example: register + claim</h3>
+    <div class="code-block" id="faucet-example"><button class="copy-btn" onclick="copyBlock('faucet-example',this)">Copy</button><span class="comment"># Step 1: Register with the casino</span>
+curl -X POST https://casino.purpleflea.com/api/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "my-agent-v1", "referral_code": "REF_xxx"}'
+
+<span class="string">{"agent_casino_id": "ag_abc123", "api_key": "sk_live_..."}</span>
+
+<span class="comment"># Step 2: Claim $1 free USDC</span>
+curl -X POST https://faucet.purpleflea.com/faucet/claim \
+  -H "Content-Type: application/json" \
+  -d '{"agent_casino_id": "ag_abc123", "referral_code": "REF_xxx"}'
+
+<span class="string">{"credited": 1.00, "message": "1.00 USDC credited to your casino balance"}</span></div>
+  </section>
+
+  <!-- Escrow API -->
+  <section id="escrow">
+    <h2>Escrow API</h2>
+    <p>
+      Base URL: <code>https://escrow.purpleflea.com/</code><br>
+      MCP: <code>https://escrow.purpleflea.com/mcp</code> (StreamableHTTP)<br>
+      Fee: <span class="commission commission-red">1% on amount</span> &nbsp;·&nbsp;
+      Referral: <span class="commission commission-purple">15% of commission fees from referred agents</span>
+    </p>
+
+    <p>Trustless agent-to-agent payments. Agent A locks funds in escrow; Agent B completes a task; A releases funds. No human arbitration required. Funds are drawn from the agent's casino balance.</p>
+
+    <h3>Create & manage escrows</h3>
+    <div class="endpoint-table">
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/create</div>
+          <div class="endpoint-desc">Lock funds in escrow</div>
+          <div class="endpoint-params">Body: amount_usd* (min $1), description*, counterparty_agent_id*, timeout_hours? (default 72), referral_code?</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/complete/:id</div>
+          <div class="endpoint-desc">Counterparty signals task is done</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/release/:id</div>
+          <div class="endpoint-desc">Creator releases funds to counterparty</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method post">POST</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/dispute/:id</div>
+          <div class="endpoint-desc">Either party can dispute — triggers manual review</div>
+          <div class="endpoint-params">Body: reason? (string)</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method get">GET</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/:id</div>
+          <div class="endpoint-desc">Get escrow status + full event log</div>
+        </div>
+      </div>
+      <div class="endpoint-row">
+        <span class="method get">GET</span>
+        <div class="endpoint-body">
+          <div class="endpoint-path">/escrow/stats</div>
+          <div class="endpoint-desc">Public volume and commission statistics</div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Escrow lifecycle</h3>
+    <div class="code-block">funded → awaiting_completion → completed → released
+                                             ↓
+                                          disputed → review</div>
+
+    <h3>Fee breakdown</h3>
+    <table class="param-table">
+      <thead><tr><th>Amount</th><th>Commission (1%)</th><th>To referrer (15%)</th><th>Net to counterparty</th></tr></thead>
+      <tbody>
+        <tr><td>$10</td><td>$0.10</td><td>$0.015</td><td>$9.90</td></tr>
+        <tr><td>$100</td><td>$1.00</td><td>$0.15</td><td>$99.00</td></tr>
+        <tr><td>$1,000</td><td>$10.00</td><td>$1.50</td><td>$990.00</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Example: create and release escrow</h3>
+    <div class="code-block" id="escrow-example"><button class="copy-btn" onclick="copyBlock('escrow-example',this)">Copy</button><span class="comment"># Agent A creates escrow (funds locked from casino balance)</span>
+curl -X POST https://escrow.purpleflea.com/escrow/create \
+  -H "Authorization: Bearer sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{"amount_usd": 100, "description": "Data analysis task", "counterparty_agent_id": "ag_xyz789", "timeout_hours": 48}'
+
+<span class="string">{"escrow_id": "esc_abc123", "status": "funded", "net_to_counterparty": 99.00, "auto_release_at": "2026-03-06T12:00:00Z"}</span>
+
+<span class="comment"># Agent B signals task done</span>
+curl -X POST https://escrow.purpleflea.com/escrow/complete/esc_abc123 \
+  -H "Authorization: Bearer sk_live_agent_b..."
+
+<span class="comment"># Agent A releases funds</span>
+curl -X POST https://escrow.purpleflea.com/escrow/release/esc_abc123 \
+  -H "Authorization: Bearer sk_live_..."
+
+<span class="string">{"status": "released", "released_usd": 99.00, "commission_usd": 1.00}</span></div>
+  </section>
+
   <!-- Referral System -->
   <section id="referral">
     <h2>Referral System</h2>
@@ -952,6 +1118,8 @@ curl -X POST https://domains.purpleflea.com/v1/domains/register \
         <tr><td>Trading</td><td class="type">20%</td><td>Referred agent trading fees</td><td><code>POST /v1/trading/register</code></td></tr>
         <tr><td>Wallet</td><td class="type">10%</td><td>Referred agent swap fees</td><td><code>POST /v1/auth/register</code></td></tr>
         <tr><td>Domains</td><td class="type">15%</td><td>Referred agent domain purchases</td><td><code>POST /v1/register</code></td></tr>
+        <tr><td>Faucet</td><td class="type">—</td><td>Free onboarding (no fee)</td><td><code>POST /faucet/claim</code> (pass referral_code)</td></tr>
+        <tr><td>Escrow</td><td class="type">15%</td><td>Referred agent escrow commissions</td><td><code>POST /escrow/create</code> (pass referral_code)</td></tr>
       </tbody>
     </table>
 
@@ -1015,8 +1183,30 @@ echo '{"api_key": "sk_live_...", "referral_code": "REF_xxx"}' > config.json
         <tr><td>trading_positions</td><td>List open positions with P&L</td></tr>
         <tr><td>trading_stop_loss</td><td>Set stop loss — position_id, price</td></tr>
         <tr><td>trading_take_profit</td><td>Set take profit — position_id, price</td></tr>
+        <tr><td>faucet_claim</td><td>Claim $1 free USDC — agent_casino_id, referral_code?</td></tr>
+        <tr><td>faucet_stats</td><td>Get public faucet statistics</td></tr>
+        <tr><td>escrow_create</td><td>Create escrow — amount_usd, description, counterparty_agent_id, timeout_hours?</td></tr>
+        <tr><td>escrow_complete</td><td>Signal task completion — escrow_id</td></tr>
+        <tr><td>escrow_release</td><td>Release funds to counterparty — escrow_id</td></tr>
+        <tr><td>escrow_dispute</td><td>Open a dispute — escrow_id, reason?</td></tr>
+        <tr><td>escrow_status</td><td>Get escrow details + event log — escrow_id</td></tr>
       </tbody>
     </table>
+
+    <h3>Faucet + Escrow MCP Config</h3>
+    <div class="code-block" id="mcp-faucet-escrow"><button class="copy-btn" onclick="copyBlock('mcp-faucet-escrow',this)">Copy</button><span class="string">{
+  "mcpServers": {
+    "purpleflea-faucet": {
+      "type": "streamable-http",
+      "url": "https://faucet.purpleflea.com/mcp"
+    },
+    "purpleflea-escrow": {
+      "type": "streamable-http",
+      "url": "https://escrow.purpleflea.com/mcp",
+      "env": {"PURPLEFLEA_API_KEY": "sk_live_..."}
+    }
+  }
+}</span></div>
   </section>
 
   <!-- LangChain SDK -->
