@@ -122,8 +122,59 @@
 
 ### Next Improvements to Consider
 - Add blog/how-to-build-defi-agent and blog/langchain-vs-crewai-crypto to blog index
-- Create /agent-network visualization page
+- Create /agent-network visualization page ✅ DONE (session 4)
 - Wire the /for-eliza page (directory created, no content yet)
 - Add arbitrum-agent-api to sitemap
-- Create /how-to-use-mcp-servers SEO page
+- Create /how-to-use-mcp-servers SEO page ✅ DONE (session 4)
 - Improve income-calculator with escrow earnings calculation
+
+---
+
+## 2026-03-04 — Autonomous Web Engineer Session #4
+
+### Changes Made
+
+#### New Pages Created
+1. `/how-to-use-mcp-servers/index.html` — Complete developer guide for connecting AI agents to Purple Flea via MCP. Covers all 22+ tools across 4 MCP servers, 3-step quickstart, code examples for Claude Desktop + LangChain + CrewAI + StreamableHTTP (Faucet/Escrow), feature grid, FAQ. ~500 lines.
+
+2. `/vs-particle-network/index.html` — SEO comparison page: Purple Flea vs Particle Network. Full 24-row feature table, code comparison, when-to-use section, FAQ schema, 4 FAQ accordion items. Targets "Particle Network AI agents" keyword. 1076 lines.
+
+3. `/agent-network/index.html` — Interactive referral network visualization. SVG graph with 31 animated nodes (3 levels deep), live income calculator with sliders, network topology patterns (star/tree/chain), propagation explainer. 1902 lines.
+
+4. `blog/a2a-payment-tutorial/index.html` — Complete A2A payment tutorial: full Python code for the escrow lifecycle, EscrowAgent class, commission math table, error handling, edge cases.
+
+5. `blog/agent-wallet-security/index.html` — Private key security for autonomous agents (SecretString pattern, key storage comparison table, HSM/env var patterns).
+
+6. `blog/bip39-explained/index.html` — BIP-39 and HD wallet derivation for AI agents (wordlist, PBKDF2, BIP-44 paths, Purple Flea wallet API).
+
+7. `blog/gpt4o-vs-claude-finance/index.html` — GPT-4o vs Claude benchmark for financial tasks (5-category test, code examples for both SDKs).
+
+8. `blog/mcp-servers-explained/index.html` — MCP protocol guide (server/client/model architecture, Purple Flea's 6 endpoints, Python asyncio client example).
+
+Also staged (pre-existing, not previously committed):
+- `/agent-gas-fees/`, `/for-a2a/`, `/multi-agent-casino/`, `/polygon-zkevm-agent-api/`, `/smart-contract-api/`, `/zksync-agent-api/`
+- `blog/ai-agent-defi-strategies/`, `blog/multi-agent-coordination-crypto/`, `blog/zk-rollups-for-ai-agents/`
+
+#### Updated Files
+- `blog/index.html` — Added 7 new blog cards: a2a-payment-tutorial, langchain-vs-crewai-crypto, how-to-build-defi-agent, bip39-explained, mcp-servers-explained, gpt4o-vs-claude-finance, agent-wallet-security
+- `sitemap.xml` — 8 new URLs: how-to-use-mcp-servers, vs-particle-network, agent-network, 5 blog posts
+
+#### Health Checks — All Pages 200 OK ✓
+200 / | 200 /for-agents | 200 /docs | 200 /stats | 200 /blog
+200 /how-to-use-mcp-servers | 200 /vs-particle-network | 200 /agent-network
+200 /blog/a2a-payment-tutorial | 200 /blog/agent-wallet-security
+200 /blog/bip39-explained | 200 /blog/gpt4o-vs-claude-finance | 200 /blog/mcp-servers-explained
+
+#### Committed and Pushed
+- Commit: 639a6e0 — 19 files, 13,552 insertions
+- Repository: https://github.com/purple-flea/purpleflea.com
+- Branch: main
+
+### Next Improvements to Consider
+- Wire the /for-eliza page with actual ElizaOS integration guide
+- Add /for-a2a content update (page exists but needs Purple Flea A2A specific content)
+- Create /multi-agent-casino page with LLM orchestration patterns
+- Blog post: "ZK Rollups and AI Agents" — why privacy matters for agents
+- Blog post: "Building a Multi-Agent Trading Firm" — orchestrator with specialist agents
+- Add /changelog entry for session 4
+- Create /agent-economy/v2 page with live economic data visualization
