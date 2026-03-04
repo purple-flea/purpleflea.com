@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Monitoring and alerting for AI agents: health checks, Prometheus-style metrics, alerting rules for low balance and API errors, and dead man's switches." />
+  <meta name="keywords" content="AI agents, monitoring, alerting, Prometheus, health checks, dead man's switch, Purple Flea, agent infrastructure" />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Monitoring and Alerting for AI Agents: Know When Things Go Wrong" />
+  <meta property="og:description" content="Build a full monitoring stack for your AI agent: health checks, metrics collection, alert thresholds, and dead man's switches." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-monitoring-alerting/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Monitoring and Alerting for AI Agents: Know When Things Go Wrong" />
+  <meta name="twitter:description" content="Complete monitoring system for autonomous AI agents with Prometheus metrics and smart alerting." />
+  <title>Monitoring and Alerting for AI Agents: Know When Things Go Wrong | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #222222;
+      --border: #2a2a2a;
+      --border-2: #333333;
+      --text: #e8e8e8;
+      --text-2: #a0a0a0;
+      --text-3: #666666;
+      --purple: #7c3aed;
+      --purple-light: #9d6ff5;
+      --purple-dim: #3d1d78;
+      --purple-glow: rgba(124, 58, 237, 0.15);
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple-light); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #fff; }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .nav-logo span { color: var(--purple-light); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-2); font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 7px 18px; border-radius: 6px; font-size: 13px !important; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero {
+      background: linear-gradient(180deg, #0a140a 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 24px 56px;
+    }
+    .hero-inner { max-width: 800px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+    .breadcrumb a { color: var(--text-3); }
+    .breadcrumb a:hover { color: var(--text-2); }
+    .breadcrumb-sep { color: var(--border-2); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399; font-size: 12px; font-weight: 600; padding: 4px 12px;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px;
+    }
+    .hero h1 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; line-height: 1.2; color: #fff; margin-bottom: 20px; letter-spacing: -0.02em; }
+    .hero-meta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
+    .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
+    .hero-desc { font-size: 18px; color: var(--text-2); line-height: 1.7; max-width: 680px; }
+
+    .toc-wrapper { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin: 40px auto; max-width: 800px; }
+    .toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 14px; }
+    .toc-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .toc-list li { display: flex; align-items: center; gap: 10px; }
+    .toc-num { font-size: 11px; font-weight: 700; color: var(--purple); font-family: var(--mono); min-width: 20px; }
+    .toc-list a { font-size: 14px; color: var(--text-2); font-weight: 500; }
+    .toc-list a:hover { color: var(--purple-light); }
+
+    .content { max-width: 800px; margin: 0 auto; padding: 0 24px 80px; }
+    .section { margin-bottom: 64px; }
+    .section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+    .section-num {
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px;
+      background: var(--purple-glow); border: 1px solid var(--purple-dim); border-radius: 8px;
+      font-size: 13px; font-weight: 700; color: var(--purple-light); font-family: var(--mono); flex-shrink: 0;
+    }
+    .section h2 { font-size: clamp(20px, 3vw, 26px); font-weight: 700; color: #fff; letter-spacing: -0.01em; }
+    .section h3 { font-size: 18px; font-weight: 600; color: var(--text); margin: 32px 0 14px; }
+    .section p { font-size: 16px; color: var(--text-2); margin-bottom: 18px; line-height: 1.8; }
+    .section ul, .section ol { margin: 14px 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .section li { font-size: 15px; color: var(--text-2); line-height: 1.7; }
+    .section li strong { color: var(--text); font-weight: 600; }
+
+    .code-block { background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; margin: 24px 0; overflow: hidden; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-4); border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple-light); font-family: var(--mono); }
+    .code-file { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+    .code-block pre { padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.7; color: #d4d4d4; }
+    .code-block code { font-family: inherit; }
+    .kw { color: #c792ea; }
+    .fn { color: #82aaff; }
+    .st { color: #c3e88d; }
+    .cm { color: #546e7a; font-style: italic; }
+    .nm { color: #f78c6c; }
+    .op { color: #89ddff; }
+    .cl { color: #ffcb6b; }
+    .dc { color: #80cbc4; }
+
+    .callout { display: flex; gap: 14px; padding: 18px 20px; border-radius: 10px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59, 130, 246, 0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(245, 158, 11, 0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(16, 185, 129, 0.08); border-color: var(--green); }
+    .callout-danger { background: rgba(239, 68, 68, 0.08); border-color: var(--red); }
+    .callout-purple { background: var(--purple-glow); border-color: var(--purple); }
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .callout-body p { font-size: 14px; color: var(--text-2); margin: 0; line-height: 1.6; }
+
+    .table-wrapper { overflow-x: auto; margin: 24px 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-2); }
+    thead { background: var(--bg-4); }
+    th { padding: 12px 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 16px; font-size: 14px; color: var(--text-2); border-bottom: 1px solid var(--border); line-height: 1.5; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-3); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .badge-yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .badge-purple { background: var(--purple-glow); color: var(--purple-light); }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 24px 0; }
+    .metric-card {
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 18px 16px; transition: border-color 0.2s;
+    }
+    .metric-card:hover { border-color: var(--purple-dim); }
+    .metric-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); margin-bottom: 8px; }
+    .metric-type { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; font-family: var(--mono); margin-bottom: 8px; }
+    .type-counter { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .type-gauge { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .type-histogram { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .metric-desc { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+    .alert-level {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px 18px; border-radius: 8px; margin-bottom: 12px; border-left: 3px solid;
+    }
+    .alert-critical { background: rgba(239, 68, 68, 0.06); border-color: var(--red); }
+    .alert-warning { background: rgba(245, 158, 11, 0.06); border-color: var(--yellow); }
+    .alert-info-lvl { background: rgba(59, 130, 246, 0.06); border-color: var(--blue); }
+    .alert-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+    .label-critical { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+    .label-warning { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
+    .label-info { background: rgba(59, 130, 246, 0.2); color: var(--blue); }
+    .alert-body strong { font-size: 14px; color: var(--text); display: block; margin-bottom: 4px; }
+    .alert-body p { font-size: 13px; color: var(--text-2); margin: 0; line-height: 1.5; }
+    .alert-body code { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--bg-4); padding: 1px 5px; border-radius: 3px; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 48px 0; }
+    .highlight { background: var(--purple-glow); border: 1px solid var(--purple-dim); border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
+    .highlight p { font-size: 15px; color: var(--text); margin: 0; }
+    .highlight strong { color: var(--purple-light); }
+
+    .cta-section { background: linear-gradient(135deg, var(--purple-glow) 0%, transparent 100%); border: 1px solid var(--purple-dim); border-radius: 16px; padding: 48px 40px; text-align: center; margin: 64px 0; }
+    .cta-section h2 { font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+    .cta-section p { font-size: 16px; color: var(--text-2); margin-bottom: 28px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); color: #fff; }
+    .btn-secondary { background: var(--bg-3); border: 1px solid var(--border-2); color: var(--text); }
+    .btn-secondary:hover { border-color: var(--purple); color: var(--purple-light); }
+
+    footer { background: var(--bg-2); border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 14px; color: var(--text-3); margin-top: 10px; line-height: 1.6; max-width: 240px; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 14px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .footer-col li a { font-size: 14px; color: var(--text-3); }
+    .footer-col li a:hover { color: var(--text-2); }
+    .footer-bottom { border-top: 1px solid var(--border); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .footer-bottom p { font-size: 13px; color: var(--text-3); }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 48px 20px 40px; }
+      .content { padding: 0 20px 60px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .cta-section { padding: 36px 24px; }
+    }
+    @media (max-width: 480px) { .footer-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+    <div class="nav-links">
+      <a href="https://purpleflea.com/casino-api">Casino API</a>
+      <a href="https://purpleflea.com/trading-api">Trading API</a>
+      <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="https://purpleflea.com/blog/" class="nav-cta">Blog</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="https://purpleflea.com">Home</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <a href="https://purpleflea.com/blog/">Blog</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <span>Monitoring &amp; Alerting</span>
+    </nav>
+    <div class="tag">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg>
+      Operations
+    </div>
+    <h1>Monitoring and Alerting for AI Agents:<br/>Know When Things Go Wrong</h1>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        March 4, 2026
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        28 min read
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 14.66V20a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+        Purple Flea Engineering
+      </div>
+    </div>
+    <p class="hero-desc">
+      A well-built agent can run for days without human supervision — but only if you have visibility into what it is doing. This guide covers the complete monitoring stack: health checks, Prometheus-style metrics, alert rules for financial events (low balance, liquidation risk, unusual behavior), and dead man's switches that alert when your agent silently stops running.
+    </p>
+  </div>
+</header>
+
+<div class="toc-wrapper content">
+  <div class="toc-title">Table of Contents</div>
+  <ol class="toc-list">
+    <li><span class="toc-num">01</span><a href="#what-to-monitor">What to Monitor in a Financial Agent</a></li>
+    <li><span class="toc-num">02</span><a href="#metrics-collection">Metrics Collection with Prometheus-Style Counters</a></li>
+    <li><span class="toc-num">03</span><a href="#alerting-rules">Alerting Rules for Financial Agents</a></li>
+    <li><span class="toc-num">04</span><a href="#dead-mans-switch">Dead Man's Switch: Alert When Agents Go Silent</a></li>
+    <li><span class="toc-num">05</span><a href="#health-endpoint">HTTP Health Endpoint</a></li>
+    <li><span class="toc-num">06</span><a href="#full-monitor">Complete Monitoring System</a></li>
+  </ol>
+</div>
+
+<main class="content">
+
+  <section class="section" id="what-to-monitor">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <h2>What to Monitor in a Financial Agent</h2>
+    </div>
+
+    <p>Most monitoring guides focus on infrastructure: CPU, memory, uptime. For an AI agent operating financial APIs, those signals matter less than the <em>behavioral</em> signals: is the agent making decisions within expected parameters? Is it losing money faster than expected? Has it stopped trading entirely?</p>
+
+    <p>Financial agents need three tiers of monitoring: infrastructure health (is the process running?), API health (are requests succeeding?), and financial health (is the agent behaving as intended?).</p>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-name">Balance</div>
+        <div class="metric-type type-gauge">gauge</div>
+        <div class="metric-desc">Current USDC balance across all Purple Flea wallets. Alert on low balance.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Bets Placed</div>
+        <div class="metric-type type-counter">counter</div>
+        <div class="metric-desc">Total casino bets per session. Alert if bets per minute drops to zero.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Win Rate</div>
+        <div class="metric-type type-gauge">gauge</div>
+        <div class="metric-desc">Rolling 100-bet win percentage. Alert on abnormal deviation.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">API Errors</div>
+        <div class="metric-type type-counter">counter</div>
+        <div class="metric-desc">HTTP errors by status code. Alert on elevated 5xx rates.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">P99 Latency</div>
+        <div class="metric-type type-histogram">histogram</div>
+        <div class="metric-desc">99th percentile API response time. Alert on degraded latency.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Open Positions</div>
+        <div class="metric-type type-gauge">gauge</div>
+        <div class="metric-desc">Count and total value of open trading positions. Alert on over-exposure.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Escrow State</div>
+        <div class="metric-type type-gauge">gauge</div>
+        <div class="metric-desc">Count of escrows by state (pending, funded, released). Alert on stale escrows.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-name">Last Heartbeat</div>
+        <div class="metric-type type-gauge">gauge</div>
+        <div class="metric-desc">Unix timestamp of last successful action. Feed into dead man's switch.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-purple">
+      <div class="callout-icon">&#128161;</div>
+      <div class="callout-body">
+        <strong>Monitor Behavior, Not Just Health</strong>
+        <p>A process can be "healthy" (running, responding to health checks) but behaving incorrectly — betting too aggressively, holding positions too long, or making no decisions at all due to a logic bug. Behavioral metrics are more valuable than infrastructure metrics for autonomous agents.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="metrics-collection">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <h2>Metrics Collection with Prometheus-Style Counters</h2>
+    </div>
+
+    <p>You do not need a full Prometheus deployment to get value from structured metrics. A lightweight in-process metrics registry gives you the same semantics (counters, gauges, histograms) without the infrastructure overhead. The data can be exported to Prometheus, StatsD, or a simple HTTP endpoint for scraping.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">metrics.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> time
+<span class="kw">import</span> threading
+<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, List, Optional
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Counter</span>:
+    <span class="st">"""Monotonically increasing counter."""</span>
+    name: str
+    help_text: str
+    labels: Dict[str, str] <span class="op">=</span> field(default_factory<span class="op">=</span>dict)
+    _value: float <span class="op">=</span> <span class="nm">0.0</span>
+    _lock: threading.Lock <span class="op">=</span> field(default_factory<span class="op">=</span>threading.Lock)
+
+    <span class="kw">def</span> <span class="fn">inc</span>(self, amount: float <span class="op">=</span> <span class="nm">1.0</span>):
+        <span class="kw">with</span> self._lock:
+            self._value <span class="op">+=</span> amount
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">value</span>(self) <span class="op">-></span> float:
+        <span class="kw">return</span> self._value
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Gauge</span>:
+    <span class="st">"""Value that can go up or down."""</span>
+    name: str
+    help_text: str
+    labels: Dict[str, str] <span class="op">=</span> field(default_factory<span class="op">=</span>dict)
+    _value: float <span class="op">=</span> <span class="nm">0.0</span>
+    _lock: threading.Lock <span class="op">=</span> field(default_factory<span class="op">=</span>threading.Lock)
+
+    <span class="kw">def</span> <span class="fn">set</span>(self, value: float):
+        <span class="kw">with</span> self._lock:
+            self._value <span class="op">=</span> value
+
+    <span class="kw">def</span> <span class="fn">inc</span>(self, amount: float <span class="op">=</span> <span class="nm">1.0</span>):
+        <span class="kw">with</span> self._lock:
+            self._value <span class="op">+=</span> amount
+
+    <span class="kw">def</span> <span class="fn">dec</span>(self, amount: float <span class="op">=</span> <span class="nm">1.0</span>):
+        <span class="kw">with</span> self._lock:
+            self._value <span class="op">-=</span> amount
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">value</span>(self) <span class="op">-></span> float:
+        <span class="kw">return</span> self._value
+
+<span class="kw">class</span> <span class="cl">Histogram</span>:
+    <span class="st">"""Track distribution of values (latency, amounts)."""</span>
+    DEFAULT_BUCKETS <span class="op">=</span> [<span class="nm">0.005</span>, <span class="nm">0.01</span>, <span class="nm">0.025</span>, <span class="nm">0.05</span>, <span class="nm">0.1</span>, <span class="nm">0.25</span>, <span class="nm">0.5</span>, <span class="nm">1.0</span>, <span class="nm">2.5</span>, <span class="nm">5.0</span>, <span class="nm">10.0</span>]
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, name: str, help_text: str, buckets: List[float] <span class="op">=</span> <span class="kw">None</span>):
+        self.name <span class="op">=</span> name
+        self.help_text <span class="op">=</span> help_text
+        self.buckets <span class="op">=</span> sorted(buckets <span class="op">or</span> self.DEFAULT_BUCKETS)
+        self._counts <span class="op">=</span> defaultdict(int)
+        self._sum <span class="op">=</span> <span class="nm">0.0</span>
+        self._count <span class="op">=</span> <span class="nm">0</span>
+        self._lock <span class="op">=</span> threading.Lock()
+
+    <span class="kw">def</span> <span class="fn">observe</span>(self, value: float):
+        <span class="kw">with</span> self._lock:
+            self._sum <span class="op">+=</span> value
+            self._count <span class="op">+=</span> <span class="nm">1</span>
+            <span class="kw">for</span> bucket <span class="kw">in</span> self.buckets:
+                <span class="kw">if</span> value <span class="op"><=</span> bucket:
+                    self._counts[bucket] <span class="op">+=</span> <span class="nm">1</span>
+
+    <span class="kw">def</span> <span class="fn">percentile</span>(self, p: float) <span class="op">-></span> float:
+        <span class="st">"""Estimate percentile from bucket counts."""</span>
+        <span class="kw">if</span> self._count <span class="op">==</span> <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+        target <span class="op">=</span> self._count <span class="op">*</span> (p <span class="op">/</span> <span class="nm">100</span>)
+        <span class="kw">for</span> bucket <span class="kw">in</span> self.buckets:
+            <span class="kw">if</span> self._counts[bucket] <span class="op">>=</span> target:
+                <span class="kw">return</span> bucket
+        <span class="kw">return</span> self.buckets[<span class="op">-</span><span class="nm">1</span>]
+
+<span class="kw">class</span> <span class="cl">AgentMetrics</span>:
+    <span class="st">"""Central metrics registry for a Purple Flea agent."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent_id: str):
+        self.agent_id <span class="op">=</span> agent_id
+
+        <span class="cm"># Financial metrics</span>
+        self.balance_usdc <span class="op">=</span> Gauge(<span class="st">"agent_balance_usdc"</span>, <span class="st">"Current USDC wallet balance"</span>)
+        self.open_positions <span class="op">=</span> Gauge(<span class="st">"agent_open_positions"</span>, <span class="st">"Number of open trading positions"</span>)
+        self.position_value <span class="op">=</span> Gauge(<span class="st">"agent_position_value_usdc"</span>, <span class="st">"Total value of open positions"</span>)
+
+        <span class="cm"># Activity counters</span>
+        self.bets_total <span class="op">=</span> Counter(<span class="st">"agent_bets_total"</span>, <span class="st">"Total casino bets placed"</span>)
+        self.bets_won <span class="op">=</span> Counter(<span class="st">"agent_bets_won"</span>, <span class="st">"Total casino bets won"</span>)
+        self.bets_lost <span class="op">=</span> Counter(<span class="st">"agent_bets_lost"</span>, <span class="st">"Total casino bets lost"</span>)
+        self.trades_total <span class="op">=</span> Counter(<span class="st">"agent_trades_total"</span>, <span class="st">"Total trades executed"</span>)
+        self.escrows_created <span class="op">=</span> Counter(<span class="st">"agent_escrows_created"</span>, <span class="st">"Total escrows created"</span>)
+        self.escrows_released <span class="op">=</span> Counter(<span class="st">"agent_escrows_released"</span>, <span class="st">"Total escrows released"</span>)
+
+        <span class="cm"># API health</span>
+        self.api_requests_total <span class="op">=</span> Counter(<span class="st">"agent_api_requests_total"</span>, <span class="st">"Total API requests"</span>)
+        self.api_errors_total <span class="op">=</span> Counter(<span class="st">"agent_api_errors_total"</span>, <span class="st">"Total API errors"</span>)
+        self.api_latency <span class="op">=</span> Histogram(<span class="st">"agent_api_latency_seconds"</span>, <span class="st">"API request latency"</span>)
+
+        <span class="cm"># Lifecycle</span>
+        self.last_heartbeat <span class="op">=</span> Gauge(<span class="st">"agent_last_heartbeat_ts"</span>, <span class="st">"Unix timestamp of last activity"</span>)
+        self.uptime_seconds <span class="op">=</span> Gauge(<span class="st">"agent_uptime_seconds"</span>, <span class="st">"Agent uptime"</span>)
+        self._start_time <span class="op">=</span> time.time()
+
+    <span class="kw">def</span> <span class="fn">heartbeat</span>(self):
+        <span class="st">"""Record that the agent is alive and active."""</span>
+        now <span class="op">=</span> time.time()
+        self.last_heartbeat.<span class="fn">set</span>(now)
+        self.uptime_seconds.<span class="fn">set</span>(now <span class="op">-</span> self._start_time)
+
+    <span class="kw">def</span> <span class="fn">record_bet</span>(self, won: bool, payout: float):
+        self.bets_total.<span class="fn">inc</span>()
+        self.heartbeat()
+        <span class="kw">if</span> won:
+            self.bets_won.<span class="fn">inc</span>()
+        <span class="kw">else</span>:
+            self.bets_lost.<span class="fn">inc</span>()
+
+    <span class="kw">def</span> <span class="fn">win_rate</span>(self) <span class="op">-></span> float:
+        total <span class="op">=</span> self.bets_total.value
+        <span class="kw">if</span> total <span class="op">==</span> <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+        <span class="kw">return</span> self.bets_won.value <span class="op">/</span> total
+
+    <span class="kw">def</span> <span class="fn">to_prometheus_text</span>(self) <span class="op">-></span> str:
+        <span class="st">"""Export in Prometheus text exposition format."""</span>
+        lines <span class="op">=</span> []
+        <span class="kw">for</span> name, metric <span class="kw">in</span> <span class="fn">vars</span>(self).items():
+            <span class="kw">if</span> <span class="fn">isinstance</span>(metric, (Counter, Gauge)):
+                lines.<span class="fn">append</span>(<span class="st">f"# HELP {metric.name} {metric.help_text}"</span>)
+                lines.<span class="fn">append</span>(<span class="st">f"# TYPE {metric.name} {'counter' if isinstance(metric, Counter) else 'gauge'}"</span>)
+                lines.<span class="fn">append</span>(<span class="st">f'{metric.name}{{agent_id="{self.agent_id}"}} {metric.value}'</span>)
+        <span class="kw">return</span> <span class="st">"\n"</span>.join(lines) <span class="op">+</span> <span class="st">"\n"</span>
+
+<span class="cm"># Global metrics instance</span>
+metrics <span class="op">=</span> AgentMetrics(agent_id<span class="op">=</span>os.environ.get(<span class="st">"AGENT_ID"</span>, <span class="st">"default"</span>))
+</code></pre>
+    </div>
+
+    <h3>Instrumenting Purple Flea API Calls</h3>
+    <p>Wrap all API calls with automatic metrics recording using a context manager or decorator:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">instrumented_client.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> contextlib <span class="kw">import</span> asynccontextmanager
+
+<span class="dc">@asynccontextmanager</span>
+<span class="kw">async def</span> <span class="fn">track_api_call</span>(operation: str):
+    <span class="st">"""Context manager that records latency and errors for any API call."""</span>
+    start <span class="op">=</span> time.monotonic()
+    metrics.api_requests_total.<span class="fn">inc</span>()
+    <span class="kw">try</span>:
+        <span class="kw">yield</span>
+        elapsed <span class="op">=</span> time.monotonic() <span class="op">-</span> start
+        metrics.api_latency.<span class="fn">observe</span>(elapsed)
+    <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+        metrics.api_errors_total.<span class="fn">inc</span>()
+        elapsed <span class="op">=</span> time.monotonic() <span class="op">-</span> start
+        metrics.api_latency.<span class="fn">observe</span>(elapsed)
+        <span class="kw">raise</span>
+    <span class="kw">except</span> <span class="cl">Exception</span>:
+        metrics.api_errors_total.<span class="fn">inc</span>()
+        <span class="kw">raise</span>
+
+<span class="kw">async def</span> <span class="fn">place_bet_tracked</span>(client, params: dict) <span class="op">-></span> dict:
+    <span class="kw">async with</span> track_api_call(<span class="st">"casino-bet"</span>):
+        result <span class="op">=</span> <span class="kw">await</span> client.post(<span class="st">"/casino/bet"</span>, json<span class="op">=</span>params)
+
+    won <span class="op">=</span> result[<span class="st">"outcome"</span>] <span class="op">==</span> <span class="st">"win"</span>
+    metrics.record_bet(won<span class="op">=</span>won, payout<span class="op">=</span><span class="fn">float</span>(result[<span class="st">"payout"</span>]))
+    <span class="kw">return</span> result
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="alerting-rules">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <h2>Alerting Rules for Financial Agents</h2>
+    </div>
+
+    <p>Alerts should be actionable and rare. If every alert requires human review, you'll start ignoring them. Define clear thresholds based on expected operating parameters and only fire alerts when action is genuinely needed.</p>
+
+    <h3>Alert Severity Levels</h3>
+    <div class="alert-level alert-critical">
+      <div class="alert-label label-critical">CRITICAL</div>
+      <div class="alert-body">
+        <strong>Immediate action required — agent may be losing money</strong>
+        <p>Examples: <code>balance &lt; $10 USDC</code>, <code>error_rate &gt; 50% for 5 minutes</code>, <code>position value &gt; 10x expected</code></p>
+      </div>
+    </div>
+    <div class="alert-level alert-warning">
+      <div class="alert-label label-warning">WARNING</div>
+      <div class="alert-body">
+        <strong>Investigate soon — abnormal behavior detected</strong>
+        <p>Examples: <code>balance &lt; $50 USDC</code>, <code>win rate &lt; 30% over 200 bets</code>, <code>API p99 latency &gt; 5s</code></p>
+      </div>
+    </div>
+    <div class="alert-level alert-info-lvl">
+      <div class="alert-label label-info">INFO</div>
+      <div class="alert-body">
+        <strong>For awareness — monitor but no immediate action needed</strong>
+        <p>Examples: <code>daily bet count below baseline</code>, <code>rate limit warnings increasing</code></p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">alerting.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+<span class="kw">import</span> json
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+
+<span class="kw">class</span> <span class="cl">Severity</span>(Enum):
+    INFO <span class="op">=</span> <span class="st">"info"</span>
+    WARNING <span class="op">=</span> <span class="st">"warning"</span>
+    CRITICAL <span class="op">=</span> <span class="st">"critical"</span>
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Alert</span>:
+    name: str
+    severity: Severity
+    message: str
+    value: float
+    threshold: float
+    agent_id: str
+
+<span class="kw">class</span> <span class="cl">AlertManager</span>:
+    <span class="st">"""Evaluate alert rules and dispatch notifications."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, webhook_url: str, agent_id: str):
+        self.webhook_url <span class="op">=</span> webhook_url
+        self.agent_id <span class="op">=</span> agent_id
+        self._fired: dict <span class="op">=</span> {}  <span class="cm"># name → last_fired_ts</span>
+        self._cooldown <span class="op">=</span> <span class="nm">300</span>   <span class="cm"># 5 min between same alert</span>
+
+    <span class="kw">async def</span> <span class="fn">evaluate</span>(self, m: AgentMetrics):
+        <span class="st">"""Evaluate all alert rules against current metrics."""</span>
+        alerts <span class="op">=</span> []
+
+        <span class="cm"># CRITICAL: Balance below $10</span>
+        <span class="kw">if</span> m.balance_usdc.value <span class="op"><</span> <span class="nm">10.0</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"critical_low_balance"</span>,
+                severity<span class="op">=</span>Severity.CRITICAL,
+                message<span class="op">=</span><span class="st">f"Balance critically low: {m.balance_usdc.value:.2f} USDC — agent will halt soon"</span>,
+                value<span class="op">=</span>m.balance_usdc.value,
+                threshold<span class="op">=</span><span class="nm">10.0</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="cm"># WARNING: Balance below $50</span>
+        <span class="kw">elif</span> m.balance_usdc.value <span class="op"><</span> <span class="nm">50.0</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"low_balance"</span>,
+                severity<span class="op">=</span>Severity.WARNING,
+                message<span class="op">=</span><span class="st">f"Balance low: {m.balance_usdc.value:.2f} USDC"</span>,
+                value<span class="op">=</span>m.balance_usdc.value,
+                threshold<span class="op">=</span><span class="nm">50.0</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="cm"># WARNING: Win rate below 30% over 200+ bets</span>
+        <span class="kw">if</span> m.bets_total.value <span class="op">>=</span> <span class="nm">200</span> <span class="kw">and</span> m.win_rate() <span class="op"><</span> <span class="nm">0.30</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"low_win_rate"</span>,
+                severity<span class="op">=</span>Severity.WARNING,
+                message<span class="op">=</span><span class="st">f"Win rate abnormally low: {m.win_rate()*100:.1f}% (expected ~49%)"</span>,
+                value<span class="op">=</span>m.win_rate(),
+                threshold<span class="op">=</span><span class="nm">0.30</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="cm"># CRITICAL: API error rate over 50% in last window</span>
+        total <span class="op">=</span> m.api_requests_total.value
+        errors <span class="op">=</span> m.api_errors_total.value
+        <span class="kw">if</span> total <span class="op">></span> <span class="nm">10</span> <span class="kw">and</span> (errors <span class="op">/</span> total) <span class="op">></span> <span class="nm">0.5</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"high_error_rate"</span>,
+                severity<span class="op">=</span>Severity.CRITICAL,
+                message<span class="op">=</span><span class="st">f"API error rate: {errors/total*100:.0f}% ({int(errors)}/{int(total)} requests)"</span>,
+                value<span class="op">=</span>errors <span class="op">/</span> total,
+                threshold<span class="op">=</span><span class="nm">0.5</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="cm"># WARNING: High API latency</span>
+        p99 <span class="op">=</span> m.api_latency.<span class="fn">percentile</span>(<span class="nm">99</span>)
+        <span class="kw">if</span> p99 <span class="op">></span> <span class="nm">5.0</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"high_latency"</span>,
+                severity<span class="op">=</span>Severity.WARNING,
+                message<span class="op">=</span><span class="st">f"API p99 latency degraded: {p99:.1f}s"</span>,
+                value<span class="op">=</span>p99, threshold<span class="op">=</span><span class="nm">5.0</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="cm"># CRITICAL: Over-exposure</span>
+        <span class="kw">if</span> m.position_value.value <span class="op">></span> m.balance_usdc.value <span class="op">*</span> <span class="nm">5</span>:
+            alerts.<span class="fn">append</span>(Alert(
+                name<span class="op">=</span><span class="st">"over_exposure"</span>,
+                severity<span class="op">=</span>Severity.CRITICAL,
+                message<span class="op">=</span><span class="st">f"Position value {m.position_value.value:.0f} USDC exceeds 5x balance"</span>,
+                value<span class="op">=</span>m.position_value.value,
+                threshold<span class="op">=</span>m.balance_usdc.value <span class="op">*</span> <span class="nm">5</span>,
+                agent_id<span class="op">=</span>self.agent_id,
+            ))
+
+        <span class="kw">for</span> alert <span class="kw">in</span> alerts:
+            <span class="kw">await</span> self._maybe_fire(alert)
+
+    <span class="kw">async def</span> <span class="fn">_maybe_fire</span>(self, alert: Alert):
+        now <span class="op">=</span> time.time()
+        last <span class="op">=</span> self._fired.get(alert.name, <span class="nm">0</span>)
+        <span class="kw">if</span> now <span class="op">-</span> last <span class="op"><</span> self._cooldown:
+            <span class="kw">return</span>  <span class="cm"># In cooldown</span>
+        self._fired[alert.name] <span class="op">=</span> now
+        <span class="kw">await</span> self._dispatch(alert)
+
+    <span class="kw">async def</span> <span class="fn">_dispatch</span>(self, alert: Alert):
+        <span class="cm"># Send to Slack/Discord/PagerDuty webhook</span>
+        payload <span class="op">=</span> {
+            <span class="st">"text"</span>: <span class="st">f"[{alert.severity.value.upper()}] {alert.name}\n{alert.message}"</span>,
+            <span class="st">"agent_id"</span>: alert.agent_id,
+            <span class="st">"severity"</span>: alert.severity.value,
+        }
+        <span class="kw">try</span>:
+            <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> s:
+                <span class="kw">await</span> s.post(self.webhook_url, json<span class="op">=</span>payload, timeout<span class="op">=</span>aiohttp.ClientTimeout(total<span class="op">=</span><span class="nm">5</span>))
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+            logger.error(<span class="st">f"Failed to dispatch alert: {e}"</span>)
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="dead-mans-switch">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <h2>Dead Man's Switch: Alert When Agents Go Silent</h2>
+    </div>
+
+    <p>The most dangerous failure mode for an autonomous agent is silent death — the process crashes, a logic bug causes it to stop making decisions, or the machine loses power. In all these cases, the agent is not actively doing anything wrong; it just stops. Without a dead man's switch, you may not notice for hours.</p>
+
+    <p>A dead man's switch works in reverse: the agent must periodically "check in" to a watchdog service. If the check-in stops, the watchdog fires an alert. The agent's silence itself becomes the signal.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">dead_mans_switch.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+<span class="kw">import</span> time
+<span class="kw">import</span> logging
+
+logger <span class="op">=</span> logging.getLogger(<span class="fn">__name__</span>)
+
+<span class="kw">class</span> <span class="cl">DeadMansSwitch</span>:
+    <span class="st">"""
+    Heartbeat-based watchdog for autonomous agents.
+
+    The agent sends periodic check-ins. If check-ins stop,
+    an external monitor fires an alert.
+
+    Two components:
+    1. Agent-side: sends POST /heartbeat every N seconds
+    2. Monitor-side: checks timestamp; alerts if stale
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        watchdog_url: str,
+        agent_id: str,
+        interval: float <span class="op">=</span> <span class="nm">60.0</span>,  <span class="cm"># Check in every 60s</span>
+        max_silence: float <span class="op">=</span> <span class="nm">300.0</span>,  <span class="cm"># Alert if silent 5min</span>
+    ):
+        self.watchdog_url <span class="op">=</span> watchdog_url
+        self.agent_id <span class="op">=</span> agent_id
+        self.interval <span class="op">=</span> interval
+        self.max_silence <span class="op">=</span> max_silence
+        self._running <span class="op">=</span> <span class="kw">False</span>
+
+    <span class="kw">async def</span> <span class="fn">start</span>(self):
+        <span class="st">"""Start background heartbeat task."""</span>
+        self._running <span class="op">=</span> <span class="kw">True</span>
+        asyncio.create_task(self._heartbeat_loop())
+
+    <span class="kw">async def</span> <span class="fn">stop</span>(self):
+        self._running <span class="op">=</span> <span class="kw">False</span>
+        <span class="cm"># Send final "stopping" heartbeat</span>
+        <span class="kw">await</span> self._ping(status<span class="op">=</span><span class="st">"stopping"</span>)
+
+    <span class="kw">async def</span> <span class="fn">_heartbeat_loop</span>(self):
+        <span class="kw">while</span> self._running:
+            <span class="kw">await</span> self._ping(status<span class="op">=</span><span class="st">"alive"</span>)
+            <span class="kw">await</span> asyncio.sleep(self.interval)
+
+    <span class="kw">async def</span> <span class="fn">_ping</span>(self, status: str <span class="op">=</span> <span class="st">"alive"</span>):
+        payload <span class="op">=</span> {
+            <span class="st">"agent_id"</span>: self.agent_id,
+            <span class="st">"status"</span>: status,
+            <span class="st">"ts"</span>: time.time(),
+            <span class="st">"max_silence_seconds"</span>: self.max_silence,
+        }
+        <span class="kw">try</span>:
+            <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> s:
+                <span class="kw">await</span> s.post(
+                    <span class="st">f"{self.watchdog_url}/heartbeat"</span>,
+                    json<span class="op">=</span>payload,
+                    timeout<span class="op">=</span>aiohttp.ClientTimeout(total<span class="op">=</span><span class="nm">5</span>),
+                )
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+            <span class="cm"># Heartbeat failure is logged but NEVER raises</span>
+            <span class="cm"># — never let watchdog issues crash the agent</span>
+            logger.warning(<span class="st">f"Heartbeat failed: {e}"</span>)
+
+<span class="cm"># Self-hosted watchdog monitor (runs as a separate process)</span>
+<span class="kw">class</span> <span class="cl">WatchdogMonitor</span>:
+    <span class="st">"""
+    Standalone watchdog that fires alerts when agents go silent.
+    Deploy separately from the agent — defeats the purpose if co-located.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, alert_webhook: str):
+        self.alert_webhook <span class="op">=</span> alert_webhook
+        self._agents: dict <span class="op">=</span> {}  <span class="cm"># agent_id → {ts, max_silence}</span>
+        self._alerted: set <span class="op">=</span> set()
+
+    <span class="kw">async def</span> <span class="fn">record_heartbeat</span>(self, agent_id: str, ts: float, max_silence: float):
+        self._agents[agent_id] <span class="op">=</span> {<span class="st">"ts"</span>: ts, <span class="st">"max_silence"</span>: max_silence}
+        <span class="kw">if</span> agent_id <span class="kw">in</span> self._alerted:
+            self._alerted.discard(agent_id)
+            <span class="kw">await</span> self._send_alert(agent_id, <span class="st">"recovered"</span>, <span class="st">"Agent back online"</span>)
+
+    <span class="kw">async def</span> <span class="fn">check_all</span>(self):
+        now <span class="op">=</span> time.time()
+        <span class="kw">for</span> agent_id, info <span class="kw">in</span> self._agents.items():
+            silence <span class="op">=</span> now <span class="op">-</span> info[<span class="st">"ts"</span>]
+            <span class="kw">if</span> silence <span class="op">></span> info[<span class="st">"max_silence"</span>] <span class="kw">and</span> agent_id <span class="kw">not in</span> self._alerted:
+                self._alerted.add(agent_id)
+                <span class="kw">await</span> self._send_alert(
+                    agent_id, <span class="st">"silent"</span>,
+                    <span class="st">f"Agent {agent_id} silent for {silence:.0f}s (threshold: {info['max_silence']}s)"</span>
+                )
+
+    <span class="kw">async def</span> <span class="fn">_send_alert</span>(self, agent_id: str, event: str, msg: str):
+        payload <span class="op">=</span> {
+            <span class="st">"text"</span>: <span class="st">f"[WATCHDOG] {event.upper()}: {msg}"</span>,
+            <span class="st">"agent_id"</span>: agent_id,
+        }
+        <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> s:
+            <span class="kw">await</span> s.post(self.alert_webhook, json<span class="op">=</span>payload)
+</code></pre>
+    </div>
+
+    <div class="callout callout-warn">
+      <div class="callout-icon">&#9888;</div>
+      <div class="callout-body">
+        <strong>Deploy Watchdog Separately</strong>
+        <p>The watchdog monitor must run on a different machine than the agent. If they share a process or host, a host failure kills both simultaneously and the dead man's switch never fires. Use a cloud function, a separate VPS, or a service like Healthchecks.io for the watchdog component.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="health-endpoint">
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <h2>HTTP Health Endpoint</h2>
+    </div>
+
+    <p>Expose a lightweight HTTP server from your agent to serve health status and Prometheus metrics. This integrates with standard infrastructure tooling: load balancers, Kubernetes liveness probes, uptime monitors like UptimeRobot.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">health_server.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> aiohttp <span class="kw">import</span> web
+<span class="kw">import</span> json
+
+<span class="kw">async def</span> <span class="fn">handle_health</span>(request: web.Request) <span class="op">-></span> web.Response:
+    <span class="st">"""Basic health check — returns 200 if agent is alive."""</span>
+    m: AgentMetrics <span class="op">=</span> request.app[<span class="st">"metrics"</span>]
+    silence <span class="op">=</span> time.time() <span class="op">-</span> m.last_heartbeat.value
+
+    status <span class="op">=</span> <span class="st">"healthy"</span> <span class="kw">if</span> silence <span class="op"><</span> <span class="nm">120</span> <span class="kw">else</span> <span class="st">"degraded"</span>
+    http_status <span class="op">=</span> <span class="nm">200</span> <span class="kw">if</span> status <span class="op">==</span> <span class="st">"healthy"</span> <span class="kw">else</span> <span class="nm">503</span>
+
+    body <span class="op">=</span> {
+        <span class="st">"status"</span>: status,
+        <span class="st">"agent_id"</span>: m.agent_id,
+        <span class="st">"uptime_seconds"</span>: <span class="fn">int</span>(m.uptime_seconds.value),
+        <span class="st">"balance_usdc"</span>: m.balance_usdc.value,
+        <span class="st">"bets_total"</span>: <span class="fn">int</span>(m.bets_total.value),
+        <span class="st">"win_rate"</span>: <span class="fn">round</span>(m.win_rate(), <span class="nm">4</span>),
+        <span class="st">"api_error_rate"</span>: <span class="fn">round</span>(
+            m.api_errors_total.value <span class="op">/</span> <span class="fn">max</span>(m.api_requests_total.value, <span class="nm">1</span>), <span class="nm">4</span>
+        ),
+        <span class="st">"last_activity_seconds_ago"</span>: <span class="fn">int</span>(silence),
+    }
+    <span class="kw">return</span> web.Response(
+        text<span class="op">=</span>json.dumps(body, indent<span class="op">=</span><span class="nm">2</span>),
+        content_type<span class="op">=</span><span class="st">"application/json"</span>,
+        status<span class="op">=</span>http_status,
+    )
+
+<span class="kw">async def</span> <span class="fn">handle_metrics</span>(request: web.Request) <span class="op">-></span> web.Response:
+    <span class="st">"""Prometheus-format metrics endpoint."""</span>
+    m: AgentMetrics <span class="op">=</span> request.app[<span class="st">"metrics"</span>]
+    <span class="kw">return</span> web.Response(
+        text<span class="op">=</span>m.to_prometheus_text(),
+        content_type<span class="op">=</span><span class="st">"text/plain; version=0.0.4"</span>,
+    )
+
+<span class="kw">async def</span> <span class="fn">start_health_server</span>(m: AgentMetrics, port: int <span class="op">=</span> <span class="nm">9090</span>):
+    app <span class="op">=</span> web.Application()
+    app[<span class="st">"metrics"</span>] <span class="op">=</span> m
+    app.router.add_get(<span class="st">"/health"</span>, handle_health)
+    app.router.add_get(<span class="st">"/metrics"</span>, handle_metrics)
+
+    runner <span class="op">=</span> web.AppRunner(app)
+    <span class="kw">await</span> runner.setup()
+    site <span class="op">=</span> web.TCPSite(runner, <span class="st">"0.0.0.0"</span>, port)
+    <span class="kw">await</span> site.start()
+    logger.info(<span class="st">f"Health server running on :{port}"</span>)
+    <span class="kw">return</span> runner
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="full-monitor">
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <h2>Complete Monitoring System</h2>
+    </div>
+
+    <p>Wire everything together in a single startup sequence. The agent, health server, alert manager, and dead man's switch all start concurrently:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">main.py</span>
+      </div>
+      <pre><code><span class="kw">async def</span> <span class="fn">main</span>():
+    agent_id <span class="op">=</span> os.environ.get(<span class="st">"AGENT_ID"</span>, <span class="st">"casino-agent-001"</span>)
+
+    <span class="cm"># Initialize monitoring infrastructure</span>
+    m <span class="op">=</span> AgentMetrics(agent_id<span class="op">=</span>agent_id)
+    alert_mgr <span class="op">=</span> AlertManager(
+        webhook_url<span class="op">=</span>os.environ[<span class="st">"ALERT_WEBHOOK_URL"</span>],
+        agent_id<span class="op">=</span>agent_id,
+    )
+    dms <span class="op">=</span> DeadMansSwitch(
+        watchdog_url<span class="op">=</span>os.environ[<span class="st">"WATCHDOG_URL"</span>],
+        agent_id<span class="op">=</span>agent_id,
+        interval<span class="op">=</span><span class="nm">60</span>,
+        max_silence<span class="op">=</span><span class="nm">300</span>,
+    )
+
+    <span class="cm"># Start background services</span>
+    health_runner <span class="op">=</span> <span class="kw">await</span> start_health_server(m, port<span class="op">=</span><span class="nm">9090</span>)
+    <span class="kw">await</span> dms.start()
+
+    <span class="cm"># Alert evaluation loop (runs every 30s)</span>
+    <span class="kw">async def</span> <span class="fn">alert_loop</span>():
+        <span class="kw">while</span> <span class="kw">True</span>:
+            <span class="kw">await</span> alert_mgr.evaluate(m)
+            <span class="kw">await</span> asyncio.sleep(<span class="nm">30</span>)
+
+    asyncio.create_task(alert_loop())
+
+    <span class="cm"># Main agent loop</span>
+    <span class="kw">async with</span> PurpleFleatClient() <span class="kw">as</span> client:
+        <span class="kw">while</span> <span class="kw">True</span>:
+            <span class="kw">try</span>:
+                <span class="cm"># Update balance metric</span>
+                bal <span class="op">=</span> <span class="kw">await</span> client.get(<span class="st">"/wallet/balance"</span>)
+                m.balance_usdc.<span class="fn">set</span>(<span class="fn">float</span>(bal[<span class="st">"usdc"</span>]))
+
+                <span class="cm"># Place a bet and record it</span>
+                result <span class="op">=</span> <span class="kw">await</span> place_bet_tracked(client, {
+                    <span class="st">"game"</span>: <span class="st">"dice"</span>, <span class="st">"amount"</span>: <span class="st">"5.00"</span>,
+                    <span class="st">"prediction"</span>: <span class="st">"over"</span>, <span class="st">"target"</span>: <span class="nm">50</span>,
+                })
+
+                <span class="cm"># Heartbeat so dead man's switch stays armed</span>
+                m.heartbeat()
+
+            <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+                logger.error(<span class="st">f"Agent loop error: {e}"</span>, exc_info<span class="op">=</span><span class="kw">True</span>)
+                m.api_errors_total.<span class="fn">inc</span>()
+
+            <span class="kw">await</span> asyncio.sleep(<span class="nm">10</span>)
+
+<span class="kw">if</span> <span class="fn">__name__</span> <span class="op">==</span> <span class="st">"__main__"</span>:
+    asyncio.<span class="fn">run</span>(<span class="fn">main</span>())
+</code></pre>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Port/Endpoint</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Health server</td>
+            <td><code>:9090/health</code></td>
+            <td>Kubernetes probes, uptime monitors</td>
+          </tr>
+          <tr>
+            <td>Metrics endpoint</td>
+            <td><code>:9090/metrics</code></td>
+            <td>Prometheus scraping</td>
+          </tr>
+          <tr>
+            <td>Alert manager</td>
+            <td>Webhook outbound</td>
+            <td>Slack/PagerDuty/Discord alerts</td>
+          </tr>
+          <tr>
+            <td>Dead man's switch</td>
+            <td>Watchdog POST outbound</td>
+            <td>Alert on agent silence</td>
+          </tr>
+          <tr>
+            <td>DLQ</td>
+            <td>SQLite on disk</td>
+            <td>Capture permanent failures</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Monitor Your Agent in Production</h2>
+    <p>Start with the free USDC faucet, build your monitoring stack, and run your agent against live Purple Flea APIs with confidence.</p>
+    <div class="cta-buttons">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Get Free USDC</a>
+      <a href="https://purpleflea.com/trading-api" class="btn btn-secondary">Trading API</a>
+      <a href="https://doi.org/10.5281/zenodo.18808440" class="btn btn-secondary">Research Paper</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="nav-logo" style="font-size:16px;">Purple<span style="color:var(--purple-light)">Flea</span></div>
+        <p>Blue chip financial infrastructure for AI agents. 6 live services, production-ready APIs, and open research.</p>
+      </div>
+      <div class="footer-col">
+        <h4>APIs</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+          <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+          <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+          <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Research</h4>
+        <ul>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Zenodo Paper</a></li>
+          <li><a href="https://purpleflea.com/blog/">Blog</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. Agent financial infrastructure.</p>
+      <p>Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
