@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Handling API Rate Limits: Resilient Agent Design Patterns. Exponential backoff, circuit breakers, token bucket rate limiters, and request queue management for AI agents." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Handling API Rate Limits: Resilient Agent Design Patterns" />
+  <meta property="og:description" content="Production-grade patterns for AI agents dealing with API rate limits: token bucket limiters, exponential backoff with jitter, circuit breakers, and priority queues." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-api-rate-limiting/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>Handling API Rate Limits: Resilient Agent Design Patterns | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-card: #111111;
+      --bg-code: #0d0d1a;
+      --border: #1e1e2e;
+      --purple: #7c3aed;
+      --purple-light: #a855f7;
+      --purple-dim: #3b1f6b;
+      --text: #e8e8f0;
+      --text-muted: #888899;
+      --text-dim: #555566;
+      --red: #ef4444;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --cyan: #06b6d4;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(10,10,10,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 1.2rem; font-weight: 800; color: var(--purple-light); text-decoration: none; letter-spacing: -0.02em; }
+    .nav-logo span { color: var(--text-muted); font-weight: 400; font-size: 0.85rem; margin-left: 0.5rem; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    .breadcrumb { display: flex; gap: 0.5rem; align-items: center; font-size: 0.8rem; color: var(--text-dim); max-width: 860px; margin: 0 auto; padding: 1rem 2rem 0; }
+    .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--text-muted); }
+
+    .hero { padding: 5rem 2rem 3rem; max-width: 860px; margin: 0 auto; }
+    .hero-tag { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(6,182,212,0.1); color: var(--cyan); font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.8rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1.5rem; }
+    .hero h1 { font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; color: #fff; margin-bottom: 1.25rem; }
+    .hero h1 em { font-style: normal; color: var(--cyan); }
+    .hero-meta { display: flex; gap: 1.5rem; align-items: center; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .hero-meta .dot { color: var(--text-dim); }
+    .hero-lead { font-size: 1.15rem; color: #b0b0c0; max-width: 720px; line-height: 1.8; }
+    .divider { height: 1px; background: var(--border); max-width: 860px; margin: 2rem auto; }
+
+    .content { max-width: 860px; margin: 0 auto; padding: 0 2rem 6rem; }
+
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 3.5rem; }
+    .toc h3 { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 1rem; }
+    .toc ol { list-style: none; counter-reset: toc; }
+    .toc ol li { counter-increment: toc; display: flex; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .toc ol li::before { content: counter(toc, decimal-leading-zero); color: var(--cyan); font-weight: 600; min-width: 1.6rem; }
+    .toc a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--cyan); }
+
+    section { margin-bottom: 4rem; }
+    section h2 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; color: #fff; margin-bottom: 1.25rem; scroll-margin-top: 80px; }
+    section h2 .num { color: var(--cyan); font-size: 0.875rem; font-weight: 500; display: block; margin-bottom: 0.25rem; }
+    section h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 2rem 0 0.75rem; }
+    p { margin-bottom: 1.1rem; color: #c0c0d0; }
+    strong { color: var(--text); }
+    a { color: var(--purple-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.1rem; }
+    li { margin-bottom: 0.4rem; color: #c0c0d0; }
+
+    .callout { border-radius: 10px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; border-left: 3px solid; display: flex; gap: 1rem; align-items: flex-start; }
+    .callout-icon { font-size: 1.1rem; margin-top: 0.1rem; flex-shrink: 0; }
+    .callout p { margin: 0; font-size: 0.93rem; }
+    .callout.warning { background: rgba(234,179,8,0.07); border-color: var(--yellow); color: #d4c060; }
+    .callout.info { background: rgba(6,182,212,0.08); border-color: var(--cyan); color: #70c8d8; }
+    .callout.success { background: rgba(34,197,94,0.07); border-color: var(--green); color: #80c090; }
+    .callout.danger { background: rgba(239,68,68,0.07); border-color: var(--red); color: #d08080; }
+
+    .table-wrap { overflow-x: auto; margin: 2rem 0; border-radius: 12px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    thead tr { background: #161622; }
+    thead th { padding: 0.85rem 1.25rem; text-align: left; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(6,182,212,0.04); }
+    tbody td { padding: 0.85rem 1.25rem; color: #c0c0d0; }
+    .td-green { color: var(--green); font-weight: 500; }
+    .td-red { color: var(--red); font-weight: 500; }
+    .td-yellow { color: var(--yellow); font-weight: 500; }
+    .td-cyan { color: var(--cyan); font-weight: 500; }
+    .td-purple { color: var(--purple-light); font-weight: 500; }
+
+    .code-block { margin: 2rem 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    .code-header { background: #131320; padding: 0.75rem 1.25rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--cyan); }
+    .code-filename { font-size: 0.8rem; color: var(--text-muted); font-family: var(--mono); }
+    pre { background: var(--bg-code); padding: 1.5rem; overflow-x: auto; font-family: var(--mono); font-size: 0.825rem; line-height: 1.7; }
+    code { font-family: var(--mono); }
+    p code, li code { background: rgba(6,182,212,0.1); color: var(--cyan); padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.875em; }
+
+    .k { color: #c084fc; }
+    .s { color: #86efac; }
+    .n { color: #93c5fd; }
+    .c { color: #6b7280; font-style: italic; }
+    .num { color: #fcd34d; }
+    .fn { color: #67e8f9; }
+    .o { color: #f9a8d4; }
+    .dec { color: #a5b4fc; }
+
+    .formula { background: #0d0d1a; border: 1px solid rgba(6,182,212,0.2); border-radius: 10px; padding: 1.25rem 1.75rem; margin: 1.5rem 0; font-family: var(--mono); font-size: 0.9rem; color: var(--cyan); text-align: center; }
+    .formula .label { font-family: var(--font); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 0.5rem; }
+
+    .state-diagram { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; margin: 2rem 0; display: flex; justify-content: center; align-items: center; gap: 0; flex-wrap: nowrap; overflow-x: auto; }
+    .state-box { background: var(--bg-code); border: 2px solid; border-radius: 10px; padding: 0.75rem 1.25rem; text-align: center; min-width: 100px; flex-shrink: 0; }
+    .state-box h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .state-box p { font-size: 0.72rem; color: var(--text-muted); margin: 0; }
+    .state-closed { border-color: var(--green); }
+    .state-closed h4 { color: var(--green); }
+    .state-open { border-color: var(--red); }
+    .state-open h4 { color: var(--red); }
+    .state-half { border-color: var(--yellow); }
+    .state-half h4 { color: var(--yellow); }
+    .state-arrow { color: var(--text-dim); font-size: 1.1rem; padding: 0 0.75rem; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+    .state-arrow span { font-size: 0.65rem; color: var(--text-dim); text-align: center; white-space: nowrap; }
+
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 2rem 0; }
+    .metric-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem; text-align: center; }
+    .metric-card .value { font-size: 1.6rem; font-weight: 700; color: var(--cyan); line-height: 1; margin-bottom: 0.25rem; }
+    .metric-card .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); }
+
+    .cta-block { background: linear-gradient(135deg, rgba(6,182,212,0.1) 0%, rgba(124,58,237,0.08) 100%); border: 1px solid rgba(6,182,212,0.25); border-radius: 16px; padding: 2.5rem; text-align: center; margin: 3rem 0; }
+    .cta-block h3 { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0 0 0.75rem; }
+    .cta-block p { color: #b0b0c0; max-width: 520px; margin: 0 auto 1.75rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.5rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; }
+    .btn-primary { background: var(--cyan); color: #0a0a0a; }
+    .btn-primary:hover { background: #0891b2; text-decoration: none; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); text-decoration: none; }
+
+    footer { border-top: 1px solid var(--border); padding: 3rem 2rem; text-align: center; }
+    .footer-logo { font-size: 1.1rem; font-weight: 800; color: var(--purple-light); margin-bottom: 0.75rem; }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { color: var(--text-dim); font-size: 0.8rem; }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; } .nav-links { display: none; }
+      .hero { padding: 3rem 1rem 2rem; } .content { padding: 0 1rem 4rem; }
+      .hero h1 { font-size: 1.75rem; } .cta-block { padding: 1.75rem 1.25rem; }
+      .state-diagram { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://purpleflea.com" class="nav-logo">Purple Flea <span>/ Blog</span></a>
+  <ul class="nav-links">
+    <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+    <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+    <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+  </ul>
+</nav>
+
+<div class="breadcrumb">
+  <a href="https://purpleflea.com">Home</a>
+  <span style="color:var(--text-dim)">›</span>
+  <a href="https://purpleflea.com/blog">Blog</a>
+  <span style="color:var(--text-dim)">›</span>
+  <span>API Rate Limiting</span>
+</div>
+
+<header class="hero">
+  <div class="hero-tag">Engineering</div>
+  <h1>Handling API Rate Limits:<br/><em>Resilient Agent Design Patterns</em></h1>
+  <div class="hero-meta">
+    <span>Purple Flea Engineering</span>
+    <span class="dot">·</span>
+    <span>March 4, 2026</span>
+    <span class="dot">·</span>
+    <span>21 min read</span>
+  </div>
+  <p class="hero-lead">A rate-limited agent is a failing agent. Whether you hit 429 errors on Purple Flea, a DEX oracle, or a blockchain RPC node, the result is the same: missed opportunities, stale data, and cascading failures. This post covers every production pattern for building agents that degrade gracefully and recover automatically.</p>
+</header>
+
+<div class="divider"></div>
+
+<main class="content">
+
+  <nav class="toc">
+    <h3>Table of Contents</h3>
+    <ol>
+      <li><a href="#taxonomy">Rate Limit Taxonomy: Know What You're Fighting</a></li>
+      <li><a href="#backoff">Exponential Backoff with Jitter</a></li>
+      <li><a href="#token-bucket">Token Bucket Rate Limiter</a></li>
+      <li><a href="#circuit-breaker">Circuit Breaker Pattern</a></li>
+      <li><a href="#queue">Priority Queue Management</a></li>
+      <li><a href="#code">Complete Python Implementation</a></li>
+    </ol>
+  </nav>
+
+  <!-- SECTION 1 -->
+  <section id="taxonomy">
+    <h2><span class="num">01</span>Rate Limit Taxonomy: Know What You're Fighting</h2>
+
+    <p>Not all rate limits work the same way, and the correct defensive strategy depends on understanding which type you are hitting. Applying the wrong pattern — for instance, using simple backoff against a sliding window limiter — results in wasted retries and prolonged outages.</p>
+
+    <h3>The Five Rate Limit Types</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>How It Works</th>
+            <th>Reset Behavior</th>
+            <th>Best Defense</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Fixed Window</strong></td>
+            <td>N requests per time window (e.g., 100/min)</td>
+            <td>Hard reset at window boundary</td>
+            <td class="td-cyan">Sleep until window resets</td>
+          </tr>
+          <tr>
+            <td><strong>Sliding Window</strong></td>
+            <td>N requests in any rolling time window</td>
+            <td>Continuous, per-request expiry</td>
+            <td class="td-cyan">Token bucket</td>
+          </tr>
+          <tr>
+            <td><strong>Token Bucket</strong></td>
+            <td>Tokens refill at constant rate; burst allowed</td>
+            <td>Continuous refill</td>
+            <td class="td-cyan">Matching token bucket client-side</td>
+          </tr>
+          <tr>
+            <td><strong>Leaky Bucket</strong></td>
+            <td>Requests processed at constant rate; queue fills</td>
+            <td>Queue drain rate</td>
+            <td class="td-cyan">Rate-limited queue + backpressure</td>
+          </tr>
+          <tr>
+            <td><strong>Concurrent</strong></td>
+            <td>Max N simultaneous in-flight requests</td>
+            <td>On request completion</td>
+            <td class="td-cyan">Semaphore / connection pool</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Reading Rate Limit Headers</h3>
+
+    <p>All modern APIs return rate limit state in response headers. Your agent must read these on every response — not just on 429 errors. Acting on real-time rate limit data is far more efficient than guessing:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Header</th>
+            <th>Meaning</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>X-RateLimit-Limit</code></td>
+            <td>Max requests in window</td>
+            <td>Configure local rate limiter</td>
+          </tr>
+          <tr>
+            <td><code>X-RateLimit-Remaining</code></td>
+            <td>Requests left in current window</td>
+            <td>Throttle if &lt; 10% remaining</td>
+          </tr>
+          <tr>
+            <td><code>X-RateLimit-Reset</code></td>
+            <td>Unix timestamp when window resets</td>
+            <td>Sleep until reset on 429</td>
+          </tr>
+          <tr>
+            <td><code>Retry-After</code></td>
+            <td>Seconds to wait before retry (on 429)</td>
+            <td>Honor exactly + add jitter</td>
+          </tr>
+          <tr>
+            <td><code>X-RateLimit-Burst</code></td>
+            <td>Max burst size allowed</td>
+            <td>Set token bucket burst parameter</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warning">
+      <div class="callout-icon">&#9888;</div>
+      <p><strong>Thundering Herd:</strong> When a rate limit window resets, all waiting agents fire simultaneously — immediately hitting the limit again. This is the thundering herd problem. The solution is jitter: randomize retry timing so agents don't synchronize. A shared rate limit across 100 agents with no jitter produces 100 simultaneous retries at T+0. With jitter, they spread out over T+0 to T+5s.</p>
+    </div>
+
+    <h3>Purple Flea API Rate Limits</h3>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="value">300</div>
+        <div class="label">req/min<br/>Standard tier</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">1,500</div>
+        <div class="label">req/min<br/>Pro tier</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">50</div>
+        <div class="label">concurrent<br/>Max in-flight</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">10MB</div>
+        <div class="label">payload max<br/>Per request</div>
+      </div>
+    </div>
+
+    <p>Purple Flea uses a token bucket algorithm for all API endpoints. The burst parameter is 2x the per-minute limit, allowing short bursts without penalty. Headers `X-RateLimit-Remaining` and `X-RateLimit-Reset` are present on every response.</p>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="backoff">
+    <h2><span class="num">02</span>Exponential Backoff with Jitter</h2>
+
+    <p>When a request fails with 429 (Too Many Requests) or 503 (Service Unavailable), the worst thing your agent can do is immediately retry. The second-worst is waiting a fixed time. The correct approach is <strong>exponential backoff with jitter</strong>: each retry waits exponentially longer, with randomization to prevent synchronization.</p>
+
+    <h3>The Algorithm</h3>
+
+    <div class="formula">
+      <div class="label">Exponential Backoff with Full Jitter</div>
+      wait = random(0, min(cap, base * 2^attempt))<br/>
+      <br/>
+      base = 0.5s, cap = 60s, attempt = retry number (0-indexed)
+    </div>
+
+    <p>With these parameters:</p>
+
+    <ul>
+      <li><strong>Attempt 0:</strong> wait = random(0, 0.5s) — near-instant retry for transient errors</li>
+      <li><strong>Attempt 1:</strong> wait = random(0, 1s)</li>
+      <li><strong>Attempt 2:</strong> wait = random(0, 2s)</li>
+      <li><strong>Attempt 5:</strong> wait = random(0, 16s)</li>
+      <li><strong>Attempt 7+:</strong> wait = random(0, 60s) — capped</li>
+    </ul>
+
+    <h3>Jitter Variants</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Jitter Type</th>
+            <th>Formula</th>
+            <th>Properties</th>
+            <th>Use Case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>No Jitter</td>
+            <td>base * 2^attempt</td>
+            <td class="td-red">Thundering herd</td>
+            <td>Single agent only</td>
+          </tr>
+          <tr>
+            <td>Full Jitter</td>
+            <td>random(0, cap)</td>
+            <td class="td-green">Best spread</td>
+            <td>Multi-agent systems</td>
+          </tr>
+          <tr>
+            <td>Equal Jitter</td>
+            <td>cap/2 + random(0, cap/2)</td>
+            <td class="td-cyan">Min wait guaranteed</td>
+            <td>When min wait matters</td>
+          </tr>
+          <tr>
+            <td>Decorrelated Jitter</td>
+            <td>random(base, prev*3)</td>
+            <td class="td-cyan">Lowest contention</td>
+            <td>Competitive workloads</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>For multi-agent scenarios (many agents hitting the same API), Full Jitter and Decorrelated Jitter produce the lowest contention. AWS recommends Decorrelated Jitter for DynamoDB and other highly contended services — the same principle applies to any shared rate-limited API.</p>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="token-bucket">
+    <h2><span class="num">03</span>Token Bucket Rate Limiter</h2>
+
+    <p>Proactive rate limiting — slowing yourself down before hitting the limit — is far superior to reactive backoff. The <strong>token bucket</strong> algorithm models an API's token bucket server-side and never allows your agent to exceed the rate in the first place.</p>
+
+    <p>A token bucket has a capacity (maximum tokens) and a refill rate (tokens per second). Each request consumes one token. If no tokens are available, the request must wait. The bucket refills continuously at the configured rate.</p>
+
+    <div class="callout info">
+      <div class="callout-icon">&#9432;</div>
+      <p><strong>Client-Side Token Bucket Tip:</strong> Set your client-side bucket capacity to 80-90% of the server's limit. This leaves headroom for other agents sharing the same API key, network latency spikes, and clock drift between your agent and the server's rate limit clock. Hitting 90% locally means you never hit 100% on the server.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="circuit-breaker">
+    <h2><span class="num">04</span>Circuit Breaker Pattern</h2>
+
+    <p>A circuit breaker is an automatic switch that stops request flow to a failing service, allowing it time to recover. Named after electrical circuit breakers, it prevents cascading failures from propagating through your agent's dependency graph.</p>
+
+    <h3>The Three States</h3>
+
+    <div class="state-diagram">
+      <div class="state-box state-closed">
+        <h4>CLOSED</h4>
+        <p>Normal operation.<br/>Requests pass through.</p>
+      </div>
+      <div class="state-arrow">
+        &#8594;
+        <span>failure<br/>threshold hit</span>
+      </div>
+      <div class="state-box state-open">
+        <h4>OPEN</h4>
+        <p>Fail fast.<br/>No requests sent.</p>
+      </div>
+      <div class="state-arrow">
+        &#8594;
+        <span>timeout<br/>elapsed</span>
+      </div>
+      <div class="state-box state-half">
+        <h4>HALF-OPEN</h4>
+        <p>Probe with one<br/>request.</p>
+      </div>
+    </div>
+
+    <p>State transitions:</p>
+
+    <ul>
+      <li><strong>Closed → Open:</strong> When failure rate exceeds threshold (e.g., 50% of last 10 requests fail). All subsequent requests are immediately rejected with a local error — no network call made.</li>
+      <li><strong>Open → Half-Open:</strong> After a configured recovery timeout (e.g., 30 seconds), the breaker allows one probe request through.</li>
+      <li><strong>Half-Open → Closed:</strong> If the probe succeeds, the breaker closes and normal operation resumes.</li>
+      <li><strong>Half-Open → Open:</strong> If the probe fails, the breaker reopens and the recovery timer resets.</li>
+    </ul>
+
+    <div class="callout success">
+      <div class="callout-icon">&#10003;</div>
+      <p><strong>Circuit Breaker Compound Benefit:</strong> Beyond protecting your agent from cascading failures, open circuit breakers also protect the downstream service from being hammered by retry storms while it is recovering. Your agent's circuit breaker is a courtesy to every other agent sharing the API.</p>
+    </div>
+
+    <h3>When to Use Circuit Breakers vs Backoff</h3>
+
+    <p>These patterns are complementary, not alternatives:</p>
+
+    <ul>
+      <li><strong>Backoff:</strong> For transient rate limit errors (429). The service is healthy but busy. Retry with patience.</li>
+      <li><strong>Circuit breaker:</strong> For sustained failures (5xx, connection errors). The service may be down or severely degraded. Stop hammering it.</li>
+      <li><strong>Both together:</strong> Circuit breaker wraps the retry-with-backoff logic. If retries keep failing, the circuit opens. When the circuit is closed, retries use backoff.</li>
+    </ul>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section id="queue">
+    <h2><span class="num">05</span>Priority Queue Management</h2>
+
+    <p>When rate limits constrain throughput, not all requests are equally important. A market order to close a losing position should not wait behind a low-priority status check. Priority queues route your rate limit budget toward the requests that matter most.</p>
+
+    <h3>Priority Tiers</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Request Type</th>
+            <th>Max Wait</th>
+            <th>On Timeout</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="td-red">P0 — Critical</td>
+            <td>Emergency stop-loss, liquidation prevention</td>
+            <td>0ms (skip queue)</td>
+            <td>Error + alert</td>
+          </tr>
+          <tr>
+            <td class="td-yellow">P1 — High</td>
+            <td>Order placement, position close</td>
+            <td>500ms</td>
+            <td>Retry with backoff</td>
+          </tr>
+          <tr>
+            <td class="td-cyan">P2 — Normal</td>
+            <td>Price queries, balance checks</td>
+            <td>5s</td>
+            <td>Return cached value</td>
+          </tr>
+          <tr>
+            <td>P3 — Low</td>
+            <td>Historical data, reporting</td>
+            <td>60s</td>
+            <td>Drop + log</td>
+          </tr>
+          <tr>
+            <td class="td-purple">P4 — Background</td>
+            <td>Analytics, non-urgent updates</td>
+            <td>300s</td>
+            <td>Drop silently</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Budget Allocation</h3>
+
+    <p>Assign rate limit token budgets across priority levels. A conservative allocation for trading agents: P0 always passes (no budget constraint). P1: 40% of tokens. P2: 35% of tokens. P3/P4: 25% combined. This ensures critical operations always have headroom even when lower-priority requests are saturating the queue.</p>
+
+    <div class="callout warning">
+      <div class="callout-icon">&#9888;</div>
+      <p><strong>Priority Inversion:</strong> Never let low-priority tasks starve indefinitely — they will eventually time out and produce confusing errors. Implement aging: a P3 request that has waited 30 seconds should be promoted to P2. After 120 seconds, promote again to P1. Starvation of any tier is a bug.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 6 -->
+  <section id="code">
+    <h2><span class="num">06</span>Complete Python Implementation</h2>
+
+    <p>The following is a production-grade implementation covering token bucket, exponential backoff decorator, circuit breaker, and priority queue — all composable and compatible with Purple Flea's APIs and any other rate-limited service.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">rate_limiter.py</span>
+      </div>
+      <pre><span class="k">import</span> <span class="n">asyncio</span>
+<span class="k">import</span> <span class="n">time</span>
+<span class="k">import</span> <span class="n">random</span>
+<span class="k">import</span> <span class="n">logging</span>
+<span class="k">from</span> <span class="n">dataclasses</span> <span class="k">import</span> <span class="n">dataclass</span>, <span class="n">field
+from</span> <span class="n">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="k">from</span> <span class="n">typing</span> <span class="k">import</span> <span class="n">Optional</span>, <span class="n">Callable</span>, <span class="n">Any</span>
+<span class="k">from</span> <span class="n">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+
+<span class="n">logger</span> = <span class="n">logging</span>.getLogger(<span class="s">"rate_limiter"</span>)
+
+
+<span class="c"># ============================================================</span>
+<span class="c"># TOKEN BUCKET RATE LIMITER</span>
+<span class="c"># ============================================================</span>
+
+<span class="k">class</span> <span class="fn">TokenBucket</span>:
+    <span class="s">"""
+    Async token bucket rate limiter.
+    Refills at `rate` tokens/second, up to `capacity` tokens.
+    Supports burst: initial tokens = capacity (allows initial burst).
+    """</span>
+
+    <span class="k">def</span> <span class="fn">__init__</span>(
+        <span class="n">self</span>,
+        rate: <span class="n">float</span>,          <span class="c"># tokens per second</span>
+        capacity: <span class="n">float</span>,      <span class="c"># max tokens (burst size)</span>
+        initial_tokens: <span class="n">Optional</span>[<span class="n">float</span>] = <span class="k">None</span>
+    ):
+        <span class="n">self</span>.rate = rate
+        <span class="n">self</span>.capacity = capacity
+        <span class="n">self</span>.tokens = initial_tokens <span class="k">if</span> initial_tokens <span class="k">is not None else</span> capacity
+        <span class="n">self</span>.last_refill = <span class="n">time</span>.monotonic()
+        <span class="n">self</span>._lock = <span class="n">asyncio</span>.<span class="fn">Lock</span>()
+
+    <span class="k">def</span> <span class="fn">_refill</span>(<span class="n">self</span>):
+        now = <span class="n">time</span>.monotonic()
+        elapsed = now <span class="o">-</span> <span class="n">self</span>.last_refill
+        new_tokens = elapsed <span class="o">*</span> <span class="n">self</span>.rate
+        <span class="n">self</span>.tokens = <span class="n">min</span>(<span class="n">self</span>.capacity, <span class="n">self</span>.tokens <span class="o">+</span> new_tokens)
+        <span class="n">self</span>.last_refill = now
+
+    <span class="k">async def</span> <span class="fn">acquire</span>(<span class="n">self</span>, tokens: <span class="n">float</span> = <span class="num">1.0</span>) -> <span class="n">float</span>:
+        <span class="s">"""
+        Acquire tokens. Returns wait time (0 if immediate).
+        If wait > 0, caller should sleep before proceeding.
+        """</span>
+        <span class="k">async with</span> <span class="n">self</span>._lock:
+            <span class="n">self</span>._refill()
+            <span class="k">if</span> <span class="n">self</span>.tokens <span class="o">>=</span> tokens:
+                <span class="n">self</span>.tokens <span class="o">-=</span> tokens
+                <span class="k">return</span> <span class="num">0.0</span>
+            <span class="c"># Calculate wait time until enough tokens available</span>
+            deficit = tokens <span class="o">-</span> <span class="n">self</span>.tokens
+            wait = deficit <span class="o">/</span> <span class="n">self</span>.rate
+            <span class="k">return</span> wait
+
+    <span class="k">async def</span> <span class="fn">wait_and_acquire</span>(<span class="n">self</span>, tokens: <span class="n">float</span> = <span class="num">1.0</span>):
+        <span class="s">"""Acquire tokens, sleeping if necessary."""</span>
+        wait = <span class="k">await</span> <span class="n">self</span>.acquire(tokens)
+        <span class="k">if</span> wait <span class="o">></span> <span class="num">0</span>:
+            <span class="n">logger</span>.debug(<span class="s">f"Rate limiting: sleeping {wait:.3f}s"</span>)
+            <span class="k">await</span> <span class="n">asyncio</span>.sleep(wait)
+            <span class="c"># Re-acquire after sleeping</span>
+            <span class="k">async with</span> <span class="n">self</span>._lock:
+                <span class="n">self</span>._refill()
+                <span class="n">self</span>.tokens <span class="o">-=</span> tokens
+
+    <span class="k">def</span> <span class="fn">available_tokens</span>(<span class="n">self</span>) -> <span class="n">float</span>:
+        <span class="k">async with</span> <span class="n">self</span>._lock:
+            <span class="n">self</span>._refill()
+            <span class="k">return</span> <span class="n">self</span>.tokens
+
+    <span class="k">def</span> <span class="fn">utilization_pct</span>(<span class="n">self</span>) -> <span class="n">float</span>:
+        <span class="k">return</span> (<span class="num">1.0</span> <span class="o">-</span> <span class="n">self</span>.tokens <span class="o">/</span> <span class="n">self</span>.capacity) <span class="o">*</span> <span class="num">100</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">backoff_decorator.py</span>
+      </div>
+      <pre"><span class="k">import</span> <span class="n">asyncio</span>
+<span class="k">import</span> <span class="n">random</span>
+<span class="k">import</span> <span class="n">logging</span>
+<span class="k">from</span> <span class="n">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="k">from</span> <span class="n">typing</span> <span class="k">import</span> <span class="n">Tuple</span>, <span class="n">Type</span>
+
+<span class="c"># ============================================================</span>
+<span class="c"># EXPONENTIAL BACKOFF DECORATOR</span>
+<span class="c"># ============================================================</span>
+
+<span class="k">def</span> <span class="fn">with_retry</span>(
+    max_attempts: <span class="n">int</span> = <span class="num">5</span>,
+    base_delay: <span class="n">float</span> = <span class="num">0.5</span>,
+    max_delay: <span class="n">float</span> = <span class="num">60.0</span>,
+    jitter: <span class="n">str</span> = <span class="s">'full'</span>,            <span class="c"># 'full', 'equal', 'decorrelated'</span>
+    retryable_status: <span class="n">Tuple</span> = (<span class="num">429</span>, <span class="num">500</span>, <span class="num">502</span>, <span class="num">503</span>, <span class="num">504</span>),
+    honor_retry_after: <span class="n">bool</span> = <span class="k">True</span>
+):
+    <span class="s">"""
+    Async decorator for exponential backoff with jitter.
+    Reads Retry-After header when available.
+    Raises on non-retryable errors immediately.
+    """</span>
+    <span class="k">def</span> <span class="fn">decorator</span>(func):
+        <span class="dec">@wraps</span>(func)
+        <span class="k">async def</span> <span class="fn">wrapper</span>(<span class="o">*</span>args, <span class="o">**</span>kwargs):
+            prev_delay = base_delay
+            <span class="k">for</span> attempt <span class="k">in</span> <span class="n">range</span>(max_attempts):
+                <span class="k">try</span>:
+                    resp = <span class="k">await</span> <span class="fn">func</span>(<span class="o">*</span>args, <span class="o">**</span>kwargs)
+
+                    <span class="c"># Check for rate limit headers on success too</span>
+                    <span class="k">if</span> <span class="n">hasattr</span>(resp, <span class="s">'headers'</span>):
+                        remaining = <span class="n">int</span>(resp.headers.get(<span class="s">'X-RateLimit-Remaining'</span>, <span class="s">'999'</span>))
+                        <span class="k">if</span> remaining <span class="o"><</span> <span class="num">10</span>:
+                            reset_ts = <span class="n">int</span>(resp.headers.get(<span class="s">'X-RateLimit-Reset'</span>, <span class="s">'0'</span>))
+                            wait = <span class="n">max</span>(<span class="num">0</span>, reset_ts <span class="o">-</span> <span class="n">time</span>.time())
+                            <span class="k">if</span> wait <span class="o">></span> <span class="num">0</span>:
+                                <span class="n">logger</span>.info(<span class="s">f"Approaching rate limit ({remaining} remaining). Sleeping {wait:.1f}s"</span>)
+                                <span class="k">await</span> <span class="n">asyncio</span>.sleep(wait <span class="o">+</span> <span class="n">random</span>.uniform(<span class="num">0</span>, <span class="num">1</span>))
+
+                    <span class="k">return</span> resp
+
+                <span class="k">except</span> <span class="n">Exception</span> <span class="k">as</span> e:
+                    status = <span class="n">getattr</span>(<span class="n">getattr</span>(e, <span class="s">'response'</span>, <span class="k">None</span>), <span class="s">'status_code'</span>, <span class="k">None</span>)
+
+                    <span class="c"># Non-retryable: raise immediately</span>
+                    <span class="k">if</span> status <span class="k">is not None and</span> status <span class="k">not in</span> retryable_status:
+                        <span class="k">raise</span>
+
+                    <span class="k">if</span> attempt <span class="o">==</span> max_attempts <span class="o">-</span> <span class="num">1</span>:
+                        <span class="n">logger</span>.error(<span class="s">f"All {max_attempts} attempts failed: {e}"</span>)
+                        <span class="k">raise</span>
+
+                    <span class="c"># Check Retry-After header</span>
+                    retry_after = <span class="k">None</span>
+                    <span class="k">if</span> honor_retry_after <span class="k">and</span> <span class="n">hasattr</span>(<span class="n">getattr</span>(e, <span class="s">'response'</span>, <span class="k">None</span>), <span class="s">'headers'</span>):
+                        ra = e.response.headers.get(<span class="s">'Retry-After'</span>)
+                        <span class="k">if</span> ra:
+                            retry_after = <span class="n">float</span>(ra)
+
+                    <span class="c"># Calculate delay with jitter</span>
+                    cap = <span class="n">min</span>(max_delay, base_delay <span class="o">*</span> (<span class="num">2</span> <span class="o">**</span> attempt))
+                    <span class="k">if</span> retry_after:
+                        delay = retry_after <span class="o">+</span> <span class="n">random</span>.uniform(<span class="num">0</span>, <span class="num">1</span>)
+                    <span class="k">elif</span> jitter <span class="o">==</span> <span class="s">'full'</span>:
+                        delay = <span class="n">random</span>.uniform(<span class="num">0</span>, cap)
+                    <span class="k">elif</span> jitter <span class="o">==</span> <span class="s">'equal'</span>:
+                        delay = cap <span class="o">/</span> <span class="num">2</span> <span class="o">+</span> <span class="n">random</span>.uniform(<span class="num">0</span>, cap <span class="o">/</span> <span class="num">2</span>)
+                    <span class="k">elif</span> jitter <span class="o">==</span> <span class="s">'decorrelated'</span>:
+                        delay = <span class="n">min</span>(max_delay, <span class="n">random</span>.uniform(base_delay, prev_delay <span class="o">*</span> <span class="num">3</span>))
+                        prev_delay = delay
+                    <span class="k">else</span>:
+                        delay = cap
+
+                    <span class="n">logger</span>.warning(
+                        <span class="s">f"Attempt {attempt + 1}/{max_attempts} failed "
+                        f"(status={status}). Retrying in {delay:.2f}s: {e}"</span>
+                    )
+                    <span class="k">await</span> <span class="n">asyncio</span>.sleep(delay)
+
+        <span class="k">return</span> wrapper
+    <span class="k">return</span> decorator
+
+
+<span class="c"># ============================================================</span>
+<span class="c"># CIRCUIT BREAKER</span>
+<span class="c"># ============================================================</span>
+
+<span class="k">class</span> <span class="fn">CircuitState</span>(<span class="n">Enum</span>):
+    CLOSED = <span class="s">"closed"</span>
+    OPEN = <span class="s">"open"</span>
+    HALF_OPEN = <span class="s">"half_open"</span>
+
+<span class="k">class</span> <span class="fn">CircuitBreaker</span>:
+    <span class="s">"""
+    Async circuit breaker.
+    Tracks failure rates over a rolling window.
+    Opens circuit when failure rate exceeds threshold.
+    """</span>
+
+    <span class="k">def</span> <span class="fn">__init__</span>(
+        <span class="n">self</span>,
+        failure_threshold: <span class="n">float</span> = <span class="num">0.5</span>,   <span class="c"># 50% failure rate opens circuit</span>
+        window_size: <span class="n">int</span> = <span class="num">10</span>,             <span class="c"># rolling window of N requests</span>
+        recovery_timeout: <span class="n">float</span> = <span class="num">30.0</span>,   <span class="c"># seconds to wait before half-open</span>
+        half_open_timeout: <span class="n">float</span> = <span class="num">10.0</span>,  <span class="c"># seconds for probe request</span>
+        name: <span class="n">str</span> = <span class="s">"circuit"</span>
+    ):
+        <span class="n">self</span>.failure_threshold = failure_threshold
+        <span class="n">self</span>.window_size = window_size
+        <span class="n">self</span>.recovery_timeout = recovery_timeout
+        <span class="n">self</span>.half_open_timeout = half_open_timeout
+        <span class="n">self</span>.name = name
+        <span class="n">self</span>.state = <span class="n">CircuitState</span>.CLOSED
+        <span class="n">self</span>.window: <span class="n">list</span> = []   <span class="c"># True = success, False = failure</span>
+        <span class="n">self</span>.opened_at: <span class="n">Optional</span>[<span class="n">float</span>] = <span class="k">None</span>
+        <span class="n">self</span>._lock = <span class="n">asyncio</span>.<span class="fn">Lock</span>()
+
+    <span class="k">def</span> <span class="fn">_failure_rate</span>(<span class="n">self</span>) -> <span class="n">float</span>:
+        <span class="k">if not</span> <span class="n">self</span>.window:
+            <span class="k">return</span> <span class="num">0.0</span>
+        <span class="k">return</span> <span class="num">1.0</span> <span class="o">-</span> <span class="n">sum</span>(<span class="n">self</span>.window) <span class="o">/</span> <span class="n">len</span>(<span class="n">self</span>.window)
+
+    <span class="k">def</span> <span class="fn">_record</span>(<span class="n">self</span>, success: <span class="n">bool</span>):
+        <span class="n">self</span>.window.append(success)
+        <span class="k">if</span> <span class="n">len</span>(<span class="n">self</span>.window) <span class="o">></span> <span class="n">self</span>.window_size:
+            <span class="n">self</span>.window.pop(<span class="num">0</span>)
+
+    <span class="k">async def</span> <span class="fn">call</span>(<span class="n">self</span>, fn: <span class="n">Callable</span>, <span class="o">*</span>args, <span class="o">**</span>kwargs) -> <span class="n">Any</span>:
+        <span class="s">"""Execute fn through the circuit breaker."""</span>
+        <span class="k">async with</span> <span class="n">self</span>._lock:
+            <span class="k">if</span> <span class="n">self</span>.state <span class="o">==</span> <span class="n">CircuitState</span>.OPEN:
+                elapsed = <span class="n">time</span>.monotonic() <span class="o">-</span> (<span class="n">self</span>.opened_at <span class="k">or</span> <span class="num">0</span>)
+                <span class="k">if</span> elapsed <span class="o"><</span> <span class="n">self</span>.recovery_timeout:
+                    <span class="k">raise</span> <span class="fn">RuntimeError</span>(
+                        <span class="s">f"Circuit '{self.name}' is OPEN. "
+                        f"Retry in {self.recovery_timeout - elapsed:.1f}s"</span>
+                    )
+                <span class="c"># Transition to half-open</span>
+                <span class="n">self</span>.state = <span class="n">CircuitState</span>.HALF_OPEN
+                <span class="n">logger</span>.info(<span class="s">f"Circuit '{self.name}' → HALF_OPEN (probing)"</span>)
+
+        <span class="k">try</span>:
+            result = <span class="k">await</span> <span class="fn">asyncio</span>.wait_for(
+                <span class="fn">fn</span>(<span class="o">*</span>args, <span class="o">**</span>kwargs),
+                timeout=<span class="n">self</span>.half_open_timeout <span class="k">if</span> <span class="n">self</span>.state <span class="o">==</span> <span class="n">CircuitState</span>.HALF_OPEN <span class="k">else</span> <span class="k">None</span>
+            )
+            <span class="k">async with</span> <span class="n">self</span>._lock:
+                <span class="n">self</span>._record(<span class="k">True</span>)
+                <span class="k">if</span> <span class="n">self</span>.state <span class="o">==</span> <span class="n">CircuitState</span>.HALF_OPEN:
+                    <span class="n">self</span>.state = <span class="n">CircuitState</span>.CLOSED
+                    <span class="n">self</span>.window.clear()
+                    <span class="n">logger</span>.info(<span class="s">f"Circuit '{self.name}' → CLOSED (probe succeeded)"</span>)
+            <span class="k">return</span> result
+
+        <span class="k">except Exception as</span> e:
+            <span class="k">async with</span> <span class="n">self</span>._lock:
+                <span class="n">self</span>._record(<span class="k">False</span>)
+                <span class="k">if</span> <span class="n">self</span>.state <span class="o">==</span> <span class="n">CircuitState</span>.HALF_OPEN:
+                    <span class="n">self</span>.state = <span class="n">CircuitState</span>.OPEN
+                    <span class="n">self</span>.opened_at = <span class="n">time</span>.monotonic()
+                    <span class="n">logger</span>.warning(<span class="s">f"Circuit '{self.name}' → OPEN (probe failed)"</span>)
+                <span class="k">elif</span> (<span class="n">self</span>.state <span class="o">==</span> <span class="n">CircuitState</span>.CLOSED
+                      <span class="k">and</span> <span class="n">len</span>(<span class="n">self</span>.window) <span class="o">>=</span> <span class="n">self</span>.window_size
+                      <span class="k">and</span> <span class="n">self</span>._failure_rate() <span class="o">>=</span> <span class="n">self</span>.failure_threshold):
+                    <span class="n">self</span>.state = <span class="n">CircuitState</span>.OPEN
+                    <span class="n">self</span>.opened_at = <span class="n">time</span>.monotonic()
+                    <span class="n">logger</span>.error(
+                        <span class="s">f"Circuit '{self.name}' → OPEN "
+                        f"(failure rate={self._failure_rate():.0%})"</span>
+                    )
+            <span class="k">raise</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">resilient_agent.py</span>
+      </div>
+      <pre><span class="k">import</span> <span class="n">asyncio</span>
+<span class="k">import</span> <span class="n">heapq</span>
+<span class="k">import</span> <span class="n">httpx</span>
+<span class="k">from</span> <span class="n">dataclasses</span> <span class="k">import</span> <span class="n">dataclass</span>, <span class="n">field</span>
+
+<span class="c"># ============================================================</span>
+<span class="c"># PRIORITY QUEUE + COMPLETE RESILIENT AGENT</span>
+<span class="c"># ============================================================</span>
+
+<span class="dec">@dataclass</span>(<span class="n">order</span>=<span class="k">True</span>)
+<span class="k">class</span> <span class="fn">QueuedRequest</span>:
+    priority: <span class="n">int</span>                          <span class="c"># lower = higher priority</span>
+    enqueued_at: <span class="n">float</span>
+    url: <span class="n">str</span> = <span class="n">field</span>(compare=<span class="k">False</span>)
+    kwargs: <span class="n">dict</span> = <span class="n">field</span>(compare=<span class="k">False</span>)
+    future: <span class="n">asyncio</span>.<span class="n">Future</span> = <span class="n">field</span>(compare=<span class="k">False</span>)
+    max_wait: <span class="n">float</span> = <span class="n">field</span>(compare=<span class="k">False</span>, default=<span class="num">30.0</span>)
+
+<span class="k">class</span> <span class="fn">ResilientPurpleFlеaClient</span>:
+    <span class="s">"""
+    Complete resilient HTTP client for Purple Flea APIs.
+    Combines: token bucket + priority queue + circuit breaker + backoff.
+
+    Usage:
+        client = ResilientPurpleFlеaClient(api_key="...", rate=5.0, burst=20)
+        price = await client.request("GET", "/trading-api/ticker/BTC-USDC", priority=2)
+        await client.request("POST", "/trading-api/order", json={...}, priority=1)
+    """</span>
+
+    PRIORITY_NAMES = {<span class="num">0</span>: <span class="s">"CRITICAL"</span>, <span class="num">1</span>: <span class="s">"HIGH"</span>, <span class="num">2</span>: <span class="s">"NORMAL"</span>, <span class="num">3</span>: <span class="s">"LOW"</span>, <span class="num">4</span>: <span class="s">"BACKGROUND"</span>}
+    MAX_WAIT_BY_PRIORITY = {<span class="num">0</span>: <span class="num">0.0</span>, <span class="num">1</span>: <span class="num">0.5</span>, <span class="num">2</span>: <span class="num">5.0</span>, <span class="num">3</span>: <span class="num">60.0</span>, <span class="num">4</span>: <span class="num">300.0</span>}
+
+    <span class="k">def</span> <span class="fn">__init__</span>(
+        <span class="n">self</span>,
+        api_key: <span class="n">str</span>,
+        base_url: <span class="n">str</span> = <span class="s">"https://purpleflea.com"</span>,
+        rate: <span class="n">float</span> = <span class="num">4.5</span>,      <span class="c"># 4.5/s = 270/min (90% of 300/min standard)</span>
+        burst: <span class="n">float</span> = <span class="num">20</span>,       <span class="c"># burst size</span>
+        max_concurrent: <span class="n">int</span> = <span class="num">20</span>  <span class="c"># concurrent in-flight</span>
+    ):
+        <span class="n">self</span>.base_url = base_url
+        <span class="n">self</span>.http = <span class="n">httpx</span>.<span class="fn">AsyncClient</span>(
+            base_url=base_url,
+            headers={<span class="s">"Authorization"</span>: <span class="s">f"Bearer {api_key}"</span>},
+            timeout=<span class="num">15.0</span>
+        )
+        <span class="n">self</span>.bucket = <span class="fn">TokenBucket</span>(rate=rate, capacity=burst)
+        <span class="n">self</span>.semaphore = <span class="n">asyncio</span>.<span class="fn">Semaphore</span>(max_concurrent)
+        <span class="n">self</span>.circuit = <span class="fn">CircuitBreaker</span>(name=<span class="s">"purpleflea"</span>)
+        <span class="n">self</span>._queue: <span class="n">list</span> = []
+        <span class="n">self</span>._worker_task: <span class="n">Optional</span>[<span class="n">asyncio</span>.<span class="n">Task</span>] = <span class="k">None</span>
+
+    <span class="k">async def</span> <span class="fn">start</span>(<span class="n">self</span>):
+        <span class="n">self</span>._worker_task = <span class="n">asyncio</span>.create_task(<span class="n">self</span>._process_queue())
+
+    <span class="k">async def</span> <span class="fn">stop</span>(<span class="n">self</span>):
+        <span class="k">if</span> <span class="n">self</span>._worker_task:
+            <span class="n">self</span>._worker_task.cancel()
+        <span class="k">await</span> <span class="n">self</span>.http.aclose()
+
+    <span class="k">async def</span> <span class="fn">request</span>(
+        <span class="n">self</span>,
+        method: <span class="n">str</span>,
+        path: <span class="n">str</span>,
+        priority: <span class="n">int</span> = <span class="num">2</span>,
+        <span class="o">**</span>kwargs
+    ) -> <span class="n">dict</span>:
+        loop = <span class="n">asyncio</span>.get_event_loop()
+        future = loop.create_future()
+        max_wait = <span class="n">self</span>.MAX_WAIT_BY_PRIORITY.get(priority, <span class="num">30.0</span>)
+
+        req = <span class="fn">QueuedRequest</span>(
+            priority=priority,
+            enqueued_at=<span class="n">asyncio</span>.get_event_loop().time(),
+            url=<span class="s">f"{method} {path}"</span>,
+            kwargs={<span class="s">"method"</span>: method, <span class="s">"url"</span>: path, <span class="o">**</span>kwargs},
+            future=future,
+            max_wait=max_wait
+        )
+
+        <span class="c"># P0 (critical): bypass queue entirely</span>
+        <span class="k">if</span> priority <span class="o">==</span> <span class="num">0</span>:
+            <span class="k">return await</span> <span class="n">self</span>._execute(req)
+
+        <span class="n">heapq</span>.heappush(<span class="n">self</span>._queue, req)
+        <span class="k">return await</span> future
+
+    <span class="dec">@with_retry</span>(max_attempts=<span class="num">4</span>, base_delay=<span class="num">0.5</span>, jitter=<span class="s">'decorrelated'</span>)
+    <span class="k">async def</span> <span class="fn">_execute</span>(<span class="n">self</span>, req: <span class="n">QueuedRequest</span>) -> <span class="n">dict</span>:
+        <span class="c"># Apply rate limiting</span>
+        <span class="k">await</span> <span class="n">self</span>.bucket.wait_and_acquire()
+        <span class="c"># Concurrency limit</span>
+        <span class="k">async with</span> <span class="n">self</span>.semaphore:
+            <span class="k">async def</span> <span class="fn">_do_request</span>():
+                resp = <span class="k">await</span> <span class="n">self</span>.http.request(<span class="o">**</span>req.kwargs)
+                resp.raise_for_status()
+                <span class="k">return</span> resp.json()
+            <span class="k">return await</span> <span class="n">self</span>.circuit.call(_do_request)
+
+    <span class="k">async def</span> <span class="fn">_process_queue</span>(<span class="n">self</span>):
+        <span class="k">while True</span>:
+            <span class="k">if not</span> <span class="n">self</span>._queue:
+                <span class="k">await</span> <span class="n">asyncio</span>.sleep(<span class="num">0.01</span>)
+                <span class="k">continue</span>
+
+            now = <span class="n">asyncio</span>.get_event_loop().time()
+            req = <span class="n">self</span>._queue[<span class="num">0</span>]
+
+            <span class="c"># Check for timeout (priority aging)</span>
+            age = now <span class="o">-</span> req.enqueued_at
+            <span class="k">if</span> age <span class="o">></span> req.max_wait <span class="k">and</span> req.priority <span class="o">></span> <span class="num">0</span>:
+                <span class="c"># Promote priority</span>
+                req.priority <span class="o">-=</span> <span class="num">1</span>
+                <span class="n">heapq</span>.heapify(<span class="n">self</span>._queue)
+                <span class="n">logger</span>.info(<span class="s">f"Promoted {req.url} to priority {req.priority}"</span>)
+                <span class="k">continue</span>
+
+            req = <span class="n">heapq</span>.heappop(<span class="n">self</span>._queue)
+            <span class="k">try</span>:
+                result = <span class="k">await</span> <span class="n">self</span>._execute(req)
+                <span class="k">if not</span> req.future.done():
+                    req.future.set_result(result)
+            <span class="k">except Exception as</span> e:
+                <span class="k">if not</span> req.future.done():
+                    req.future.set_exception(e)
+
+<span class="c"># ====================================================</span>
+<span class="c"># Example usage with Purple Flea APIs</span>
+<span class="c"># ====================================================</span>
+<span class="k">async def</span> <span class="fn">main</span>():
+    client = <span class="fn">ResilientPurpleFlеaClient</span>(api_key=<span class="s">"your-api-key"</span>)
+    <span class="k">await</span> client.start()
+
+    <span class="k">try</span>:
+        <span class="c"># Critical: emergency stop (bypasses queue)</span>
+        <span class="k">await</span> client.request(<span class="s">"POST"</span>, <span class="s">"/trading-api/order"</span>,
+            json={<span class="s">"symbol"</span>: <span class="s">"BTC-USDC"</span>, <span class="s">"side"</span>: <span class="s">"sell"</span>,
+                  <span class="s">"type"</span>: <span class="s">"market"</span>, <span class="s">"reduce_only"</span>: <span class="k">True</span>},
+            priority=<span class="num">0</span>
+        )
+
+        <span class="c"># Normal: price check (queued normally)</span>
+        price_data = <span class="k">await</span> client.request(
+            <span class="s">"GET"</span>, <span class="s">"/trading-api/ticker/BTC-USDC"</span>, priority=<span class="num">2</span>
+        )
+        <span class="n">print</span>(<span class="s">f"BTC mark price: ${price_data['mark_price']}"</span>)
+
+        <span class="c"># Background: analytics (low priority)</span>
+        history = <span class="k">await</span> client.request(
+            <span class="s">"GET"</span>, <span class="s">"/trading-api/history?limit=1000"</span>, priority=<span class="num">4</span>
+        )
+
+    <span class="k">finally</span>:
+        <span class="k">await</span> client.stop()
+
+<span class="k">if</span> __name__ <span class="o">==</span> <span class="s">"__main__"</span>:
+    <span class="n">asyncio</span>.run(<span class="fn">main</span>())</pre>
+    </div>
+
+    <div class="callout success">
+      <div class="callout-icon">&#10003;</div>
+      <p><strong>Production Checklist:</strong> Before deploying a rate-limit-aware agent, verify: (1) client-side bucket rate is set to 80-90% of API limit, (2) circuit breaker thresholds are calibrated to observed failure rates, (3) P0 requests bypass all queueing, (4) <code>Retry-After</code> headers are honored, (5) jitter is applied on all retries, and (6) metrics are exported for bucket utilization and circuit state transitions.</p>
+    </div>
+  </section>
+
+  <div class="cta-block">
+    <h3>Build Resilient Agents on Purple Flea</h3>
+    <p>All Purple Flea APIs include rate limit headers, backoff-friendly 429 responses, and generous burst budgets. Start with free USDC from the faucet.</p>
+    <div class="cta-buttons">
+      <a href="https://purpleflea.com/trading-api" class="btn btn-primary">Trading API Docs</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-outline">Get Free USDC</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-logo">Purple Flea</div>
+  <nav class="footer-links">
+    <a href="https://purpleflea.com/casino-api">Casino API</a>
+    <a href="https://purpleflea.com/trading-api">Trading API</a>
+    <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+    <a href="https://purpleflea.com/domains-api">Domains API</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+  </nav>
+  <p class="footer-copy">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+</footer>
+
+</body>
+</html>
