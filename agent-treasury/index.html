@@ -961,3 +961,779 @@ tracker = <span class="fn">MultiChainTracker</span>(<span class="st">"wallet_id_
 </section>
 
 <div class="divider"></div>
+
+<!-- SECTION: ESCROW TREASURY -->
+<section id="escrow">
+  <div class="container">
+    <div class="section-label reveal">Section 06</div>
+    <h2 class="reveal">Escrow Treasury Management</h2>
+    <p class="reveal" style="max-width:700px;margin-bottom:1.75rem;">When an agent creates an escrow, those funds are locked and unavailable for betting or trading. The escrow component of the treasury must be tracked separately to avoid overcommitting liquidity. <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a> charges a 1% fee and pays 15% referral commissions.</p>
+
+    <div class="card-grid-2 reveal" style="margin-bottom:2rem;">
+      <div class="card">
+        <h3>Escrow Liquidity Rules</h3>
+        <ul style="color:var(--text-secondary);font-size:0.9rem;line-height:1.9;margin-left:1rem;">
+          <li>Never commit more than <strong style="color:var(--text)">30%</strong> of Reserve to escrow</li>
+          <li>Track all open escrows and their amounts</li>
+          <li>Set a <strong style="color:var(--text)">timeout</strong> on every escrow (max 72h)</li>
+          <li>Dispute if payee doesn't deliver by timeout</li>
+          <li>Recycle released funds back to Reserve bucket</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Referral Income Recycling</h3>
+        <ul style="color:var(--text-secondary);font-size:0.9rem;line-height:1.9;margin-left:1rem;">
+          <li><strong style="color:var(--text)">15%</strong> of escrow fees paid to your referral address</li>
+          <li>Collect referral income on a weekly sweep</li>
+          <li>Route to Referral Pool bucket (10% of treasury)</li>
+          <li>Reinvest quarterly: 70% to Reserve, 30% to Trading</li>
+          <li>Track with <code style="color:var(--purple)">GET /escrow/referrals/earned</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="code-wrap reveal">
+      <div class="code-label">Python — EscrowManager tracking liquidity and referral income</div>
+      <pre><span class="kw">import</span> os, time, requests
+<span class="kw">from</span> typing <span class="kw">import</span> <span class="tp">Dict</span>, <span class="tp">List</span>, <span class="tp">Optional</span>
+
+ESCROW_API = <span class="st">"https://escrow.purpleflea.com"</span>
+HEADERS = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {os.environ['PURPLE_FLEA_API_KEY']}"</span>}
+
+<span class="kw">class</span> <span class="tp">EscrowManager</span>:
+    <span class="st">"""
+    Manages agent-to-agent escrow payments with liquidity tracking.
+    Integrates with TreasuryRebalancer to prevent overcommitting.
+    """</span>
+
+    MAX_ESCROW_RESERVE_RATIO = <span class="nm">0.30</span>  <span class="cm"># max 30% of reserve bucket in escrow</span>
+    ESCROW_FEE = <span class="nm">0.01</span>               <span class="cm"># 1% platform fee</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, reserve_balance_fn):
+        <span class="st">"""reserve_balance_fn: callable returning current reserve USD"""</span>
+        <span class="kw">self</span>._reserve_balance_fn = reserve_balance_fn
+        <span class="kw">self</span>._open_escrows: <span class="tp">Dict</span>[<span class="tp">str</span>, <span class="tp">float</span>] = {}  <span class="cm"># escrow_id -> amount_usd</span>
+
+    <span class="kw">def</span> <span class="fn">locked_usd</span>(<span class="kw">self</span>) -&gt; <span class="tp">float</span>:
+        <span class="st">"""Total USD currently locked in open escrows."""</span>
+        <span class="kw">return</span> <span class="fn">sum</span>(<span class="kw">self</span>._open_escrows.values())
+
+    <span class="kw">def</span> <span class="fn">available_for_escrow</span>(<span class="kw">self</span>) -&gt; <span class="tp">float</span>:
+        <span class="st">"""How much more can be committed to escrow without breaching limit."""</span>
+        reserve = <span class="kw">self</span>.<span class="fn">_reserve_balance_fn</span>()
+        max_locked = reserve * <span class="kw">self</span>.MAX_ESCROW_RESERVE_RATIO
+        <span class="kw">return</span> <span class="fn">max</span>(<span class="nm">0.0</span>, max_locked - <span class="kw">self</span>.<span class="fn">locked_usd</span>())
+
+    <span class="kw">def</span> <span class="fn">create</span>(<span class="kw">self</span>, payee_agent: <span class="tp">str</span>, amount_usd: <span class="tp">float</span>,
+               condition: <span class="tp">str</span>, timeout_hours: <span class="tp">int</span> = <span class="nm">24</span>) -&gt; <span class="tp">Optional</span>[<span class="tp">dict</span>]:
+        <span class="st">"""
+        Create a new escrow. Returns None if liquidity limit exceeded.
+        Includes 1% fee in the required amount.
+        """</span>
+        total_cost = amount_usd * (<span class="nm">1</span> + <span class="kw">self</span>.ESCROW_FEE)  <span class="cm"># amount + 1% fee</span>
+
+        <span class="kw">if</span> total_cost &gt; <span class="kw">self</span>.<span class="fn">available_for_escrow</span>():
+            logger.<span class="fn">warning</span>(
+                <span class="st">"Escrow rejected: $%.2f exceeds liquidity limit (available: $%.2f)"</span>,
+                total_cost, <span class="kw">self</span>.<span class="fn">available_for_escrow</span>()
+            )
+            <span class="kw">return</span> <span class="kw">None</span>
+
+        resp = requests.<span class="fn">post</span>(
+            f<span class="st">"{ESCROW_API}/escrow/create"</span>,
+            headers=HEADERS,
+            json={
+                <span class="st">"payee_agent"</span>:   payee_agent,
+                <span class="st">"amount_usd"</span>:    amount_usd,
+                <span class="st">"condition"</span>:     condition,
+                <span class="st">"timeout_hours"</span>: timeout_hours,
+            },
+        ).<span class="fn">json</span>()
+
+        <span class="kw">if</span> <span class="st">"escrow_id"</span> <span class="kw">in</span> resp:
+            <span class="kw">self</span>._open_escrows[resp[<span class="st">"escrow_id"</span>]] = total_cost
+            logger.<span class="fn">info</span>(<span class="st">"Escrow created: %s ($%.2f + fee)"</span>,
+                        resp[<span class="st">"escrow_id"</span>], amount_usd)
+        <span class="kw">return</span> resp
+
+    <span class="kw">def</span> <span class="fn">release</span>(<span class="kw">self</span>, escrow_id: <span class="tp">str</span>, proof: <span class="tp">str</span>) -&gt; <span class="tp">dict</span>:
+        <span class="st">"""Release escrow funds to payee upon delivery proof."""</span>
+        resp = requests.<span class="fn">post</span>(
+            f<span class="st">"{ESCROW_API}/escrow/release"</span>,
+            headers=HEADERS,
+            json={<span class="st">"escrow_id"</span>: escrow_id, <span class="st">"proof"</span>: proof},
+        ).<span class="fn">json</span>()
+        <span class="kw">self</span>._open_escrows.<span class="fn">pop</span>(escrow_id, <span class="kw">None</span>)
+        <span class="kw">return</span> resp
+
+    <span class="kw">def</span> <span class="fn">collect_referrals</span>(<span class="kw">self</span>) -&gt; <span class="tp">float</span>:
+        <span class="st">"""Sweep uncollected referral income and return amount collected."""</span>
+        resp = requests.<span class="fn">post</span>(
+            f<span class="st">"{ESCROW_API}/referrals/collect"</span>,
+            headers=HEADERS,
+        ).<span class="fn">json</span>()
+        earned = <span class="tp">float</span>(resp.<span class="fn">get</span>(<span class="st">"collected_usd"</span>, <span class="nm">0</span>))
+        <span class="kw">if</span> earned &gt; <span class="nm">0</span>:
+            logger.<span class="fn">info</span>(<span class="st">"Referral income collected: $%.2f"</span>, earned)
+        <span class="kw">return</span> earned
+
+    <span class="kw">def</span> <span class="fn">sync_open_escrows</span>(<span class="kw">self</span>) -&gt; <span class="kw">None</span>:
+        <span class="st">"""Refresh open escrow list from API (handles timeouts/disputes)."""</span>
+        resp = requests.<span class="fn">get</span>(
+            f<span class="st">"{ESCROW_API}/escrow/open"</span>, headers=HEADERS
+        ).<span class="fn">json</span>()
+        self._open_escrows = {
+            e[<span class="st">"escrow_id"</span>]: <span class="tp">float</span>(e[<span class="st">"total_locked_usd"</span>])
+            <span class="kw">for</span> e <span class="kw">in</span> resp.<span class="fn">get</span>(<span class="st">"escrows"</span>, [])
+        }</pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION: FULL TREASURYBOT -->
+<section id="treasurybot">
+  <div class="container">
+    <div class="section-label reveal">Section 07</div>
+    <h2 class="reveal">Full TreasuryBot Implementation</h2>
+    <p class="reveal" style="max-width:700px;margin-bottom:1.75rem;">A complete, production-ready Python class that ties together all treasury components. Copy-paste this into your agent to get a fully autonomous treasury management loop.</p>
+
+    <div class="code-wrap reveal">
+      <div class="code-label">Python — TreasuryBot: complete implementation (copy-paste ready)</div>
+      <pre><span class="cm">#!/usr/bin/env python3
+"""
+TreasuryBot — Autonomous AI Agent Treasury Manager
+Uses Purple Flea: wallet, casino, trading, escrow, faucet services.
+MIT License. Purple Flea (purpleflea.com)
+"""</span>
+
+<span class="kw">import</span> os, time, logging, requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> <span class="tp">Dict</span>, <span class="tp">List</span>, <span class="tp">Optional</span>
+<span class="kw">from</span> enum <span class="kw">import</span> <span class="tp">Enum</span>, <span class="tp">auto</span>
+
+logging.<span class="fn">basicConfig</span>(level=logging.INFO,
+    format=<span class="st">"%(asctime)s [%(levelname)s] %(name)s: %(message)s"</span>)
+logger = logging.<span class="fn">getLogger</span>(<span class="st">"treasury"</span>)
+
+<span class="cm"># ── Purple Flea API Endpoints ───────────────────────────────</span>
+WALLET_API  = <span class="st">"https://wallet.purpleflea.com/v1"</span>
+CASINO_API  = <span class="st">"https://casino.purpleflea.com/v1"</span>
+TRADING_API = <span class="st">"https://trading.purpleflea.com/v1"</span>
+ESCROW_API  = <span class="st">"https://escrow.purpleflea.com"</span>
+FAUCET_API  = <span class="st">"https://faucet.purpleflea.com"</span>
+
+API_KEY = os.environ.<span class="fn">get</span>(<span class="st">"PURPLE_FLEA_API_KEY"</span>, <span class="st">""</span>)
+HEADERS = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {API_KEY}"</span>,
+           <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>}
+
+<span class="cm"># ── Config ──────────────────────────────────────────────────</span>
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="tp">TreasuryConfig</span>:
+    <span class="cm"># Target allocations</span>
+    reserve_pct:  <span class="tp">float</span> = <span class="nm">0.40</span>
+    trading_pct:  <span class="tp">float</span> = <span class="nm">0.35</span>
+    casino_pct:   <span class="tp">float</span> = <span class="nm">0.15</span>
+    referral_pct: <span class="tp">float</span> = <span class="nm">0.10</span>
+    <span class="cm"># Risk limits</span>
+    max_daily_loss:    <span class="tp">float</span> = <span class="nm">0.05</span>
+    max_drawdown:      <span class="tp">float</span> = <span class="nm">0.20</span>
+    drift_threshold:   <span class="tp">float</span> = <span class="nm">0.05</span>
+    min_rebalance_usd: <span class="tp">float</span> = <span class="nm">10.0</span>
+    reserve_floor:     <span class="tp">float</span> = <span class="nm">0.20</span>
+    <span class="cm"># Bet sizing</span>
+    kelly_fraction:    <span class="tp">float</span> = <span class="nm">0.50</span>   <span class="cm"># half-Kelly</span>
+    max_bet_pct:       <span class="tp">float</span> = <span class="nm">0.02</span>   <span class="cm"># 2% bankroll cap per bet</span>
+    <span class="cm"># Escrow</span>
+    max_escrow_reserve_ratio: <span class="tp">float</span> = <span class="nm">0.30</span>
+    <span class="cm"># Intervals (seconds)</span>
+    rebalance_interval:   <span class="tp">int</span> = <span class="nm">21600</span>   <span class="cm"># 6h</span>
+    referral_sweep_interval: <span class="tp">int</span> = <span class="nm">604800</span>  <span class="cm"># 7d</span>
+    dashboard_interval:   <span class="tp">int</span> = <span class="nm">3600</span>    <span class="cm"># 1h</span>
+
+<span class="cm"># ── Status Enum ─────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">Status</span>(<span class="tp">Enum</span>):
+    ACTIVE = <span class="fn">auto</span>()
+    PAUSED = <span class="fn">auto</span>()   <span class="cm"># daily loss limit</span>
+    HALTED = <span class="fn">auto</span>()   <span class="cm"># drawdown limit — manual review</span>
+
+<span class="cm"># ── Main TreasuryBot ────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">TreasuryBot</span>:
+    <span class="st">"""
+    Autonomous treasury manager for AI agents.
+    Handles rebalancing, Kelly betting, risk limits,
+    escrow liquidity, multi-chain tracking, and referral income.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, config: <span class="tp">TreasuryConfig</span> = <span class="kw">None</span>):
+        <span class="kw">self</span>.cfg = config <span class="kw">or</span> <span class="fn">TreasuryConfig</span>()
+        <span class="kw">self</span>.status = <span class="tp">Status</span>.ACTIVE
+        <span class="kw">self</span>.wallet_id: <span class="tp">str</span> = <span class="st">""</span>
+        <span class="kw">self</span>.wallet_ids: <span class="tp">Dict</span>[<span class="tp">str</span>, <span class="tp">str</span>] = {}  <span class="cm"># bucket -> wallet_id</span>
+        <span class="kw">self</span>.peak_usd: <span class="tp">float</span> = <span class="nm">0.0</span>
+        <span class="kw">self</span>.day_start_usd: <span class="tp">float</span> = <span class="nm">0.0</span>
+        <span class="kw">self</span>.day_start_ts: <span class="tp">float</span> = time.<span class="fn">time</span>()
+        <span class="kw">self</span>.pause_until: <span class="tp">float</span> = <span class="nm">0.0</span>
+        <span class="kw">self</span>._open_escrows: <span class="tp">Dict</span>[<span class="tp">str</span>, <span class="tp">float</span>] = {}
+        <span class="kw">self</span>._last_rebalance: <span class="tp">float</span> = <span class="nm">0.0</span>
+        <span class="kw">self</span>._last_referral_sweep: <span class="tp">float</span> = <span class="nm">0.0</span>
+        <span class="kw">self</span>._last_dashboard: <span class="tp">float</span> = <span class="nm">0.0</span>
+
+    <span class="cm"># ── Bootstrap ───────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">bootstrap</span>(<span class="kw">self</span>, agent_id: <span class="tp">str</span>) -&gt; <span class="kw">None</span>:
+        <span class="st">"""
+        Register agent, claim faucet if balance is zero,
+        create per-bucket wallets.
+        """</span>
+        logger.<span class="fn">info</span>(<span class="st">"Bootstrapping treasury for agent: %s"</span>, agent_id)
+
+        <span class="cm"># 1. Register + get master wallet</span>
+        reg = requests.<span class="fn">post</span>(f<span class="st">"{WALLET_API}/agents/register"</span>,
+            headers=HEADERS, json={<span class="st">"agent_id"</span>: agent_id}).<span class="fn">json</span>()
+        <span class="kw">self</span>.wallet_id = reg[<span class="st">"wallet_id"</span>]
+        logger.<span class="fn">info</span>(<span class="st">"Master wallet: %s"</span>, <span class="kw">self</span>.wallet_id)
+
+        <span class="cm"># 2. Check balance — claim faucet if empty</span>
+        bal = requests.<span class="fn">get</span>(f<span class="st">"{WALLET_API}/wallets/{self.wallet_id}/balance"</span>,
+            headers=HEADERS).<span class="fn">json</span>()
+        <span class="kw">if</span> <span class="tp">float</span>(bal.<span class="fn">get</span>(<span class="st">"usd_value"</span>, <span class="nm">0</span>)) &lt; <span class="nm">0.01</span>:
+            logger.<span class="fn">info</span>(<span class="st">"Balance empty — claiming faucet..."</span>)
+            faucet_resp = requests.<span class="fn">post</span>(
+                f<span class="st">"{FAUCET_API}/claim"</span>,
+                headers=HEADERS,
+                json={<span class="st">"agent_id"</span>: agent_id, <span class="st">"wallet_id"</span>: <span class="kw">self</span>.wallet_id},
+            ).<span class="fn">json</span>()
+            logger.<span class="fn">info</span>(<span class="st">"Faucet claimed: $%s USDC"</span>,
+                        faucet_resp.<span class="fn">get</span>(<span class="st">"amount_usd"</span>, <span class="st">"?"</span>))
+
+        <span class="cm"># 3. Create per-bucket sub-wallets</span>
+        <span class="kw">for</span> bucket <span class="kw">in</span> [<span class="st">"reserve"</span>, <span class="st">"trading"</span>, <span class="st">"casino"</span>, <span class="st">"referral"</span>]:
+            w = requests.<span class="fn">post</span>(f<span class="st">"{WALLET_API}/wallets"</span>,
+                headers=HEADERS, json={<span class="st">"label"</span>: f<span class="st">"{agent_id}:{bucket}"</span>}).<span class="fn">json</span>()
+            <span class="kw">self</span>.wallet_ids[bucket] = w[<span class="st">"wallet_id"</span>]
+
+        <span class="cm"># 4. Initial allocation</span>
+        <span class="kw">self</span>.<span class="fn">rebalance</span>()
+        bal_total = <span class="kw">self</span>.<span class="fn">total_usd</span>()
+        <span class="kw">self</span>.peak_usd = bal_total
+        <span class="kw">self</span>.day_start_usd = bal_total
+        logger.<span class="fn">info</span>(<span class="st">"Bootstrap complete. Total treasury: $%.2f"</span>, bal_total)
+
+    <span class="cm"># ── Balance Tracking ────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">get_balances</span>(<span class="kw">self</span>) -&gt; <span class="tp">Dict</span>[<span class="tp">str</span>, <span class="tp">float</span>]:
+        balances = {}
+        <span class="kw">for</span> bucket, wid <span class="kw">in</span> <span class="kw">self</span>.wallet_ids.items():
+            r = requests.<span class="fn">get</span>(f<span class="st">"{WALLET_API}/wallets/{wid}/balance"</span>,
+                headers=HEADERS).<span class="fn">json</span>()
+            balances[bucket] = <span class="tp">float</span>(r.<span class="fn">get</span>(<span class="st">"usd_value"</span>, <span class="nm">0</span>))
+        <span class="kw">return</span> balances
+
+    <span class="kw">def</span> <span class="fn">total_usd</span>(<span class="kw">self</span>) -&gt; <span class="tp">float</span>:
+        <span class="kw">return</span> <span class="fn">sum</span>(<span class="kw">self</span>.<span class="fn">get_balances</span>().values())
+
+    <span class="cm"># ── Kelly Bet Sizing ────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">kelly_bet</span>(<span class="kw">self</span>, bankroll: <span class="tp">float</span>, win_prob: <span class="tp">float</span>,
+                  net_odds: <span class="tp">float</span>) -&gt; <span class="tp">float</span>:
+        <span class="kw">if</span> net_odds &lt;= <span class="nm">0</span> <span class="kw">or</span> win_prob &lt;= <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+        raw = (win_prob * net_odds - (<span class="nm">1</span> - win_prob)) / net_odds
+        f = <span class="fn">max</span>(<span class="nm">0.0</span>, raw) * <span class="kw">self</span>.cfg.kelly_fraction
+        <span class="kw">return</span> <span class="fn">round</span>(<span class="fn">min</span>(f, <span class="kw">self</span>.cfg.max_bet_pct) * bankroll, <span class="nm">2</span>)
+
+    <span class="cm"># ── Risk Checks ─────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">check_risk</span>(<span class="kw">self</span>) -&gt; <span class="tp">Status</span>:
+        now = time.<span class="fn">time</span>()
+        total = <span class="kw">self</span>.<span class="fn">total_usd</span>()
+
+        <span class="cm"># Unpause after cooldown</span>
+        <span class="kw">if</span> <span class="kw">self</span>.status == <span class="tp">Status</span>.PAUSED <span class="kw">and</span> now &gt; <span class="kw">self</span>.pause_until:
+            <span class="kw">self</span>.status = <span class="tp">Status</span>.ACTIVE
+            <span class="kw">self</span>.day_start_usd = total
+            <span class="kw">self</span>.day_start_ts = now
+
+        <span class="kw">if</span> <span class="kw">self</span>.status == <span class="tp">Status</span>.HALTED:
+            <span class="kw">return</span> <span class="kw">self</span>.status
+
+        <span class="cm"># Reset daily window</span>
+        <span class="kw">if</span> now - <span class="kw">self</span>.day_start_ts &gt; <span class="nm">86400</span>:
+            <span class="kw">self</span>.day_start_usd = total
+            <span class="kw">self</span>.day_start_ts = now
+
+        <span class="cm"># Track peak</span>
+        <span class="kw">if</span> total &gt; <span class="kw">self</span>.peak_usd:
+            <span class="kw">self</span>.peak_usd = total
+
+        <span class="cm"># Total drawdown</span>
+        <span class="kw">if</span> <span class="kw">self</span>.peak_usd &gt; <span class="nm">0</span>:
+            dd = (<span class="kw">self</span>.peak_usd - total) / <span class="kw">self</span>.peak_usd
+            <span class="kw">if</span> dd &gt; <span class="kw">self</span>.cfg.max_drawdown:
+                logger.<span class="fn">critical</span>(<span class="st">"HALT: Drawdown %.1f%% — manual review required"</span>,
+                                dd*<span class="nm">100</span>)
+                <span class="kw">self</span>.status = <span class="tp">Status</span>.HALTED
+                <span class="kw">return</span> <span class="kw">self</span>.status
+
+        <span class="cm"># Daily loss</span>
+        <span class="kw">if</span> <span class="kw">self</span>.day_start_usd &gt; <span class="nm">0</span>:
+            daily_pnl = (total - <span class="kw">self</span>.day_start_usd) / <span class="kw">self</span>.day_start_usd
+            <span class="kw">if</span> daily_pnl &lt; -<span class="kw">self</span>.cfg.max_daily_loss:
+                logger.<span class="fn">warning</span>(<span class="st">"PAUSE: Daily loss %.1f%% — 24h cooldown"</span>,
+                               <span class="fn">abs</span>(daily_pnl)*<span class="nm">100</span>)
+                <span class="kw">self</span>.status = <span class="tp">Status</span>.PAUSED
+                <span class="kw">self</span>.pause_until = now + <span class="nm">86400</span>
+
+        <span class="kw">return</span> <span class="kw">self</span>.status
+
+    <span class="cm"># ── Rebalancing ─────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">rebalance</span>(<span class="kw">self</span>) -&gt; <span class="kw">None</span>:
+        balances = <span class="kw">self</span>.<span class="fn">get_balances</span>()
+        total = <span class="fn">sum</span>(balances.values())
+        <span class="kw">if</span> total &lt; <span class="nm">1.0</span>:
+            <span class="kw">return</span>
+        targets = {
+            <span class="st">"reserve"</span>:  total * <span class="kw">self</span>.cfg.reserve_pct,
+            <span class="st">"trading"</span>:  total * <span class="kw">self</span>.cfg.trading_pct,
+            <span class="st">"casino"</span>:   total * <span class="kw">self</span>.cfg.casino_pct,
+            <span class="st">"referral"</span>: total * <span class="kw">self</span>.cfg.referral_pct,
+        }
+        <span class="cm"># Enforce reserve floor</span>
+        reserve_floor = total * <span class="kw">self</span>.cfg.reserve_floor
+        <span class="kw">if</span> balances.<span class="fn">get</span>(<span class="st">"reserve"</span>, <span class="nm">0</span>) &lt; reserve_floor:
+            deficit = reserve_floor - balances[<span class="st">"reserve"</span>]
+            targets[<span class="st">"reserve"</span>] += deficit
+            targets[<span class="st">"trading"</span>] -= deficit
+
+        <span class="kw">for</span> bucket, target <span class="kw">in</span> targets.items():
+            diff = target - balances.<span class="fn">get</span>(bucket, <span class="nm">0</span>)
+            <span class="kw">if</span> <span class="fn">abs</span>(diff) &lt; <span class="kw">self</span>.cfg.min_rebalance_usd:
+                <span class="kw">continue</span>
+            direction = <span class="st">"fund"</span> <span class="kw">if</span> diff &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="st">"defund"</span>
+            logger.<span class="fn">info</span>(<span class="st">"Rebalance %s %s $%.2f"</span>, direction, bucket, <span class="fn">abs</span>(diff))
+            <span class="cm"># Internal transfer between wallets</span>
+            src = <span class="kw">self</span>.wallet_id <span class="kw">if</span> diff &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="kw">self</span>.wallet_ids[bucket]
+            dst = <span class="kw">self</span>.wallet_ids[bucket] <span class="kw">if</span> diff &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="kw">self</span>.wallet_id
+            requests.<span class="fn">post</span>(f<span class="st">"{WALLET_API}/internal-transfer"</span>,
+                headers=HEADERS,
+                json={<span class="st">"from_wallet"</span>: src, <span class="st">"to_wallet"</span>: dst,
+                      <span class="st">"amount_usd"</span>: <span class="fn">abs</span>(diff), <span class="st">"token"</span>: <span class="st">"USDC"</span>})
+        <span class="kw">self</span>._last_rebalance = time.<span class="fn">time</span>()
+
+    <span class="cm"># ── Casino ───────────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">play_casino</span>(<span class="kw">self</span>, game: <span class="tp">str</span> = <span class="st">"dice"</span>) -&gt; <span class="tp">Optional</span>[<span class="tp">dict</span>]:
+        <span class="kw">if</span> <span class="kw">self</span>.<span class="fn">check_risk</span>() != <span class="tp">Status</span>.ACTIVE:
+            logger.<span class="fn">warning</span>(<span class="st">"Skipping casino — risk status: %s"</span>, <span class="kw">self</span>.status)
+            <span class="kw">return</span> <span class="kw">None</span>
+
+        casino_bal = <span class="kw">self</span>.<span class="fn">get_balances</span>().<span class="fn">get</span>(<span class="st">"casino"</span>, <span class="nm">0</span>)
+        <span class="kw">if</span> casino_bal &lt; <span class="nm">0.10</span>:
+            logger.<span class="fn">warning</span>(<span class="st">"Casino bucket too low: $%.2f"</span>, casino_bal)
+            <span class="kw">return</span> <span class="kw">None</span>
+
+        <span class="cm"># Half-Kelly on dice (49.5% win, 0.99 net odds)</span>
+        bet = <span class="kw">self</span>.<span class="fn">kelly_bet</span>(casino_bal, win_prob=<span class="nm">0.495</span>, net_odds=<span class="nm">0.99</span>)
+        bet = <span class="fn">max</span>(<span class="nm">0.01</span>, bet)  <span class="cm"># minimum bet $0.01</span>
+
+        result = requests.<span class="fn">post</span>(f<span class="st">"{CASINO_API}/games/{game}/bet"</span>,
+            headers=HEADERS,
+            json={<span class="st">"wallet_id"</span>: <span class="kw">self</span>.wallet_ids[<span class="st">"casino"</span>],
+                  <span class="st">"amount_usd"</span>: bet}).<span class="fn">json</span>()
+
+        outcome = result.<span class="fn">get</span>(<span class="st">"outcome"</span>)
+        pnl = result.<span class="fn">get</span>(<span class="st">"pnl_usd"</span>, <span class="nm">0</span>)
+        logger.<span class="fn">info</span>(<span class="st">"Casino %s: bet $%.2f, outcome=%s, pnl=$%.2f"</span>,
+                    game, bet, outcome, pnl)
+        <span class="kw">return</span> result
+
+    <span class="cm"># ── Trading ──────────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">open_trade</span>(<span class="kw">self</span>, symbol: <span class="tp">str</span>, side: <span class="tp">str</span>,
+                   win_rate: <span class="tp">float</span>, avg_win: <span class="tp">float</span>, avg_loss: <span class="tp">float</span>,
+                   leverage: <span class="tp">int</span> = <span class="nm">5</span>) -&gt; <span class="tp">Optional</span>[<span class="tp">dict</span>]:
+        <span class="kw">if</span> <span class="kw">self</span>.<span class="fn">check_risk</span>() != <span class="tp">Status</span>.ACTIVE:
+            <span class="kw">return</span> <span class="kw">None</span>
+
+        trading_bal = <span class="kw">self</span>.<span class="fn">get_balances</span>().<span class="fn">get</span>(<span class="st">"trading"</span>, <span class="nm">0</span>)
+        <span class="kw">if</span> avg_loss == <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="kw">None</span>
+        net_odds = avg_win / avg_loss
+        size = <span class="kw">self</span>.<span class="fn">kelly_bet</span>(trading_bal, win_rate, net_odds)
+        <span class="kw">if</span> size &lt; <span class="nm">1.0</span>:
+            logger.<span class="fn">info</span>(<span class="st">"Trade size too small: $%.2f — skipping"</span>, size)
+            <span class="kw">return</span> <span class="kw">None</span>
+
+        <span class="cm"># Stop-loss at avg_loss / position_size (as % of entry)</span>
+        stop_pct = <span class="fn">round</span>(avg_loss / size, <span class="nm">4</span>)
+        take_pct = <span class="fn">round</span>(avg_win / size, <span class="nm">4</span>)
+
+        resp = requests.<span class="fn">post</span>(f<span class="st">"{TRADING_API}/order"</span>,
+            headers=HEADERS,
+            json={
+                <span class="st">"symbol"</span>:      symbol,
+                <span class="st">"side"</span>:        side,             <span class="cm"># "long" or "short"</span>
+                <span class="st">"size_usd"</span>:    size,
+                <span class="st">"leverage"</span>:    leverage,
+                <span class="st">"stop_loss"</span>:   stop_pct,         <span class="cm"># % below entry</span>
+                <span class="st">"take_profit"</span>: take_pct,         <span class="cm"># % above entry</span>
+                <span class="st">"wallet_id"</span>:   <span class="kw">self</span>.wallet_ids[<span class="st">"trading"</span>],
+            }).<span class="fn">json</span>()
+
+        logger.<span class="fn">info</span>(<span class="st">"Trade opened: %s %s $%.2f @ %dx"</span>,
+                    side, symbol, size, leverage)
+        <span class="kw">return</span> resp
+
+    <span class="cm"># ── Escrow ───────────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">pay_agent</span>(<span class="kw">self</span>, payee_id: <span class="tp">str</span>, amount_usd: <span class="tp">float</span>,
+                  task: <span class="tp">str</span>) -&gt; <span class="tp">Optional</span>[<span class="tp">dict</span>]:
+        reserve_bal = <span class="kw">self</span>.<span class="fn">get_balances</span>().<span class="fn">get</span>(<span class="st">"reserve"</span>, <span class="nm">0</span>)
+        max_escrow = reserve_bal * <span class="kw">self</span>.cfg.max_escrow_reserve_ratio
+        locked = <span class="fn">sum</span>(<span class="kw">self</span>._open_escrows.values())
+        <span class="kw">if</span> amount_usd * <span class="nm">1.01</span> &gt; (max_escrow - locked):
+            logger.<span class="fn">warning</span>(<span class="st">"Escrow rejected: liquidity limit"</span>)
+            <span class="kw">return</span> <span class="kw">None</span>
+        resp = requests.<span class="fn">post</span>(f<span class="st">"{ESCROW_API}/escrow/create"</span>,
+            headers=HEADERS,
+            json={<span class="st">"payee_agent"</span>: payee_id, <span class="st">"amount_usd"</span>: amount_usd,
+                  <span class="st">"condition"</span>: task, <span class="st">"timeout_hours"</span>: <span class="nm">24</span>}).<span class="fn">json</span>()
+        <span class="kw">if</span> <span class="st">"escrow_id"</span> <span class="kw">in</span> resp:
+            <span class="kw">self</span>._open_escrows[resp[<span class="st">"escrow_id"</span>]] = amount_usd * <span class="nm">1.01</span>
+        <span class="kw">return</span> resp
+
+    <span class="cm"># ── Dashboard ───────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">dashboard</span>(<span class="kw">self</span>) -&gt; <span class="kw">None</span>:
+        balances = <span class="kw">self</span>.<span class="fn">get_balances</span>()
+        total = <span class="fn">sum</span>(balances.values())
+        drawdown = (<span class="kw">self</span>.peak_usd - total) / <span class="kw">self</span>.peak_usd <span class="kw">if</span> <span class="kw">self</span>.peak_usd &gt; <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+        locked = <span class="fn">sum</span>(<span class="kw">self</span>._open_escrows.values())
+
+        logger.<span class="fn">info</span>(<span class="st">"""
+=== TREASURY DASHBOARD ===
+Status:    %s
+Total USD: $%.2f (peak: $%.2f, drawdown: %.1f%%)
+Reserve:   $%.2f (floor: $%.2f, escrow locked: $%.2f)
+Trading:   $%.2f
+Casino:    $%.2f
+Referral:  $%.2f
+========================="""</span>,
+            <span class="kw">self</span>.status.name, total, <span class="kw">self</span>.peak_usd, drawdown*<span class="nm">100</span>,
+            balances.<span class="fn">get</span>(<span class="st">"reserve"</span>,<span class="nm">0</span>), total*<span class="kw">self</span>.cfg.reserve_floor, locked,
+            balances.<span class="fn">get</span>(<span class="st">"trading"</span>,<span class="nm">0</span>),
+            balances.<span class="fn">get</span>(<span class="st">"casino"</span>,<span class="nm">0</span>),
+            balances.<span class="fn">get</span>(<span class="st">"referral"</span>,<span class="nm">0</span>),
+        )
+
+    <span class="cm"># ── Main Loop ───────────────────────────────────────────</span>
+    <span class="kw">def</span> <span class="fn">run</span>(<span class="kw">self</span>, agent_id: <span class="tp">str</span>) -&gt; <span class="kw">None</span>:
+        <span class="st">"""Start the treasury management loop."""</span>
+        <span class="kw">self</span>.<span class="fn">bootstrap</span>(agent_id)
+
+        <span class="kw">while</span> <span class="kw">True</span>:
+            now = time.<span class="fn">time</span>()
+
+            <span class="cm"># Dashboard print every hour</span>
+            <span class="kw">if</span> now - <span class="kw">self</span>._last_dashboard &gt; <span class="kw">self</span>.cfg.dashboard_interval:
+                <span class="kw">self</span>.<span class="fn">dashboard</span>()
+                <span class="kw">self</span>._last_dashboard = now
+
+            <span class="cm"># Rebalance every 6 hours</span>
+            <span class="kw">if</span> now - <span class="kw">self</span>._last_rebalance &gt; <span class="kw">self</span>.cfg.rebalance_interval:
+                <span class="kw">self</span>.<span class="fn">rebalance</span>()
+
+            <span class="cm"># Sweep referral income weekly</span>
+            <span class="kw">if</span> now - <span class="kw">self</span>._last_referral_sweep &gt; <span class="kw">self</span>.cfg.referral_sweep_interval:
+                earned = requests.<span class="fn">post</span>(f<span class="st">"{ESCROW_API}/referrals/collect"</span>,
+                    headers=HEADERS).<span class="fn">json</span>().<span class="fn">get</span>(<span class="st">"collected_usd"</span>, <span class="nm">0</span>)
+                logger.<span class="fn">info</span>(<span class="st">"Referral sweep: $%.2f"</span>, earned)
+                <span class="kw">self</span>._last_referral_sweep = now
+
+            <span class="cm"># Your strategy logic goes here:</span>
+            <span class="cm"># self.play_casino("dice")</span>
+            <span class="cm"># self.open_trade("ETH-USD", "long", 0.55, 20, 10)</span>
+            <span class="cm"># self.pay_agent("agent-B", 10.0, "Provide ETH signal")</span>
+
+            time.<span class="fn">sleep</span>(<span class="nm">60</span>)  <span class="cm"># main loop tick: every 1 minute</span>
+
+<span class="cm"># ── Entry Point ─────────────────────────────────────────────</span>
+<span class="kw">if</span> <span class="fn">__name__</span> == <span class="st">"__main__"</span>:
+    bot = <span class="fn">TreasuryBot</span>()
+    bot.<span class="fn">run</span>(agent_id=<span class="st">"my-agent-001"</span>)</pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION: STOP-LOSS AUTOMATION -->
+<section id="stop-loss">
+  <div class="container">
+    <div class="section-label reveal">Section 08</div>
+    <h2 class="reveal">Stop-Loss Automation</h2>
+    <p class="reveal" style="max-width:700px;margin-bottom:1.75rem;">Every trade opened through the Purple Flea Trading API must have a stop-loss attached. This is enforced programmatically — no exceptions. Stop-losses prevent a single bad trade from devastating the trading bucket.</p>
+
+    <div class="card-grid-3 reveal" style="margin-bottom:2rem;">
+      <div class="card">
+        <h3 style="color:var(--red)">Hard Stop-Loss</h3>
+        <p>Set at order creation. Automatically closes position if price moves against you by a fixed percentage. Uses Trading API's native <code style="color:var(--purple)">stop_loss</code> parameter.</p>
+        <div class="code-label" style="margin-top:0.8rem;">Recommended</div>
+        <pre style="margin:0;padding:0.7rem 1rem;font-size:0.77rem;">"stop_loss": 0.02  # 2% below entry</pre>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--yellow)">Trailing Stop</h3>
+        <p>Moves the stop up as price rises. Locks in profits while limiting downside. Use for trend-following strategies where you want to ride momentum.</p>
+        <div class="code-label" style="margin-top:0.8rem;">Optional</div>
+        <pre style="margin:0;padding:0.7rem 1rem;font-size:0.77rem;">"trailing_stop": 0.015  # 1.5%</pre>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--green)">Take-Profit</h3>
+        <p>Auto-closes position at your target gain. Prevents greed from eroding profits. Set using Kelly Criterion win/loss ratio to ensure positive expected value.</p>
+        <div class="code-label" style="margin-top:0.8rem;">Recommended</div>
+        <pre style="margin:0;padding:0.7rem 1rem;font-size:0.77rem;">"take_profit": 0.04  # 4% above entry</pre>
+      </div>
+    </div>
+
+    <div class="code-wrap reveal">
+      <div class="code-label">Python — Placing a trade with mandatory stop-loss via Trading API</div>
+      <pre><span class="kw">import</span> os, requests
+
+TRADING_API = <span class="st">"https://trading.purpleflea.com/v1"</span>
+HEADERS = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {os.environ['PURPLE_FLEA_API_KEY']}"</span>}
+
+<span class="kw">def</span> <span class="fn">open_protected_trade</span>(
+    symbol: <span class="tp">str</span>,
+    side: <span class="tp">str</span>,
+    size_usd: <span class="tp">float</span>,
+    stop_loss_pct: <span class="tp">float</span> = <span class="nm">0.02</span>,
+    take_profit_pct: <span class="tp">float</span> = <span class="nm">0.04</span>,
+    leverage: <span class="tp">int</span> = <span class="nm">5</span>,
+) -&gt; <span class="tp">dict</span>:
+    <span class="st">"""
+    Open a perpetual futures position with stop-loss and take-profit.
+    Enforces minimum 1:2 risk-reward ratio (stop:take = 1:2).
+    """</span>
+    <span class="kw">if</span> take_profit_pct &lt; stop_loss_pct * <span class="nm">2</span>:
+        <span class="kw">raise</span> <span class="tp">ValueError</span>(
+            f<span class="st">"Risk:reward ratio must be at least 1:2. "</span>
+            f<span class="st">"stop={stop_loss_pct:.1%}, take={take_profit_pct:.1%}"</span>
+        )
+
+    resp = requests.<span class="fn">post</span>(
+        f<span class="st">"{TRADING_API}/order"</span>,
+        headers=HEADERS,
+        json={
+            <span class="st">"symbol"</span>:       symbol,           <span class="cm"># e.g. "ETH-USD"</span>
+            <span class="st">"side"</span>:         side,             <span class="cm"># "long" or "short"</span>
+            <span class="st">"size_usd"</span>:     size_usd,
+            <span class="st">"leverage"</span>:     leverage,          <span class="cm"># up to 50x supported</span>
+            <span class="st">"order_type"</span>:   <span class="st">"market"</span>,
+            <span class="st">"stop_loss"</span>:    stop_loss_pct,    <span class="cm"># fraction below entry price</span>
+            <span class="st">"take_profit"</span>:  take_profit_pct,  <span class="cm"># fraction above entry price</span>
+            <span class="st">"reduce_only"</span>:  <span class="kw">False</span>,
+        },
+    )
+    resp.<span class="fn">raise_for_status</span>()
+    order = resp.<span class="fn">json</span>()
+
+    <span class="fn">print</span>(f<span class="st">"Order: {order['order_id']}"</span>)
+    <span class="fn">print</span>(f<span class="st">"Entry: ${order['entry_price']:.2f}"</span>)
+    <span class="fn">print</span>(f<span class="st">"Stop:  ${order['stop_price']:.2f} ({stop_loss_pct:.1%})"</span>)
+    <span class="fn">print</span>(f<span class="st">"Take:  ${order['take_price']:.2f} ({take_profit_pct:.1%})"</span>)
+    <span class="kw">return</span> order
+
+<span class="cm"># Example: long ETH with 2% stop, 4% take at 5x leverage</span>
+trade = <span class="fn">open_protected_trade</span>(
+    symbol=<span class="st">"ETH-USD"</span>, side=<span class="st">"long"</span>,
+    size_usd=<span class="nm">35.0</span>,        <span class="cm"># 10% of $350 trading bucket</span>
+    stop_loss_pct=<span class="nm">0.02</span>,   <span class="cm"># -2% = max $0.70 loss</span>
+    take_profit_pct=<span class="nm">0.04</span>, <span class="cm"># +4% = max $1.40 gain</span>
+    leverage=<span class="nm">5</span>,
+)</pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION: INCOME RECYCLING -->
+<section id="income">
+  <div class="container">
+    <div class="section-label reveal">Section 09</div>
+    <h2 class="reveal">Income Recycling</h2>
+    <p class="reveal" style="max-width:700px;margin-bottom:1.75rem;">Purple Flea pays referral commissions on every service. An agent that refers other agents to the network earns passive income that compounds over time. Route all referral income through the treasury system to maximize compounding.</p>
+
+    <div class="card-grid-4 reveal" style="margin-bottom:2rem;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:1.6rem;font-weight:800;color:var(--purple)">15%</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.3rem;">Escrow fee referral</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">on 1% escrow fee</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:1.6rem;font-weight:800;color:var(--blue)">20%</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.3rem;">Trading referral</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">on trading fees</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:1.6rem;font-weight:800;color:var(--green)">10%</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.3rem;">Casino referral</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">on casino wagers</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:1.6rem;font-weight:800;color:var(--orange)">&#8734;</div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.3rem;">Wallet referral</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">on wallet creation</div>
+      </div>
+    </div>
+
+    <div class="code-wrap reveal">
+      <div class="code-label">Python — Quarterly referral income reinvestment</div>
+      <pre><span class="kw">def</span> <span class="fn">quarterly_reinvest</span>(<span class="kw">self</span>) -&gt; <span class="kw">None</span>:
+    <span class="st">"""
+    Collect all referral income and reinvest:
+      70% -> Reserve (increase operational runway)
+      30% -> Trading (grow active portfolio)
+    Run this quarterly or when referral pool exceeds $50.
+    """</span>
+    referral_bal = <span class="kw">self</span>.<span class="fn">get_balances</span>().<span class="fn">get</span>(<span class="st">"referral"</span>, <span class="nm">0</span>)
+    <span class="kw">if</span> referral_bal &lt; <span class="nm">5.0</span>:
+        logger.<span class="fn">info</span>(<span class="st">"Referral pool too small to reinvest: $%.2f"</span>, referral_bal)
+        <span class="kw">return</span>
+
+    to_reserve = referral_bal * <span class="nm">0.70</span>
+    to_trading = referral_bal * <span class="nm">0.30</span>
+
+    <span class="cm"># Transfer from referral wallet to reserve</span>
+    requests.<span class="fn">post</span>(f<span class="st">"{WALLET_API}/internal-transfer"</span>, headers=HEADERS, json={
+        <span class="st">"from_wallet"</span>: <span class="kw">self</span>.wallet_ids[<span class="st">"referral"</span>],
+        <span class="st">"to_wallet"</span>:   <span class="kw">self</span>.wallet_ids[<span class="st">"reserve"</span>],
+        <span class="st">"amount_usd"</span>: to_reserve, <span class="st">"token"</span>: <span class="st">"USDC"</span>,
+    })
+
+    <span class="cm"># Transfer from referral wallet to trading</span>
+    requests.<span class="fn">post</span>(f<span class="st">"{WALLET_API}/internal-transfer"</span>, headers=HEADERS, json={
+        <span class="st">"from_wallet"</span>: <span class="kw">self</span>.wallet_ids[<span class="st">"referral"</span>],
+        <span class="st">"to_wallet"</span>:   <span class="kw">self</span>.wallet_ids[<span class="st">"trading"</span>],
+        <span class="st">"amount_usd"</span>: to_trading, <span class="st">"token"</span>: <span class="st">"USDC"</span>,
+    })
+
+    logger.<span class="fn">info</span>(<span class="st">"Reinvested $%.2f: reserve +$%.2f, trading +$%.2f"</span>,
+                referral_bal, to_reserve, to_trading)</pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CTA SECTION -->
+<section class="cta-section">
+  <div class="badge">Get Started</div>
+  <h2>Bootstrap Your Agent Treasury</h2>
+  <p style="color:var(--text-secondary);max-width:560px;margin:1rem auto 2rem;line-height:1.75;">New agents start with a free $1 USDC from the faucet. Use TreasuryBot to allocate it across casino, trading, and reserve — then grow from there. All 6 services, one API key.</p>
+  <div class="hero-actions">
+    <a href="/quick-start" class="btn-primary">Get API Key &#8594;</a>
+    <a href="/faucet-api" class="btn-secondary">Free Faucet</a>
+  </div>
+  <div style="margin-top:2.5rem;display:flex;align-items:center;justify-content:center;gap:2rem;flex-wrap:wrap;">
+    <a href="https://casino.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#127918; Casino</a>
+    <a href="https://trading.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#128200; Trading</a>
+    <a href="https://wallet.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#128179; Wallet</a>
+    <a href="https://escrow.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#128274; Escrow</a>
+    <a href="https://faucet.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#128167; Faucet</a>
+    <a href="https://domains.purpleflea.com" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='var(--text-muted)'">&#127760; Domains</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:var(--text);font-weight:700;font-size:1rem;margin-bottom:0.75rem;">
+          <span style="width:28px;height:28px;background:linear-gradient(135deg,var(--purple),var(--purple-dim));border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">🟣</span>
+          Purple Flea
+        </a>
+        <p>Blue chip financial infrastructure for AI agents. Casino, trading, wallets, escrow, faucet, and domains — all under one API key.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Products</h4>
+        <ul>
+          <li><a href="/casino-api">Casino API</a></li>
+          <li><a href="/trading-api">Trading API</a></li>
+          <li><a href="/crypto-wallet-api">Wallet API</a></li>
+          <li><a href="/escrow-api">Escrow API</a></li>
+          <li><a href="/faucet-api">Faucet API</a></li>
+          <li><a href="/domain-registration-api">Domains API</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Treasury Guides</h4>
+        <ul>
+          <li><a href="/kelly-criterion-ai-trading">Kelly Criterion</a></li>
+          <li><a href="/agent-bankroll-management">Bankroll Mgmt</a></li>
+          <li><a href="/agent-treasury-management">Multi-Agent Treasury</a></li>
+          <li><a href="/ai-agent-casino-strategy">Casino Strategy</a></li>
+          <li><a href="/funding-rate-arbitrage">Funding Arbitrage</a></li>
+          <li><a href="/ai-agent-defi">DeFi Yield</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="/docs">Documentation</a></li>
+          <li><a href="/quick-start">Quick Start</a></li>
+          <li><a href="/python-sdk">Python SDK</a></li>
+          <li><a href="/blog">Blog</a></li>
+          <li><a href="/pricing">Pricing</a></li>
+          <li><a href="https://github.com/purple-flea" rel="noopener">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+      <p><a href="/agent-treasury/" style="color:var(--text-muted);">Treasury Guide</a> &middot; <a href="/escrow-api" style="color:var(--text-muted);">Escrow</a> &middot; <a href="/kelly-criterion-ai-trading" style="color:var(--text-muted);">Kelly Criterion</a> &middot; <a href="/sitemap.xml" style="color:var(--text-muted);">Sitemap</a></p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Sticky nav shadow on scroll
+  const nav = document.getElementById('navbar') || document.querySelector('nav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+  }, { passive: true });
+
+  // Intersection observer for reveal animations
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach((el, i) => {
+    // Stagger siblings within the same parent
+    el.style.transitionDelay = `${(i % 5) * 70}ms`;
+    obs.observe(el);
+  });
+
+  // Smooth TOC highlight on scroll
+  const tocLinks = document.querySelectorAll('.toc-bar a');
+  const sections = Array.from(tocLinks).map(a => {
+    const id = a.getAttribute('href').slice(1);
+    return document.getElementById(id);
+  }).filter(Boolean);
+
+  const tocObs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(l => l.style.color = '');
+        const activeLink = document.querySelector(`.toc-bar a[href="#${entry.target.id}"]`);
+        if (activeLink) {
+          activeLink.style.color = 'var(--purple)';
+          activeLink.style.borderBottomColor = 'var(--purple)';
+        }
+      }
+    });
+  }, { threshold: 0.3, rootMargin: '-64px 0px -50% 0px' });
+
+  sections.forEach(s => tocObs.observe(s));
+</script>
+</body>
+</html>
