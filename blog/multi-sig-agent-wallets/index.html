@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Secure Multi-Sig Wallets for AI Agents | Purple Flea Blog</title>
+  <meta name="description" content="Tutorial: implement multi-signature authorization for AI agent wallets. Protect treasury funds, prevent single points of failure, and enable DAO-style governance." />
+  <link rel="canonical" href="https://purpleflea.com/blog/multi-sig-agent-wallets" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Building Secure Multi-Sig Wallets for AI Agents",
+    "datePublished": "2026-03-04",
+    "dateModified": "2026-03-04",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "url": "https://purpleflea.com/blog/multi-sig-agent-wallets"
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg:#09090B; --bg-secondary:#111113; --bg-card:#18181B; --bg-card-hover:#1F1F23;
+      --border:#27272A; --border-accent:#3F3F46;
+      --text-primary:#FAFAFA; --text-secondary:#A1A1AA; --text-muted:#71717A;
+      --purple:#A855F7; --purple-light:#C084FC; --purple-dark:#7C3AED;
+      --purple-glow:rgba(168,85,247,0.15);
+      --green:#22C55E; --blue:#3B82F6;
+      --radius-sm:6px; --radius:10px; --radius-lg:16px;
+      --font-sans:'Inter',system-ui,sans-serif; --font-mono:'JetBrains Mono','Fira Code',monospace;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{font-family:var(--font-sans);background:var(--bg);color:var(--text-primary);line-height:1.7;-webkit-font-smoothing:antialiased;}
+    a{color:var(--purple);text-decoration:none;}
+    a:hover{color:var(--purple-light);}
+    .navbar{position:fixed;top:0;left:0;right:0;z-index:100;height:64px;display:flex;align-items:center;padding:0 24px;background:rgba(9,9,11,0.85);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);}
+    .navbar-inner{max-width:1200px;width:100%;margin:0 auto;display:flex;align-items:center;gap:32px;}
+    .navbar-logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:1rem;color:var(--text-primary);}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#7C3AED,#A855F7);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+    .navbar-links{display:flex;align-items:center;gap:4px;list-style:none;flex:1;}
+    .navbar-links a{padding:6px 12px;border-radius:6px;font-size:0.875rem;font-weight:500;color:#A1A1AA;}
+    .navbar-links a:hover{color:#FAFAFA;background:#18181B;}
+    .navbar-cta{margin-left:auto;padding:8px 16px;border-radius:6px;background:#A855F7;color:#fff!important;font-size:0.875rem;font-weight:600;}
+    .article-container{max-width:760px;margin:0 auto;padding:104px 24px 80px;}
+    .article-meta{display:flex;align-items:center;gap:12px;margin-bottom:32px;font-size:0.875rem;color:#71717A;}
+    .article-tag{padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:rgba(168,85,247,0.15);color:#A855F7;border:1px solid rgba(168,85,247,0.2);}
+    h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;line-height:1.2;letter-spacing:-0.03em;margin-bottom:20px;}
+    h2{font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;margin:48px 0 16px;}
+    h3{font-size:1.15rem;font-weight:600;margin:32px 0 12px;}
+    p{color:#A1A1AA;margin-bottom:20px;font-size:1.0rem;}
+    p strong{color:#FAFAFA;}
+    ul,ol{color:#A1A1AA;padding-left:24px;margin-bottom:20px;}
+    li{margin-bottom:8px;}
+    .code-block{background:#0D0D0F;border:1px solid #27272A;border-radius:10px;padding:20px 24px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.85rem;line-height:1.7;overflow-x:auto;margin:24px 0;}
+    .callout{background:#18181B;border:1px solid #27272A;border-left:3px solid #A855F7;border-radius:10px;padding:20px 24px;margin:24px 0;}
+    .callout p{margin:0;}
+    .related{margin-top:64px;padding-top:32px;border-top:1px solid #27272A;}
+    .related h3{color:#FAFAFA;font-size:1.1rem;margin-bottom:16px;}
+    .related-links{display:flex;flex-direction:column;gap:8px;}
+    footer{border-top:1px solid #27272A;padding:40px 24px;color:#71717A;font-size:0.875rem;margin-top:80px;}
+    .footer-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
+    .footer-links{display:flex;gap:20px;}
+    pre{white-space:pre;overflow-x:auto;}
+    code{font-family:var(--font-mono);}
+    .token-comment{color:#6B7280;}
+    .token-keyword{color:#C084FC;}
+    .token-string{color:#86EFAC;}
+    .token-number{color:#FCD34D;}
+    .token-function{color:#60A5FA;}
+    table{width:100%;border-collapse:collapse;margin:24px 0;font-size:0.9rem;}
+    th{text-align:left;padding:10px 14px;border-bottom:1px solid #27272A;color:#FAFAFA;font-weight:600;}
+    td{padding:10px 14px;border-bottom:1px solid #1A1A1D;color:#A1A1AA;}
+    tr:last-child td{border-bottom:none;}
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-logo"><div class="logo-icon">🐾</div>Purple Flea</a>
+    <ul class="navbar-links">
+      <li><a href="/trading-api">Trading</a></li>
+      <li><a href="/casino-api">Casino</a></li>
+      <li><a href="/crypto-wallet-api">Wallets</a></li>
+      <li><a href="/blog">Blog</a></li>
+    </ul>
+    <a href="https://purpleflea.com/quick-register" class="navbar-cta">Get API Key →</a>
+  </div>
+</nav>
+
+<main class="article-container">
+  <div class="article-meta">
+    <span class="article-tag">Security</span>
+    <span>March 4, 2026</span>
+    <span>·</span>
+    <span>7 min read</span>
+  </div>
+
+  <h1>Building Secure Multi-Sig Wallets for AI Agents</h1>
+
+  <p>
+    There is a structural vulnerability at the center of every autonomous AI agent: <strong>a single private key controls all of its capital.</strong> If that key is leaked through a compromised environment variable, a malicious dependency, or a misconfigured cloud storage bucket, the agent's entire treasury can be drained in seconds. Unlike a human's bank account, there is no fraud department to call. The funds are simply gone.
+  </p>
+  <p>
+    Multi-signature (multi-sig) wallets solve this by requiring M-of-N cryptographic approvals before any transaction can execute. No single key — whether compromised or simply malfunctioning — can unilaterally move funds. For agent systems managing meaningful capital, multi-sig is not a nice-to-have. It is table stakes for responsible operation.
+  </p>
+
+  <h2>How Threshold Signatures Work</h2>
+
+  <p>
+    In a standard wallet, one key signs transactions. In a threshold signature scheme, N keys are generated, and any M of them must participate in signing for a transaction to be valid. The "M-of-N" framing captures this: a 2-of-3 wallet requires 2 out of 3 designated signers to approve any outgoing transfer.
+  </p>
+  <p>
+    Modern implementations use either on-chain multi-sig contracts (like Gnosis Safe) or off-chain threshold signature schemes (like FROST or MPC-based approaches). Purple Flea uses an MPC-based approach, which means <strong>no individual signer ever holds a complete private key</strong> — only key shares that are mathematically useless in isolation. This is superior to hardware wallets for automated systems because it eliminates the need for physical device interaction.
+  </p>
+  <p>
+    For an AI agent, the "signers" are typically other agents, a human operator key, or a combination. The crucial property is that compromise of any single signer does not compromise the wallet.
+  </p>
+
+  <h2>Common Multi-Sig Configurations</h2>
+
+  <table>
+    <thead>
+      <tr><th>Configuration</th><th>Required Approvals</th><th>Best For</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1-of-1</td><td>1 signature</td><td>Standard single-agent operation (no multi-sig benefit)</td></tr>
+      <tr><td>2-of-3</td><td>2 signatures</td><td>Small teams, agent + human operator backup</td></tr>
+      <tr><td>3-of-5</td><td>3 signatures</td><td>DAO treasuries, mid-size agent networks</td></tr>
+      <tr><td>5-of-9</td><td>5 signatures</td><td>Institutional funds, high-value agent treasuries</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    The right configuration balances security against operational friction. A 5-of-9 wallet is extremely secure but operationally slow — if 5 agents all need to respond before a trade executes, you introduce latency that can make time-sensitive strategies impossible. <strong>Use strict thresholds for treasury management and looser ones for operational trading wallets.</strong>
+  </p>
+
+  <h2>Setting Up a 2-of-3 Agent Wallet</h2>
+
+  <p>
+    The most practical configuration for small agent systems is 2-of-3: two primary agent keys plus one human operator key as a backup. Normal operations require only the two agent keys to agree. If one agent is compromised, the human operator can co-sign a recovery transaction to move funds to safety.
+  </p>
+  <p>
+    Here is how to create and use a 2-of-3 multi-sig wallet with Purple Flea:
+  </p>
+
+  <div class="code-block"><pre><code><span class="token-keyword">import</span> purpleflea
+<span class="token-keyword">from</span> purpleflea.multisig <span class="token-keyword">import</span> MultiSigWallet, SignerConfig
+
+<span class="token-comment"># Create client instances for each signing agent</span>
+orchestrator = purpleflea.Client(api_key=<span class="token-string">"pf_live_orchestrator_key"</span>)
+risk_manager  = purpleflea.Client(api_key=<span class="token-string">"pf_live_risk_manager_key"</span>)
+<span class="token-comment"># Third signer is a human operator key stored in cold storage</span>
+
+<span class="token-comment"># Create the 2-of-3 wallet</span>
+wallet = orchestrator.multisig.create_wallet(
+    name=<span class="token-string">"fund-treasury-2of3"</span>,
+    threshold=<span class="token-number">2</span>,
+    signers=[
+        SignerConfig(
+            agent_id=<span class="token-string">"agent_orchestrator_001"</span>,
+            label=<span class="token-string">"orchestrator"</span>,
+            weight=<span class="token-number">1</span>
+        ),
+        SignerConfig(
+            agent_id=<span class="token-string">"agent_risk_manager_001"</span>,
+            label=<span class="token-string">"risk-manager"</span>,
+            weight=<span class="token-number">1</span>
+        ),
+        SignerConfig(
+            public_key=<span class="token-string">"0xHumanOperatorPublicKeyHere"</span>,
+            label=<span class="token-string">"human-operator-backup"</span>,
+            weight=<span class="token-number">1</span>
+        ),
+    ],
+    spending_limit_usd=<span class="token-number">50000</span>,  <span class="token-comment"># auto-approve under this amount</span>
+)
+
+<span class="token-function">print</span>(<span class="token-string">f"Treasury wallet created: {wallet.address}"</span>)
+<span class="token-function">print</span>(<span class="token-string">f"Wallet ID: {wallet.id}"</span>)</code></pre></div>
+
+  <h2>Multi-Sig for Specific Use Cases</h2>
+
+  <h3>Fund Treasury: Large Withdrawal Protection</h3>
+  <p>
+    The most important use case. Any withdrawal above a threshold — say, $5,000 — requires both the orchestrator agent and the risk manager agent to approve. The risk manager's role is to verify the withdrawal makes strategic sense (not a panic sell, not exceeding drawdown limits) before co-signing.
+  </p>
+
+  <h3>Payroll: Recurring Payment Authorization</h3>
+  <p>
+    If your agent system pays human contributors or other agents for services, multi-sig prevents a single compromised key from draining the payroll wallet. A 2-of-3 configuration with two agent keys and one human key is typical here.
+  </p>
+
+  <h3>Trading: Tiered Authorization by Position Size</h3>
+  <p>
+    This is where multi-sig gets nuanced for trading agents. You want single-agent speed for normal trades but additional oversight for large positions. Purple Flea supports conditional threshold requirements based on trade size:
+  </p>
+
+  <div class="code-block"><pre><code><span class="token-keyword">import</span> purpleflea
+<span class="token-keyword">from</span> purpleflea.multisig <span class="token-keyword">import</span> ConditionalThreshold
+
+client = purpleflea.Client(api_key=<span class="token-string">"pf_live_orchestrator_key"</span>)
+
+<span class="token-comment"># Create a trading wallet with tiered approval requirements</span>
+trading_wallet = client.multisig.create_wallet(
+    name=<span class="token-string">"trading-tiered"</span>,
+    signers=[<span class="token-string">"agent_strategy_001"</span>, <span class="token-string">"agent_risk_001"</span>, <span class="token-string">"agent_orchestrator_001"</span>],
+    conditional_thresholds=[
+        ConditionalThreshold(
+            condition=<span class="token-string">"trade_size_usd &lt; 10000"</span>,
+            required_approvals=<span class="token-number">1</span>,  <span class="token-comment"># single strategy agent can execute</span>
+            timeout_seconds=<span class="token-number">5</span>
+        ),
+        ConditionalThreshold(
+            condition=<span class="token-string">"10000 &lt;= trade_size_usd &lt; 100000"</span>,
+            required_approvals=<span class="token-number">2</span>,  <span class="token-comment"># strategy + risk manager</span>
+            timeout_seconds=<span class="token-number">30</span>
+        ),
+        ConditionalThreshold(
+            condition=<span class="token-string">"trade_size_usd >= 100000"</span>,
+            required_approvals=<span class="token-number">3</span>,  <span class="token-comment"># all three + human escalation</span>
+            timeout_seconds=<span class="token-number">300</span>,
+            escalate_to_human_after=<span class="token-number">60</span>
+        ),
+    ]
+)
+
+<span class="token-comment"># Submit a transaction requiring approval</span>
+tx = client.multisig.propose_transaction(
+    wallet_id=trading_wallet.id,
+    to_address=<span class="token-string">"0xExchangeContractAddress"</span>,
+    amount_usd=<span class="token-number">75000</span>,
+    memo=<span class="token-string">"BTC long: momentum signal 0.87, RSI 52"</span>
+)
+
+<span class="token-comment"># Risk manager agent approves</span>
+risk_client = purpleflea.Client(api_key=<span class="token-string">"pf_live_risk_manager_key"</span>)
+approval = risk_client.multisig.approve_transaction(
+    transaction_id=tx.id,
+    wallet_id=trading_wallet.id,
+    note=<span class="token-string">"Approved: within drawdown limits, signal quality acceptable"</span>
+)
+<span class="token-function">print</span>(<span class="token-string">f"Approvals: {approval.collected}/{approval.required}"</span>)
+<span class="token-comment"># Approvals: 2/2 — transaction will execute automatically</span></code></pre></div>
+
+  <h2>Handling Failed Approvals</h2>
+
+  <p>
+    In automated systems, approval timeouts are inevitable. An agent might be offline for maintenance, stuck in a rate limit backoff, or simply slow to respond. Purple Flea's multi-sig system handles this gracefully:
+  </p>
+  <ul>
+    <li><strong>Timeout policies:</strong> Each conditional threshold can specify a timeout. If M-of-N approvals are not collected within the window, the transaction is either cancelled or escalated.</li>
+    <li><strong>Escalation to human:</strong> High-value transactions that time out can be escalated to a human operator via webhook, email, or Slack notification.</li>
+    <li><strong>Automatic cancellation:</strong> Time-sensitive trading transactions that miss their window are cancelled with a log entry — better to miss a trade than execute it after conditions have changed.</li>
+    <li><strong>Dead-letter queue:</strong> All failed approvals are written to a dead-letter queue you can inspect and replay manually.</li>
+  </ul>
+
+  <h2>Multi-Sig vs. Escrow: When to Use Each</h2>
+
+  <p>
+    These two tools solve different problems. <strong>Multi-sig</strong> is about authorization — who can spend funds from a shared wallet. <strong>Escrow</strong> is about counterparty trust — holding funds in a neutral account until a service is delivered. Use multi-sig when you want spending controls on your own treasury. Use <a href="/escrow-api">Purple Flea Escrow</a> when you are making a payment to an external agent and want delivery guarantees before funds are released.
+  </p>
+
+  <div class="callout">
+    <p><strong>Security note:</strong> Even with multi-sig, never store signing key shares in the same environment. A server compromise that leaks all three key shares simultaneously defeats the purpose. Distribute key shares across separate cloud providers or combine agent keys with a cold hardware key for the backup signer.</p>
+  </div>
+
+  <h2>Conclusion</h2>
+
+  <p>
+    Multi-sig is the single highest-leverage security upgrade you can make to an AI agent system managing meaningful capital. The implementation overhead — a few hundred lines of code and some upfront architecture planning — is trivial compared to the risk of a single key compromise wiping out months of accumulated earnings. Start with a 2-of-3 configuration for your treasury, apply tiered thresholds to your trading wallets, and plan your escalation paths before you need them.
+  </p>
+
+  <div class="related">
+    <h3>Related Resources</h3>
+    <div class="related-links">
+      <a href="/multi-sig-wallet-api">Multi-Sig Wallet API Docs</a>
+      <a href="/escrow-api">Escrow API</a>
+      <a href="/crypto-wallet-api">Crypto Wallet API</a>
+      <a href="/blog/ai-hedge-fund-architecture">Designing an AI Hedge Fund</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <span>© 2026 Purple Flea · AI-First Financial Infrastructure</span>
+    <div class="footer-links">
+      <a href="/">Home</a><a href="/docs">Docs</a><a href="/blog">Blog</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

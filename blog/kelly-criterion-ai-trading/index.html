@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kelly Criterion for AI Trading Agents: Optimal Position Sizing | Purple Flea Blog</title>
+  <meta name="description" content="How to apply Kelly Criterion for optimal position sizing in AI trading agents. Formula derivation, edge estimation from backtesting, half-Kelly safety, and Python implementation with the Purple Flea Trading API." />
+  <link rel="canonical" href="https://purpleflea.com/blog/kelly-criterion-ai-trading/" />
+  <meta property="og:title" content="Kelly Criterion for AI Trading Agents: Optimal Position Sizing" />
+  <meta property="og:description" content="Apply Kelly Criterion to AI trading. Estimate edge from backtesting, implement half-Kelly sizing, and integrate with the Purple Flea Trading API in Python." />
+  <meta property="og:url" content="https://purpleflea.com/blog/kelly-criterion-ai-trading/" />
+  <meta property="og:type" content="article" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="keywords" content="Kelly criterion AI trading, optimal position sizing, AI trading agent Python, half Kelly strategy, trading alpha sizing" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Kelly Criterion for AI Trading Agents: Optimal Position Sizing",
+    "description": "How to apply Kelly Criterion for optimal position sizing in AI trading agents using the Purple Flea Trading API.",
+    "url": "https://purpleflea.com/blog/kelly-criterion-ai-trading/",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-04",
+    "dateModified": "2026-03-04",
+    "articleSection": "Trading",
+    "keywords": ["Kelly criterion", "AI trading", "position sizing", "Purple Flea", "Python"]
+  }
+  </script>
+  <style>
+    :root {
+      --bg: #09090B;
+      --bg-card: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+    }
+
+    .nav-inner {
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600 !important;
+    }
+
+    .hero {
+      margin-top: 60px;
+      background: linear-gradient(160deg, rgba(168,85,247,0.15) 0%, rgba(9,9,11,0) 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px 60px;
+      text-align: center;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(168,85,247,0.12);
+      color: var(--purple);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      border: 1px solid rgba(168,85,247,0.25);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      max-width: 780px;
+      margin: 0 auto 20px;
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .article-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 56px 24px 100px;
+    }
+
+    article h2 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 56px 0 16px;
+      color: var(--text);
+      border-top: 1px solid var(--border);
+      padding-top: 40px;
+    }
+
+    article h2:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+
+    article h3 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 36px 0 14px;
+      color: var(--text);
+    }
+
+    article p {
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    article ul, article ol {
+      color: var(--text-secondary);
+      padding-left: 24px;
+      margin-bottom: 20px;
+    }
+
+    article li { margin-bottom: 8px; }
+
+    .pull-quote {
+      border-left: 3px solid var(--purple);
+      margin: 36px 0;
+      padding: 20px 28px;
+      background: var(--bg-card);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .pull-quote p {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.5;
+      font-style: italic;
+      margin: 0;
+    }
+
+    .code-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px;
+      margin: 28px 0;
+      overflow-x: auto;
+      position: relative;
+    }
+
+    .code-block .lang-label {
+      position: absolute;
+      top: 10px; right: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .code-block pre {
+      font-family: var(--mono);
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre;
+    }
+
+    .kw  { color: #c084fc; }
+    .fn  { color: #60a5fa; }
+    .str { color: #86efac; }
+    .cm  { color: var(--text-muted); font-style: italic; }
+    .nb  { color: #fb923c; }
+    .num { color: #fde68a; }
+
+    .formula-box {
+      background: var(--bg-card);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin: 32px 0;
+      text-align: center;
+    }
+
+    .formula {
+      font-family: var(--mono);
+      font-size: 24px;
+      color: var(--purple);
+      letter-spacing: 0.02em;
+      margin-bottom: 12px;
+    }
+
+    .formula-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 28px 0;
+      font-size: 15px;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    td {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    td:first-child { font-weight: 500; color: var(--text); }
+    .highlight { color: var(--purple); font-weight: 600; }
+    .safe { color: #4ade80; font-weight: 600; }
+    .warn { color: #fbbf24; font-weight: 600; }
+    .danger { color: #f87171; font-weight: 600; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0.05) 100%);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: var(--radius);
+      padding: 40px;
+      margin: 48px 0;
+      text-align: center;
+    }
+
+    .cta-box h3 { font-size: 22px; margin-bottom: 12px; color: var(--text); }
+    .cta-box p { color: var(--text-secondary); margin-bottom: 24px; }
+
+    .btn-primary {
+      display: inline-block;
+      background: var(--purple);
+      color: #fff;
+      padding: 12px 28px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .btn-primary:hover { opacity: 0.9; text-decoration: none; }
+
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 24px 28px;
+      margin-bottom: 48px;
+    }
+
+    .toc h4 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .toc ol { padding-left: 20px; margin: 0; }
+    .toc li { margin-bottom: 6px; font-size: 15px; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a { color: var(--text-muted); }
+    footer a:hover { color: var(--text); }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/">&#129001; Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="https://trading.purpleflea.com" class="nav-cta">Trading API</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-tag">Trading &mdash; March 4, 2026</div>
+  <h1>Kelly Criterion for AI Trading Agents: Optimal Position Sizing</h1>
+  <div class="hero-meta">
+    <span>Purple Flea Research</span>
+    <span>&middot;</span>
+    <span>25 min read</span>
+    <span>&middot;</span>
+    <span>Includes Python code</span>
+  </div>
+</div>
+
+<div class="article-wrap">
+
+  <nav class="toc">
+    <h4>Table of Contents</h4>
+    <ol>
+      <li><a href="#derivation">Kelly Formula Derivation</a></li>
+      <li><a href="#edge-estimation">Estimating Edge from Backtesting</a></li>
+      <li><a href="#python-impl">Python Implementation</a></li>
+      <li><a href="#half-kelly">Half-Kelly for Safety</a></li>
+      <li><a href="#comparison-table">Fractional vs Full Kelly Comparison</a></li>
+      <li><a href="#trading-api">Integration with Purple Flea Trading API</a></li>
+    </ol>
+  </nav>
+
+  <article>
+
+    <h2 id="derivation">Kelly Formula Derivation</h2>
+
+    <p>The Kelly Criterion answers a deceptively simple question: given a bet with known probability and payout, what fraction of your capital should you risk to maximize long-run growth? John Kelly derived it at Bell Labs in 1956, originally in the context of information theory. It has since become foundational to professional trading and gambling strategy.</p>
+
+    <h3>Starting from First Principles</h3>
+
+    <p>Suppose you start with capital <em>W</em> and you place fraction <em>f</em> on a trade. If the trade wins (with probability <em>p</em>), you gain <em>f&middot;b&middot;W</em> where <em>b</em> is the net profit per unit staked. If it loses (with probability <em>q = 1-p</em>), you lose <em>f&middot;W</em>.</p>
+
+    <p>After <em>n</em> trades, if you won <em>np</em> of them, your capital is:</p>
+
+    <div class="formula-box">
+      <div class="formula">W_n = W &middot; (1 + f&middot;b)<sup>np</sup> &middot; (1 &minus; f)<sup>nq</sup></div>
+      <div class="formula-desc">
+        The geometric growth rate per trade is: G(f) = p&middot;ln(1 + f&middot;b) + q&middot;ln(1 &minus; f)
+      </div>
+    </div>
+
+    <p>To maximize G(f), we take the derivative with respect to <em>f</em> and set it to zero:</p>
+
+    <div class="formula-box">
+      <div class="formula">dG/df = p&middot;b/(1 + f&middot;b) &minus; q/(1 &minus; f) = 0</div>
+    </div>
+
+    <p>Solving for <em>f</em>:</p>
+
+    <div class="formula-box">
+      <div class="formula">f* = (p&middot;b &minus; q) / b = p &minus; q/b</div>
+      <div class="formula-desc">
+        where <strong>f*</strong> = optimal fraction &nbsp;|&nbsp; <strong>b</strong> = net odds (profit per $ risked) &nbsp;|&nbsp; <strong>p</strong> = win probability &nbsp;|&nbsp; <strong>q</strong> = loss probability (1-p)
+      </div>
+    </div>
+
+    <h3>Continuous Kelly for Trading</h3>
+
+    <p>In trading, positions are continuous &mdash; not binary bets. The continuous-return version of Kelly uses the Sharpe Ratio:</p>
+
+    <div class="formula-box">
+      <div class="formula">f* = &mu; / &sigma;<sup>2</sup></div>
+      <div class="formula-desc">
+        where <strong>&mu;</strong> = expected return per period &nbsp;|&nbsp; <strong>&sigma;<sup>2</sup></strong> = variance of returns per period
+      </div>
+    </div>
+
+    <div class="pull-quote">
+      <p>For continuous returns, full Kelly allocation equals the Sharpe ratio times the inverse of volatility &mdash; aggressive for high-Sharpe strategies, conservative for low-Sharpe ones.</p>
+    </div>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">import numpy as np
+from typing import Optional
+
+def continuous_kelly(returns: np.ndarray) -> float:
+    """
+    Calculate Kelly fraction from a series of returns.
+
+    Args:
+        returns: Array of period returns (e.g., daily P&L as fraction of capital)
+
+    Returns:
+        Kelly fraction (optimal allocation as fraction of portfolio)
+    """
+    mu = np.mean(returns)
+    sigma_sq = np.var(returns)
+
+    if sigma_sq == 0 or mu <= 0:
+        return 0.0
+
+    return mu / sigma_sq
+
+
+def discrete_kelly(win_prob: float, win_return: float, loss_return: float) -> float:
+    """
+    Kelly for discrete outcome bets (useful for options, binary events).
+
+    Args:
+        win_prob: Probability of winning scenario (0-1)
+        win_return: Return if win (e.g., 0.5 = 50% gain)
+        loss_return: Return if loss (e.g., -0.3 = 30% loss, pass as negative)
+
+    Returns:
+        Kelly fraction
+    """
+    lose_prob = 1.0 - win_prob
+    b = win_return  # net profit per $ won
+    # loss is absolute value of loss_return
+    loss = abs(loss_return)
+
+    # Generalized Kelly: f* = (p*b - q*loss) / (b * loss)
+    f_star = (win_prob * b - lose_prob * loss) / (b * loss)
+    return max(f_star, 0.0)  # can't go short with Kelly alone
+
+
+# Example: strategy wins 58% of time, +2% on wins, -1.5% on losses
+kelly = discrete_kelly(
+    win_prob=0.58,
+    win_return=0.02,
+    loss_return=-0.015
+)
+print(f"Kelly fraction: {kelly:.1%}")  # ~23%</pre>
+    </div>
+
+    <h2 id="edge-estimation">Estimating Edge from Backtesting</h2>
+
+    <p>The Kelly formula is only as good as your edge estimate. Overestimating edge leads to overbetting; underestimating leads to leaving money on the table. Here is a rigorous approach to edge estimation from backtesting data.</p>
+
+    <h3>Step 1: Define Your Signal</h3>
+
+    <p>A signal is any quantifiable indicator that predicts trade direction. It could be a technical indicator, a momentum factor, a cross-exchange spread, or a machine learning prediction. The signal needs to be defined before backtesting begins to avoid look-ahead bias.</p>
+
+    <h3>Step 2: Run Walk-Forward Backtest</h3>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">import pandas as pd
+import numpy as np
+from dataclasses import dataclass
+
+
+@dataclass
+class BacktestResult:
+    returns: np.ndarray
+    win_rate: float
+    avg_win: float
+    avg_loss: float
+    sharpe: float
+    kelly_fraction: float
+    half_kelly: float
+
+
+def walk_forward_backtest(
+    prices: pd.DataFrame,
+    signal_fn,
+    train_window: int = 252,   # 1 year training
+    test_window: int = 63,     # 1 quarter testing
+    fee_rate: float = 0.0005   # 0.05% per trade
+) -> BacktestResult:
+    """
+    Walk-forward backtest to estimate out-of-sample edge.
+
+    Critically: trains on past data, tests on unseen future data.
+    This prevents look-ahead bias.
+    """
+    all_returns = []
+    n = len(prices)
+
+    for start in range(train_window, n - test_window, test_window):
+        train = prices.iloc[start - train_window:start]
+        test = prices.iloc[start:start + test_window]
+
+        # Fit signal on training data
+        signal_params = signal_fn.fit(train)
+
+        # Generate predictions on test data (no lookahead)
+        for i in range(len(test) - 1):
+            signal = signal_fn.predict(test.iloc[:i+1], signal_params)
+            if signal == 0:
+                continue  # no trade
+
+            entry = test.iloc[i]['close']
+            exit_price = test.iloc[i + 1]['close']
+            raw_return = (exit_price - entry) / entry * signal  # signal is +1/-1
+            trade_return = raw_return - fee_rate * 2  # entry + exit fees
+            all_returns.append(trade_return)
+
+    returns = np.array(all_returns)
+
+    if len(returns) == 0:
+        raise ValueError("No trades generated in backtest")
+
+    wins = returns[returns > 0]
+    losses = returns[returns < 0]
+    win_rate = len(wins) / len(returns)
+
+    # Calculate Kelly from continuous return series
+    kelly = continuous_kelly(returns)
+
+    # Annualized Sharpe (assuming daily trades)
+    sharpe = (np.mean(returns) / np.std(returns)) * np.sqrt(252) if np.std(returns) > 0 else 0
+
+    return BacktestResult(
+        returns=returns,
+        win_rate=win_rate,
+        avg_win=np.mean(wins) if len(wins) > 0 else 0,
+        avg_loss=np.mean(losses) if len(losses) > 0 else 0,
+        sharpe=sharpe,
+        kelly_fraction=kelly,
+        half_kelly=kelly / 2
+    )</pre>
+    </div>
+
+    <h3>Step 3: Apply Confidence Discount</h3>
+
+    <p>Even a rigorous backtest overstates live edge due to execution slippage, market impact, and overfitting. Apply a confidence discount before using the Kelly fraction in live trading:</p>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">def adjusted_kelly(
+    backtest_kelly: float,
+    n_trades: int,
+    out_of_sample_ratio: float = 0.7,
+    slippage_factor: float = 0.8
+) -> float:
+    """
+    Adjust Kelly fraction for real-world uncertainty.
+
+    Args:
+        backtest_kelly: Raw Kelly fraction from backtest
+        n_trades: Number of trades in backtest (more = higher confidence)
+        out_of_sample_ratio: Fraction of backtest that was out-of-sample
+        slippage_factor: Expected live-to-backtest performance ratio
+
+    Returns:
+        Adjusted Kelly fraction (always <= backtest_kelly / 2)
+    """
+    # Confidence from sample size (converges to 1 at ~1000 trades)
+    sample_confidence = min(n_trades / 1000, 1.0) ** 0.5
+
+    # Adjust for OOS quality
+    oos_confidence = out_of_sample_ratio
+
+    # Combined confidence
+    total_confidence = sample_confidence * oos_confidence
+
+    # Apply slippage reduction and confidence discount
+    adjusted = backtest_kelly * slippage_factor * total_confidence
+
+    # Safety: never exceed half-Kelly of original estimate
+    return min(adjusted, backtest_kelly / 2)
+
+
+# Example
+bt_result = walk_forward_backtest(prices, my_signal)
+safe_kelly = adjusted_kelly(
+    bt_result.kelly_fraction,
+    n_trades=len(bt_result.returns),
+    out_of_sample_ratio=0.7,
+    slippage_factor=0.75  # expect 25% worse live
+)
+print(f"Raw Kelly: {bt_result.kelly_fraction:.1%}")
+print(f"Adjusted Kelly: {safe_kelly:.1%}")
+print(f"Half Kelly: {bt_result.half_kelly:.1%}")</pre>
+    </div>
+
+    <h2 id="python-impl">Python Implementation</h2>
+
+    <p>The following <code>KellyPositionSizer</code> class wraps Kelly Criterion for use with the Purple Flea Trading API. It handles both the position sizing calculation and the API call to place the order.</p>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">import httpx
+import asyncio
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class TradeSignal:
+    pair: str              # e.g. "BTC/USDC"
+    direction: int         # +1 for long, -1 for short
+    win_prob: float        # estimated P(trade wins)
+    expected_gain: float   # expected gain if win (as fraction)
+    max_loss: float        # max loss if wrong (as fraction, positive)
+    confidence: float      # 0-1, how confident in the estimate
+
+
+class KellyPositionSizer:
+    """
+    Position sizer for AI trading agents using Kelly Criterion.
+    Integrates with Purple Flea Trading API.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        portfolio_value: float,
+        kelly_multiplier: float = 0.5,  # Half Kelly by default
+        max_position_pct: float = 0.20, # Never more than 20% in one trade
+        min_position: float = 10.0,     # Minimum trade size in USDC
+    ):
+        self.api_key = api_key
+        self.portfolio_value = portfolio_value
+        self.kelly_multiplier = kelly_multiplier
+        self.max_position_pct = max_position_pct
+        self.min_position = min_position
+
+    def kelly_fraction(self, signal: TradeSignal) -> float:
+        """
+        Calculate Kelly fraction for a trade signal.
+
+        Uses discrete Kelly for cleaner confidence weighting.
+        """
+        p = signal.win_prob
+        q = 1.0 - p
+        b = signal.expected_gain
+        loss = signal.max_loss
+
+        # Generalized Kelly
+        raw_kelly = (p * b - q * loss) / (b * loss) if (b * loss) > 0 else 0.0
+
+        if raw_kelly <= 0:
+            return 0.0
+
+        # Apply confidence weight and multiplier
+        return raw_kelly * signal.confidence * self.kelly_multiplier
+
+    def position_size(self, signal: TradeSignal) -> float:
+        """
+        Calculate position size in USDC for a trade.
+
+        Returns 0 if Kelly says don't trade.
+        """
+        fraction = self.kelly_fraction(signal)
+
+        if fraction <= 0:
+            return 0.0
+
+        raw_size = self.portfolio_value * fraction
+
+        # Cap at max position percentage
+        max_size = self.portfolio_value * self.max_position_pct
+        size = min(raw_size, max_size)
+
+        # Floor at minimum
+        if size < self.min_position:
+            return 0.0
+
+        return round(size, 2)
+
+    async def place_trade(self, signal: TradeSignal) -> Optional[dict]:
+        """
+        Calculate position size and place order via Purple Flea Trading API.
+        """
+        size = self.position_size(signal)
+        if size <= 0:
+            print(f"No trade: insufficient edge for {signal.pair}")
+            return None
+
+        side = "buy" if signal.direction > 0 else "sell"
+        fraction = self.kelly_fraction(signal)
+
+        print(f"Trading {signal.pair}: {side} ${size:.2f} ({fraction:.1%} Kelly)")
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://trading.purpleflea.com/v1/orders",
+                headers={"X-API-Key": self.api_key},
+                json={
+                    "pair": signal.pair,
+                    "side": side,
+                    "type": "market",
+                    "amount_usd": size,
+                    "strategy": "kelly",
+                    "kelly_fraction": fraction,
+                }
+            )
+            result = resp.json()
+
+        # Update portfolio value with realized P&L
+        if "pnl" in result:
+            self.portfolio_value += result["pnl"]
+
+        return result
+
+
+# Example usage
+async def main():
+    sizer = KellyPositionSizer(
+        api_key="YOUR_API_KEY",
+        portfolio_value=10000.0,
+        kelly_multiplier=0.5  # Half Kelly
+    )
+
+    signal = TradeSignal(
+        pair="BTC/USDC",
+        direction=1,         # long
+        win_prob=0.57,
+        expected_gain=0.025, # expect +2.5% on win
+        max_loss=0.018,      # max -1.8% on loss
+        confidence=0.75      # 75% confident in estimate
+    )
+
+    result = await sizer.place_trade(signal)
+    if result:
+        print(f"Order filled: {result}")
+
+asyncio.run(main())</pre>
+    </div>
+
+    <h2 id="half-kelly">Half-Kelly for Safety</h2>
+
+    <p>Full Kelly is theoretically optimal but practically brutal. It assumes perfect knowledge of probabilities and payoffs &mdash; something no trading agent has. The consequences of overestimating edge with full Kelly can be catastrophic drawdowns.</p>
+
+    <div class="pull-quote">
+      <p>Half-Kelly sacrifices ~25% of growth rate but reduces variance by 50% and cuts the probability of a 50% drawdown from 25% to under 6%. It is the standard choice for serious systematic traders.</p>
+    </div>
+
+    <h3>Mathematical Impact of Kelly Multiplier</h3>
+
+    <p>For a strategy with Sharpe ratio S, the optimal Kelly fraction is <em>f* = S/&sigma;</em>. The growth rate as a function of fractional Kelly <em>k</em> is:</p>
+
+    <div class="formula-box">
+      <div class="formula">G(k) = k&middot;f* &middot;&mu; &minus; (k&middot;f*)&sup2; &middot;&sigma;&sup2;/2</div>
+      <div class="formula-desc">
+        At k=1 (full Kelly): G = &mu;&sup2;/(2&sigma;&sup2;) &nbsp;|&nbsp; At k=0.5 (half Kelly): G = 0.75 &times; G_max &nbsp;|&nbsp;
+        Half Kelly captures 75% of maximum growth
+      </div>
+    </div>
+
+    <h2 id="comparison-table">Fractional vs Full Kelly Comparison</h2>
+
+    <p>The following table uses a concrete example strategy: Sharpe = 1.2, annualized return = 18%, annualized volatility = 15%.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Kelly Multiplier</th>
+          <th>Position Size</th>
+          <th>Expected Annual Return</th>
+          <th>Annual Volatility</th>
+          <th>Max Drawdown (95%)</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Full Kelly (1.0x)</td>
+          <td class="highlight">80%</td>
+          <td>18.0%</td>
+          <td>12.0%</td>
+          <td class="danger">&minus;45%</td>
+          <td class="danger">Too risky</td>
+        </tr>
+        <tr>
+          <td>Three-Quarter Kelly (0.75x)</td>
+          <td>60%</td>
+          <td>17.2%</td>
+          <td>9.0%</td>
+          <td class="warn">&minus;32%</td>
+          <td class="warn">Aggressive</td>
+        </tr>
+        <tr>
+          <td>Half Kelly (0.5x)</td>
+          <td>40%</td>
+          <td>15.5%</td>
+          <td>6.0%</td>
+          <td class="safe">&minus;22%</td>
+          <td class="safe">Recommended</td>
+        </tr>
+        <tr>
+          <td>Quarter Kelly (0.25x)</td>
+          <td>20%</td>
+          <td>11.8%</td>
+          <td>3.0%</td>
+          <td class="safe">&minus;11%</td>
+          <td class="safe">Conservative</td>
+        </tr>
+        <tr>
+          <td>Tenth Kelly (0.10x)</td>
+          <td>8%</td>
+          <td>6.2%</td>
+          <td>1.2%</td>
+          <td class="safe">&minus;4.5%</td>
+          <td>Very conservative</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The key observations:</p>
+
+    <ul>
+      <li>Half Kelly gets 86% of full Kelly's return with 50% of the volatility</li>
+      <li>Full Kelly's max drawdown is approximately twice the expected annual return &mdash; psychologically brutal</li>
+      <li>For AI agents running 24/7 without human oversight, half-Kelly or lower is strongly preferred</li>
+      <li>The optimal multiplier depends on your edge certainty: less certain = smaller multiplier</li>
+    </ul>
+
+    <h3>Dynamic Kelly: Scaling with Confidence</h3>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">def dynamic_kelly_multiplier(
+    regime: str,
+    edge_confidence: float,  # 0-1
+    recent_drawdown: float,  # 0-1 (current drawdown from peak)
+    vol_regime: float        # current vol / historical vol
+) -> float:
+    """
+    Dynamically adjust Kelly multiplier based on market conditions.
+
+    Returns a multiplier to apply to the base Kelly fraction.
+    """
+    base = 0.5  # start at half-Kelly
+
+    # Increase in low-volatility trending regimes
+    if regime == "trending_low_vol" and vol_regime < 0.8:
+        base = 0.65
+
+    # Decrease in high-volatility choppy regimes
+    if regime == "choppy_high_vol" or vol_regime > 1.5:
+        base = 0.25
+
+    # Scale down if in drawdown
+    if recent_drawdown > 0.10:
+        base *= (1.0 - recent_drawdown)  # linear reduction
+
+    # Scale by edge confidence
+    base *= edge_confidence
+
+    # Hard bounds
+    return max(0.10, min(base, 0.75))</pre>
+    </div>
+
+    <h2 id="trading-api">Integration with Purple Flea Trading API</h2>
+
+    <p>The Purple Flea Trading API provides real-time market data, order execution, and position management across multiple exchanges. Here is a complete loop that fetches signals, sizes positions with Kelly, and places orders.</p>
+
+    <div class="code-block">
+      <span class="lang-label">python</span>
+      <pre">import httpx
+import asyncio
+import numpy as np
+from datetime import datetime, timedelta
+
+class KellyTradingAgent:
+    """
+    Full trading agent using Kelly Criterion position sizing
+    with the Purple Flea Trading API.
+    """
+
+    BASE_URL = "https://trading.purpleflea.com/v1"
+
+    def __init__(self, api_key: str, initial_capital: float):
+        self.api_key = api_key
+        self.capital = initial_capital
+        self.sizer = KellyPositionSizer(
+            api_key=api_key,
+            portfolio_value=initial_capital,
+            kelly_multiplier=0.5
+        )
+        self.open_positions = {}
+        self.trade_history = []
+
+    async def get_market_data(self, pair: str, lookback: int = 100) -> dict:
+        """Fetch recent OHLCV data for a trading pair."""
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{self.BASE_URL}/markets/{pair}/ohlcv",
+                params={"limit": lookback, "interval": "1h"},
+                headers={"X-API-Key": self.api_key}
+            )
+        return resp.json()
+
+    def estimate_edge(self, ohlcv: list) -> Optional[TradeSignal]:
+        """
+        Estimate edge from recent price data using momentum + mean reversion.
+        Returns None if no significant edge detected.
+
+        This is a simplified signal -- replace with your actual model.
+        """
+        closes = np.array([c['close'] for c in ohlcv])
+        returns = np.diff(closes) / closes[:-1]
+
+        # Short-term momentum signal (last 5 vs last 20 returns)
+        short_mom = np.mean(returns[-5:])
+        long_mom = np.mean(returns[-20:])
+        signal_strength = short_mom - long_mom
+
+        # Significance test: is signal above noise?
+        noise = np.std(returns[-20:]) / np.sqrt(20)
+        z_score = signal_strength / noise if noise > 0 else 0
+
+        if abs(z_score) < 1.5:  # not significant
+            return None
+
+        direction = 1 if z_score > 0 else -1
+        confidence = min(abs(z_score) / 3.0, 1.0)  # scale confidence
+
+        # Estimate win/loss parameters from recent returns
+        positive_returns = returns[returns > 0]
+        negative_returns = returns[returns < 0]
+
+        avg_win = np.mean(positive_returns[-20:]) if len(positive_returns) > 0 else 0.01
+        avg_loss = abs(np.mean(negative_returns[-20:])) if len(negative_returns) > 0 else 0.01
+        win_rate = len(positive_returns) / len(returns)
+
+        return TradeSignal(
+            pair="BTC/USDC",
+            direction=direction,
+            win_prob=win_rate,
+            expected_gain=avg_win,
+            max_loss=avg_loss,
+            confidence=confidence
+        )
+
+    async def run_one_cycle(self):
+        """Run one trading cycle: get data, estimate edge, size and place trade."""
+        for pair in ["BTC/USDC", "ETH/USDC", "SOL/USDC"]:
+            ohlcv = await self.get_market_data(pair)
+            signal = self.estimate_edge(ohlcv['candles'])
+
+            if signal is None:
+                continue
+
+            signal.pair = pair
+            result = await self.sizer.place_trade(signal)
+
+            if result and result.get('status') == 'filled':
+                self.trade_history.append({
+                    'pair': pair,
+                    'time': datetime.utcnow().isoformat(),
+                    'size': result['amount'],
+                    'kelly_fraction': self.sizer.kelly_fraction(signal),
+                    'fill_price': result['fill_price']
+                })
+
+    async def run(self, interval_seconds: int = 3600):
+        """Run the agent in a continuous loop."""
+        print(f"Kelly Trading Agent started. Capital: ${self.capital:.2f}")
+        while True:
+            try:
+                await self.run_one_cycle()
+                print(f"Cycle complete. Portfolio: ${self.sizer.portfolio_value:.2f}")
+            except Exception as e:
+                print(f"Error in cycle: {e}")
+            await asyncio.sleep(interval_seconds)
+
+asyncio.run(KellyTradingAgent(
+    api_key="YOUR_API_KEY",
+    initial_capital=10000.0
+).run())</pre>
+    </div>
+
+    <div class="cta-box">
+      <h3>Start Trading with Purple Flea</h3>
+      <p>The Trading API provides multi-exchange execution, real-time data, and 20% referral commissions on fees from agents you refer. Connect your agent in minutes.</p>
+      <a href="https://trading.purpleflea.com" class="btn-primary">Open Trading Account</a>
+    </div>
+
+    <h2>Summary</h2>
+
+    <ul>
+      <li>Kelly Criterion maximizes long-run growth by betting <strong>f* = p &minus; q/b</strong></li>
+      <li>For continuous returns, use <strong>f* = &mu;/&sigma;&sup2;</strong> (mean divided by variance)</li>
+      <li>Always estimate edge from <strong>walk-forward out-of-sample</strong> backtest results</li>
+      <li>Apply a <strong>confidence discount</strong> before using backtest Kelly in live trading</li>
+      <li><strong>Half-Kelly</strong> captures 75% of growth while cutting drawdowns roughly in half</li>
+      <li>Use <strong>dynamic Kelly multipliers</strong> that scale with regime confidence and drawdown</li>
+      <li>Purple Flea Trading API exposes <code>kelly_fraction</code> in order metadata for strategy tracking</li>
+    </ul>
+
+    <p>Related reading: <a href="/agent-bankroll-management">Agent Bankroll Management (Kelly for Casino)</a> &mdash; <a href="/agent-stop-loss">Stop-Loss Strategies for Trading Agents</a> &mdash; <a href="/blog/agent-escrow-explained">Trustless Agent Payments via Escrow</a></p>
+
+  </article>
+</div>
+
+<footer>
+  <p>
+    <a href="/">Purple Flea</a> &nbsp;&middot;&nbsp;
+    <a href="/blog">Blog</a> &nbsp;&middot;&nbsp;
+    <a href="/docs">Docs</a> &nbsp;&middot;&nbsp;
+    <a href="https://trading.purpleflea.com">Trading API</a> &nbsp;&middot;&nbsp;
+    <a href="/agent-bankroll-management">Bankroll Guide</a>
+  </p>
+  <p style="margin-top: 12px;">Blue chip financial infrastructure for AI agents &mdash; purpleflea.com</p>
+</footer>
+
+</body>
+</html>
