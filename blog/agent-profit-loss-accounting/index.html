@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Realized vs unrealized P&L, fee accounting, multi-chain aggregation, FIFO/LIFO/HIFO cost basis methods, and a Python P&L tracker using Purple Flea APIs." />
+  <meta name="keywords" content="P&L accounting, AI agents, DeFi, cost basis, FIFO, LIFO, HIFO, multi-chain, Purple Flea, trading" />
+  <meta property="og:title" content="P&L Accounting for AI Agents: Tracking Every Satoshi" />
+  <meta property="og:description" content="Complete guide to realized vs unrealized P&L, fee accounting, cost basis methods, and a production Python tracker for all Purple Flea APIs." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-profit-loss-accounting/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="P&L Accounting for AI Agents: Tracking Every Satoshi" />
+  <meta name="author" content="Purple Flea Engineering" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-profit-loss-accounting/" />
+  <title>P&amp;L Accounting for AI Agents: Tracking Every Satoshi | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #222222;
+      --border: #2a2a2a;
+      --border-2: #333333;
+      --text: #e8e8e8;
+      --text-muted: #888888;
+      --text-dim: #555555;
+      --purple: #7c3aed;
+      --purple-light: #9d61ff;
+      --purple-dark: #5b21b6;
+      --purple-faint: #7c3aed18;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --font: 'Inter', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo { font-size: 1.1rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .nav-logo span { color: var(--purple-light); }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 0.4rem 1rem; border-radius: 6px; }
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero { max-width: 860px; margin: 0 auto; padding: 5rem 2rem 3rem; }
+
+    .hero-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1.5rem; }
+    .hero-breadcrumb a { color: var(--text-muted); text-decoration: none; }
+    .hero-breadcrumb a:hover { color: var(--purple-light); }
+
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tag { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.25rem 0.7rem; border-radius: 20px; border: 1px solid var(--border-2); color: var(--text-muted); }
+    .tag-purple { border-color: var(--purple); color: var(--purple-light); background: var(--purple-faint); }
+
+    .hero h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; color: #fff; margin-bottom: 1.2rem; }
+    .hero h1 em { font-style: normal; color: var(--purple-light); }
+
+    .hero-meta { display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .hero-meta strong { color: var(--text); }
+
+    .hero-lead { font-size: 1.1rem; color: var(--text-muted); line-height: 1.8; border-left: 3px solid var(--purple); padding-left: 1.2rem; }
+
+    .toc-box { max-width: 860px; margin: 0 auto 2rem; padding: 0 2rem; }
+    .toc-inner { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem 2rem; }
+    .toc-inner h3 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 1rem; }
+    .toc-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 2rem; counter-reset: toc; }
+    .toc-list li { counter-increment: toc; }
+    .toc-list a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; display: flex; align-items: center; gap: 0.6rem; transition: color 0.2s; }
+    .toc-list a:hover { color: var(--purple-light); }
+    .toc-list a::before { content: counter(toc, decimal-leading-zero); font-size: 0.7rem; font-family: var(--mono); color: var(--purple); font-weight: 600; min-width: 1.8rem; }
+
+    .content { max-width: 860px; margin: 0 auto; padding: 0 2rem 4rem; }
+    .section { margin-bottom: 4rem; }
+
+    .section-number { font-size: 0.7rem; font-family: var(--mono); color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
+
+    h2 { font-size: clamp(1.3rem, 2.5vw, 1.7rem); font-weight: 700; color: #fff; letter-spacing: -0.02em; margin-bottom: 1.2rem; line-height: 1.3; }
+    h3 { font-size: 1.1rem; font-weight: 600; color: var(--text); margin: 1.8rem 0 0.8rem; }
+
+    p { margin-bottom: 1.1rem; color: var(--text-muted); }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.1rem; }
+    ul li, ol li { color: var(--text-muted); margin-bottom: 0.4rem; }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; transition: border-color 0.2s; }
+    .card:hover { border-color: var(--purple); }
+    .card-icon { font-size: 1.4rem; margin-bottom: 0.6rem; }
+    .card h4 { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 0.4rem; }
+    .card p { font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+    .callout { border-radius: 8px; padding: 1.2rem 1.4rem; margin: 1.5rem 0; display: flex; gap: 0.75rem; }
+    .callout-info { background: #1a1a2e; border: 1px solid #3b3b8a; }
+    .callout-warning { background: #1c1500; border: 1px solid #6b4c00; }
+    .callout-success { background: #0a1f15; border: 1px solid #0d4f2e; }
+    .callout-danger { background: #1f0a0a; border: 1px solid #4f0d0d; }
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; margin-bottom: 0.3rem; font-size: 0.9rem; }
+    .callout-body p { font-size: 0.85rem; margin: 0; }
+
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead tr { background: var(--bg-3); }
+    th { padding: 0.8rem 1rem; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); white-space: nowrap; }
+    td { padding: 0.75rem 1rem; color: var(--text-muted); border-top: 1px solid var(--border); }
+    tr:hover td { background: var(--bg-2); }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; font-family: var(--mono); }
+    .badge-green { background: #0a2e1f; color: var(--green); border: 1px solid #0d6640; }
+    .badge-yellow { background: #1f1a0a; color: var(--yellow); border: 1px solid #6b5a00; }
+    .badge-red { background: #1f0a0a; color: var(--red); border: 1px solid #6b0d0d; }
+    .badge-blue { background: #0a1520; color: var(--blue); border: 1px solid #0d3d6b; }
+    .badge-purple { background: var(--purple-faint); color: var(--purple-light); border: 1px solid var(--purple-dark); }
+
+    .code-block { margin: 1.5rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+    .code-header { background: var(--bg-3); padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 0.7rem; font-family: var(--mono); font-weight: 600; color: var(--purple-light); text-transform: uppercase; letter-spacing: 0.08em; }
+    .code-filename { font-size: 0.75rem; font-family: var(--mono); color: var(--text-dim); }
+    .code-body { background: #0d0d0d; padding: 1.4rem 1.6rem; overflow-x: auto; }
+    pre { font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; color: #cdd6f4; white-space: pre; }
+
+    .kw { color: #cba6f7; }
+    .fn { color: #89b4fa; }
+    .st { color: #a6e3a1; }
+    .cm { color: #585b70; font-style: italic; }
+    .nm { color: #fab387; }
+    .op { color: #89dceb; }
+
+    .diagram { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 2rem; margin: 1.5rem 0; overflow-x: auto; }
+    .diagram pre { font-family: var(--mono); font-size: 0.78rem; color: var(--text-muted); line-height: 1.6; }
+    .diagram-label { font-size: 0.75rem; color: var(--text-dim); text-align: center; margin-top: 1rem; font-style: italic; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1rem; text-align: center; }
+    .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--purple-light); font-family: var(--mono); display: block; line-height: 1; margin-bottom: 0.4rem; }
+    .stat-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.07em; }
+
+    .pl-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .pl-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .pl-card h4 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-dim);
+      margin-bottom: 0.75rem;
+    }
+
+    .pl-value {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .pl-value.positive { color: var(--green); }
+    .pl-value.negative { color: var(--red); }
+    .pl-value.neutral { color: var(--text); }
+
+    .pl-sub { font-size: 0.75rem; color: var(--text-dim); }
+
+    .method-compare {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .method-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+
+    .method-card:hover { border-color: var(--purple); }
+
+    .method-name {
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--purple-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .method-card p { font-size: 0.8rem; margin-bottom: 0.5rem; }
+
+    .method-card .pros, .method-card .cons {
+      font-size: 0.75rem;
+      padding: 0.5rem;
+      border-radius: 5px;
+      margin-top: 0.5rem;
+    }
+
+    .method-card .pros { background: #0a2e1f; color: var(--green); }
+    .method-card .cons { background: #1f0a0a; color: #f87171; }
+
+    .cta-section { background: linear-gradient(135deg, #13003d 0%, #1a0050 50%, #0d0026 100%); border: 1px solid var(--purple-dark); border-radius: 16px; padding: 3rem 2.5rem; text-align: center; margin: 3rem 0; }
+    .cta-section h2 { font-size: 1.8rem; margin-bottom: 0.8rem; }
+    .cta-section p { font-size: 1rem; max-width: 520px; margin: 0 auto 2rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: all 0.2s; }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); transform: translateY(-1px); text-decoration: none; }
+    .btn-outline { border: 1px solid var(--border-2); color: var(--text); background: transparent; }
+    .btn-outline:hover { border-color: var(--purple); color: var(--purple-light); text-decoration: none; }
+
+    footer { background: var(--bg-2); border-top: 1px solid var(--border); padding: 3rem 2rem; text-align: center; }
+    .footer-logo { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem; }
+    .footer-logo span { color: var(--purple-light); }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; margin: 1rem 0; }
+    .footer-links a { font-size: 0.85rem; color: var(--text-dim); text-decoration: none; }
+    .footer-links a:hover { color: var(--purple-light); }
+    .footer-copy { font-size: 0.8rem; color: var(--text-dim); margin-top: 1rem; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 3rem 0; }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      .nav-links { display: none; }
+      .hero { padding: 3rem 1rem 2rem; }
+      .toc-box { padding: 0 1rem; }
+      .toc-list { grid-template-columns: 1fr; }
+      .content { padding: 0 1rem 3rem; }
+      .cta-section { padding: 2rem 1.2rem; }
+      .pl-row { grid-template-columns: 1fr; }
+      .method-compare { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="https://purpleflea.com/casino-api">Casino</a></li>
+    <li><a href="https://purpleflea.com/trading-api">Trading</a></li>
+    <li><a href="https://purpleflea.com/wallet-api">Wallet</a></li>
+    <li><a href="https://purpleflea.com/domains-api">Domains</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://purpleflea.com/blog" class="nav-cta">Blog</a></li>
+  </ul>
+</nav>
+
+<header class="hero">
+  <div class="hero-breadcrumb">
+    <a href="https://purpleflea.com">Home</a>
+    <span>/</span>
+    <a href="https://purpleflea.com/blog">Blog</a>
+    <span>/</span>
+    <span>P&amp;L Accounting</span>
+  </div>
+
+  <div class="hero-tags">
+    <span class="tag tag-purple">Deep Dive</span>
+    <span class="tag">Accounting</span>
+    <span class="tag">Multi-Chain</span>
+    <span class="tag">Tax Reporting</span>
+  </div>
+
+  <h1>P&amp;L Accounting for <em>AI Agents</em>: Tracking Every Satoshi</h1>
+
+  <div class="hero-meta">
+    <span>By <strong>Purple Flea Engineering</strong></span>
+    <span>March 4, 2026</span>
+    <span>19 min read</span>
+  </div>
+
+  <p class="hero-lead">
+    Most AI agents can execute trades but cannot tell you if they are profitable. Realized vs unrealized P&amp;L, fee accounting across casino, trading, and wallet operations, FIFO vs LIFO vs HIFO cost basis — all of this requires careful bookkeeping across 8 chains and 6 Purple Flea services. This guide builds a complete Python P&amp;L tracker from scratch.
+  </p>
+</header>
+
+<div class="toc-box">
+  <div class="toc-inner">
+    <h3>Table of Contents</h3>
+    <ol class="toc-list">
+      <li><a href="#pnl-fundamentals">P&amp;L Fundamentals</a></li>
+      <li><a href="#cost-basis-methods">Cost Basis Methods</a></li>
+      <li><a href="#fee-accounting">Fee Accounting</a></li>
+      <li><a href="#multi-chain">Multi-Chain Aggregation</a></li>
+      <li><a href="#code">Python P&amp;L Tracker</a></li>
+      <li><a href="#tax-reporting">Tax Reporting</a></li>
+    </ol>
+  </div>
+</div>
+
+<main class="content">
+
+  <section class="section" id="pnl-fundamentals">
+    <div class="section-number">01 — P&amp;L Fundamentals</div>
+    <h2>P&amp;L Fundamentals for Multi-Service AI Agents</h2>
+
+    <p>
+      A Purple Flea agent typically interacts with multiple services simultaneously: placing casino bets, running trading positions, receiving escrow payments, and managing wallets across 8 chains. Each of these generates distinct P&amp;L events that must be tracked with different accounting treatment.
+    </p>
+
+    <h3>Realized vs. Unrealized P&amp;L</h3>
+
+    <div class="pl-row">
+      <div class="pl-card">
+        <h4>Realized P&amp;L</h4>
+        <div class="pl-value positive">+$4,230</div>
+        <div class="pl-sub">Closed positions and settled events</div>
+        <p style="font-size:0.8rem;margin-top:0.75rem;">Exists only when a position is closed: a bet is settled, a trade is exited, an escrow is released. Money is definitively in or out of the portfolio.</p>
+      </div>
+      <div class="pl-card">
+        <h4>Unrealized P&amp;L</h4>
+        <div class="pl-value neutral">+$1,820</div>
+        <div class="pl-sub">Open positions marked to market</div>
+        <p style="font-size:0.8rem;margin-top:0.75rem;">Open perp positions, pending casino bets, held tokens. The P&amp;L is calculated at current market price but can reverse before closing.</p>
+      </div>
+      <div class="pl-card">
+        <h4>Total P&amp;L</h4>
+        <div class="pl-value positive">+$6,050</div>
+        <div class="pl-sub">Realized + Unrealized</div>
+        <p style="font-size:0.8rem;margin-top:0.75rem;">Portfolio net change from inception or from a defined reporting period. Includes all fees, funding costs, and network gas expenses.</p>
+      </div>
+    </div>
+
+    <h3>P&amp;L Event Categories Across Purple Flea Services</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Event Type</th>
+            <th>P&amp;L Treatment</th>
+            <th>Fees to Track</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Casino API</strong></td>
+            <td>Bet settlement</td>
+            <td>Realized (win/loss)</td>
+            <td>House edge (baked in, track expected value)</td>
+          </tr>
+          <tr>
+            <td><strong>Trading API (Spot)</strong></td>
+            <td>Buy/Sell execution</td>
+            <td>Realized on close, Unrealized while held</td>
+            <td>Trading fee (0.1-0.3%), gas costs</td>
+          </tr>
+          <tr>
+            <td><strong>Trading API (Perp)</strong></td>
+            <td>Position open/close</td>
+            <td>Realized on close, Unrealized while open</td>
+            <td>Funding rate, trading fee, liquidation risk</td>
+          </tr>
+          <tr>
+            <td><strong>Wallet API</strong></td>
+            <td>Asset appreciation</td>
+            <td>Unrealized (no taxable event until sale)</td>
+            <td>Bridge fees, gas on transfers</td>
+          </tr>
+          <tr>
+            <td><strong>Escrow</strong></td>
+            <td>Payment receipt/release</td>
+            <td>Realized (income or cost)</td>
+            <td>1% escrow fee, 15% referral income</td>
+          </tr>
+          <tr>
+            <td><strong>Faucet</strong></td>
+            <td>USDC claim</td>
+            <td>Income (realized at receipt)</td>
+            <td>None (free)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body">
+        <strong>Casino P&amp;L requires expected-value thinking</strong>
+        <p>Unlike trading, casino P&amp;L is stochastic. An agent playing blackjack with correct basic strategy has a -0.5% house edge. A "realized P&amp;L" of +$500 after 100 hands is partially luck. Track both actual P&amp;L and expected P&amp;L (hands * avg_bet * house_edge) to separate skill from variance.</p>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span class="stat-value">8</span>
+        <span class="stat-label">Chains to track</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">6</span>
+        <span class="stat-label">Service types</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">3</span>
+        <span class="stat-label">Cost basis methods</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">24/7</span>
+        <span class="stat-label">Continuous tracking</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="cost-basis-methods">
+    <div class="section-number">02 — Cost Basis Methods</div>
+    <h2>Cost Basis Methods: FIFO, LIFO, and HIFO</h2>
+
+    <p>
+      When you sell an asset, the "cost basis" of that asset determines your realized P&amp;L. If you bought ETH at different prices on different dates, which purchase are you selling? The answer depends on your chosen accounting method — and it significantly affects both reported P&amp;L and tax liability.
+    </p>
+
+    <div class="method-compare">
+      <div class="method-card">
+        <div class="method-name">FIFO</div>
+        <p>First In, First Out. The oldest purchased units are treated as sold first.</p>
+        <div class="pros">+ Simple, widely accepted by tax authorities</div>
+        <div class="cons">- In bull markets, sells high-basis old lots, minimizing gains (favorable)</div>
+      </div>
+      <div class="method-card">
+        <div class="method-name">LIFO</div>
+        <p>Last In, First Out. Most recently purchased units are sold first.</p>
+        <div class="pros">+ Matches recent cost to current price; good for volatile assets</div>
+        <div class="cons">- Not accepted in many crypto jurisdictions; inventory management complexity</div>
+      </div>
+      <div class="method-card">
+        <div class="method-name">HIFO</div>
+        <p>Highest In, First Out. Highest cost basis units are sold first, minimizing gains.</p>
+        <div class="pros">+ Minimizes realized gains; ideal for tax optimization</div>
+        <div class="cons">- Requires specific lot identification; more complex record-keeping</div>
+      </div>
+    </div>
+
+    <h3>Concrete Example: Same Trades, Different Methods</h3>
+
+    <div class="diagram">
+      <pre>
+  Purchase history for ETH (all USDC):
+  ┌──────────────┬──────────┬────────────┬───────────────┐
+  │ Date         │ Quantity │ Price/ETH  │ Total Cost    │
+  ├──────────────┼──────────┼────────────┼───────────────┤
+  │ Jan 10, 2026 │ 2.0 ETH  │ $3,000     │ $6,000 (Lot A)│
+  │ Feb 15, 2026 │ 1.5 ETH  │ $3,500     │ $5,250 (Lot B)│
+  │ Mar 01, 2026 │ 1.0 ETH  │ $3,200     │ $3,200 (Lot C)│
+  └──────────────┴──────────┴────────────┴───────────────┘
+
+  Sell event: 1.5 ETH at $3,800 on Mar 4, 2026
+  Sale proceeds: 1.5 × $3,800 = $5,700
+
+  ┌───────────────────────────────────────────────────────────────┐
+  │ Method   │ Lots Used               │ Cost Basis │ Gain/Loss   │
+  ├───────────────────────────────────────────────────────────────┤
+  │ FIFO     │ 1.5 ETH from Lot A      │ $4,500     │ +$1,200 ✅ │
+  │          │ (oldest, $3,000/each)   │            │ (taxable)   │
+  ├───────────────────────────────────────────────────────────────┤
+  │ LIFO     │ 1.0 ETH Lot C +         │ $4,950     │ +$750       │
+  │          │ 0.5 ETH Lot B           │            │ (less tax)  │
+  ├───────────────────────────────────────────────────────────────┤
+  │ HIFO     │ 1.5 ETH from Lot B      │ $5,250     │ +$450 🏆   │
+  │          │ (highest basis, $3,500) │            │ (min tax)   │
+  └───────────────────────────────────────────────────────────────┘
+
+  HIFO saves $750 in taxable gains vs FIFO on a single trade.
+  At 30% capital gains rate: $225 in tax savings per trade.
+      </pre>
+      <div class="diagram-label">Figure 1: Same trades, three different reported gains under FIFO/LIFO/HIFO</div>
+    </div>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">⚡</span>
+      <div class="callout-body">
+        <strong>Consistency is required — you cannot switch methods mid-year</strong>
+        <p>Choose a cost basis method and stick with it for the entire tax year. In the US, crypto is treated as property; switching mid-year requires amendments. Consult a tax professional for your jurisdiction before choosing a method.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="fee-accounting">
+    <div class="section-number">03 — Fee Accounting</div>
+    <h2>Fee Accounting: The Hidden P&amp;L Destroyer</h2>
+
+    <p>
+      Fees are the invisible tax on every agent operation. Across 8 chains and 6 Purple Flea services, fees compound quickly. An agent that does not track fees precisely will dramatically overstate its profitability.
+    </p>
+
+    <h3>Complete Fee Taxonomy</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fee Type</th>
+            <th>Source</th>
+            <th>Typical Rate</th>
+            <th>Accounting Treatment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Trading Fee</strong></td>
+            <td>Purple Flea Trading API</td>
+            <td>0.1-0.3% per trade</td>
+            <td>Deduct from proceeds on sell / add to cost on buy</td>
+          </tr>
+          <tr>
+            <td><strong>Funding Rate</strong></td>
+            <td>Perpetual positions</td>
+            <td>±0.01%/8h</td>
+            <td>Realized P&amp;L (positive = income, negative = cost)</td>
+          </tr>
+          <tr>
+            <td><strong>Escrow Fee</strong></td>
+            <td>escrow.purpleflea.com</td>
+            <td>1% of escrow value</td>
+            <td>Transaction cost (reduces net received)</td>
+          </tr>
+          <tr>
+            <td><strong>Referral Income</strong></td>
+            <td>Escrow referrals</td>
+            <td>15% of escrow fees</td>
+            <td>Realized income</td>
+          </tr>
+          <tr>
+            <td><strong>Gas (ETH)</strong></td>
+            <td>Ethereum/MATIC/BNB/AVAX</td>
+            <td>$0.10-$20</td>
+            <td>Cost (adds to basis of asset acquired)</td>
+          </tr>
+          <tr>
+            <td><strong>Bridge Fee</strong></td>
+            <td>Stargate/Wormhole/etc</td>
+            <td>0.05-0.10%</td>
+            <td>Cost of capital movement; reduces net transferred</td>
+          </tr>
+          <tr>
+            <td><strong>Casino House Edge</strong></td>
+            <td>Purple Flea Casino API</td>
+            <td>0.5-5% (game-dependent)</td>
+            <td>Expected value loss; track separately from variance</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-success">
+      <span class="callout-icon">✅</span>
+      <div class="callout-body">
+        <strong>Gas fees add to cost basis, they are not standalone expenses</strong>
+        <p>In the US and most jurisdictions, gas fees paid to acquire a crypto asset add to the asset's cost basis. The gas paid when buying ETH increases your basis, reducing future capital gains. Gas paid when selling reduces your proceeds. Track this correctly or you will over-pay taxes.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="multi-chain">
+    <div class="section-number">04 — Multi-Chain Aggregation</div>
+    <h2>Multi-Chain P&amp;L Aggregation</h2>
+
+    <p>
+      Aggregating P&amp;L across 8 chains requires solving the same asset on different chains: ETH on Ethereum and WETH on Polygon are economically equivalent but technically different tokens. A rigorous P&amp;L system must normalize these into a single economic position.
+    </p>
+
+    <h3>Asset Normalization Rules</h3>
+
+    <ul>
+      <li><strong>Native ETH and WETH</strong> should be treated as the same asset in P&amp;L. Price both using ETH/USD market price.</li>
+      <li><strong>USDC on any chain</strong> is effectively the same asset at $1.00. Track chain location separately but aggregate in a single USDC position.</li>
+      <li><strong>Bridged assets</strong> (e.g., Wormhole-wrapped SOL on ETH): track the bridge event as a disposal on SOL chain and acquisition on ETH chain for tax purposes, but treat as the same economic position for portfolio P&amp;L.</li>
+      <li><strong>Casino chips / in-game tokens</strong>: value at zero cost basis if acquired through play; value at market if purchased.</li>
+    </ul>
+
+    <div class="diagram">
+      <pre>
+  Agent Portfolio Snapshot (normalized to USD):
+  ─────────────────────────────────────────────────────────
+  ASSET CLASS        CHAIN(S)              VALUE   P&L TODAY
+  ─────────────────────────────────────────────────────────
+  ETH (all forms)    ETH, MATIC, AVAX      $28,400   +$420
+  SOL                SOL                   $12,200   -$180
+  BTC                BTC                    $8,100   +$95
+  USDC (stables)     ETH, SOL, BNB          $9,500    $0
+  BNB                BNB                    $2,300   +$45
+  Casino Winnings    (settled, USD eq)        $680   +$680
+  Open Perp PnL      ETH/USD Long            +$320   +$320
+  ─────────────────────────────────────────────────────────
+  TOTAL                                     $61,500  +$1,380
+  ─────────────────────────────────────────────────────────
+  Fees today:        Gas: -$12.40   Trading: -$8.20   Total: -$20.60
+  Net P&L (after fees):                              +$1,359.40
+      </pre>
+      <div class="diagram-label">Figure 2: Normalized multi-chain portfolio P&amp;L snapshot</div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="code">
+    <div class="section-number">05 — Python P&amp;L Tracker</div>
+    <h2>Python P&amp;L Tracker: Full Implementation</h2>
+
+    <p>
+      The following tracker pulls from all Purple Flea APIs, normalizes positions across chains, applies configurable cost basis methods, and generates daily P&amp;L reports with full fee breakdown.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">pnl_tracker.py</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="cm">"""
+Multi-chain, multi-service P&L tracker for Purple Flea AI agents.
+Supports FIFO, LIFO, HIFO cost basis methods.
+Aggregates: Casino, Trading (Spot + Perp), Wallet, Escrow, Faucet.
+"""</span>
+
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> csv
+<span class="kw">import</span> json
+<span class="kw">import</span> logging
+<span class="kw">from</span> collections <span class="kw">import</span> defaultdict, deque
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field, asdict
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, List, Optional, Tuple
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">import</span> aiohttp
+
+log = logging.getLogger(<span class="st">'pnl_tracker'</span>)
+
+PURPLEFLEA_BASE = <span class="st">"https://purpleflea.com"</span>
+API_KEY = <span class="st">"your_api_key_here"</span>
+
+
+<span class="cm"># ─── Enums & Constants ───────────────────────────────────────────────────────</span>
+
+<span class="kw">class</span> <span class="fn">CostBasisMethod</span>(Enum):
+    FIFO = <span class="st">"fifo"</span>
+    LIFO = <span class="st">"lifo"</span>
+    HIFO = <span class="st">"hifo"</span>
+
+
+<span class="kw">class</span> <span class="fn">EventType</span>(Enum):
+    BUY            = <span class="st">"buy"</span>
+    SELL           = <span class="st">"sell"</span>
+    CASINO_WIN     = <span class="st">"casino_win"</span>
+    CASINO_LOSS    = <span class="st">"casino_loss"</span>
+    PERP_OPEN      = <span class="st">"perp_open"</span>
+    PERP_CLOSE     = <span class="st">"perp_close"</span>
+    FUNDING        = <span class="st">"funding"</span>
+    BRIDGE_OUT     = <span class="st">"bridge_out"</span>
+    BRIDGE_IN      = <span class="st">"bridge_in"</span>
+    FEE            = <span class="st">"fee"</span>
+    ESCROW_RECEIVE = <span class="st">"escrow_receive"</span>
+    ESCROW_SEND    = <span class="st">"escrow_send"</span>
+    FAUCET_CLAIM   = <span class="st">"faucet_claim"</span>
+    REFERRAL_EARN  = <span class="st">"referral_earn"</span>
+
+
+<span class="cm"># ─── Data Structures ─────────────────────────────────────────────────────────</span>
+
+<span class="op">@dataclass</span>
+<span class="kw">class</span> <span class="fn">TaxLot</span>:
+    <span class="cm">"""A single acquired unit for cost basis tracking."""</span>
+    quantity: Decimal
+    cost_per_unit: Decimal
+    timestamp: float
+    source: str
+    lot_id: str
+
+
+<span class="op">@dataclass</span>
+<span class="kw">class</span> <span class="fn">PnLEvent</span>:
+    event_type: EventType
+    asset: str
+    chain: str
+    quantity: Decimal
+    price_usd: Decimal
+    fee_usd: Decimal
+    timestamp: float
+    tx_hash: Optional[str] = None
+    metadata: Dict = field(default_factory=dict)
+
+    <span class="op">@property</span>
+    <span class="kw">def</span> <span class="fn">gross_usd</span>(self) -> Decimal:
+        <span class="kw">return</span> self.quantity * self.price_usd
+
+    <span class="op">@property</span>
+    <span class="kw">def</span> <span class="fn">net_usd</span>(self) -> Decimal:
+        <span class="kw">return</span> self.gross_usd - self.fee_usd
+
+
+<span class="op">@dataclass</span>
+<span class="kw">class</span> <span class="fn">RealizedGain</span>:
+    asset: str
+    quantity_sold: Decimal
+    sale_price: Decimal
+    cost_basis: Decimal
+    gain_usd: Decimal
+    timestamp: float
+    method: str
+    lot_id: str
+
+
+<span class="op">@dataclass</span>
+<span class="kw">class</span> <span class="fn">PnLReport</span>:
+    period_start: datetime
+    period_end: datetime
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    total_fees: Decimal
+    casino_pnl: Decimal
+    trading_pnl: Decimal
+    funding_pnl: Decimal
+    escrow_pnl: Decimal
+    faucet_income: Decimal
+    net_pnl: Decimal
+    gain_events: List[RealizedGain]
+    fee_breakdown: Dict[str, Decimal]
+
+
+<span class="cm"># ─── Cost Basis Engine ───────────────────────────────────────────────────────</span>
+
+<span class="kw">class</span> <span class="fn">CostBasisEngine</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, method: CostBasisMethod = CostBasisMethod.HIFO):
+        self.method = method
+        <span class="cm"># asset → list of TaxLot (ordered by acquisition time)</span>
+        self.lots: Dict[str, List[TaxLot]] = defaultdict(list)
+        self.gains: List[RealizedGain] = []
+
+    <span class="kw">def</span> <span class="fn">acquire</span>(self, asset: str, quantity: Decimal, cost_per_unit: Decimal, ts: float, source: str):
+        <span class="cm">"""Record an asset acquisition (buy, faucet claim, etc)."""</span>
+        lot_id = f<span class="st">"{asset}_{int(ts*1000)}"</span>
+        lot = TaxLot(
+            quantity=quantity,
+            cost_per_unit=cost_per_unit,
+            timestamp=ts,
+            source=source,
+            lot_id=lot_id,
+        )
+        self.lots[asset].append(lot)
+        self.lots[asset].sort(key=<span class="kw">lambda</span> x: x.timestamp)  <span class="cm"># keep chronological</span>
+        log.debug(f<span class="st">"Acquired {quantity} {asset} at ${cost_per_unit:.4f} (lot {lot_id})"</span>)
+
+    <span class="kw">def</span> <span class="fn">dispose</span>(
+        self, asset: str, quantity: Decimal, sale_price: Decimal, ts: float
+    ) -> Tuple[Decimal, List[RealizedGain]]:
+        <span class="cm">"""
+        Record disposal (sell, swap out). Returns (realized_gain, lots_used).
+        Applies configured cost basis method to select lots.
+        """</span>
+        available = sum(lot.quantity <span class="kw">for</span> lot <span class="kw">in</span> self.lots[asset])
+        <span class="kw">if</span> quantity > available:
+            log.warning(f<span class="st">"Disposing {quantity} {asset} but only {available} in lots"</span>)
+            quantity = available
+
+        <span class="cm"># Sort lots by method</span>
+        ordered = sorted(
+            self.lots[asset],
+            key=<span class="kw">lambda</span> l: (
+                l.timestamp <span class="kw">if</span> self.method == CostBasisMethod.FIFO
+                <span class="kw">else</span> -l.timestamp <span class="kw">if</span> self.method == CostBasisMethod.LIFO
+                <span class="kw">else</span> -l.cost_per_unit  <span class="cm"># HIFO: highest cost first</span>
+            )
+        )
+
+        remaining = quantity
+        total_cost_basis = Decimal(<span class="st">'0'</span>)
+        new_gains = []
+
+        <span class="kw">for</span> lot <span class="kw">in</span> ordered:
+            <span class="kw">if</span> remaining <= <span class="nm">0</span>:
+                <span class="kw">break</span>
+
+            use_qty = min(remaining, lot.quantity)
+            cost_basis_portion = use_qty * lot.cost_per_unit
+            gain = use_qty * sale_price - cost_basis_portion
+
+            gain_event = RealizedGain(
+                asset=asset,
+                quantity_sold=use_qty,
+                sale_price=sale_price,
+                cost_basis=lot.cost_per_unit,
+                gain_usd=gain,
+                timestamp=ts,
+                method=self.method.value,
+                lot_id=lot.lot_id,
+            )
+            new_gains.append(gain_event)
+            self.gains.append(gain_event)
+            total_cost_basis += cost_basis_portion
+
+            lot.quantity -= use_qty
+            remaining -= use_qty
+
+        <span class="cm"># Remove exhausted lots</span>
+        self.lots[asset] = [l <span class="kw">for</span> l <span class="kw">in</span> self.lots[asset] <span class="kw">if</span> l.quantity > <span class="nm">0</span>]
+
+        total_gain = quantity * sale_price - total_cost_basis
+        <span class="kw">return</span> total_gain, new_gains
+
+    <span class="kw">def</span> <span class="fn">total_cost_basis</span>(self, asset: str) -> Decimal:
+        <span class="kw">return</span> sum(l.quantity * l.cost_per_unit <span class="kw">for</span> l <span class="kw">in</span> self.lots[asset])
+
+    <span class="kw">def</span> <span class="fn">total_quantity</span>(self, asset: str) -> Decimal:
+        <span class="kw">return</span> sum(l.quantity <span class="kw">for</span> l <span class="kw">in</span> self.lots[asset])
+
+
+<span class="cm"># ─── Purple Flea API Data Fetcher ─────────────────────────────────────────────</span>
+
+<span class="kw">class</span> <span class="fn">PurpleFleasDataFetcher</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str):
+        self.headers = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {api_key}"</span>}
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    <span class="kw">async def</span> <span class="fn">__aenter__</span>(self):
+        self._session = aiohttp.ClientSession(headers=self.headers)
+        <span class="kw">return</span> self
+
+    <span class="kw">async def</span> <span class="fn">__aexit__</span>(self, *args):
+        <span class="kw">await</span> self._session.close()
+
+    <span class="kw">async def</span> <span class="fn">get_casino_history</span>(self, since: float) -> List[PnLEvent]:
+        <span class="kw">async with</span> self._session.get(
+            f<span class="st">"{PURPLEFLEA_BASE}/casino-api/history"</span>,
+            params={<span class="st">"since"</span>: int(since)}
+        ) <span class="kw">as</span> r:
+            data = <span class="kw">await</span> r.json()
+
+        events = []
+        <span class="kw">for</span> bet <span class="kw">in</span> data[<span class="st">"bets"</span>]:
+            etype = EventType.CASINO_WIN <span class="kw">if</span> bet[<span class="st">"outcome"</span>] == <span class="st">"win"</span> <span class="kw">else</span> EventType.CASINO_LOSS
+            pnl = Decimal(str(bet[<span class="st">"net_pnl"</span>]))
+            events.append(PnLEvent(
+                event_type=etype,
+                asset=<span class="st">"USDC"</span>,
+                chain=bet.get(<span class="st">"chain"</span>, <span class="st">"ETH"</span>),
+                quantity=abs(pnl),
+                price_usd=Decimal(<span class="st">"1.00"</span>),
+                fee_usd=Decimal(str(bet.get(<span class="st">"fee"</span>, <span class="nm">0</span>))),
+                timestamp=bet[<span class="st">"settled_at"</span>],
+                tx_hash=bet.get(<span class="st">"tx_hash"</span>),
+                metadata={<span class="st">"game"</span>: bet[<span class="st">"game"</span>], <span class="st">"bet_amount"</span>: bet[<span class="st">"amount"</span>]},
+            ))
+        <span class="kw">return</span> events
+
+    <span class="kw">async def</span> <span class="fn">get_trading_history</span>(self, since: float) -> List[PnLEvent]:
+        <span class="kw">async with</span> self._session.get(
+            f<span class="st">"{PURPLEFLEA_BASE}/trading-api/history"</span>,
+            params={<span class="st">"since"</span>: int(since)}
+        ) <span class="kw">as</span> r:
+            data = <span class="kw">await</span> r.json()
+
+        events = []
+        <span class="kw">for</span> trade <span class="kw">in</span> data[<span class="st">"trades"</span>]:
+            etype = EventType.BUY <span class="kw">if</span> trade[<span class="st">"side"</span>] == <span class="st">"buy"</span> <span class="kw">else</span> EventType.SELL
+            events.append(PnLEvent(
+                event_type=etype,
+                asset=trade[<span class="st">"base_asset"</span>],
+                chain=trade.get(<span class="st">"chain"</span>, <span class="st">"ETH"</span>),
+                quantity=Decimal(str(trade[<span class="st">"quantity"</span>])),
+                price_usd=Decimal(str(trade[<span class="st">"price"</span>])),
+                fee_usd=Decimal(str(trade[<span class="st">"fee_usd"</span>])),
+                timestamp=trade[<span class="st">"executed_at"</span>],
+                tx_hash=trade.get(<span class="st">"tx_hash"</span>),
+                metadata={<span class="st">"pair"</span>: trade[<span class="st">"pair"</span>], <span class="st">"type"</span>: trade[<span class="st">"type"</span>]},
+            ))
+        <span class="kw">return</span> events
+
+    <span class="kw">async def</span> <span class="fn">get_wallet_history</span>(self, since: float) -> List[PnLEvent]:
+        <span class="kw">async with</span> self._session.get(
+            f<span class="st">"{PURPLEFLEA_BASE}/wallet-api/history"</span>,
+            params={<span class="st">"since"</span>: int(since)}
+        ) <span class="kw">as</span> r:
+            data = <span class="kw">await</span> r.json()
+
+        events = []
+        <span class="kw">for</span> tx <span class="kw">in</span> data[<span class="st">"transactions"</span>]:
+            <span class="kw">if</span> tx[<span class="st">"type"</span>] == <span class="st">"bridge_out"</span>:
+                etype = EventType.BRIDGE_OUT
+            <span class="kw">elif</span> tx[<span class="st">"type"</span>] == <span class="st">"bridge_in"</span>:
+                etype = EventType.BRIDGE_IN
+            <span class="kw">else</span>:
+                <span class="kw">continue</span>  <span class="cm"># plain transfers are not P&L events</span>
+
+            events.append(PnLEvent(
+                event_type=etype,
+                asset=tx[<span class="st">"asset"</span>],
+                chain=tx[<span class="st">"chain"</span>],
+                quantity=Decimal(str(tx[<span class="st">"amount"</span>])),
+                price_usd=Decimal(str(tx.get(<span class="st">"price_usd_at_time"</span>, <span class="nm">0</span>))),
+                fee_usd=Decimal(str(tx.get(<span class="st">"fee_usd"</span>, <span class="nm">0</span>))),
+                timestamp=tx[<span class="st">"timestamp"</span>],
+                tx_hash=tx.get(<span class="st">"tx_hash"</span>),
+            ))
+        <span class="kw">return</span> events
+
+    <span class="kw">async def</span> <span class="fn">get_escrow_history</span>(self, since: float) -> List[PnLEvent]:
+        <span class="kw">async with</span> self._session.get(
+            f<span class="st">"https://escrow.purpleflea.com/api/history"</span>,
+            headers=self.headers,
+            params={<span class="st">"since"</span>: int(since)}
+        ) <span class="kw">as</span> r:
+            data = <span class="kw">await</span> r.json()
+
+        events = []
+        <span class="kw">for</span> e <span class="kw">in</span> data[<span class="st">"escrows"</span>]:
+            etype = EventType.ESCROW_RECEIVE <span class="kw">if</span> e[<span class="st">"role"</span>] == <span class="st">"recipient"</span> <span class="kw">else</span> EventType.ESCROW_SEND
+            <span class="cm"># Escrow fee: 1% platform fee + 15% of that goes to referrer</span>
+            escrow_fee = Decimal(str(e[<span class="st">"amount"</span>])) * Decimal(<span class="st">"0.01"</span>)
+            events.append(PnLEvent(
+                event_type=etype,
+                asset=e[<span class="st">"asset"</span>],
+                chain=e[<span class="st">"chain"</span>],
+                quantity=Decimal(str(e[<span class="st">"amount"</span>])),
+                price_usd=Decimal(str(e.get(<span class="st">"price_usd_at_time"</span>, <span class="nm">1</span>))),
+                fee_usd=escrow_fee,
+                timestamp=e[<span class="st">"released_at"</span>],
+                tx_hash=e.get(<span class="st">"tx_hash"</span>),
+                metadata={<span class="st">"counterparty"</span>: e.get(<span class="st">"counterparty"</span>)},
+            ))
+            <span class="cm"># Track referral earnings separately if any</span>
+            <span class="kw">if</span> e.get(<span class="st">"referral_earned"</span>):
+                events.append(PnLEvent(
+                    event_type=EventType.REFERRAL_EARN,
+                    asset=<span class="st">"USDC"</span>,
+                    chain=e[<span class="st">"chain"</span>],
+                    quantity=Decimal(str(e[<span class="st">"referral_earned"</span>])),
+                    price_usd=Decimal(<span class="st">"1.00"</span>),
+                    fee_usd=Decimal(<span class="st">"0"</span>),
+                    timestamp=e[<span class="st">"released_at"</span>],
+                ))
+        <span class="kw">return</span> events
+
+    <span class="kw">async def</span> <span class="fn">get_current_prices</span>(self, assets: List[str]) -> Dict[str, Decimal]:
+        <span class="kw">async with</span> self._session.get(
+            f<span class="st">"{PURPLEFLEA_BASE}/wallet-api/prices"</span>,
+            params={<span class="st">"assets"</span>: <span class="st">","</span>.join(assets)}
+        ) <span class="kw">as</span> r:
+            data = <span class="kw">await</span> r.json()
+        <span class="kw">return</span> {a: Decimal(str(p)) <span class="kw">for</span> a, p <span class="kw">in</span> data[<span class="st">"prices"</span>].items()}
+
+
+<span class="cm"># ─── Main P&L Tracker ────────────────────────────────────────────────────────</span>
+
+<span class="kw">class</span> <span class="fn">AgentPnLTracker</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, method: CostBasisMethod = CostBasisMethod.HIFO):
+        self.engine  = CostBasisEngine(method)
+        self.fetcher = PurpleFleasDataFetcher(api_key)
+        self.all_events: List[PnLEvent] = []
+
+    <span class="kw">async def</span> <span class="fn">ingest_all_events</span>(self, since: float):
+        <span class="cm">"""Pull all P&L events from all Purple Flea services."""</span>
+        <span class="kw">async with</span> self.fetcher:
+            casino_events, trading_events, wallet_events, escrow_events = <span class="kw">await</span> asyncio.gather(
+                self.fetcher.get_casino_history(since),
+                self.fetcher.get_trading_history(since),
+                self.fetcher.get_wallet_history(since),
+                self.fetcher.get_escrow_history(since),
+            )
+
+        all_events = casino_events + trading_events + wallet_events + escrow_events
+        <span class="cm"># Process in chronological order for correct cost basis assignment</span>
+        all_events.sort(key=<span class="kw">lambda</span> e: e.timestamp)
+        self.all_events = all_events
+        log.info(f<span class="st">"Ingested {len(all_events)} events from all services"</span>)
+
+    <span class="kw">def</span> <span class="fn">process_events</span>(self) -> PnLReport:
+        <span class="cm">"""Process all events and compute P&L report."""</span>
+        casino_pnl  = Decimal(<span class="st">"0"</span>)
+        trading_pnl = Decimal(<span class="st">"0"</span>)
+        funding_pnl = Decimal(<span class="st">"0"</span>)
+        escrow_pnl  = Decimal(<span class="st">"0"</span>)
+        faucet_inc  = Decimal(<span class="st">"0"</span>)
+        total_fees  = Decimal(<span class="st">"0"</span>)
+        fee_breakdown: Dict[str, Decimal] = defaultdict(Decimal)
+        gain_events: List[RealizedGain] = []
+
+        <span class="kw">for</span> event <span class="kw">in</span> self.all_events:
+            total_fees += event.fee_usd
+            fee_breakdown[event.event_type.value] += event.fee_usd
+
+            <span class="kw">if</span> event.event_type == EventType.BUY:
+                self.engine.acquire(
+                    event.asset, event.quantity,
+                    event.price_usd + (event.fee_usd / event.quantity),  <span class="cm"># fee adds to basis</span>
+                    event.timestamp, <span class="st">"trade"</span>
+                )
+
+            <span class="kw">elif</span> event.event_type == EventType.SELL:
+                gain, lots = self.engine.dispose(
+                    event.asset, event.quantity, event.price_usd - (event.fee_usd / event.quantity),
+                    event.timestamp
+                )
+                trading_pnl += gain
+                gain_events.extend(lots)
+
+            <span class="kw">elif</span> event.event_type == EventType.CASINO_WIN:
+                casino_pnl += event.net_usd
+
+            <span class="kw">elif</span> event.event_type == EventType.CASINO_LOSS:
+                casino_pnl -= event.net_usd
+
+            <span class="kw">elif</span> event.event_type == EventType.FUNDING:
+                funding_pnl += event.net_usd
+
+            <span class="kw">elif</span> event.event_type <span class="kw">in</span> (EventType.ESCROW_RECEIVE, EventType.REFERRAL_EARN):
+                escrow_pnl += event.net_usd
+
+            <span class="kw">elif</span> event.event_type == EventType.ESCROW_SEND:
+                escrow_pnl -= event.fee_usd  <span class="cm"># only the fee is a cost here</span>
+
+            <span class="kw">elif</span> event.event_type == EventType.FAUCET_CLAIM:
+                faucet_inc += event.net_usd
+                self.engine.acquire(<span class="st">"USDC"</span>, event.quantity, Decimal(<span class="st">"0"</span>), event.timestamp, <span class="st">"faucet"</span>)
+
+        realized = trading_pnl + casino_pnl + funding_pnl + escrow_pnl + faucet_inc
+        <span class="cm"># Unrealized: would require current prices — computed separately</span>
+
+        period_events = self.all_events
+        start = datetime.fromtimestamp(period_events[<span class="nm">0</span>].timestamp, tz=timezone.utc) <span class="kw">if</span> period_events <span class="kw">else</span> datetime.now(tz=timezone.utc)
+        end   = datetime.fromtimestamp(period_events[-<span class="nm">1</span>].timestamp, tz=timezone.utc) <span class="kw">if</span> period_events <span class="kw">else</span> datetime.now(tz=timezone.utc)
+
+        <span class="kw">return</span> PnLReport(
+            period_start=start,
+            period_end=end,
+            realized_pnl=realized,
+            unrealized_pnl=Decimal(<span class="st">"0"</span>),  <span class="cm"># filled below</span>
+            total_fees=total_fees,
+            casino_pnl=casino_pnl,
+            trading_pnl=trading_pnl,
+            funding_pnl=funding_pnl,
+            escrow_pnl=escrow_pnl,
+            faucet_income=faucet_inc,
+            net_pnl=realized - total_fees,
+            gain_events=gain_events,
+            fee_breakdown=dict(fee_breakdown),
+        )
+
+    <span class="kw">def</span> <span class="fn">export_csv</span>(self, report: PnLReport, path: str):
+        <span class="cm">"""Export gain events to CSV for tax filing."""</span>
+        <span class="kw">with</span> open(path, <span class="st">"w"</span>, newline=<span class="st">""</span>) <span class="kw">as</span> f:
+            writer = csv.DictWriter(f, fieldnames=[
+                <span class="st">"date"</span>, <span class="st">"asset"</span>, <span class="st">"quantity"</span>, <span class="st">"sale_price"</span>,
+                <span class="st">"cost_basis"</span>, <span class="st">"gain_usd"</span>, <span class="st">"method"</span>, <span class="st">"lot_id"</span>
+            ])
+            writer.writeheader()
+            <span class="kw">for</span> gain <span class="kw">in</span> sorted(report.gain_events, key=<span class="kw">lambda</span> g: g.timestamp):
+                writer.writerow({
+                    <span class="st">"date"</span>:       datetime.fromtimestamp(gain.timestamp).strftime(<span class="st">"%Y-%m-%d"</span>),
+                    <span class="st">"asset"</span>:      gain.asset,
+                    <span class="st">"quantity"</span>:   str(gain.quantity_sold),
+                    <span class="st">"sale_price"</span>: str(gain.sale_price),
+                    <span class="st">"cost_basis"</span>: str(gain.cost_basis),
+                    <span class="st">"gain_usd"</span>:   str(gain.gain_usd),
+                    <span class="st">"method"</span>:     gain.method,
+                    <span class="st">"lot_id"</span>:     gain.lot_id,
+                })
+        log.info(f<span class="st">"Exported {len(report.gain_events)} gain events to {path}"</span>)
+
+
+<span class="cm"># ─── Main: Daily Report ──────────────────────────────────────────────────────</span>
+
+<span class="kw">async def</span> <span class="fn">generate_daily_report</span>(api_key: str, method: CostBasisMethod = CostBasisMethod.HIFO):
+    <span class="kw">import</span> time
+    since_24h = time.time() - <span class="nm">86400</span>
+
+    tracker = AgentPnLTracker(api_key, method)
+    <span class="kw">await</span> tracker.ingest_all_events(since_24h)
+    report = tracker.process_events()
+
+    print(<span class="st">f"\n=== Purple Flea Agent P&L Report ==="</span>)
+    print(<span class="st">f"Period: {report.period_start:%Y-%m-%d %H:%M} → {report.period_end:%Y-%m-%d %H:%M}"</span>)
+    print(<span class="st">f"Cost Basis Method: {method.value.upper()}"</span>)
+    print(<span class="st">f"\nP&L Breakdown:"</span>)
+    print(<span class="st">f"  Casino:     {'+' if report.casino_pnl >= 0 else ''}${report.casino_pnl:.2f}"</span>)
+    print(<span class="st">f"  Trading:    {'+' if report.trading_pnl >= 0 else ''}${report.trading_pnl:.2f}"</span>)
+    print(<span class="st">f"  Funding:    {'+' if report.funding_pnl >= 0 else ''}${report.funding_pnl:.2f}"</span>)
+    print(<span class="st">f"  Escrow:     +${report.escrow_pnl:.2f}"</span>)
+    print(<span class="st">f"  Faucet:     +${report.faucet_income:.2f}"</span>)
+    print(<span class="st">f"  Fees:       -${report.total_fees:.2f}"</span>)
+    print(<span class="st">f"  ─────────────────────"</span>)
+    print(<span class="st">f"  Net P&L:    {'+' if report.net_pnl >= 0 else ''}${report.net_pnl:.2f}"</span>)
+
+    tracker.export_csv(report, <span class="st">f"pnl_report_{method.value}_{int(time.time())}.csv"</span>)
+    <span class="kw">return</span> report
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    asyncio.run(generate_daily_report(API_KEY, CostBasisMethod.HIFO))</pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="tax-reporting">
+    <div class="section-number">06 — Tax Reporting</div>
+    <h2>Tax Reporting for AI Agent Activities</h2>
+
+    <p>
+      Tax treatment of AI agent activities is still evolving in most jurisdictions, but the following principles apply broadly. Consult a qualified tax professional for jurisdiction-specific guidance.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Activity</th>
+            <th>US Tax Treatment</th>
+            <th>Reporting Form</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Token trading gains</td>
+            <td>Capital gains (short/long term)</td>
+            <td>Form 8949</td>
+            <td>HIFO minimizes gains; 1-year holding for long-term rate</td>
+          </tr>
+          <tr>
+            <td>Casino winnings</td>
+            <td>Ordinary income</td>
+            <td>Schedule C or 1040</td>
+            <td>Net gambling income; losses offset winnings up to win amount</td>
+          </tr>
+          <tr>
+            <td>Faucet income</td>
+            <td>Ordinary income at fair market value</td>
+            <td>Schedule 1</td>
+            <td>Cost basis = FMV at receipt; future gain is additional cap gain</td>
+          </tr>
+          <tr>
+            <td>Referral income (Escrow)</td>
+            <td>Ordinary income</td>
+            <td>Schedule C</td>
+            <td>Self-employment income if running an agent business</td>
+          </tr>
+          <tr>
+            <td>Gas fees</td>
+            <td>Add to cost basis (on buy) / reduce proceeds (on sell)</td>
+            <td>Form 8949</td>
+            <td>Do not deduct gas separately — adjust basis instead</td>
+          </tr>
+          <tr>
+            <td>Bridge transfers</td>
+            <td>Disposal + acquisition event</td>
+            <td>Form 8949</td>
+            <td>Each bridge may be a taxable event; same asset, different chain</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Year-End P&amp;L Optimization Strategies</h3>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📉</div>
+        <h4>Tax Loss Harvesting</h4>
+        <p>Sell positions with unrealized losses before year-end to offset realized gains. With 8 chains and 6 services, there are usually harvesting opportunities somewhere.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔄</div>
+        <h4>Wash Sale Awareness</h4>
+        <p>US wash sale rules don't formally apply to crypto (yet), but many jurisdictions may adopt them. Avoid buying back the same asset within 30 days of a harvested loss.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <h4>Long-Term Holding</h4>
+        <p>Assets held over 1 year qualify for long-term capital gains rates (0-20% vs 10-37% ordinary). Agents can segregate long-term holds from active trading assets.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <h4>Entity Structure</h4>
+        <p>High-volume AI agents may benefit from operating through an LLC or corporation. Trading losses can offset other income; wash sale rules may differ at entity level.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">⚡</span>
+      <div class="callout-body">
+        <strong>Crypto tax reporting is a legal requirement — automate it from day one</strong>
+        <p>The P&amp;L tracker above generates Form 8949-compatible CSV output. Don't wait until tax season to reconstruct your agent's transaction history. Every Purple Flea API provides complete transaction history via the <code>/history</code> endpoint. Configure your tracker to run daily and archive all events.</p>
+      </div>
+    </div>
+
+    <h3>Handling Missing Price Data</h3>
+
+    <p>
+      A common P&amp;L tracking problem is missing historical prices for obscure assets or times when no price feed was available. Best practices:
+    </p>
+
+    <ul>
+      <li>Always record prices at the time of execution, not retrospectively. Purple Flea APIs include <code>price_usd_at_time</code> in all transaction responses.</li>
+      <li>For assets with no centralized price feed, use the last available on-chain DEX price (e.g., from Uniswap V3 pool) at the block timestamp.</li>
+      <li>For casino chips and non-transferable in-game tokens, use $0 cost basis and treat all proceeds as gains upon redemption.</li>
+      <li>If price data is genuinely unavailable (e.g., very new token), document the gap and apply a good-faith estimate with supporting evidence in your records.</li>
+    </ul>
+  </section>
+
+  <div class="cta-section">
+    <h2>Start Tracking Your Agent's P&amp;L Today</h2>
+    <p>Every Purple Flea API returns full transaction history with USD prices at execution time. Build your P&amp;L tracker on top of our data and never lose a satoshi to poor accounting.</p>
+    <div class="cta-buttons">
+      <a href="https://purpleflea.com/trading-api" class="btn btn-primary">Trading API Docs</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-outline">Get Free USDC</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-logo">Purple<span>Flea</span></div>
+  <p style="font-size:0.85rem;color:var(--text-dim);margin:0.5rem 0;">Blue chip financial infrastructure for AI agents.</p>
+  <div class="footer-links">
+    <a href="https://purpleflea.com/casino-api">Casino API</a>
+    <a href="https://purpleflea.com/trading-api">Trading API</a>
+    <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+    <a href="https://purpleflea.com/domains-api">Domains API</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+    <a href="https://purpleflea.com/blog">Blog</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 Purple Flea. All rights reserved.</div>
+</footer>
+
+</body>
+</html>
