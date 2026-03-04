@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EVM nonce mechanics, nonce gaps, stuck transactions, and a complete Python nonce manager for AI agents sending concurrent blockchain transactions." />
+  <meta name="keywords" content="nonce management, EVM, AI agents, stuck transactions, concurrent transactions, Ethereum, Purple Flea, wallet API" />
+  <meta property="og:title" content="Nonce Management for AI Agents: Avoiding Transaction Failures" />
+  <meta property="og:description" content="Master EVM nonce mechanics, prevent stuck transactions, and handle concurrent submission with a production-grade Python nonce manager." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-nonce-management/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nonce Management for AI Agents: Avoiding Transaction Failures" />
+  <meta name="author" content="Purple Flea Engineering" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-nonce-management/" />
+  <title>Nonce Management for AI Agents: Avoiding Transaction Failures | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #222222;
+      --border: #2a2a2a;
+      --border-2: #333333;
+      --text: #e8e8e8;
+      --text-muted: #888888;
+      --text-dim: #555555;
+      --purple: #7c3aed;
+      --purple-light: #9d61ff;
+      --purple-dark: #5b21b6;
+      --purple-faint: #7c3aed18;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --font: 'Inter', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-logo span { color: var(--purple-light); }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+    }
+
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 5rem 2rem 3rem;
+    }
+
+    .hero-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-breadcrumb a { color: var(--text-muted); text-decoration: none; }
+    .hero-breadcrumb a:hover { color: var(--purple-light); }
+
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.25rem 0.7rem;
+      border-radius: 20px;
+      border: 1px solid var(--border-2);
+      color: var(--text-muted);
+    }
+
+    .tag-purple {
+      border-color: var(--purple);
+      color: var(--purple-light);
+      background: var(--purple-faint);
+    }
+
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 1.2rem;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--purple-light);
+    }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-meta strong { color: var(--text); }
+
+    .hero-lead {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      line-height: 1.8;
+      border-left: 3px solid var(--purple);
+      padding-left: 1.2rem;
+    }
+
+    .toc-box {
+      max-width: 860px;
+      margin: 0 auto 2rem;
+      padding: 0 2rem;
+    }
+
+    .toc-inner {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+    }
+
+    .toc-inner h3 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem 2rem;
+      counter-reset: toc;
+    }
+
+    .toc-list li { counter-increment: toc; }
+
+    .toc-list a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: color 0.2s;
+    }
+
+    .toc-list a:hover { color: var(--purple-light); }
+
+    .toc-list a::before {
+      content: counter(toc, decimal-leading-zero);
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--purple);
+      font-weight: 600;
+      min-width: 1.8rem;
+    }
+
+    .content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 2rem 4rem;
+    }
+
+    .section { margin-bottom: 4rem; }
+
+    .section-number {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      color: var(--purple);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.2rem;
+      line-height: 1.3;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.8rem 0 0.8rem;
+    }
+
+    p { margin-bottom: 1.1rem; color: var(--text-muted); }
+
+    strong { color: var(--text); font-weight: 600; }
+
+    a { color: var(--purple-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.1rem; }
+    ul li, ol li { color: var(--text-muted); margin-bottom: 0.4rem; }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover { border-color: var(--purple); }
+
+    .card-icon { font-size: 1.4rem; margin-bottom: 0.6rem; }
+
+    .card h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .card p { font-size: 0.8rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+    .callout {
+      border-radius: 8px;
+      padding: 1.2rem 1.4rem;
+      margin: 1.5rem 0;
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .callout-info { background: #1a1a2e; border: 1px solid #3b3b8a; }
+    .callout-warning { background: #1c1500; border: 1px solid #6b4c00; }
+    .callout-success { background: #0a1f15; border: 1px solid #0d4f2e; }
+    .callout-danger { background: #1f0a0a; border: 1px solid #4f0d0d; }
+
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; margin-bottom: 0.3rem; font-size: 0.9rem; }
+    .callout-body p { font-size: 0.85rem; margin: 0; }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead tr { background: var(--bg-3); }
+
+    th {
+      padding: 0.8rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+
+    tr:hover td { background: var(--bg-2); }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+
+    .badge-green { background: #0a2e1f; color: var(--green); border: 1px solid #0d6640; }
+    .badge-yellow { background: #1f1a0a; color: var(--yellow); border: 1px solid #6b5a00; }
+    .badge-red { background: #1f0a0a; color: var(--red); border: 1px solid #6b0d0d; }
+    .badge-blue { background: #0a1520; color: var(--blue); border: 1px solid #0d3d6b; }
+    .badge-purple { background: var(--purple-faint); color: var(--purple-light); border: 1px solid var(--purple-dark); }
+
+    .code-block {
+      margin: 1.5rem 0;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .code-header {
+      background: var(--bg-3);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-lang {
+      font-size: 0.7rem;
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--purple-light);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .code-filename {
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--text-dim);
+    }
+
+    .code-body {
+      background: #0d0d0d;
+      padding: 1.4rem 1.6rem;
+      overflow-x: auto;
+    }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #cdd6f4;
+      white-space: pre;
+    }
+
+    .kw { color: #cba6f7; }
+    .fn { color: #89b4fa; }
+    .st { color: #a6e3a1; }
+    .cm { color: #585b70; font-style: italic; }
+    .nm { color: #fab387; }
+    .op { color: #89dceb; }
+    .bl { color: #f38ba8; }
+    .dc { color: #f9e2af; }
+
+    .diagram {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 2rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+    }
+
+    .diagram pre {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .diagram-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 1rem;
+      font-style: italic;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .stat-card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem 1rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--purple-light);
+      font-family: var(--mono);
+      display: block;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .cta-section {
+      background: linear-gradient(135deg, #13003d 0%, #1a0050 50%, #0d0026 100%);
+      border: 1px solid var(--purple-dark);
+      border-radius: 16px;
+      padding: 3rem 2.5rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+
+    .cta-section h2 { font-size: 1.8rem; margin-bottom: 0.8rem; }
+    .cta-section p { font-size: 1rem; max-width: 520px; margin: 0 auto 2rem; }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); transform: translateY(-1px); text-decoration: none; }
+    .btn-outline { border: 1px solid var(--border-2); color: var(--text); background: transparent; }
+    .btn-outline:hover { border-color: var(--purple); color: var(--purple-light); text-decoration: none; }
+
+    footer {
+      background: var(--bg-2);
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+
+    .footer-logo { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 0.6rem; }
+    .footer-logo span { color: var(--purple-light); }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+
+    .footer-links a { font-size: 0.85rem; color: var(--text-dim); text-decoration: none; }
+    .footer-links a:hover { color: var(--purple-light); }
+    .footer-copy { font-size: 0.8rem; color: var(--text-dim); margin-top: 1rem; }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 3rem 0;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 2rem;
+      margin: 1.5rem 0;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0.5rem;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -1.625rem;
+      top: 0.4rem;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--purple);
+      border: 2px solid var(--bg);
+    }
+
+    .timeline-label {
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      color: var(--purple-light);
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+
+    .timeline-content {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      .nav-links { display: none; }
+      .hero { padding: 3rem 1rem 2rem; }
+      .toc-box { padding: 0 1rem; }
+      .toc-list { grid-template-columns: 1fr; }
+      .content { padding: 0 1rem 3rem; }
+      .cta-section { padding: 2rem 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="https://purpleflea.com/casino-api">Casino</a></li>
+    <li><a href="https://purpleflea.com/trading-api">Trading</a></li>
+    <li><a href="https://purpleflea.com/wallet-api">Wallet</a></li>
+    <li><a href="https://purpleflea.com/domains-api">Domains</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://purpleflea.com/blog" class="nav-cta">Blog</a></li>
+  </ul>
+</nav>
+
+<header class="hero">
+  <div class="hero-breadcrumb">
+    <a href="https://purpleflea.com">Home</a>
+    <span>/</span>
+    <a href="https://purpleflea.com/blog">Blog</a>
+    <span>/</span>
+    <span>Nonce Management</span>
+  </div>
+
+  <div class="hero-tags">
+    <span class="tag tag-purple">Deep Dive</span>
+    <span class="tag">EVM</span>
+    <span class="tag">Wallet API</span>
+    <span class="tag">Concurrency</span>
+  </div>
+
+  <h1>Nonce Management for <em>AI Agents</em>: Avoiding Transaction Failures</h1>
+
+  <div class="hero-meta">
+    <span>By <strong>Purple Flea Engineering</strong></span>
+    <span>March 4, 2026</span>
+    <span>16 min read</span>
+  </div>
+
+  <p class="hero-lead">
+    The nonce is the most underappreciated source of transaction failures for AI agents. A single misstep creates a nonce gap that freezes every subsequent transaction until resolved. This guide covers EVM nonce mechanics from first principles, common failure modes in concurrent agent architectures, and a production-grade Python nonce manager class that handles thread safety, gap recovery, and mempool state reconciliation.
+  </p>
+</header>
+
+<div class="toc-box">
+  <div class="toc-inner">
+    <h3>Table of Contents</h3>
+    <ol class="toc-list">
+      <li><a href="#nonce-fundamentals">Nonce Fundamentals</a></li>
+      <li><a href="#common-failures">Common Failure Modes</a></li>
+      <li><a href="#concurrent-agents">Concurrent Agent Hazards</a></li>
+      <li><a href="#nonce-manager">Nonce Manager Class</a></li>
+      <li><a href="#purpleflea-integration">Purple Flea Integration</a></li>
+      <li><a href="#best-practices">Best Practices</a></li>
+    </ol>
+  </div>
+</div>
+
+<main class="content">
+
+  <section class="section" id="nonce-fundamentals">
+    <div class="section-number">01 — Nonce Fundamentals</div>
+    <h2>Nonce Fundamentals</h2>
+
+    <p>
+      In Ethereum and all EVM-compatible chains, every account has a transaction count — called a <strong>nonce</strong> — that starts at 0 and increments by exactly 1 with each confirmed transaction. The nonce is a strict sequence enforcer: transaction N+1 cannot be processed until transaction N is confirmed.
+    </p>
+
+    <p>
+      This design prevents replay attacks (you cannot re-submit an already-confirmed transaction because its nonce is now in the past) and enforces ordering (a spender cannot spend funds twice simultaneously). For human users submitting one transaction at a time, nonces are invisible. For AI agents submitting dozens of transactions per minute, they are a fundamental bottleneck.
+    </p>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span class="stat-value">0</span>
+        <span class="stat-label">First account nonce</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">+1</span>
+        <span class="stat-label">Increment per tx</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">∞</span>
+        <span class="stat-label">Max nonce value</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">strict</span>
+        <span class="stat-label">Ordering</span>
+      </div>
+    </div>
+
+    <h3>The Two Nonce Values You Need to Track</h3>
+
+    <p>
+      When querying an Ethereum node, you get two different nonce values depending on how you ask:
+    </p>
+
+    <ul>
+      <li><strong>Confirmed nonce</strong> (<code>eth_getTransactionCount</code> with <code>"latest"</code>): The number of transactions included in confirmed blocks. This is what you've successfully committed to the chain.</li>
+      <li><strong>Pending nonce</strong> (<code>eth_getTransactionCount</code> with <code>"pending"</code>): Includes transactions waiting in the mempool that the node has accepted. This is the value to use when queuing the <em>next</em> transaction.</li>
+    </ul>
+
+    <div class="callout callout-warning">
+      <span class="callout-icon">⚡</span>
+      <div class="callout-body">
+        <strong>Always use "pending" when building transactions, never "latest"</strong>
+        <p>If you use "latest" and you have a transaction pending in the mempool, you will accidentally reuse the same nonce. The node will accept it but the second transaction will replace or conflict with the first. This is a very common agent bug.</p>
+      </div>
+    </div>
+
+    <h3>Nonce in Multi-Chain Context</h3>
+
+    <p>
+      Each EVM chain maintains an independent nonce per address. Your agent's address on Ethereum has a completely separate nonce from the same address on Polygon, BNB Chain, or Avalanche. Solana, Bitcoin, Monero, and TRON use entirely different transaction models — Solana has no nonce in the EVM sense; it uses recent blockhashes.
+    </p>
+
+    <p>
+      Purple Flea's Wallet API manages nonces per-chain internally for all 8 supported networks, but understanding the mechanics helps you reason about failures when they occur.
+    </p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="common-failures">
+    <div class="section-number">02 — Common Failure Modes</div>
+    <h2>Common Nonce Failure Modes</h2>
+
+    <p>
+      Nonce failures manifest in several distinct ways. Each has a different root cause and recovery procedure. Understanding the failure taxonomy is essential before writing any nonce management code.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🕳️</div>
+        <h4>Nonce Gap</h4>
+        <p>Transaction with nonce N submitted but nonce N-1 never confirmed. All subsequent transactions (N+1, N+2...) are also stuck.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">♻️</div>
+        <h4>Nonce Reuse</h4>
+        <p>Two transactions submitted with the same nonce. The mempool keeps the higher-fee one; the other is silently dropped.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔢</div>
+        <h4>Stale Nonce</h4>
+        <p>Agent reads nonce from a lagging node. Submits nonce that is already confirmed, resulting in immediate rejection.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⛽</div>
+        <h4>Underpriced Stuck</h4>
+        <p>Transaction submitted with too-low gas price never mines. Subsequent transactions queue up behind it indefinitely.</p>
+      </div>
+    </div>
+
+    <h3>Anatomy of a Nonce Gap</h3>
+
+    <div class="diagram">
+      <pre>
+  Confirmed nonce:  42
+  Mempool state:
+
+  Nonce 43: ✅ Pending (valid, queued after 42)
+  Nonce 44: ✅ Pending (valid, queued after 43)
+  Nonce 45: ❌ MISSING — gap created here
+  Nonce 46: ⏳ Future (agent submitted this but it is blocked by gap)
+  Nonce 47: ⏳ Future (also blocked)
+  Nonce 48: ⏳ Future (also blocked)
+
+  Result: Transactions 46, 47, 48 cannot execute until nonce 45 is filled.
+  Every minute they sit unconfirmed, they are at risk of expiring from mempool.
+
+  Recovery options:
+  ① Submit a transaction WITH nonce 45 at any gas price (even 0-value self-send)
+  ② Cancel 43, 44 then resubmit all from nonce 43 in sequence
+  ③ If using Purple Flea API: call /wallet/recover-nonce — API handles it
+      </pre>
+      <div class="diagram-label">Figure 1: Nonce gap blocking downstream transactions</div>
+    </div>
+
+    <h3>The Replacement Transaction Pattern</h3>
+
+    <p>
+      When a transaction is stuck in the mempool due to low gas, the standard fix is to submit a replacement transaction with the <strong>same nonce</strong> but higher gas price (at least 10% higher than the stuck transaction). Miners/validators will evict the lower-fee transaction and include the replacement.
+    </p>
+
+    <p>
+      This is how "cancel" transactions work: you send a 0-ETH transfer to yourself with the same nonce but enough gas to get mined quickly. The cancellation consumes the nonce slot, unblocking everything queued after it.
+    </p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body">
+        <strong>EIP-1559 changes gas calculation but not nonce behavior</strong>
+        <p>Post-EIP-1559 transactions have maxFeePerGas and maxPriorityFeePerGas instead of a single gasPrice. The replacement threshold still applies to the effective gas price. To replace a stuck EIP-1559 transaction, bump both values by at least 10%.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="concurrent-agents">
+    <div class="section-number">03 — Concurrent Agent Hazards</div>
+    <h2>Concurrent Agent Hazards</h2>
+
+    <p>
+      Single-threaded, sequential transaction submission rarely has nonce issues. The complexity explodes when an agent submits multiple transactions concurrently — which is common in high-frequency trading agents, casino agents running multiple games simultaneously, or agents managing multiple open positions.
+    </p>
+
+    <h3>The Race Condition</h3>
+
+    <div class="diagram">
+      <pre>
+  Time →      T1         T2         T3         T4
+  ──────────────────────────────────────────────────────
+  Thread A:   read(pending)=43    sign(43)    submit(43)
+                    |
+  Thread B:         read(pending)=43    sign(43)    submit(43)
+                                              ↑
+                                       COLLISION — both submitted nonce 43!
+                                       Higher gas wins, lower gas DROPPED.
+
+  Result: One transaction is silently lost. No error thrown by the RPC.
+  The agent may not know which transaction succeeded until checking receipts.
+      </pre>
+      <div class="diagram-label">Figure 2: Concurrent threads racing on nonce assignment</div>
+    </div>
+
+    <p>
+      This is the most insidious failure: the dropped transaction generates no exception at submission time. Your agent receives a transaction hash for both transactions. Only one will ever be mined. If the dropped transaction was a casino bet, a trade entry, or a payment, it simply never happens.
+    </p>
+
+    <h3>Async Event Loop Hazards</h3>
+
+    <p>
+      Python's asyncio single-thread model might seem safe, but the <code>await</code> keyword is a yield point. Between querying the nonce and submitting the transaction, other coroutines can run and themselves read the same nonce:
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">race_condition_example.py</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="cm"># DANGEROUS: Both coroutines read nonce=43 at the same time</span>
+<span class="cm"># because await is a yield point between read and use</span>
+
+<span class="kw">async def</span> <span class="fn">bad_send_tx</span>(web3, account, to, value):
+    nonce = <span class="kw">await</span> web3.eth.get_transaction_count(account, <span class="st">'pending'</span>)
+    <span class="cm"># ← YIELD POINT: another coroutine can run here and also read nonce=43</span>
+    tx = {<span class="st">'nonce'</span>: nonce, <span class="st">'to'</span>: to, <span class="st">'value'</span>: value, ...}
+    signed = account.sign_transaction(tx)
+    <span class="cm"># ← YIELD POINT: again vulnerable</span>
+    <span class="kw">return await</span> web3.eth.send_raw_transaction(signed.rawTransaction)
+
+<span class="cm"># If two coroutines run concurrently, both get nonce=43:</span>
+<span class="kw">await</span> asyncio.gather(
+    bad_send_tx(w3, acct, addr1, value1),  <span class="cm"># gets nonce 43</span>
+    bad_send_tx(w3, acct, addr2, value2),  <span class="cm"># ALSO gets nonce 43 — COLLISION</span>
+)</pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="nonce-manager">
+    <div class="section-number">04 — Nonce Manager Class</div>
+    <h2>Production Nonce Manager: Full Implementation</h2>
+
+    <p>
+      The following <code>NonceManager</code> class provides thread-safe, async-safe nonce management with automatic gap detection, stuck transaction recovery, and mempool reconciliation. It is designed for agents that submit high volumes of concurrent transactions.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">nonce_manager.py</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="cm">"""
+Production-grade NonceManager for AI agents.
+Thread-safe, async-safe, with gap detection and recovery.
+Compatible with Purple Flea Wallet API.
+"""</span>
+
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Optional, Set
+<span class="kw">import</span> aiohttp
+
+log = logging.getLogger(<span class="st">'nonce_manager'</span>)
+
+<span class="cm"># Chains where nonce management applies (non-EVM chains handled differently)</span>
+EVM_CHAINS = {<span class="st">"ETH"</span>, <span class="st">"MATIC"</span>, <span class="st">"BNB"</span>, <span class="st">"AVAX"</span>}
+STUCK_TX_TIMEOUT_S = <span class="nm">300</span>    <span class="cm"># 5 minutes before a tx is considered stuck</span>
+GAS_BUMP_FACTOR   = <span class="nm">1.15</span>   <span class="cm"># 15% gas bump for replacement transactions</span>
+MAX_PENDING_QUEUE = <span class="nm">50</span>     <span class="cm"># max unconfirmed txs before we pause submission</span>
+
+
+<span class="op">@dataclass</span>
+<span class="kw">class</span> <span class="fn">PendingTx</span>:
+    tx_hash: str
+    nonce: int
+    gas_price_gwei: float
+    submitted_at: float
+    chain: str
+    description: str = <span class="st">""</span>
+
+
+<span class="kw">class</span> <span class="fn">NonceManager</span>:
+    <span class="cm">"""
+    Thread-safe nonce manager for concurrent EVM transaction submission.
+
+    Features:
+    - Atomic nonce allocation via asyncio.Lock
+    - Pending transaction tracking per chain
+    - Gap detection with automatic fill-gap recovery
+    - Stuck transaction detection and gas bumping
+    - Mempool reconciliation via RPC
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, rpc_urls: Dict[str, str], address: str):
+        <span class="cm"># RPC endpoints per chain</span>
+        self.rpc_urls  = rpc_urls
+        self.address   = address.lower()
+
+        <span class="cm"># Nonce state: chain → current local nonce</span>
+        self._local_nonce: Dict[str, int] = {}
+
+        <span class="cm"># One lock per chain — prevents concurrent nonce reads on same chain</span>
+        self._locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+        <span class="cm"># Track pending transactions: chain → {nonce: PendingTx}</span>
+        self._pending: Dict[str, Dict[int, PendingTx]] = defaultdict(dict)
+
+        <span class="cm"># Set of nonces known to be confirmed: chain → set of nonces</span>
+        self._confirmed: Dict[str, Set[int]] = defaultdict(set)
+
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    <span class="kw">async def</span> <span class="fn">__aenter__</span>(self):
+        self._session = aiohttp.ClientSession()
+        <span class="kw">return</span> self
+
+    <span class="kw">async def</span> <span class="fn">__aexit__</span>(self, *args):
+        <span class="kw">if</span> self._session:
+            <span class="kw">await</span> self._session.close()
+
+    <span class="kw">async def</span> <span class="fn">_rpc</span>(self, chain: str, method: str, params: list) -> dict:
+        <span class="cm">"""Execute JSON-RPC call to chain node."""</span>
+        payload = {
+            <span class="st">"jsonrpc"</span>: <span class="st">"2.0"</span>,
+            <span class="st">"id"</span>: <span class="nm">1</span>,
+            <span class="st">"method"</span>: method,
+            <span class="st">"params"</span>: params,
+        }
+        <span class="kw">async with</span> self._session.post(
+            self.rpc_urls[chain], json=payload
+        ) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+            <span class="kw">if</span> <span class="st">"error"</span> <span class="kw">in</span> data:
+                <span class="kw">raise</span> RuntimeError(f<span class="st">"RPC error on {chain}: {data['error']}"</span>)
+            <span class="kw">return</span> data[<span class="st">"result"</span>]
+
+    <span class="kw">async def</span> <span class="fn">_fetch_pending_nonce</span>(self, chain: str) -> int:
+        <span class="cm">"""Get pending nonce from chain node."""</span>
+        result = <span class="kw">await</span> self._rpc(
+            chain, <span class="st">"eth_getTransactionCount"</span>, [self.address, <span class="st">"pending"</span>]
+        )
+        <span class="kw">return</span> int(result, <span class="nm">16</span>)
+
+    <span class="kw">async def</span> <span class="fn">_fetch_confirmed_nonce</span>(self, chain: str) -> int:
+        <span class="cm">"""Get confirmed (latest) nonce from chain node."""</span>
+        result = <span class="kw">await</span> self._rpc(
+            chain, <span class="st">"eth_getTransactionCount"</span>, [self.address, <span class="st">"latest"</span>]
+        )
+        <span class="kw">return</span> int(result, <span class="nm">16</span>)
+
+    <span class="kw">async def</span> <span class="fn">acquire_nonce</span>(self, chain: str) -> int:
+        <span class="cm">"""
+        Atomically acquire the next nonce for a chain.
+
+        This is the core method — always use this instead of
+        querying the RPC directly. Guarantees no two callers
+        get the same nonce even under concurrent load.
+        """</span>
+        <span class="kw">if</span> chain <span class="kw">not in</span> EVM_CHAINS:
+            <span class="kw">raise</span> ValueError(f<span class="st">"{chain} does not use EVM nonces"</span>)
+
+        <span class="kw">async with</span> self._locks[chain]:
+            <span class="cm"># Initialize local nonce from chain if not yet cached</span>
+            <span class="kw">if</span> chain <span class="kw">not in</span> self._local_nonce:
+                self._local_nonce[chain] = <span class="kw">await</span> self._fetch_pending_nonce(chain)
+                log.info(f<span class="st">"[{chain}] Initialized local nonce: {self._local_nonce[chain]}"</span>)
+
+            <span class="cm"># Check if we are overloading the mempool</span>
+            pending_count = len(self._pending[chain])
+            <span class="kw">if</span> pending_count >= MAX_PENDING_QUEUE:
+                log.warning(f<span class="st">"[{chain}] Pending queue full ({pending_count}), pausing"</span>)
+                <span class="kw">await</span> self._wait_for_confirmation(chain)
+
+            nonce = self._local_nonce[chain]
+            self._local_nonce[chain] += <span class="nm">1</span>
+            log.debug(f<span class="st">"[{chain}] Allocated nonce {nonce}"</span>)
+            <span class="kw">return</span> nonce
+
+    <span class="kw">def</span> <span class="fn">register_pending</span>(
+        self,
+        chain: str,
+        nonce: int,
+        tx_hash: str,
+        gas_price_gwei: float,
+        description: str = <span class="st">""</span>,
+    ):
+        <span class="cm">"""Register a submitted transaction as pending."""</span>
+        self._pending[chain][nonce] = PendingTx(
+            tx_hash=tx_hash,
+            nonce=nonce,
+            gas_price_gwei=gas_price_gwei,
+            submitted_at=time.time(),
+            chain=chain,
+            description=description,
+        )
+        log.debug(f<span class="st">"[{chain}] Registered pending nonce={nonce} hash={tx_hash[:10]}..."</span>)
+
+    <span class="kw">async def</span> <span class="fn">reconcile</span>(self, chain: str):
+        <span class="cm">"""
+        Reconcile local nonce state with on-chain state.
+        Call this periodically (e.g., every 60s) or after
+        detecting anomalies.
+        """</span>
+        <span class="kw">async with</span> self._locks[chain]:
+            on_chain_confirmed = <span class="kw">await</span> self._fetch_confirmed_nonce(chain)
+            on_chain_pending   = <span class="kw">await</span> self._fetch_pending_nonce(chain)
+
+            <span class="cm"># Remove confirmed txs from pending dict</span>
+            confirmed_nonces = [n <span class="kw">for</span> n <span class="kw">in</span> self._pending[chain] <span class="kw">if</span> n < on_chain_confirmed]
+            <span class="kw">for</span> n <span class="kw">in</span> confirmed_nonces:
+                log.info(f<span class="st">"[{chain}] Nonce {n} confirmed"</span>)
+                self._confirmed[chain].add(n)
+                del self._pending[chain][n]
+
+            <span class="cm"># Detect gap: confirmed < on_chain_pending means the node sees</span>
+            <span class="cm"># pending txs we might not have. Update local nonce to be safe.</span>
+            <span class="kw">if</span> on_chain_pending > self._local_nonce.get(chain, <span class="nm">0</span>):
+                log.warning(
+                    f<span class="st">"[{chain}] Local nonce {self._local_nonce.get(chain)} behind"</span>
+                    f<span class="st">" pending nonce {on_chain_pending} — syncing"</span>
+                )
+                self._local_nonce[chain] = on_chain_pending
+
+            log.info(
+                f<span class="st">"[{chain}] Reconciled: confirmed={on_chain_confirmed}"</span>
+                f<span class="st">" pending_queue={on_chain_pending}"</span>
+                f<span class="st">" local={self._local_nonce.get(chain, 'uninit')}"</span>
+            )
+
+    <span class="kw">async def</span> <span class="fn">detect_stuck</span>(self, chain: str) -> list[PendingTx]:
+        <span class="cm">"""Return list of transactions stuck beyond STUCK_TX_TIMEOUT_S."""</span>
+        now = time.time()
+        stuck = [
+            tx <span class="kw">for</span> tx <span class="kw">in</span> self._pending[chain].values()
+            <span class="kw">if</span> now - tx.submitted_at > STUCK_TX_TIMEOUT_S
+        ]
+        <span class="kw">if</span> stuck:
+            log.warning(f<span class="st">"[{chain}] {len(stuck)} stuck transactions detected"</span>)
+        <span class="kw">return</span> stuck
+
+    <span class="kw">async def</span> <span class="fn">fill_gap</span>(
+        self,
+        chain: str,
+        gap_nonce: int,
+        signer_fn,
+        current_gas_gwei: float,
+    ) -> str:
+        <span class="cm">"""
+        Fill a nonce gap by submitting a 0-value self-transfer.
+        signer_fn(tx_dict) → signed transaction bytes
+        """</span>
+        log.warning(f<span class="st">"[{chain}] Filling gap at nonce {gap_nonce}"</span>)
+        cancel_tx = {
+            <span class="st">"nonce"</span>: gap_nonce,
+            <span class="st">"to"</span>: self.address,
+            <span class="st">"value"</span>: <span class="nm">0</span>,
+            <span class="st">"gas"</span>: <span class="nm">21000</span>,
+            <span class="st">"maxFeePerGas"</span>: int(current_gas_gwei * <span class="nm">1e9</span> * <span class="nm">1.5</span>),
+            <span class="st">"maxPriorityFeePerGas"</span>: int(<span class="nm">2e9</span>),
+        }
+        signed_bytes = signer_fn(cancel_tx)
+        result = <span class="kw">await</span> self._rpc(
+            chain, <span class="st">"eth_sendRawTransaction"</span>, [<span class="st">"0x"</span> + signed_bytes.hex()]
+        )
+        log.info(f<span class="st">"[{chain}] Gap fill tx: {result}"</span>)
+        self.register_pending(chain, gap_nonce, result, current_gas_gwei * <span class="nm">1.5</span>, <span class="st">"gap_fill"</span>)
+        <span class="kw">return</span> result
+
+    <span class="kw">async def</span> <span class="fn">_wait_for_confirmation</span>(self, chain: str, timeout_s: float = <span class="nm">120</span>):
+        <span class="cm">"""Block until pending queue drops below half of MAX_PENDING_QUEUE."""</span>
+        deadline = time.time() + timeout_s
+        <span class="kw">while</span> len(self._pending[chain]) >= MAX_PENDING_QUEUE // <span class="nm">2</span>:
+            <span class="kw">if</span> time.time() > deadline:
+                <span class="kw">raise</span> TimeoutError(f<span class="st">"[{chain}] Pending queue still full after {timeout_s}s"</span>)
+            <span class="kw">await</span> asyncio.sleep(<span class="nm">5</span>)
+            <span class="kw">await</span> self.reconcile(chain)
+
+    <span class="kw">def</span> <span class="fn">stats</span>(self) -> Dict:
+        <span class="kw">return</span> {
+            chain: {
+                <span class="st">"local_nonce"</span>: self._local_nonce.get(chain, <span class="st">"uninit"</span>),
+                <span class="st">"pending_count"</span>: len(self._pending[chain]),
+                <span class="st">"confirmed_count"</span>: len(self._confirmed[chain]),
+            }
+            <span class="kw">for</span> chain <span class="kw">in</span> EVM_CHAINS
+        }</pre>
+      </div>
+    </div>
+
+    <h3>Usage Example: Concurrent Casino Bets</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">casino_with_nonce_manager.py</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> nonce_manager <span class="kw">import</span> NonceManager
+
+RPC_URLS = {
+    <span class="st">"ETH"</span>:   <span class="st">"https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"</span>,
+    <span class="st">"MATIC"</span>: <span class="st">"https://polygon-rpc.com"</span>,
+    <span class="st">"BNB"</span>:   <span class="st">"https://bsc-dataseed.binance.org"</span>,
+    <span class="st">"AVAX"</span>:  <span class="st">"https://api.avax.network/ext/bc/C/rpc"</span>,
+}
+
+AGENT_ADDRESS = <span class="st">"0xYourAgentAddress"</span>
+
+
+<span class="kw">async def</span> <span class="fn">place_bet</span>(
+    nm: NonceManager,
+    chain: str,
+    game: str,
+    amount: float,
+    signer,
+) -> str:
+    <span class="cm">"""Place a casino bet with nonce-safe transaction submission."""</span>
+    <span class="cm"># ✅ Acquire nonce BEFORE any async work (atomic allocation)</span>
+    nonce = <span class="kw">await</span> nm.acquire_nonce(chain)
+
+    <span class="kw">try</span>:
+        <span class="cm"># Build casino API transaction payload</span>
+        tx = {
+            <span class="st">"nonce"</span>: nonce,
+            <span class="st">"to"</span>: <span class="st">"0xPurpleFleCasinoContract"</span>,
+            <span class="st">"data"</span>: encode_bet(game, amount),
+            <span class="st">"gas"</span>: <span class="nm">200_000</span>,
+            <span class="st">"maxFeePerGas"</span>: int(<span class="nm">30e9</span>),
+            <span class="st">"maxPriorityFeePerGas"</span>: int(<span class="nm">2e9</span>),
+        }
+
+        signed = signer(tx)
+        tx_hash = <span class="kw">await</span> nm._rpc(chain, <span class="st">"eth_sendRawTransaction"</span>, [signed.hex()])
+        nm.register_pending(chain, nonce, tx_hash, <span class="nm">30.0</span>, f<span class="st">"casino:{game}:${amount}"</span>)
+
+        log.info(f<span class="st">"Bet placed: {game} ${amount} nonce={nonce} tx={tx_hash[:10]}..."</span>)
+        <span class="kw">return</span> tx_hash
+
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="cm"># If submission failed, we have a nonce gap — fill it immediately</span>
+        log.error(f<span class="st">"Bet submission failed at nonce {nonce}: {e}"</span>)
+        <span class="kw">await</span> nm.fill_gap(chain, nonce, signer, current_gas_gwei=<span class="nm">35.0</span>)
+        <span class="kw">raise</span>
+
+
+<span class="kw">async def</span> <span class="fn">run_multi_game_agent</span>():
+    <span class="kw">async with</span> NonceManager(RPC_URLS, AGENT_ADDRESS) <span class="kw">as</span> nm:
+        signer = get_signer()  <span class="cm"># Your signing function</span>
+
+        <span class="cm"># Start background reconciliation task</span>
+        asyncio.create_task(reconcile_loop(nm))
+
+        <span class="cm"># Place 5 concurrent bets safely</span>
+        results = <span class="kw">await</span> asyncio.gather(*[
+            place_bet(nm, <span class="st">"ETH"</span>, <span class="st">"blackjack"</span>, <span class="nm">50</span>,  signer),
+            place_bet(nm, <span class="st">"ETH"</span>, <span class="st">"roulette"</span>, <span class="nm">25</span>,  signer),
+            place_bet(nm, <span class="st">"ETH"</span>, <span class="st">"dice"</span>,      <span class="nm">10</span>,  signer),
+            place_bet(nm, <span class="st">"ETH"</span>, <span class="st">"slots"</span>,     <span class="nm">5</span>,   signer),
+            place_bet(nm, <span class="st">"ETH"</span>, <span class="st">"poker"</span>,     <span class="nm">100</span>, signer),
+        ])
+        <span class="cm"># ✅ All 5 bets get sequential nonces 43,44,45,46,47 — no collisions</span>
+        log.info(f<span class="st">"All bets placed: {results}"</span>)
+        log.info(f<span class="st">"Nonce stats: {nm.stats()}"</span>)
+
+
+<span class="kw">async def</span> <span class="fn">reconcile_loop</span>(nm: NonceManager):
+    <span class="kw">while</span> True:
+        <span class="kw">await</span> asyncio.sleep(<span class="nm">60</span>)
+        <span class="kw">for</span> chain <span class="kw">in</span> EVM_CHAINS:
+            <span class="kw">try</span>:
+                <span class="kw">await</span> nm.reconcile(chain)
+                stuck = <span class="kw">await</span> nm.detect_stuck(chain)
+                <span class="kw">if</span> stuck:
+                    log.warning(f<span class="st">"Stuck txs on {chain}: {[t.nonce for t in stuck]}"</span>)
+            <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                log.error(f<span class="st">"Reconcile failed for {chain}: {e}"</span>)</pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="purpleflea-integration">
+    <div class="section-number">05 — Purple Flea Integration</div>
+    <h2>How Purple Flea's Wallet API Handles Nonces</h2>
+
+    <p>
+      Purple Flea's Wallet API at <a href="https://purpleflea.com/wallet-api">purpleflea.com/wallet-api</a> manages nonces entirely on your behalf. When you submit a transaction through the API, the nonce is allocated atomically server-side, eliminating the race conditions described above.
+    </p>
+
+    <h3>What the API Does Under the Hood</h3>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-label">Step 1 — Request Received</div>
+        <div class="timeline-content">API receives your transaction request. A per-address, per-chain lock is acquired to prevent any concurrent nonce allocation for the same address.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-label">Step 2 — Nonce Allocation</div>
+        <div class="timeline-content">The API queries its internal nonce state (which it continuously reconciles against chain state). The next sequential nonce is assigned and the local counter incremented atomically before the lock is released.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-label">Step 3 — Transaction Signing</div>
+        <div class="timeline-content">The API signs the transaction with the allocated nonce using HSM-backed key storage. Your private key never leaves secure hardware.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-label">Step 4 — Submission with Retry</div>
+        <div class="timeline-content">Transaction broadcast to multiple redundant RPC endpoints. If the primary RPC rejects due to nonce collision (shouldn't happen, but defensive), the API retries with correct state.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-label">Step 5 — Monitoring</div>
+        <div class="timeline-content">The API monitors all submitted transactions for confirmation. Stuck transactions are automatically speed-up after the configurable timeout (default: 5 minutes). You receive webhook callbacks on confirmation.</div>
+      </div>
+    </div>
+
+    <div class="callout callout-success">
+      <span class="callout-icon">✅</span>
+      <div class="callout-body">
+        <strong>For most agents: just use the Wallet API</strong>
+        <p>The nonce manager class above is valuable if you are running your own transaction infrastructure. If you route transactions through Purple Flea's Wallet API, nonce management is handled automatically. The custom NonceManager is mainly useful for hybrid setups where you submit some transactions directly.</p>
+      </div>
+    </div>
+
+    <h3>Wallet API Transaction Endpoint</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">purpleflea_wallet_tx.py</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="kw">import</span> aiohttp
+
+<span class="kw">async def</span> <span class="fn">send_via_purpleflea</span>(
+    api_key: str,
+    chain: str,
+    to: str,
+    value_wei: int,
+    data: str = <span class="st">""</span>,
+) -> dict:
+    <span class="cm">"""
+    Send a transaction via Purple Flea Wallet API.
+    Nonce is managed automatically — no NonceManager needed.
+    """</span>
+    <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> session:
+        <span class="kw">async with</span> session.post(
+            <span class="st">"https://purpleflea.com/wallet-api/send"</span>,
+            headers={<span class="st">"Authorization"</span>: f<span class="st">"Bearer {api_key}"</span>},
+            json={
+                <span class="st">"chain"</span>:     chain,         <span class="cm"># "ETH", "MATIC", "BNB", "AVAX"</span>
+                <span class="st">"to"</span>:        to,
+                <span class="st">"value"</span>:     str(value_wei),
+                <span class="st">"data"</span>:      data,
+                <span class="st">"gas_mode"</span>:  <span class="st">"auto"</span>,        <span class="cm"># API handles gas estimation</span>
+                <span class="st">"priority"</span>:  <span class="st">"normal"</span>,     <span class="cm"># "slow" | "normal" | "fast" | "urgent"</span>
+            },
+        ) <span class="kw">as</span> resp:
+            resp.raise_for_status()
+            result = <span class="kw">await</span> resp.json()
+            <span class="cm"># result = {"tx_hash": "0x...", "nonce": 47, "status": "submitted"}</span>
+            <span class="kw">return</span> result
+
+
+<span class="cm"># The API handles all nonce allocation, gas estimation, and retry logic.</span>
+<span class="cm"># Your agent just calls send_via_purpleflea() for each transaction.</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="best-practices">
+    <div class="section-number">06 — Best Practices</div>
+    <h2>Best Practices Summary</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Practice</th>
+            <th>Why It Matters</th>
+            <th>Priority</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Always use "pending" nonce query</td>
+            <td>Prevents reuse of already-queued nonces</td>
+            <td><span class="badge badge-red">Critical</span></td>
+          </tr>
+          <tr>
+            <td>Lock before read-increment-submit</td>
+            <td>Prevents concurrent nonce collisions</td>
+            <td><span class="badge badge-red">Critical</span></td>
+          </tr>
+          <tr>
+            <td>Fill gaps immediately on failure</td>
+            <td>Unblocks queued transactions</td>
+            <td><span class="badge badge-yellow">High</span></td>
+          </tr>
+          <tr>
+            <td>Reconcile with chain every 60s</td>
+            <td>Detects node sync lag and missing confirmations</td>
+            <td><span class="badge badge-yellow">High</span></td>
+          </tr>
+          <tr>
+            <td>Cap pending queue at 50</td>
+            <td>Prevents mempool flood and chain-specific limits</td>
+            <td><span class="badge badge-blue">Medium</span></td>
+          </tr>
+          <tr>
+            <td>Monitor for stuck txs every 5 min</td>
+            <td>Auto-bump gas before expiry from mempool</td>
+            <td><span class="badge badge-blue">Medium</span></td>
+          </tr>
+          <tr>
+            <td>Use Purple Flea Wallet API</td>
+            <td>Offloads all nonce management complexity</td>
+            <td><span class="badge badge-green">Recommended</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ️</span>
+      <div class="callout-body">
+        <strong>Nonce behavior on non-EVM chains</strong>
+        <p>Solana uses recent blockhashes instead of sequential nonces — transactions expire if not included within ~2 minutes. Bitcoin uses UTXO model with no nonce. Monero uses key images for double-spend prevention. TRX uses block references. Purple Flea's Wallet API normalizes all of these into a single transaction submission interface.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Stop Worrying About Nonces</h2>
+    <p>Purple Flea's Wallet API handles nonce management, gas estimation, and transaction retry automatically across all 8 supported chains. Get started for free.</p>
+    <div class="cta-buttons">
+      <a href="https://purpleflea.com/wallet-api" class="btn btn-primary">Wallet API Docs</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-outline">Get Free USDC</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-logo">Purple<span>Flea</span></div>
+  <p style="font-size:0.85rem;color:var(--text-dim);margin:0.5rem 0;">Blue chip financial infrastructure for AI agents.</p>
+  <div class="footer-links">
+    <a href="https://purpleflea.com/casino-api">Casino API</a>
+    <a href="https://purpleflea.com/trading-api">Trading API</a>
+    <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+    <a href="https://purpleflea.com/domains-api">Domains API</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+    <a href="https://purpleflea.com/blog">Blog</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 Purple Flea. All rights reserved.</div>
+</footer>
+
+</body>
+</html>
