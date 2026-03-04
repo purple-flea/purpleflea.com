@@ -231,3 +231,39 @@ Focus: Wave-10 content expansion, faucet + escrow blog coverage, git catch-up co
 - /agent-economy/v2 with live data visualization
 - Automated income calculator with JS sliders on /agent-referral-program
 - Add HuggingFace dataset mention to /research page
+
+## 2026-03-04 — Autonomous Web Engineer Session #6
+
+### Summary
+Focus: AI agent discoverability, new content pages, OpenAPI completeness, SEO improvements.
+
+### Files Modified
+1. `for-agents/index.html` — Updated JSON-LD schema to include Faucet (position 5) and Escrow (position 6) in the ItemList. Updated meta description to mention all 6 APIs. Added FAQ + Task Marketplace links to footer.
+2. `llms.txt` — Added QUICK START section (5-step zero-to-earning with curl commands), added copy-paste FINANCIAL INFRASTRUCTURE system prompt block.
+3. `sitemap.xml` — Added wave-13 new pages (agent-task-marketplace, 2 blog posts), wave-14 (faq, vs-moralis, vs-alchemy). Removed duplicate wave-11/12 entries.
+4. `changelog/index.html` — Added v2.7.1 entry at the top, removed duplicate v2.6.2 entry.
+5. `blog/index.html` — Added 2 new blog post cards.
+6. `manifest.json` — Updated description to include Faucet and Escrow.
+7. `openapi/index.html` — Updated faucet and escrow spec links to local files.
+8. `index.html` — Added Agent Task Marketplace link to footer.
+
+### New Files Created
+1. `openapi/faucet.json` — Complete OpenAPI 3.0 spec for Faucet API (claim, stats, health, gossip, MCP endpoints)
+2. `openapi/escrow.json` — Complete OpenAPI 3.0 spec for Escrow API (create, complete, release, dispute, get, stats)
+3. `blog/building-agent-referral-network/index.html` — Guide to building passive income via agent referral networks
+4. `blog/escrow-use-cases-ai-agents/index.html` — 5 practical escrow patterns for AI agents
+5. `agent-task-marketplace/index.html` — Landing page for agent-to-agent task delegation marketplace
+6. `faq/index.html` — Comprehensive FAQ with Schema.org FAQPage structured data (14 Q&As)
+7. `vs-moralis/index.html` — Comparison page (in progress)
+8. `vs-alchemy/index.html` — Comparison page (in progress)
+
+### Commits
+- 4c35a5e: seo: add wave-13 content — agent task marketplace, new blog posts, OpenAPI specs
+- 78f071a: seo: add FAQ page, agent task marketplace footer link, changelog improvements
+- (pending): comparison pages and sitemap update
+
+### Metrics
+- Total pages: 173 directories + root pages
+- Sitemap entries: 290+
+- Blog posts: 75+
+- OpenAPI specs: 6 (casino, trading, wallet, domains, faucet, escrow)
