@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Purple Flea's Provably Fair Casino Works: A Technical Deep Dive | Purple Flea Blog</title>
+<meta name="description" content="Complete technical explanation of Purple Flea's HMAC-SHA256 provably fair casino system. Step-by-step verification code, server seed commitment scheme, and why this matters for AI agents.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/blog/casino-provably-fair/">
+<meta property="og:title" content="How Purple Flea's Provably Fair Casino Works: A Technical Deep Dive">
+<meta property="og:description" content="Complete technical explanation of Purple Flea's HMAC-SHA256 provably fair casino system. Step-by-step verification code, server seed commitment scheme, and why this matters for AI agents.">
+<meta property="og:url" content="https://purpleflea.com/blog/casino-provably-fair/">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "How Purple Flea's Provably Fair Casino Works: A Technical Deep Dive",
+  "description": "Complete technical explanation of Purple Flea's HMAC-SHA256 provably fair casino system. Step-by-step verification code, server seed commitment scheme, and why this matters for AI agents.",
+  "url": "https://purpleflea.com/blog/casino-provably-fair/",
+  "datePublished": "2026-03-04",
+  "author": {"@type": "Organization", "name": "Purple Flea"},
+  "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"}
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090B; --bg-card: #111118; --border: rgba(255,255,255,0.06);
+  --text: #f0f0f5; --text-secondary: #9090a8; --text-muted: #5a5a72;
+  --purple: #a855f7; --purple-dim: rgba(168,85,247,0.12);
+  --green: #22c55e; --amber: #f59e0b;
+  --mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+nav { border-bottom: 1px solid var(--border); padding: 14px 0; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.nav-inner { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { text-decoration: none; color: var(--text); font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.nav-logo-icon { color: var(--purple); }
+.nav-links { display: flex; gap: 20px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.825rem; }
+.nav-links a:hover { color: var(--text); }
+.container { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); }
+.tag { display: inline-flex; align-items: center; gap: 6px; background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); color: var(--purple); font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 18px; }
+.hero h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 16px; }
+.hero-meta { color: var(--text-muted); font-size: 0.8rem; display: flex; gap: 16px; flex-wrap: wrap; }
+.hero-meta span { display: flex; align-items: center; gap: 5px; }
+.content { padding: 48px 0 80px; }
+.content h2 { font-size: 1.25rem; font-weight: 600; margin: 40px 0 14px; color: var(--text); }
+.content h3 { font-size: 1rem; font-weight: 600; margin: 28px 0 10px; color: var(--text); }
+.content p { color: var(--text-secondary); margin-bottom: 16px; font-size: 0.95rem; }
+.content ul, .content ol { color: var(--text-secondary); margin: 0 0 16px 1.2rem; font-size: 0.95rem; }
+.content li { margin-bottom: 6px; }
+.content a { color: var(--purple); text-decoration: none; }
+.content a:hover { text-decoration: underline; }
+.code-block { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 20px 0; overflow-x: auto; }
+.code-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+pre { font-family: var(--mono); font-size: 0.825rem; line-height: 1.7; color: #c9c9e0; }
+.kw { color: #c792ea; } .fn { color: #82aaff; } .st { color: #c3e88d; }
+.cm { color: #546e7a; font-style: italic; } .nm { color: #f78c6c; }
+.tp { color: #ffcb6b; } .url { color: var(--purple); }
+.callout { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-title { font-size: 0.8rem; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.callout p { margin: 0; font-size: 0.9rem; }
+.callout-green { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+.callout-green .callout-title { color: var(--green); }
+.compare-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.875rem; }
+.compare-table th { text-align: left; padding: 10px 14px; color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
+.compare-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-secondary); vertical-align: top; }
+.compare-table td:first-child { color: var(--text); font-weight: 500; width: 35%; }
+.compare-table td.good { color: var(--green); }
+.compare-table td.bad { color: #ef4444; }
+.compare-table tr:last-child td { border-bottom: none; }
+.step-box { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0; display: flex; gap: 16px; align-items: flex-start; }
+.step-num { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.3); color: var(--purple); font-weight: 700; font-size: 0.8rem; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-content h4 { color: var(--text); font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+.step-content p { color: var(--text-secondary); font-size: 0.875rem; margin: 0; }
+.purple { color: var(--purple); }
+.green { color: var(--green); }
+footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; }
+footer p { color: var(--text-muted); font-size: 0.8rem; }
+footer a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span class="nav-logo-icon">&#9830;</span> Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="container">
+    <div class="tag">Casino / Technical</div>
+    <h1>How Purple Flea's Provably Fair<br>Casino Works: A Technical Deep Dive</h1>
+    <div class="hero-meta">
+      <span>March 4, 2026</span>
+      <span>Purple Flea Team</span>
+      <span>10 min read</span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="container">
+
+    <p>Traditional casinos ask you to trust them. They run the RNG (random number generator) on their servers, show you the result, and you have to believe the number was genuinely random. There is no way to verify this independently. For AI agents operating autonomously with real capital, that trust model is unacceptable.</p>
+
+    <p>Purple Flea uses provably fair cryptography. Every bet result is mathematically determined by three inputs: a server seed, a client seed, and a nonce. The server commits to its seed before the bet. After the bet, you can independently verify the result using the revealed seed. No manipulation is possible without detection.</p>
+
+    <p>This post explains exactly how it works, step by step, with verification code you can run yourself.</p>
+
+    <h2>Traditional Casino vs. Provably Fair: The Core Difference</h2>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Traditional Casino</th>
+          <th>Provably Fair (Purple Flea)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Randomness source</td>
+          <td class="bad">Server-controlled RNG, not auditable</td>
+          <td class="good">HMAC-SHA256 of public + private seeds</td>
+        </tr>
+        <tr>
+          <td>Can you verify your bet?</td>
+          <td class="bad">No. You must trust the casino</td>
+          <td class="good">Yes. Verify any bet with 5 lines of Python</td>
+        </tr>
+        <tr>
+          <td>Can the casino manipulate results?</td>
+          <td class="bad">Yes, undetectably</td>
+          <td class="good">No. Seed is committed before the bet</td>
+        </tr>
+        <tr>
+          <td>House edge transparency</td>
+          <td class="bad">Claimed, not verifiable</td>
+          <td class="good">Fixed and mathematically derivable from algorithm</td>
+        </tr>
+        <tr>
+          <td>Suitable for autonomous agents?</td>
+          <td class="bad">No. Manipulation risk is unacceptable</td>
+          <td class="good">Yes. Results are cryptographically guaranteed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>The Three-Seed System</h2>
+
+    <p>Every bet in Purple Flea's casino uses three inputs to determine the result:</p>
+
+    <ul>
+      <li><strong>Server seed:</strong> A 256-bit random string generated by Purple Flea's servers. This is kept secret until after the bet. Before the bet, only its SHA-256 hash (the "server seed hash") is shared with you.</li>
+      <li><strong>Client seed:</strong> A string you provide (or that is generated client-side on your behalf). This is fully under your control. You can change it at any time before betting.</li>
+      <li><strong>Nonce:</strong> An integer that increments by 1 with each bet on the same seed pair. Starts at 0, increases monotonically. This ensures each bet has a unique result even with identical seeds.</li>
+    </ul>
+
+    <p>The bet result is computed as:</p>
+
+    <div class="code-block">
+      <div class="code-label">Pseudocode — Core formula</div>
+      <pre>hmac_bytes = HMAC-SHA256(key=server_seed, msg=f"{client_seed}:{nonce}")
+result     = bytes_to_float(hmac_bytes)  <span class="cm"># Float in [0, 1)</span>
+game_outcome = apply_game_rules(result)  <span class="cm"># Map float to game result</span></pre>
+    </div>
+
+    <p>The key property: the server must commit to <code>server_seed</code> (via its hash) before you place the bet. After the bet, the server reveals <code>server_seed</code>. You can now compute the HMAC yourself and verify the result is identical to what you received.</p>
+
+    <h2>Step-by-Step: The Commitment Scheme</h2>
+
+    <div class="step-box">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>Server generates server seed</h4>
+        <p>Purple Flea generates a cryptographically secure random 64-character hex string. Example: <code>a4f2c8e1b3d7...</code></p>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4>Server publishes server seed hash</h4>
+        <p>SHA-256(server_seed) is sent to you before the bet. You cannot reverse the hash to get the seed — SHA-256 is one-way. But this commits the server: it cannot change server_seed after this point without the hash changing.</p>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4>You set your client seed</h4>
+        <p>You provide a client_seed (or accept the auto-generated one). This string is mixed into the HMAC, so even if you somehow knew the server seed, you control part of the randomness.</p>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4>Place the bet</h4>
+        <p>Call the bet endpoint. The nonce for this seed pair increments. The result is computed server-side using HMAC-SHA256.</p>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h4>Server reveals server seed</h4>
+        <p>After you rotate seeds (or on request), the server reveals the original server_seed. You now have all three inputs: server_seed, client_seed, nonce.</p>
+      </div>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <h4>You verify independently</h4>
+        <p>Compute HMAC-SHA256(server_seed, f"{client_seed}:{nonce}") yourself. If your result matches the game outcome, the casino was honest. If it does not match, the casino cheated.</p>
+      </div>
+    </div>
+
+    <h2>Verification Code in Python</h2>
+
+    <p>This is the complete verification function. It is less than 30 lines and has no external dependencies beyond Python's standard library:</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Complete bet verification</div>
+      <pre><span class="kw">import</span> hmac, hashlib, struct
+
+
+<span class="kw">def</span> <span class="fn">verify_bet</span>(
+    server_seed: <span class="tp">str</span>,
+    client_seed: <span class="tp">str</span>,
+    nonce: <span class="tp">int</span>,
+    expected_result: <span class="tp">float</span>,
+    server_seed_hash: <span class="tp">str</span>,
+) -> <span class="tp">dict</span>:
+    <span class="st">"""
+    Verify a Purple Flea casino bet result.
+
+    Args:
+        server_seed:      The revealed server seed (hex string).
+        client_seed:      Your client seed used for the bet.
+        nonce:            The nonce (bet number for this seed pair).
+        expected_result:  The float result [0,1) reported by the casino.
+        server_seed_hash: The SHA-256 hash published before the bet.
+
+    Returns:
+        dict with keys: seed_hash_valid, result, result_matches, verified
+    """</span>
+    <span class="cm"># Step 1: Verify the server seed matches the pre-committed hash</span>
+    actual_hash = hashlib.<span class="fn">sha256</span>(server_seed.<span class="fn">encode</span>()).<span class="fn">hexdigest</span>()
+    seed_hash_valid = (actual_hash == server_seed_hash)
+
+    <span class="cm"># Step 2: Compute the HMAC</span>
+    msg = f<span class="st">"{client_seed}:{nonce}"</span>.<span class="fn">encode</span>()
+    key = server_seed.<span class="fn">encode</span>()
+    hmac_bytes = hmac.<span class="fn">new</span>(key, msg, hashlib.sha256).<span class="fn">digest</span>()
+
+    <span class="cm"># Step 3: Convert first 4 bytes to a float in [0, 1)</span>
+    <span class="cm"># Interpret as big-endian uint32, divide by 2^32</span>
+    uint32_val = struct.<span class="fn">unpack</span>(<span class="st">">I"</span>, hmac_bytes[:<span class="nm">4</span>])[<span class="nm">0</span>]
+    computed_result = uint32_val / ((<span class="nm">2</span> ** <span class="nm">32</span>))
+
+    result_matches = <span class="fn">abs</span>(computed_result - expected_result) < <span class="nm">1e-9</span>
+
+    <span class="kw">return</span> {
+        <span class="st">"seed_hash_valid"</span>: seed_hash_valid,
+        <span class="st">"result"</span>:          computed_result,
+        <span class="st">"result_matches"</span>:  result_matches,
+        <span class="st">"verified"</span>:        seed_hash_valid <span class="kw">and</span> result_matches,
+        <span class="st">"hmac_hex"</span>:        hmac_bytes.<span class="fn">hex</span>(),
+    }
+
+
+<span class="cm"># Example: verify a dice bet</span>
+result = <span class="fn">verify_bet</span>(
+    server_seed      = <span class="st">"a4f2c8e1b3d7f9a2e5c8d1b4f7a3e6c9"</span>,
+    client_seed      = <span class="st">"my-agent-seed-2026"</span>,
+    nonce            = <span class="nm">42</span>,
+    expected_result  = <span class="nm">0.7341</span>,  <span class="cm"># Reported by casino (73.41)</span>
+    server_seed_hash = <span class="st">"3e7a2f..."</span>,  <span class="cm"># Hash published before bet</span>
+)
+
+<span class="fn">print</span>(f<span class="st">"Seed hash valid:  {result['seed_hash_valid']}"</span>)
+<span class="fn">print</span>(f<span class="st">"Computed result:  {result['result']:.6f}"</span>)
+<span class="fn">print</span>(f<span class="st">"Result matches:   {result['result_matches']}"</span>)
+<span class="fn">print</span>(f<span class="st">"Fully verified:   {result['verified']}"</span>)
+</pre>
+    </div>
+
+    <h3>Applying the Result to a Game</h3>
+
+    <p>The raw HMAC result is a float between 0 and 1. Each game maps this float to its specific outcome:</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Mapping HMAC float to game outcomes</div>
+      <pre><span class="kw">def</span> <span class="fn">dice_result</span>(raw: <span class="tp">float</span>, house_edge: <span class="tp">float</span> = <span class="nm">0.01</span>) -> <span class="tp">float</span>:
+    <span class="st">"""
+    Maps [0,1) float to dice roll [0, 100) with 1% house edge applied.
+    Roll range is [0, 99) — the top 1% is the house's cut.
+    """</span>
+    <span class="kw">return</span> raw * <span class="nm">100</span> * (<span class="nm">1</span> - house_edge)
+
+
+<span class="kw">def</span> <span class="fn">crash_multiplier</span>(raw: <span class="tp">float</span>, house_edge: <span class="tp">float</span> = <span class="nm">0.01</span>) -> <span class="tp">float</span>:
+    <span class="st">"""
+    Maps [0,1) float to crash game multiplier.
+    Uses the standard crash formula: 1 / (1 - raw) * (1 - house_edge)
+    Clamped to minimum 1.0x.
+    """</span>
+    <span class="kw">if</span> raw == <span class="nm">0</span>:
+        <span class="kw">return</span> <span class="nm">1.0</span>
+    raw_mult = <span class="nm">1</span> / (<span class="nm">1</span> - raw)
+    <span class="kw">return</span> <span class="fn">max</span>(<span class="nm">1.0</span>, raw_mult * (<span class="nm">1</span> - house_edge))
+
+
+<span class="kw">def</span> <span class="fn">coin_flip</span>(raw: <span class="tp">float</span>) -> <span class="tp">str</span>:
+    <span class="st">"""Maps [0,1) to heads or tails. &lt;0.5 = heads, &gt;=0.5 = tails."""</span>
+    <span class="kw">return</span> <span class="st">"heads"</span> <span class="kw">if</span> raw < <span class="nm">0.5</span> <span class="kw">else</span> <span class="st">"tails"</span>
+
+
+<span class="kw">def</span> <span class="fn">blackjack_card</span>(raw: <span class="tp">float</span>) -> <span class="tp">tuple</span>[<span class="tp">str</span>, <span class="tp">int</span>]:
+    <span class="st">"""Maps [0,1) to a playing card. 52 cards mapped evenly."""</span>
+    suits = [<span class="st">"♠"</span>, <span class="st">"♥"</span>, <span class="st">"♦"</span>, <span class="st">"♣"</span>]
+    ranks = [<span class="st">"2"</span>,<span class="st">"3"</span>,<span class="st">"4"</span>,<span class="st">"5"</span>,<span class="st">"6"</span>,<span class="st">"7"</span>,<span class="st">"8"</span>,<span class="st">"9"</span>,<span class="st">"10"</span>,<span class="st">"J"</span>,<span class="st">"Q"</span>,<span class="st">"K"</span>,<span class="st">"A"</span>]
+    values = [<span class="nm">2</span>,<span class="nm">3</span>,<span class="nm">4</span>,<span class="nm">5</span>,<span class="nm">6</span>,<span class="nm">7</span>,<span class="nm">8</span>,<span class="nm">9</span>,<span class="nm">10</span>,<span class="nm">10</span>,<span class="nm">10</span>,<span class="nm">10</span>,<span class="nm">11</span>]
+    card_idx  = <span class="fn">int</span>(raw * <span class="nm">52</span>)
+    suit_idx  = card_idx // <span class="nm">13</span>
+    rank_idx  = card_idx % <span class="nm">13</span>
+    <span class="kw">return</span> f<span class="st">"{ranks[rank_idx]}{suits[suit_idx]}"</span>, values[rank_idx]
+
+
+<span class="cm"># Demonstrate all three games from same HMAC result</span>
+raw = <span class="nm">0.7341</span>
+<span class="fn">print</span>(f<span class="st">"Raw result:         {raw}"</span>)
+<span class="fn">print</span>(f<span class="st">"Dice roll:          {dice_result(raw):.2f}"</span>)
+<span class="fn">print</span>(f<span class="st">"Crash multiplier:   {crash_multiplier(raw):.2f}x"</span>)
+<span class="fn">print</span>(f<span class="st">"Coin flip:          {coin_flip(raw)}"</span>)
+card, value = blackjack_card(raw)
+<span class="fn">print</span>(f<span class="st">"Blackjack card:     {card} (value={value})"</span>)
+</pre>
+    </div>
+
+    <h2>The House Edge: Fixed and Transparent</h2>
+
+    <p>Purple Flea's house edge is encoded directly in the game logic — not in the RNG. The dice game applies a 1% edge by reducing the effective outcome range. The crash game applies the edge via the multiplier formula. This means the edge is:</p>
+
+    <ul>
+      <li><strong>Fixed.</strong> The casino cannot adjust the edge bet-by-bet. It is a constant in the game code.</li>
+      <li><strong>Verifiable.</strong> You can compute the expected value of any bet using the published game formulas.</li>
+      <li><strong>Symmetric.</strong> The edge applies equally to all players, regardless of bet size or history.</li>
+    </ul>
+
+    <p>The expected value of a dice bet on Purple Flea is always -1% of stake. If you bet $1 on dice, your expected outcome is $0.99. The missing $0.01 is the house's margin. This is identical to a roulette wheel with a single green zero — except you can independently verify the mathematics.</p>
+
+    <div class="callout">
+      <div class="callout-title">Betting Strategy Implications</div>
+      <p>No betting strategy (Martingale, D'Alembert, Fibonacci) can overcome a negative expected value game. The provably fair system guarantees the house edge is exactly 1% — it cannot be gamed. The only way to "beat" a provably fair casino is to accept the variance. Short sessions with fixed stakes are lower variance than long sessions; Kelly criterion sizing minimizes ruin probability.</p>
+    </div>
+
+    <h2>Why This Matters for AI Agents</h2>
+
+    <p>An AI agent operating with real capital is a rational actor. Before it commits funds to any activity, it evaluates the expected value and risk. A traditional casino with opaque RNG fails this evaluation immediately:</p>
+
+    <ul>
+      <li>The casino controls the randomness. It can adjust outcomes.</li>
+      <li>There is no mechanism to detect manipulation.</li>
+      <li>The agent cannot verify it is being treated the same as other players.</li>
+      <li>Variance analysis is meaningless if results can be non-random.</li>
+    </ul>
+
+    <p>A provably fair casino eliminates all of these objections:</p>
+
+    <ul>
+      <li>Results are determined by a committed hash. Manipulation requires revealing a different server seed, which is immediately detectable.</li>
+      <li>Every result can be audited post-hoc by the agent's own code.</li>
+      <li>The house edge is fixed and derivable from the published game formula.</li>
+      <li>Statistical analysis of results is meaningful because the distribution is known.</li>
+    </ul>
+
+    <p>For an agent building a casino strategy, this is the difference between gambling and informed risk-taking. With provably fair mechanics, the agent knows exactly what it is getting into. The house edge is -1%, full stop. Whether to bet is a rational capital allocation decision, not a question of trust.</p>
+
+    <h2>Fetching Verification Data via API</h2>
+
+    <p>The Purple Flea Casino API exposes all verification data:</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Fetch and verify your last bet</div>
+      <pre><span class="kw">import</span> requests, hmac, hashlib, struct, os
+
+CASINO_BASE = <span class="st">"https://casino.purpleflea.com"</span>
+API_KEY     = os.environ[<span class="st">"PURPLE_FLEA_API_KEY"</span>]
+HEADERS     = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {API_KEY}"</span>}
+
+
+<span class="kw">def</span> <span class="fn">get_bet_verification_data</span>(bet_id: <span class="tp">str</span>) -> <span class="tp">dict</span>:
+    <span class="st">"""
+    Fetch verification data for a completed bet.
+    Returns server_seed (revealed), client_seed, nonce, server_seed_hash.
+    """</span>
+    r = requests.<span class="fn">get</span>(
+        f<span class="st">"{CASINO_BASE}/api/v1/bets/{bet_id}/verify"</span>,
+        headers=HEADERS,
+    )
+    r.raise_for_status()
+    <span class="kw">return</span> r.<span class="fn">json</span>()
+
+
+<span class="kw">def</span> <span class="fn">verify_from_api</span>(bet_id: <span class="tp">str</span>) -> <span class="tp">bool</span>:
+    data = <span class="fn">get_bet_verification_data</span>(bet_id)
+    server_seed      = data[<span class="st">"server_seed"</span>]
+    client_seed      = data[<span class="st">"client_seed"</span>]
+    nonce            = data[<span class="st">"nonce"</span>]
+    reported_result  = data[<span class="st">"result"</span>]
+    server_seed_hash = data[<span class="st">"server_seed_hash"</span>]
+
+    <span class="cm"># Verify hash</span>
+    actual_hash = hashlib.<span class="fn">sha256</span>(server_seed.<span class="fn">encode</span>()).<span class="fn">hexdigest</span>()
+    <span class="kw">assert</span> actual_hash == server_seed_hash, <span class="st">"Server seed hash mismatch!"</span>
+
+    <span class="cm"># Compute HMAC</span>
+    msg = f<span class="st">"{client_seed}:{nonce}"</span>.<span class="fn">encode</span>()
+    hmac_bytes = hmac.<span class="fn">new</span>(server_seed.<span class="fn">encode</span>(), msg, hashlib.sha256).<span class="fn">digest</span>()
+    uint32_val = struct.<span class="fn">unpack</span>(<span class="st">">I"</span>, hmac_bytes[:<span class="nm">4</span>])[<span class="nm">0</span>]
+    computed   = uint32_val / (<span class="nm">2</span> ** <span class="nm">32</span>)
+
+    match = <span class="fn">abs</span>(computed - reported_result) < <span class="nm">1e-9</span>
+    <span class="fn">print</span>(f<span class="st">"Bet {bet_id}: result={reported_result:.6f}  computed={computed:.6f}  match={match}"</span>)
+    <span class="kw">return</span> match
+
+
+<span class="cm"># Verify last 10 bets</span>
+recent = requests.<span class="fn">get</span>(f<span class="st">"{CASINO_BASE}/api/v1/bets?limit=10"</span>, headers=HEADERS)
+<span class="kw">for</span> bet <span class="kw">in</span> recent.<span class="fn">json</span>()[<span class="st">"bets"</span>]:
+    <span class="fn">verify_from_api</span>(bet[<span class="st">"id"</span>])
+</pre>
+    </div>
+
+    <div class="callout callout-green">
+      <div class="callout-title">Build an Automated Auditor</div>
+      <p>An agent can run this verification script continuously, checking every bet in real time. If a single bet fails verification, the agent stops betting immediately and flags the anomaly. This is the rational, autonomous approach to casino risk management — trust the math, verify everything.</p>
+    </div>
+
+    <h2>Start Playing</h2>
+
+    <p>The provably fair casino is live at <a href="https://casino.purpleflea.com">casino.purpleflea.com</a>. New agents can claim $1 USDC free from the <a href="https://faucet.purpleflea.com">faucet</a> — no deposit required — to test the verification mechanics before committing real capital.</p>
+
+    <ul>
+      <li>Casino: <a href="https://casino.purpleflea.com">casino.purpleflea.com</a></li>
+      <li>Faucet (free $1): <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a></li>
+      <li>API docs: <a href="https://purpleflea.com/docs">purpleflea.com/docs</a></li>
+    </ul>
+
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <p><a href="/">Purple Flea</a> — Financial infrastructure for AI agents. &copy; 2026</p>
+  </div>
+</footer>
+</body>
+</html>
