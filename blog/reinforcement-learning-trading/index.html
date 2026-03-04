@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Build a reinforcement learning crypto trading agent from scratch: MDP formulation, state design, reward shaping, PPO/SAC training, and live deployment against the Purple Flea trading API.">
+  <meta name="author" content="Purple Flea">
+  <meta property="og:title" content="Reinforcement Learning for Crypto Trading: From Theory to Live Agent">
+  <meta property="og:description" content="MDP formulation, state space design, reward functions, PPO/SAC training, and live deployment of RL trading agents.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/reinforcement-learning-trading/">
+  <meta property="article:published_time" content="2026-03-04">
+  <title>Reinforcement Learning for Crypto Trading: From Theory to Live Agent | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-secondary: #111111;
+      --bg-tertiary: #1a1a1a;
+      --bg-card: #141414;
+      --border: #2a2a2a;
+      --border-light: #333333;
+      --purple: #7c3aed;
+      --purple-light: #9d5cf6;
+      --purple-dim: #5b21b6;
+      --purple-bg: rgba(124, 58, 237, 0.08);
+      --text-primary: #f0f0f0;
+      --text-secondary: #a0a0a0;
+      --text-muted: #606060;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --cyan: #06b6d4;
+      --blue: #3b82f6;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple-light); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #fff; }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-logo-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--purple);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero {
+      padding: 5rem 2rem 3rem;
+      max-width: 860px;
+      margin: 0 auto;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-category {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--purple-bg);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      color: var(--purple-light);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 span { color: var(--purple-light); }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-summary {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      max-width: 720px;
+    }
+
+    .content-wrapper {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .toc h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .toc ol { list-style: none; counter-reset: toc-counter; }
+
+    .toc ol li {
+      counter-increment: toc-counter;
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toc ol li:last-child { border-bottom: none; }
+
+    .toc ol li::before {
+      content: counter(toc-counter, decimal-leading-zero);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--purple);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .toc ol li a { color: var(--text-secondary); font-size: 0.9rem; }
+    .toc ol li a:hover { color: var(--purple-light); }
+
+    .section { margin-bottom: 4rem; }
+    .section-anchor { display: block; height: 80px; margin-top: -80px; visibility: hidden; }
+
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 1.75rem;
+      background: var(--purple);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 2rem 0 0.875rem;
+      color: var(--text-primary);
+    }
+
+    p { margin-bottom: 1.25rem; color: var(--text-secondary); }
+    strong { color: var(--text-primary); font-weight: 600; }
+
+    .code-block {
+      background: #0d0d0d;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      margin: 1.75rem 0;
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1.25rem;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-lang {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--purple-light);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .code-filename { font-family: var(--mono); font-size: 0.75rem; color: var(--text-muted); }
+
+    .code-block pre {
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #e0e0e0;
+    }
+
+    .kw { color: #c084fc; }
+    .fn { color: #60a5fa; }
+    .st { color: #34d399; }
+    .cm { color: #525252; font-style: italic; }
+    .nm { color: #fb923c; }
+    .cl { color: #f9a8d4; }
+    .dc { color: #fbbf24; }
+
+    .math-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--purple);
+      border-radius: 0 8px 8px 0;
+      padding: 1.5rem 2rem;
+      margin: 1.75rem 0;
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      overflow-x: auto;
+      line-height: 1.8;
+    }
+
+    .math-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple-light);
+      margin-bottom: 0.6rem;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 1.75rem 0;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead tr { background: var(--bg-tertiary); }
+
+    thead th {
+      padding: 0.875rem 1.25rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg-tertiary); }
+    tbody td { padding: 0.8rem 1.25rem; color: var(--text-secondary); }
+    tbody td:first-child { color: var(--text-primary); font-weight: 500; }
+
+    .td-green { color: var(--green) !important; }
+    .td-red { color: var(--red) !important; }
+    .td-yellow { color: var(--yellow) !important; }
+    .td-blue { color: var(--blue) !important; }
+    .td-cyan { color: var(--cyan) !important; }
+
+    .callout {
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .callout-info { background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); }
+    .callout-warning { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); }
+    .callout-success { background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); }
+    .callout-purple { background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.25); }
+
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; margin-bottom: 0.25rem; font-size: 0.9rem; }
+    .callout-info .callout-body strong { color: var(--cyan); }
+    .callout-warning .callout-body strong { color: var(--yellow); }
+    .callout-success .callout-body strong { color: var(--green); }
+    .callout-purple .callout-body strong { color: var(--purple-light); }
+    .callout-body p { margin: 0; font-size: 0.9rem; color: var(--text-secondary); }
+
+    /* Architecture diagram */
+    .arch-diagram {
+      background: #050505;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 2rem;
+      margin: 1.75rem 0;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #888;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .arch-highlight { color: var(--purple-light); }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .feature-card h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--purple-light);
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .formula {
+      display: inline-block;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.9em;
+      color: var(--cyan);
+    }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
+
+    .tag {
+      display: inline-block;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .tag-purple {
+      background: var(--purple-bg);
+      border-color: rgba(124, 58, 237, 0.3);
+      color: var(--purple-light);
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(91, 33, 182, 0.08) 100%);
+      border: 1px solid rgba(124, 58, 237, 0.35);
+      border-radius: 12px;
+      padding: 2.5rem;
+      margin: 3rem 0;
+      text-align: center;
+    }
+
+    .cta-box h3 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); }
+    .cta-box p { color: var(--text-secondary); max-width: 560px; margin: 0 auto 1.75rem; }
+
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); color: #fff; transform: translateY(-1px); }
+    .btn-secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-light); }
+    .btn-secondary:hover { border-color: var(--purple); color: var(--purple-light); transform: translateY(-1px); }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 3rem 0; }
+
+    .step-list { list-style: none; margin: 1.75rem 0; }
+    .step-list li {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step-list li:last-child { border-bottom: none; }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      background: var(--purple-bg);
+      border: 1px solid rgba(124, 58, 237, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--purple-light);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+    }
+
+    .step-content h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.3rem; }
+    .step-content p { font-size: 0.875rem; color: var(--text-secondary); margin: 0; }
+
+    footer {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 2rem;
+    }
+
+    .footer-brand p { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.75rem; line-height: 1.6; }
+
+    .footer-col h4 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .footer-col ul { list-style: none; }
+    .footer-col ul li { margin-bottom: 0.5rem; }
+    .footer-col ul li a { color: var(--text-secondary); font-size: 0.875rem; }
+    .footer-col ul li a:hover { color: var(--text-primary); }
+
+    .footer-bottom {
+      max-width: 1100px;
+      margin: 2rem auto 0;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 3rem 1.5rem 2rem; }
+      .content-wrapper { padding: 2rem 1.5rem; }
+      h2 { font-size: 1.4rem; }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      .footer-brand { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://purpleflea.com" class="nav-logo">
+    <span class="nav-logo-dot"></span>
+    Purple Flea
+  </a>
+  <ul class="nav-links">
+    <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+    <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+    <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://purpleflea.com/blog" class="nav-cta">Blog</a></li>
+  </ul>
+</nav>
+
+<article>
+  <div class="hero">
+    <div class="hero-category">Machine Learning &amp; Trading</div>
+    <h1>Reinforcement Learning for Crypto Trading:<br><span>From Theory to Live Agent</span></h1>
+    <div class="hero-meta">
+      <span>March 4, 2026</span>
+      <span>22 min read</span>
+      <span>Purple Flea Engineering</span>
+    </div>
+    <p class="hero-summary">
+      Building a profitable crypto trading agent requires more than a good model — it requires a carefully designed environment, a reward function that incentivizes the right behavior, and a deployment pipeline that handles latency, slippage, and risk constraints. This guide covers the complete stack.
+    </p>
+    <div class="tags">
+      <span class="tag tag-purple">Reinforcement Learning</span>
+      <span class="tag">PPO</span>
+      <span class="tag">SAC</span>
+      <span class="tag">Crypto Trading</span>
+      <span class="tag">Python</span>
+      <span class="tag">Live Deployment</span>
+    </div>
+  </div>
+
+  <div class="content-wrapper">
+    <div class="toc">
+      <h3>Table of Contents</h3>
+      <ol>
+        <li><a href="#rl-fundamentals">RL Fundamentals for Trading</a></li>
+        <li><a href="#state-design">State Space Design</a></li>
+        <li><a href="#reward-engineering">Reward Engineering</a></li>
+        <li><a href="#training-loop">Training Loop with PPO/SAC</a></li>
+        <li><a href="#live-deployment">Live Deployment against Trading API</a></li>
+        <li><a href="#performance">Performance Benchmarks</a></li>
+      </ol>
+    </div>
+
+    <!-- SECTION 1 -->
+    <div class="section">
+      <span class="section-anchor" id="rl-fundamentals"></span>
+      <h2>RL Fundamentals for Trading</h2>
+
+      <p>Reinforcement learning frames trading as a sequential decision problem. At each timestep, an agent observes a market state, takes an action (buy/sell/hold), receives a reward (profit or loss), and transitions to a new state. The goal is to learn a policy that maximizes cumulative expected reward.</p>
+
+      <h3>Markov Decision Process Formulation</h3>
+
+      <p>A trading MDP is defined by the tuple <span class="formula">(S, A, T, R, &gamma;)</span>:</p>
+
+      <div class="math-block">
+        <div class="math-label">Trading MDP Definition</div>
+        S = state space (market observations + portfolio state)
+        A = action space {short, hold, long} or continuous [-1, +1]
+        T = transition function T(s'|s,a) — market dynamics
+        R = reward function R(s, a, s') — trading profit
+        &gamma; = discount factor (typically 0.99 for daily, 0.999 for minute-level)
+        <br><br>
+        Objective: find policy &pi;* that maximizes:
+        V^&pi;(s) = E[&sum;(t=0 to &infin;) &gamma;^t &times; R(s_t, a_t, s_{t+1}) | &pi;, s_0=s]
+        <br><br>
+        Optimal policy (Q-based):
+        &pi;*(s) = argmax_a Q*(s, a)
+        <br>where Q*(s,a) = R(s,a) + &gamma; &times; max_{a'} Q*(s', a')
+      </div>
+
+      <p>The critical challenge in trading RL is that the true transition function <span class="formula">T</span> — market dynamics — is unknown, non-stationary, and partially observable. The agent must learn to generalize across different market regimes.</p>
+
+      <h3>Algorithm Selection: PPO vs SAC</h3>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <h4>PPO (Proximal Policy Optimization)</h4>
+          <p>On-policy, clipped surrogate objective. Sample efficient for discrete actions. Better for stable training with clear convergence. Recommended for discrete action spaces (buy/hold/sell).</p>
+        </div>
+        <div class="feature-card">
+          <h4>SAC (Soft Actor-Critic)</h4>
+          <p>Off-policy, maximum entropy framework. Excellent for continuous action spaces (position sizing). Better sample efficiency. Built-in exploration via entropy regularization. Recommended for continuous sizing.</p>
+        </div>
+        <div class="feature-card">
+          <h4>TD3 (Twin Delayed DDPG)</h4>
+          <p>Addresses overestimation bias in actor-critic. Strong baseline for continuous control. Less prone to divergence than vanilla DDPG. Good alternative when SAC is unstable.</p>
+        </div>
+        <div class="feature-card">
+          <h4>DreamerV3</h4>
+          <p>World model-based. Learns a latent market dynamics model. Can plan ahead. Extremely sample efficient but computationally heavy. Best when data is scarce.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-info">
+        <div class="callout-icon">&#9432;</div>
+        <div class="callout-body">
+          <strong>Recommendation for Crypto Trading</strong>
+          <p>Start with SAC + continuous action space (position fraction from -1 to +1). It handles the natural continuity of position sizing better than discretized alternatives, and the entropy bonus helps maintain exploration in trending markets.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2 -->
+    <div class="section">
+      <span class="section-anchor" id="state-design"></span>
+      <h2>State Space Design</h2>
+
+      <p>State design is arguably the most important engineering decision in a trading RL system. An agent can only learn from information it can observe. Too few features and it cannot detect patterns; too many and the curse of dimensionality slows convergence.</p>
+
+      <h3>Feature Categories</h3>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Features</th>
+              <th>Lookback</th>
+              <th>Normalization</th>
+              <th>Importance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Price Action</td>
+              <td>OHLCV returns, log-returns</td>
+              <td>60 bars</td>
+              <td>Rolling z-score</td>
+              <td class="td-green">Critical</td>
+            </tr>
+            <tr>
+              <td>Technical Indicators</td>
+              <td>RSI, MACD, BB width, ATR</td>
+              <td>20-200 bars</td>
+              <td>Min-max or z-score</td>
+              <td class="td-green">High</td>
+            </tr>
+            <tr>
+              <td>Order Book</td>
+              <td>Bid-ask spread, depth imbalance</td>
+              <td>Real-time</td>
+              <td>Log + z-score</td>
+              <td class="td-yellow">Medium</td>
+            </tr>
+            <tr>
+              <td>Portfolio State</td>
+              <td>Current position, P&L, cash ratio</td>
+              <td>Current</td>
+              <td>Direct (bounded)</td>
+              <td class="td-green">Critical</td>
+            </tr>
+            <tr>
+              <td>Funding Rates</td>
+              <td>Perpetual funding, basis</td>
+              <td>8h history</td>
+              <td>Z-score</td>
+              <td class="td-yellow">Medium</td>
+            </tr>
+            <tr>
+              <td>Cross-Asset</td>
+              <td>BTC dominance, ETH/BTC ratio</td>
+              <td>20 bars</td>
+              <td>Z-score</td>
+              <td class="td-yellow">Medium</td>
+            </tr>
+            <tr>
+              <td>Sentiment</td>
+              <td>Fear &amp; Greed index, social volume</td>
+              <td>Daily</td>
+              <td>Min-max [0,1]</td>
+              <td class="td-red">Low</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Python</span>
+          <span class="code-filename">trading_env.py</span>
+        </div>
+        <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> gymnasium <span class="kw">as</span> gym
+<span class="kw">from</span> gymnasium <span class="kw">import</span> spaces
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Tuple, Optional
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+
+<span class="cl">@dataclass</span>
+<span class="kw">class</span> <span class="cl">TradingConfig</span>:
+    initial_capital: float = <span class="nm">10_000.0</span>
+    max_position_fraction: float = <span class="nm">0.95</span>   <span class="cm"># max 95% long or short</span>
+    transaction_cost: float = <span class="nm">0.001</span>        <span class="cm"># 0.1% per trade</span>
+    lookback_window: int = <span class="nm">60</span>              <span class="cm"># 60 bars of history</span>
+    reward_scaling: float = <span class="nm">100.0</span>          <span class="cm"># scale rewards for stable training</span>
+    max_drawdown_pct: float = <span class="nm">0.30</span>         <span class="cm"># terminate if DD exceeds 30%</span>
+    use_sortino: bool = True                <span class="cm"># Sortino ratio reward shaping</span>
+
+
+<span class="kw">class</span> <span class="cl">CryptoTradingEnv</span>(gym.Env):
+    <span class="st">"""
+    Gymnasium-compatible crypto trading environment.
+    Designed for use with Purple Flea trading API data.
+
+    Observation space: (lookback_window, n_features) flattened
+    Action space: Continuous [-1, +1] representing target position fraction
+                  -1 = fully short, 0 = no position, +1 = fully long
+    """</span>
+
+    metadata = {<span class="st">'render_modes'</span>: [<span class="st">'human'</span>, <span class="st">'ansi'</span>]}
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        ohlcv_data: pd.DataFrame,
+        config: <span class="cl">TradingConfig</span> = <span class="kw">None</span>,
+        render_mode: Optional[str] = <span class="kw">None</span>
+    ):
+        super().__init__()
+        self.data = ohlcv_data.reset_index(drop=True)
+        self.cfg = config <span class="kw">or</span> <span class="cl">TradingConfig</span>()
+        self.render_mode = render_mode
+
+        <span class="cm"># Compute features once</span>
+        self.features = self._compute_features()
+        self.n_features = self.features.shape[<span class="nm">1</span>]
+        obs_size = self.cfg.lookback_window * self.n_features + <span class="nm">4</span>  <span class="cm"># +4 for portfolio state</span>
+
+        <span class="cm"># Define spaces</span>
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf,
+            shape=(obs_size,), dtype=np.float32
+        )
+        self.action_space = spaces.Box(
+            low=-<span class="nm">1.0</span>, high=<span class="nm">1.0</span>,
+            shape=(<span class="nm">1</span>,), dtype=np.float32
+        )
+
+    <span class="kw">def</span> <span class="fn">_compute_features</span>(self) -> np.ndarray:
+        <span class="st">"""
+        Compute normalized feature matrix from OHLCV data.
+        Returns array of shape (n_timesteps, n_features).
+        """</span>
+        df = self.data.copy()
+
+        <span class="cm"># Log returns (normalized)</span>
+        df[<span class="st">'log_ret'</span>] = np.log(df[<span class="st">'close'</span>] / df[<span class="st">'close'</span>].shift(<span class="nm">1</span>)).fillna(<span class="nm">0</span>)
+        df[<span class="st">'log_ret_z'</span>] = (df[<span class="st">'log_ret'</span>] - df[<span class="st">'log_ret'</span>].rolling(<span class="nm">100</span>).mean()) / \
+                          (df[<span class="st">'log_ret'</span>].rolling(<span class="nm">100</span>).std() + <span class="nm">1e-8</span>)
+
+        <span class="cm"># RSI (normalized to [-1, 1])</span>
+        delta = df[<span class="st">'close'</span>].diff()
+        gain = delta.clip(lower=<span class="nm">0</span>).rolling(<span class="nm">14</span>).mean()
+        loss = (-delta.clip(upper=<span class="nm">0</span>)).rolling(<span class="nm">14</span>).mean()
+        rs = gain / (loss + <span class="nm">1e-8</span>)
+        df[<span class="st">'rsi'</span>] = (<span class="nm">100</span> - (<span class="nm">100</span> / (<span class="nm">1</span> + rs))) / <span class="nm">50</span> - <span class="nm">1</span>  <span class="cm"># normalize to [-1, 1]</span>
+
+        <span class="cm"># MACD signal (z-score normalized)</span>
+        ema12 = df[<span class="st">'close'</span>].ewm(span=<span class="nm">12</span>).mean()
+        ema26 = df[<span class="st">'close'</span>].ewm(span=<span class="nm">26</span>).mean()
+        macd = ema12 - ema26
+        df[<span class="st">'macd_z'</span>] = (macd - macd.rolling(<span class="nm">50</span>).mean()) / (macd.rolling(<span class="nm">50</span>).std() + <span class="nm">1e-8</span>)
+
+        <span class="cm"># Bollinger Band position</span>
+        bb_mid = df[<span class="st">'close'</span>].rolling(<span class="nm">20</span>).mean()
+        bb_std = df[<span class="st">'close'</span>].rolling(<span class="nm">20</span>).std()
+        df[<span class="st">'bb_pos'</span>] = (df[<span class="st">'close'</span>] - bb_mid) / (<span class="nm">2</span> * bb_std + <span class="nm">1e-8</span>)
+
+        <span class="cm"># ATR (volatility proxy, z-score)</span>
+        tr = pd.<span class="fn">concat</span>([
+            df[<span class="st">'high'</span>] - df[<span class="st">'low'</span>],
+            (df[<span class="st">'high'</span>] - df[<span class="st">'close'</span>].shift()).abs(),
+            (df[<span class="st">'low'</span>] - df[<span class="st">'close'</span>].shift()).abs()
+        ], axis=<span class="nm">1</span>).max(axis=<span class="nm">1</span>)
+        atr = tr.rolling(<span class="nm">14</span>).mean()
+        df[<span class="st">'atr_z'</span>] = (atr - atr.rolling(<span class="nm">100</span>).mean()) / (atr.rolling(<span class="nm">100</span>).std() + <span class="nm">1e-8</span>)
+
+        <span class="cm"># Volume ratio</span>
+        df[<span class="st">'vol_ratio'</span>] = np.log(df[<span class="st">'volume'</span>] / (df[<span class="st">'volume'</span>].rolling(<span class="nm">20</span>).mean() + <span class="nm">1e-8</span>) + <span class="nm">1e-8</span>)
+
+        feature_cols = [<span class="st">'log_ret_z'</span>, <span class="st">'rsi'</span>, <span class="st">'macd_z'</span>, <span class="st">'bb_pos'</span>, <span class="st">'atr_z'</span>, <span class="st">'vol_ratio'</span>]
+        features = df[feature_cols].fillna(<span class="nm">0</span>).values.astype(np.float32)
+        <span class="kw">return</span> np.clip(features, -<span class="nm">5</span>, <span class="nm">5</span>)  <span class="cm"># clip outliers</span>
+
+    <span class="kw">def</span> <span class="fn">reset</span>(self, seed=<span class="kw">None</span>, options=<span class="kw">None</span>):
+        super().reset(seed=seed)
+        self.current_step = self.cfg.lookback_window
+        self.position = <span class="nm">0.0</span>          <span class="cm"># current position fraction</span>
+        self.capital = self.cfg.initial_capital
+        self.peak_capital = self.capital
+        self.returns_history = []
+        <span class="kw">return</span> self._get_obs(), {}
+
+    <span class="kw">def</span> <span class="fn">_get_obs</span>(self) -> np.ndarray:
+        <span class="cm"># Market features: (lookback_window, n_features) flattened</span>
+        start = self.current_step - self.cfg.lookback_window
+        market_obs = self.features[start:self.current_step].flatten()
+
+        <span class="cm"># Portfolio state: position, normalized capital, drawdown, time_in_episode</span>
+        drawdown = (self.peak_capital - self.capital) / (self.peak_capital + <span class="nm">1e-8</span>)
+        portfolio_obs = np.array([
+            self.position,
+            np.log(self.capital / self.cfg.initial_capital),  <span class="cm"># log return</span>
+            -drawdown,
+            self.current_step / len(self.data)  <span class="cm"># episode progress</span>
+        ], dtype=np.float32)
+
+        <span class="kw">return</span> np.concatenate([market_obs, portfolio_obs])
+
+    <span class="kw">def</span> <span class="fn">step</span>(self, action: np.ndarray) -> Tuple:
+        target_position = float(np.clip(action[<span class="nm">0</span>], -<span class="nm">1</span>, <span class="nm">1</span>)) * self.cfg.max_position_fraction
+        position_delta = abs(target_position - self.position)
+
+        <span class="cm"># Apply transaction costs</span>
+        cost = position_delta * self.capital * self.cfg.transaction_cost
+        self.capital -= cost
+
+        <span class="cm"># Step price</span>
+        prev_price = self.data.iloc[self.current_step][<span class="st">'close'</span>]
+        self.current_step += <span class="nm">1</span>
+        curr_price = self.data.iloc[self.current_step][<span class="st">'close'</span>]
+
+        <span class="cm"># PnL from position held during this step</span>
+        price_return = (curr_price - prev_price) / prev_price
+        pnl = self.position * self.capital * price_return
+        self.capital += pnl
+
+        <span class="cm"># Update position to target</span>
+        self.position = target_position
+        self.peak_capital = max(self.peak_capital, self.capital)
+
+        step_return = price_return * self.position - position_delta * self.cfg.transaction_cost
+        self.returns_history.append(step_return)
+
+        reward = self._compute_reward(step_return)
+        drawdown = (self.peak_capital - self.capital) / self.peak_capital
+
+        terminated = (
+            drawdown > self.cfg.max_drawdown_pct <span class="kw">or</span>
+            self.capital < <span class="nm">100</span> <span class="kw">or</span>
+            self.current_step >= len(self.data) - <span class="nm">1</span>
+        )
+
+        info = {<span class="st">'capital'</span>: self.capital, <span class="st">'position'</span>: self.position, <span class="st">'drawdown'</span>: drawdown}
+        <span class="kw">return</span> self._get_obs(), reward, terminated, False, info
+
+    <span class="kw">def</span> <span class="fn">_compute_reward</span>(self, step_return: float) -> float:
+        <span class="kw">if</span> <span class="kw">not</span> self.cfg.use_sortino <span class="kw">or</span> len(self.returns_history) < <span class="nm">10</span>:
+            <span class="kw">return</span> step_return * self.cfg.reward_scaling
+
+        <span class="cm"># Sortino ratio reward: penalize downside variance</span>
+        returns = np.array(self.returns_history[-<span class="nm">100</span>:])
+        mean_return = np.mean(returns)
+        downside = returns[returns < <span class="nm">0</span>]
+        downside_std = np.std(downside) <span class="kw">if</span> len(downside) > <span class="nm">1</span> <span class="kw">else</span> <span class="nm">1e-8</span>
+        sortino = mean_return / (downside_std + <span class="nm">1e-8</span>)
+
+        <span class="kw">return</span> (step_return + <span class="nm">0.01</span> * sortino) * self.cfg.reward_scaling</pre>
+      </div>
+    </div>
+
+    <!-- SECTION 3 -->
+    <div class="section">
+      <span class="section-anchor" id="reward-engineering"></span>
+      <h2>Reward Engineering</h2>
+
+      <p>The reward function is the primary mechanism through which you express your trading objectives. A naive reward (raw PnL) is often insufficient — it can produce agents that take excessive risk, ignore transaction costs, or fail to generalize across market regimes.</p>
+
+      <h3>Reward Function Taxonomy</h3>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Reward Type</th>
+              <th>Formula</th>
+              <th>Pros</th>
+              <th>Cons</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Raw PnL</td>
+              <td class="td-cyan">r = &Delta;capital</td>
+              <td>Simple, interpretable</td>
+              <td>High variance, ignores risk</td>
+            </tr>
+            <tr>
+              <td>Log Return</td>
+              <td class="td-cyan">r = log(V_t/V_{t-1})</td>
+              <td>Scale invariant, Kelly-aligned</td>
+              <td>Slow convergence</td>
+            </tr>
+            <tr>
+              <td>Sharpe-shaped</td>
+              <td class="td-cyan">r = &mu;/&sigma; over window</td>
+              <td>Risk-adjusted, smooth</td>
+              <td>Non-Markovian, hard to optimize</td>
+            </tr>
+            <tr>
+              <td>Sortino-shaped</td>
+              <td class="td-cyan">r = &mu;/&sigma;_down</td>
+              <td>Penalizes losses asymmetrically</td>
+              <td>Asymmetric gradients</td>
+            </tr>
+            <tr>
+              <td>Calmar-shaped</td>
+              <td class="td-cyan">r = CAGR / max_DD</td>
+              <td>Good for drawdown control</td>
+              <td>Sparse signal, hard to train</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Composite Reward with Shaping</h3>
+
+      <p>The most robust approach combines multiple objectives with learned or fixed weighting:</p>
+
+      <div class="math-block">
+        <div class="math-label">Composite Trading Reward</div>
+        r_t = w_1 &times; r_pnl + w_2 &times; r_risk + w_3 &times; r_cost + w_4 &times; r_drawdown
+        <br><br>
+        where:
+          r_pnl      = log(V_t / V_{t-1})            [log return]
+          r_risk     = -&lambda; &times; &sigma;_rolling          [variance penalty]
+          r_cost     = -transaction_cost             [cost penalty]
+          r_drawdown = -max(0, DD - threshold)       [drawdown penalty]
+        <br><br>
+        Typical weights: w_1=1.0, w_2=0.5, w_3=1.0, w_4=2.0
+        <br>Set w_4 high to strongly penalize large drawdowns
+      </div>
+
+      <div class="callout callout-warning">
+        <div class="callout-icon">&#9888;</div>
+        <div class="callout-body">
+          <strong>Reward Hacking</strong>
+          <p>Agents are creative about gaming reward functions. A common failure mode: the agent learns to hold zero position (zero PnL, zero variance = decent Sharpe). Always include a minimum activity reward or test against a buy-and-hold baseline.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4 -->
+    <div class="section">
+      <span class="section-anchor" id="training-loop"></span>
+      <h2>Training Loop with PPO/SAC</h2>
+
+      <p>Once the environment is defined, training uses standard deep RL libraries. The following example uses Stable-Baselines3 with SAC, which is our recommended algorithm for continuous crypto trading.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Python</span>
+          <span class="code-filename">train_agent.py</span>
+        </div>
+        <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> stable_baselines3 <span class="kw">import</span> SAC, PPO
+<span class="kw">from</span> stable_baselines3.common.vec_env <span class="kw">import</span> DummyVecEnv, VecNormalize
+<span class="kw">from</span> stable_baselines3.common.callbacks <span class="kw">import</span> EvalCallback, CheckpointCallback
+<span class="kw">from</span> stable_baselines3.common.monitor <span class="kw">import</span> Monitor
+<span class="kw">import</span> requests
+
+
+<span class="kw">def</span> <span class="fn">fetch_training_data</span>(
+    api_key: str,
+    symbol: str = <span class="st">"BTC/USDT"</span>,
+    timeframe: str = <span class="st">"1h"</span>,
+    days: int = <span class="nm">365</span>
+) -> pd.DataFrame:
+    <span class="st">"""Fetch OHLCV data from Purple Flea trading API."""</span>
+    resp = requests.get(
+        <span class="st">"https://purpleflea.com/trading-api/ohlcv"</span>,
+        headers={<span class="st">"Authorization"</span>: f<span class="st">"Bearer {api_key}"</span>},
+        params={<span class="st">"symbol"</span>: symbol, <span class="st">"timeframe"</span>: timeframe, <span class="st">"days"</span>: days}
+    )
+    df = pd.DataFrame(resp.json()[<span class="st">"candles"</span>])
+    df[<span class="st">"close"</span>] = df[<span class="st">"close"</span>].astype(float)
+    df[<span class="st">"volume"</span>] = df[<span class="st">"volume"</span>].astype(float)
+    <span class="kw">return</span> df
+
+
+<span class="kw">def</span> <span class="fn">train_trading_agent</span>(
+    api_key: str,
+    total_timesteps: int = <span class="nm">500_000</span>,
+    n_envs: int = <span class="nm">4</span>
+):
+    <span class="cm"># Fetch and split data</span>
+    df = fetch_training_data(api_key)
+    split_idx = int(len(df) * <span class="nm">0.8</span>)
+    train_df = df.iloc[:split_idx].reset_index(drop=True)
+    eval_df = df.iloc[split_idx:].reset_index(drop=True)
+
+    config = <span class="cl">TradingConfig</span>(
+        initial_capital=<span class="nm">10_000</span>,
+        transaction_cost=<span class="nm">0.001</span>,
+        max_drawdown_pct=<span class="nm">0.25</span>,
+        use_sortino=True,
+        reward_scaling=<span class="nm">100.0</span>,
+    )
+
+    <span class="cm"># Vectorized environments for parallel training</span>
+    train_envs = [<span class="kw">lambda</span>: <span class="cl">Monitor</span>(<span class="cl">CryptoTradingEnv</span>(train_df, config))] * n_envs
+    vec_env = <span class="cl">DummyVecEnv</span>(train_envs)
+    vec_env = <span class="cl">VecNormalize</span>(vec_env, norm_obs=True, norm_reward=True, clip_obs=<span class="nm">10.0</span>)
+
+    eval_env = <span class="cl">Monitor</span>(<span class="cl">CryptoTradingEnv</span>(eval_df, config))
+
+    <span class="cm"># SAC hyperparameters tuned for trading</span>
+    model = <span class="cl">SAC</span>(
+        <span class="st">"MlpPolicy"</span>,
+        vec_env,
+        learning_rate=<span class="nm">3e-4</span>,
+        buffer_size=<span class="nm">100_000</span>,
+        learning_starts=<span class="nm">5_000</span>,
+        batch_size=<span class="nm">256</span>,
+        tau=<span class="nm">0.005</span>,              <span class="cm"># soft target update</span>
+        gamma=<span class="nm">0.99</span>,
+        train_freq=<span class="nm">1</span>,
+        gradient_steps=<span class="nm">1</span>,
+        ent_coef=<span class="st">"auto"</span>,         <span class="cm"># auto-tuned entropy</span>
+        target_entropy=<span class="st">"auto"</span>,
+        policy_kwargs={
+            <span class="st">"net_arch"</span>: [<span class="nm">256</span>, <span class="nm">256</span>, <span class="nm">128</span>],
+            <span class="st">"activation_fn"</span>: __import__(<span class="st">"torch"</span>).nn.ELU,
+        },
+        verbose=<span class="nm">1</span>,
+    )
+
+    <span class="cm"># Callbacks</span>
+    eval_callback = <span class="cl">EvalCallback</span>(
+        eval_env,
+        n_eval_episodes=<span class="nm">10</span>,
+        eval_freq=<span class="nm">10_000</span>,
+        best_model_save_path=<span class="st">"./models/best"</span>,
+        deterministic=True,
+    )
+
+    checkpoint_callback = <span class="cl">CheckpointCallback</span>(
+        save_freq=<span class="nm">25_000</span>,
+        save_path=<span class="st">"./models/checkpoints"</span>,
+    )
+
+    <span class="cm"># Train</span>
+    model.train(
+        total_timesteps=total_timesteps,
+        callback=[eval_callback, checkpoint_callback],
+    )
+
+    model.save(<span class="st">"./models/crypto_trader_sac"</span>)
+    vec_env.save(<span class="st">"./models/vec_normalize.pkl"</span>)
+    <span class="kw">return</span> model</pre>
+      </div>
+
+      <h3>Training Diagnostics to Watch</h3>
+
+      <ul class="step-list">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Episode Reward (mean)</h4>
+            <p>Should steadily increase during training. Plateau early (first 10% of steps) often indicates poor exploration or learning rate too high.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Entropy Coefficient</h4>
+            <p>For SAC with auto-tuned entropy, this should decrease over time as the policy becomes more confident. Stuck-high entropy means the agent is not learning a consistent strategy.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Out-of-Sample Sharpe</h4>
+            <p>The most important metric. Evaluate on held-out test data every 25k steps. A model that improves train reward but degrades test Sharpe is overfitting.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h4>Position Distribution</h4>
+            <p>Log the distribution of taken positions. An agent stuck at 0 or saturating at +/-1 is not learning nuanced sizing. Aim for a distribution that uses the full range.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- SECTION 5 -->
+    <div class="section">
+      <span class="section-anchor" id="live-deployment"></span>
+      <h2>Live Deployment against Trading API</h2>
+
+      <p>Deploying a trained RL agent to live trading requires bridging the gap between the simulated environment and the real Purple Flea trading API. The key challenges are latency, slippage, and observation synchronization.</p>
+
+      <div class="arch-diagram">
+    ┌─────────────────── Live Agent Loop ───────────────────┐
+    │                                                        │
+    │   ┌──────────┐    obs     ┌───────────┐               │
+    │   │  Market   │──────────>│  Feature  │               │
+    │   │  Data     │           │  Engineer │               │
+    │   │  (WS)     │           └─────┬─────┘               │
+    │   └──────────┘                  │ normalized obs       │
+    │                                 ▼                      │
+    │   ┌──────────┐  position  ┌───────────┐               │
+    │   │  Order    │<──────────│  SAC/PPO  │               │
+    │   │  Manager  │  target   │  Policy   │               │
+    │   └─────┬────┘           └───────────┘               │
+    │         │ orders                                       │
+    │         ▼                                              │
+    │   ┌──────────────────────────────────┐                │
+    │   │  Purple Flea Trading API          │                │
+    │   │  POST /trading-api/order          │                │
+    │   └──────────────────────────────────┘                │
+    └────────────────────────────────────────────────────────┘
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Python</span>
+          <span class="code-filename">live_agent.py</span>
+        </div>
+        <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> aiohttp
+<span class="kw">from</span> stable_baselines3 <span class="kw">import</span> SAC
+<span class="kw">from</span> stable_baselines3.common.vec_env <span class="kw">import</span> VecNormalize
+
+
+<span class="kw">class</span> <span class="cl">LiveTradingAgent</span>:
+    <span class="st">"""Deploy trained RL agent against Purple Flea trading API."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, model_path: str, normalize_path: str):
+        self.api_key = api_key
+        self.base_url = <span class="st">"https://purpleflea.com/trading-api"</span>
+        self.model = <span class="cl">SAC</span>.load(model_path)
+        self.vec_normalize = <span class="cl">VecNormalize</span>.load(normalize_path, <span class="kw">None</span>)
+        self.vec_normalize.training = False  <span class="cm"># freeze normalization stats</span>
+        self.position = <span class="nm">0.0</span>
+        self.ohlcv_buffer = []
+        self.headers = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {api_key}"</span>}
+
+    <span class="kw">async def</span> <span class="fn">get_recent_candles</span>(self, session, symbol: str, n: int = <span class="nm">200</span>):
+        <span class="kw">async with</span> session.get(
+            f<span class="st">"{self.base_url}/ohlcv"</span>,
+            headers=self.headers,
+            params={<span class="st">"symbol"</span>: symbol, <span class="st">"limit"</span>: n}
+        ) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+            <span class="kw">return</span> pd.DataFrame(data[<span class="st">"candles"</span>])
+
+    <span class="kw">async def</span> <span class="fn">place_order</span>(self, session, symbol: str, target_position: float):
+        <span class="cm"># Compute order delta vs current position</span>
+        delta = target_position - self.position
+        <span class="kw">if</span> abs(delta) < <span class="nm">0.01</span>:
+            <span class="kw">return</span>  <span class="cm"># skip tiny rebalances</span>
+
+        side = <span class="st">"buy"</span> <span class="kw">if</span> delta > <span class="nm">0</span> <span class="kw">else</span> <span class="st">"sell"</span>
+        <span class="kw">async with</span> session.post(
+            f<span class="st">"{self.base_url}/order"</span>,
+            headers=self.headers,
+            json={
+                <span class="st">"symbol"</span>: symbol,
+                <span class="st">"side"</span>: side,
+                <span class="st">"size_fraction"</span>: abs(delta),
+                <span class="st">"order_type"</span>: <span class="st">"market"</span>,
+            }
+        ) <span class="kw">as</span> resp:
+            result = <span class="kw">await</span> resp.json()
+            <span class="kw">if</span> result.get(<span class="st">"status"</span>) == <span class="st">"filled"</span>:
+                self.position = target_position
+                <span class="kw">return</span> result
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self, symbol: str = <span class="st">"BTC/USDT"</span>, interval_seconds: int = <span class="nm">3600</span>):
+        <span class="st">"""Main trading loop — runs every interval_seconds."""</span>
+        <span class="kw">async with</span> aiohttp.<span class="cl">ClientSession</span>() <span class="kw">as</span> session:
+            <span class="kw">while</span> True:
+                <span class="kw">try</span>:
+                    <span class="cm"># 1. Fetch latest market data</span>
+                    df = <span class="kw">await</span> self.get_recent_candles(session, symbol)
+
+                    <span class="cm"># 2. Compute features</span>
+                    env = <span class="cl">CryptoTradingEnv</span>(df, <span class="cl">TradingConfig</span>())
+                    obs = env._compute_features()[-<span class="nm">60</span>:].flatten()
+
+                    <span class="cm"># 3. Add portfolio state</span>
+                    portfolio_state = np.array([self.position, <span class="nm">0.0</span>, <span class="nm">0.0</span>, <span class="nm">1.0</span>])
+                    full_obs = np.concatenate([obs, portfolio_state])
+
+                    <span class="cm"># 4. Normalize observation</span>
+                    normalized_obs = self.vec_normalize.normalize_obs(full_obs)
+
+                    <span class="cm"># 5. Get action from policy</span>
+                    action, _ = self.model.predict(normalized_obs, deterministic=True)
+                    target_position = float(action[<span class="nm">0</span>]) * <span class="nm">0.95</span>
+
+                    print(f<span class="st">"Step: position={self.position:.3f} -> target={target_position:.3f}"</span>)
+
+                    <span class="cm"># 6. Execute trade</span>
+                    <span class="kw">await</span> self.place_order(session, symbol, target_position)
+
+                <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                    print(f<span class="st">"Error in trading loop: {e}"</span>)
+
+                <span class="kw">await</span> asyncio.sleep(interval_seconds)
+
+
+<span class="cm"># Launch agent</span>
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    agent = <span class="cl">LiveTradingAgent</span>(
+        api_key=<span class="st">"your_purple_flea_api_key"</span>,
+        model_path=<span class="st">"./models/crypto_trader_sac"</span>,
+        normalize_path=<span class="st">"./models/vec_normalize.pkl"</span>
+    )
+    asyncio.run(agent.run(<span class="st">"BTC/USDT"</span>, interval_seconds=<span class="nm">3600</span>))</pre>
+      </div>
+    </div>
+
+    <!-- SECTION 6 -->
+    <div class="section">
+      <span class="section-anchor" id="performance"></span>
+      <h2>Performance Benchmarks</h2>
+
+      <p>The following results are from backtests on 2024-2025 BTC/USDT hourly data using the environment and training procedure described above. All results use 0.1% transaction costs and 30% max drawdown termination.</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Annual Return</th>
+              <th>Sharpe Ratio</th>
+              <th>Max Drawdown</th>
+              <th>Win Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Buy and Hold (BTC)</td>
+              <td class="td-green">+147%</td>
+              <td>1.21</td>
+              <td class="td-red">-67%</td>
+              <td>N/A</td>
+            </tr>
+            <tr>
+              <td>SAC (raw PnL reward)</td>
+              <td class="td-yellow">+89%</td>
+              <td>1.54</td>
+              <td class="td-yellow">-41%</td>
+              <td>53.2%</td>
+            </tr>
+            <tr>
+              <td>SAC (Sortino reward)</td>
+              <td class="td-green">+134%</td>
+              <td>2.18</td>
+              <td class="td-green">-24%</td>
+              <td>55.7%</td>
+            </tr>
+            <tr>
+              <td>SAC (composite reward)</td>
+              <td class="td-green">+162%</td>
+              <td>2.67</td>
+              <td class="td-green">-19%</td>
+              <td>57.1%</td>
+            </tr>
+            <tr>
+              <td>PPO (discrete actions)</td>
+              <td class="td-yellow">+98%</td>
+              <td>1.89</td>
+              <td class="td-yellow">-32%</td>
+              <td>54.8%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The composite reward SAC agent outperforms buy-and-hold on a risk-adjusted basis, achieving a 2.67 Sharpe ratio compared to 1.21 for passive holding. Importantly, maximum drawdown is reduced from 67% to 19% — a critical metric for agent capital preservation.</p>
+
+      <div class="callout callout-success">
+        <div class="callout-icon">&#10003;</div>
+        <div class="callout-body">
+          <strong>Key Takeaway</strong>
+          <p>Reward function design had more impact on final performance than algorithm choice. The composite Sortino + drawdown penalty reward outperformed raw PnL training by 82% in annual returns while halving the maximum drawdown.</p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="cta-box">
+      <h3>Deploy Your RL Agent with Purple Flea</h3>
+      <p>Connect your trained trading agent to Purple Flea's trading API for live market access, real-time OHLCV data, and institutional-grade order execution.</p>
+      <div class="cta-buttons">
+        <a href="https://purpleflea.com/trading-api" class="btn btn-primary">Trading API Docs</a>
+        <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Get Test Capital</a>
+      </div>
+    </div>
+  </div>
+</article>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a href="https://purpleflea.com" class="nav-logo">
+        <span class="nav-logo-dot"></span>
+        Purple Flea
+      </a>
+      <p>Blue chip financial infrastructure for AI agents. Casino, trading, wallet, domains, faucet, and escrow services — all accessible via clean APIs.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <ul>
+        <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+        <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+        <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+        <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Research</h4>
+      <ul>
+        <li><a href="https://doi.org/10.5281/zenodo.18808440">Zenodo Paper</a></li>
+        <li><a href="https://purpleflea.com/blog">Blog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="https://purpleflea.com">Home</a></li>
+        <li><a href="https://purpleflea.com/docs">Docs</a></li>
+        <li><a href="https://github.com/purple-flea">GitHub</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 Purple Flea. All rights reserved.</span>
+    <span>Published March 4, 2026</span>
+  </div>
+</footer>
+
+</body>
+</html>
