@@ -267,3 +267,43 @@ Focus: AI agent discoverability, new content pages, OpenAPI completeness, SEO im
 - Sitemap entries: 290+
 - Blog posts: 75+
 - OpenAPI specs: 6 (casino, trading, wallet, domains, faucet, escrow)
+
+---
+
+## Session #7 — 2026-03-04
+
+### Morning Push Completion
+
+**TASK 1 - Smithery:**
+- Fixed faucet service (was not running): started PM2 faucet + faucet-mcp
+- Created nginx vhost for faucet.purpleflea.com with correct SSL cert
+- Published faucet: https://smithery.ai/servers/purpleflea/faucet (1 tool: claim_faucet)
+- Published escrow: https://smithery.ai/servers/purpleflea/escrow (6 tools: create_escrow, etc.)
+
+**TASK 2 - Moltbook:** Rate limited persistently across all attempts. Retry needed.
+
+**TASKS 3-7:** All previously completed or already done.
+
+### Wave-15 Website Changes (commit a9a9cfc)
+
+New pages:
+- /mcp-servers — MCP integration hub, all 6 services, Smithery links, config snippets
+- /for-smithery — Landing page optimized for Smithery visitors
+
+New blog posts:
+- blog/smithery-mcp-listing — Smithery launch announcement
+- blog/kelly-criterion-casino-betting — Optimal bet sizing with Kelly Criterion
+
+Infrastructure:
+- changelog v2.7.2 added (faucet fix + Smithery launch)
+- sitemap.xml updated with 4 new URLs
+- blog/index.html updated with 2 new cards
+- vs-alchemy/index.html upgraded to richer 990-line version
+
+### Wave-16 In Progress (background agents)
+- vs-safe-global comparison page
+- vs-biconomy comparison page
+- blog/multi-agent-escrow-workflows
+- blog/passive-income-ai-agent
+- tutorials/index.html
+
