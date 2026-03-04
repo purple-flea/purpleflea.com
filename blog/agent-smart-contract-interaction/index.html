@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Complete guide for AI agents interacting with smart contracts: ABI encoding, function selectors, event parsing, gas estimation, and transaction simulation using ethers.js and web3.py." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Smart Contract Interaction for AI Agents: From ABI to Execution" />
+  <meta property="og:description" content="How AI agents decode ABIs, call contract functions, listen to events, estimate gas, and simulate transactions before execution using ethers.js and web3.py." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-smart-contract-interaction/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>Smart Contract Interaction for AI Agents: From ABI to Execution | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a;
+      --bg-secondary: #111111;
+      --bg-card: #141414;
+      --bg-code: #0d0d1a;
+      --border: #1e1e1e;
+      --border-light: #2a2a2a;
+      --text: #e8e8e8;
+      --text-muted: #888;
+      --text-faint: #555;
+      --purple: #7c3aed;
+      --purple-light: #9d5ef0;
+      --purple-faint: rgba(124,58,237,0.15);
+      --purple-glow: rgba(124,58,237,0.4);
+      --green: #22c55e;
+      --blue: #3b82f6;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --cyan: #06b6d4;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(10,10,10,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 24px; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: var(--purple-light); text-decoration: none; letter-spacing: -0.3px; }
+    .nav-logo span { color: var(--text-muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+    .nav-links { display: flex; gap: 28px; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .hero { background: linear-gradient(180deg, #060d14 0%, var(--bg) 100%); border-bottom: 1px solid var(--border); padding: 72px 24px 60px; }
+    .hero-inner { max-width: 860px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; font-size: 13px; color: var(--text-faint); }
+    .breadcrumb a { color: var(--text-faint); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--purple-light); }
+    .tag { display: inline-block; background: rgba(6,182,212,0.12); color: #22d3ee; border: 1px solid rgba(6,182,212,0.3); border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; padding: 3px 10px; margin-bottom: 20px; }
+    .hero h1 { font-size: clamp(28px,5vw,46px); font-weight: 800; line-height: 1.15; letter-spacing: -1px; margin-bottom: 20px; color: #f0f0f0; }
+    .hero h1 em { font-style: normal; color: var(--cyan); }
+    .hero-meta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+    .hero-meta span { display: flex; align-items: center; gap: 6px; }
+    .hero-desc { font-size: 18px; color: var(--text-muted); line-height: 1.75; max-width: 720px; }
+    .page-body { max-width: 860px; margin: 0 auto; padding: 56px 24px 80px; }
+    .toc { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 28px 32px; margin-bottom: 56px; }
+    .toc-title { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 16px; }
+    .toc ol { list-style: none; counter-reset: toc; }
+    .toc ol li { counter-increment: toc; padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 12px; }
+    .toc ol li:last-child { border-bottom: none; }
+    .toc ol li::before { content: counter(toc, decimal-leading-zero); font-size: 11px; font-weight: 600; font-family: var(--mono); color: var(--cyan); min-width: 24px; }
+    .toc ol li a { color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .toc ol li a:hover { color: var(--cyan); }
+    section { margin-bottom: 64px; }
+    section h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #f0f0f0; margin-bottom: 20px; padding-top: 8px; border-top: 2px solid var(--cyan); display: inline-block; }
+    section h3 { font-size: 20px; font-weight: 600; color: #e0e0e0; margin: 32px 0 14px; }
+    section p { color: var(--text-muted); margin-bottom: 18px; font-size: 16px; line-height: 1.8; }
+    section ul, section ol { color: var(--text-muted); padding-left: 24px; margin-bottom: 18px; }
+    section li { margin-bottom: 8px; line-height: 1.7; }
+    section strong { color: var(--text); font-weight: 600; }
+    .formula-box { background: var(--bg-code); border: 1px solid var(--border-light); border-left: 3px solid var(--cyan); border-radius: 8px; padding: 20px 24px; margin: 20px 0; font-family: var(--mono); font-size: 14px; color: #a5f3fc; overflow-x: auto; white-space: pre; }
+    .info-box { background: rgba(6,182,212,0.07); border: 1px solid rgba(6,182,212,0.22); border-radius: 8px; padding: 18px 22px; margin: 20px 0; }
+    .info-box-title { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; }
+    .info-box p { color: var(--text-muted); font-size: 14px; margin: 0; }
+    .warn-box { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.25); border-radius: 8px; padding: 18px 22px; margin: 20px 0; }
+    .warn-box-title { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--yellow); margin-bottom: 8px; }
+    .warn-box p { color: var(--text-muted); font-size: 14px; margin: 0; }
+    .table-wrap { overflow-x: auto; margin: 24px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead tr { background: var(--bg-code); }
+    th { text-align: left; padding: 12px 16px; font-weight: 600; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-light); }
+    td { padding: 11px 16px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-secondary); }
+    td strong { color: var(--text); }
+    td code { font-family: var(--mono); font-size: 12px; color: var(--cyan); background: rgba(6,182,212,0.08); padding: 2px 6px; border-radius: 3px; }
+    .badge { display: inline-block; border-radius: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; font-family: var(--mono); }
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-cyan { background: rgba(6,182,212,0.15); color: var(--cyan); }
+    .badge-purple { background: var(--purple-faint); color: var(--purple-light); }
+    .code-block { background: var(--bg-code); border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; margin: 28px 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; background: #0f0f1f; padding: 10px 18px; border-bottom: 1px solid var(--border-light); }
+    .code-filename { font-family: var(--mono); font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .code-lang { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .lang-py { color: #3b82f6; }
+    .lang-js { color: #eab308; }
+    .lang-sol { color: var(--cyan); }
+    .code-block pre { padding: 22px 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.65; }
+    .kw { color: #c792ea; }
+    .fn { color: #82aaff; }
+    .st { color: #c3e88d; }
+    .cm { color: #546e7a; font-style: italic; }
+    .nm { color: #f78c6c; }
+    .op { color: #89ddff; }
+    .cl { color: #ffcb6b; }
+    .dc { color: var(--text-muted); }
+    .jkw { color: #c792ea; }
+    .jst { color: #c3e88d; }
+    .jcm { color: #546e7a; font-style: italic; }
+    .jnm { color: #f78c6c; }
+    .jop { color: #89ddff; }
+    .jfn { color: #82aaff; }
+    .jdc { color: var(--text-muted); }
+    .jcl { color: #ffcb6b; }
+    /* ABI type visualizer */
+    .abi-visual { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 20px 24px; margin: 20px 0; }
+    .abi-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 13px; }
+    .abi-row:last-child { border-bottom: none; }
+    .abi-type { color: var(--cyan); min-width: 80px; }
+    .abi-name { color: var(--text); min-width: 120px; }
+    .abi-desc { color: var(--text-faint); font-family: var(--font); font-size: 12px; }
+    .abi-header { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
+    /* Concept cards */
+    .concept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin: 24px 0; }
+    .concept-card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 18px; transition: border-color 0.2s; }
+    .concept-card:hover { border-color: var(--cyan); }
+    .concept-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--cyan); margin-bottom: 8px; }
+    .concept-card h4 { font-size: 15px; font-weight: 700; color: #f0f0f0; margin-bottom: 6px; }
+    .concept-card p { font-size: 12px; color: var(--text-faint); margin: 0; }
+    .metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 16px; margin: 24px 0; }
+    .metric-card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 18px 20px; text-align: center; }
+    .metric-value { font-size: 26px; font-weight: 800; font-family: var(--mono); color: var(--cyan); display: block; }
+    .metric-label { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+    .cta-section { background: linear-gradient(135deg, #060d14, #081318); border: 1px solid rgba(6,182,212,0.35); border-radius: 16px; padding: 48px 40px; text-align: center; margin: 64px 0; }
+    .cta-section h2 { font-size: 28px; font-weight: 800; color: #f0f0f0; margin-bottom: 14px; letter-spacing: -0.5px; border: none; display: block; padding: 0; }
+    .cta-section p { font-size: 16px; color: var(--text-muted); max-width: 520px; margin: 0 auto 28px; }
+    .cta-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-block; border-radius: 8px; font-size: 14px; font-weight: 600; padding: 11px 24px; text-decoration: none; transition: all 0.2s; }
+    .btn-cyan { background: var(--cyan); color: #000; }
+    .btn-cyan:hover { background: #22d3ee; transform: translateY(-1px); }
+    .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border-light); }
+    .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+    footer { background: var(--bg-secondary); border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 13px; color: var(--text-faint); margin-top: 10px; line-height: 1.6; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 14px; }
+    .footer-col ul { list-style: none; }
+    .footer-col ul li { margin-bottom: 8px; }
+    .footer-col ul li a { color: var(--text-faint); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .footer-col ul li a:hover { color: var(--purple-light); }
+    .footer-bottom { border-top: 1px solid var(--border); padding-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .footer-bottom p { font-size: 12px; color: var(--text-faint); }
+    @media (max-width: 768px) {
+      .hero { padding: 48px 20px 40px; }
+      .page-body { padding: 40px 20px 60px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .nav-links { display: none; }
+      .cta-section { padding: 32px 24px; }
+      section h2 { font-size: 22px; }
+    }
+    @media (max-width: 480px) {
+      .footer-grid { grid-template-columns: 1fr; }
+      .concept-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple Flea <span>/ Blog</span></a>
+    <ul class="nav-links">
+      <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+      <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+      <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      <li><a href="https://purpleflea.com/blog" style="color:var(--cyan);">Blog</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="breadcrumb">
+      <a href="https://purpleflea.com">purpleflea.com</a>
+      <span>/</span>
+      <a href="https://purpleflea.com/blog">blog</a>
+      <span>/</span>
+      <span>agent-smart-contract-interaction</span>
+    </div>
+    <div class="tag">Smart Contracts &amp; EVM</div>
+    <h1>Smart Contract Interaction for AI Agents:<br /><em>From ABI to Execution</em></h1>
+    <div class="hero-meta">
+      <span>
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        March 4, 2026
+      </span>
+      <span>
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        24 min read
+      </span>
+      <span>
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        JavaScript, Python, Solidity
+      </span>
+    </div>
+    <p class="hero-desc">For an AI agent to interact autonomously with the Ethereum ecosystem, it must understand smart contracts from first principles: how the ABI encodes function calls, how to decode event logs, how to estimate gas accurately, and how to simulate transactions before they touch the blockchain. This guide walks through every layer, from raw hex calldata to complete agent implementations using ethers.js and web3.py through the Purple Flea Wallet API.</p>
+  </div>
+</header>
+
+<div class="page-body">
+
+  <nav class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <ol>
+      <li><a href="#abi-fundamentals">ABI Fundamentals: Types, Encoding, and Selectors</a></li>
+      <li><a href="#function-calls">Making Contract Function Calls</a></li>
+      <li><a href="#event-listening">Event Parsing and Log Decoding</a></li>
+      <li><a href="#gas-estimation">Gas Estimation and EIP-1559</a></li>
+      <li><a href="#simulation">Transaction Simulation with eth_call</a></li>
+      <li><a href="#code-examples">Complete Agent Code Examples</a></li>
+    </ol>
+  </nav>
+
+  <!-- SECTION 1 -->
+  <section id="abi-fundamentals">
+    <h2>ABI Fundamentals: Types, Encoding, and Selectors</h2>
+    <p>The Application Binary Interface (ABI) is the specification for how smart contract functions and events are encoded into raw bytes for the EVM. Every call to a smart contract starts with encoding the function selector (4 bytes) followed by the ABI-encoded arguments. Understanding this encoding is essential for agents that need to construct or decode contract interactions without relying on high-level libraries.</p>
+
+    <h3>Function Selector</h3>
+    <p>The function selector is the first 4 bytes of the Keccak-256 hash of the function's canonical signature. This deterministic mapping allows the EVM to dispatch incoming calldata to the correct function handler.</p>
+
+    <div class="formula-box">Function signature: transfer(address,uint256)
+Keccak256 hash:   0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b
+Function selector (first 4 bytes): 0xa9059cbb
+
+Full calldata for transfer(0xRecipient, 1000):
+  0xa9059cbb                                        ← selector
+  000000000000000000000000[recipient_address_20b]  ← address (32 bytes, left-padded)
+  00000000000000000000000000000000000000000003e8  ← uint256(1000)
+
+Total: 4 + 32 + 32 = 68 bytes</div>
+
+    <h3>ABI Type System</h3>
+    <div class="abi-visual">
+      <div class="abi-header">Core ABI Types and Encoding Rules</div>
+      <div class="abi-row">
+        <span class="abi-type">uint256</span>
+        <span class="abi-name">integers</span>
+        <span class="abi-desc">32 bytes, big-endian, unsigned. uintN where N is multiple of 8 (8..256)</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">int256</span>
+        <span class="abi-name">signed ints</span>
+        <span class="abi-desc">32 bytes, two's complement. intN (8..256)</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">address</span>
+        <span class="abi-name">address</span>
+        <span class="abi-desc">20 bytes, left-padded to 32 bytes</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">bool</span>
+        <span class="abi-name">boolean</span>
+        <span class="abi-desc">32 bytes: 0x00..01 or 0x00..00</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">bytes32</span>
+        <span class="abi-name">fixed bytes</span>
+        <span class="abi-desc">bytesN (1..32): right-padded static byte arrays</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">bytes</span>
+        <span class="abi-name">dynamic bytes</span>
+        <span class="abi-desc">Dynamic: offset (32B) + length (32B) + data (padded to 32B boundary)</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">string</span>
+        <span class="abi-name">string</span>
+        <span class="abi-desc">UTF-8 encoded, same encoding as bytes (dynamic)</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">tuple</span>
+        <span class="abi-name">struct</span>
+        <span class="abi-desc">Concatenated encoding of member types. Static if all members static.</span>
+      </div>
+      <div class="abi-row">
+        <span class="abi-type">T[]</span>
+        <span class="abi-name">array</span>
+        <span class="abi-desc">Dynamic: offset (32B) + length (32B) + encoded elements</span>
+      </div>
+    </div>
+
+    <h3>Canonical Signature Rules</h3>
+    <div class="formula-box">Rules for canonical type names in selectors:
+  - No spaces
+  - uint is alias for uint256 (use uint256)
+  - int  is alias for int256  (use int256)
+  - tuple(T1,T2,...) for structs
+  - T[k] for fixed arrays, T[] for dynamic arrays
+
+Examples:
+  approve(address,uint256)       → 0x095ea7b3
+  swapExactTokensForTokens(uint256,uint256,address[],address,uint256)
+                                 → 0x38ed1739
+  multicall(bytes[])             → 0xac9650d8</div>
+
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="concept-card-label">Encoding Type</div>
+        <h4>Static Types</h4>
+        <p>uint, int, bool, address, bytesN, fixed-size arrays. Encoded inline at fixed position.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-card-label">Encoding Type</div>
+        <h4>Dynamic Types</h4>
+        <p>bytes, string, T[], tuple with dynamic members. Encoded with an offset pointer to tail section.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-card-label">Pattern</div>
+        <h4>Head/Tail Encoding</h4>
+        <p>Head contains static values and offset pointers. Tail contains dynamic data. Concatenated as calldata.</p>
+      </div>
+      <div class="concept-card">
+        <div class="concept-card-label">Return Data</div>
+        <h4>Return ABI Decode</h4>
+        <p>Return data is ABI-decoded using the function's output types from the ABI JSON. Reverts return no data.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="function-calls">
+    <h2>Making Contract Function Calls</h2>
+    <p>For AI agents, there are two categories of contract interactions: <strong>read calls</strong> (eth_call, no gas, no state change) and <strong>write transactions</strong> (eth_sendRawTransaction, costs gas, modifies state). Agents should always read first, simulate the write, then submit the actual transaction.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-filename">contract_agent.js</span>
+        <span class="code-lang lang-js">JavaScript</span>
+      </div>
+      <pre><span class="jkw">const</span> <span class="jdc">{ ethers }</span> <span class="jop">=</span> <span class="jdc">require</span><span class="jop">(</span><span class="jst">"ethers"</span><span class="jop">);</span>
+
+<span class="jcm">// Purple Flea Wallet API provides a JSON-RPC compatible endpoint</span>
+<span class="jkw">const</span> <span class="jdc">WALLET_API_RPC</span> <span class="jop">=</span> <span class="jst">"https://purpleflea.com/wallet-api/v1/rpc"</span><span class="jop">;</span>
+
+<span class="jcm">// ERC-20 ABI (minimal subset for agents)</span>
+<span class="jkw">const</span> <span class="jdc">ERC20_ABI</span> <span class="jop">=</span> <span class="jop">[</span>
+  <span class="jst">"function balanceOf(address) view returns (uint256)"</span><span class="jop">,</span>
+  <span class="jst">"function decimals() view returns (uint8)"</span><span class="jop">,</span>
+  <span class="jst">"function symbol() view returns (string)"</span><span class="jop">,</span>
+  <span class="jst">"function transfer(address to, uint256 amount) returns (bool)"</span><span class="jop">,</span>
+  <span class="jst">"function approve(address spender, uint256 amount) returns (bool)"</span><span class="jop">,</span>
+  <span class="jst">"function allowance(address owner, address spender) view returns (uint256)"</span><span class="jop">,</span>
+  <span class="jst">"event Transfer(address indexed from, address indexed to, uint256 value)"</span><span class="jop">,</span>
+  <span class="jst">"event Approval(address indexed owner, address indexed spender, uint256 value)"</span>
+<span class="jop">];</span>
+
+<span class="jkw">class</span> <span class="jcl">SmartContractAgent</span> <span class="jop">{</span>
+  <span class="jfn">constructor</span><span class="jop">(</span><span class="jdc">walletApiKey</span><span class="jop">,</span> <span class="jdc">privateKey</span><span class="jop">) {</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">provider</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">JsonRpcProvider</span><span class="jop">(</span>
+      <span class="jdc">WALLET_API_RPC</span><span class="jop">,</span>
+      <span class="jkw">undefined</span><span class="jop">,</span>
+      <span class="jop">{</span> <span class="jdc">staticNetwork</span><span class="jop">:</span> <span class="jkw">true</span> <span class="jop">}</span>
+    <span class="jop">);</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">signer</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Wallet</span><span class="jop">(</span><span class="jdc">privateKey</span><span class="jop">,</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">provider</span><span class="jop">);</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">apiKey</span> <span class="jop">=</span> <span class="jdc">walletApiKey</span><span class="jop">;</span>
+  <span class="jop">}</span>
+
+  <span class="jkw">async</span> <span class="jfn">readTokenInfo</span><span class="jop">(</span><span class="jdc">tokenAddress</span><span class="jop">) {</span>
+    <span class="jkw">const</span> <span class="jdc">token</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Contract</span><span class="jop">(</span>
+      <span class="jdc">tokenAddress</span><span class="jop">,</span> <span class="jdc">ERC20_ABI</span><span class="jop">,</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">provider</span>
+    <span class="jop">);</span>
+    <span class="jkw">const</span> <span class="jop">[</span><span class="jdc">symbol</span><span class="jop">,</span> <span class="jdc">decimals</span><span class="jop">,</span> <span class="jdc">balance</span><span class="jop">]</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">Promise</span><span class="jop">.</span><span class="jfn">all</span><span class="jop">([</span>
+      <span class="jdc">token</span><span class="jop">.</span><span class="jfn">symbol</span><span class="jop">(),</span>
+      <span class="jdc">token</span><span class="jop">.</span><span class="jfn">decimals</span><span class="jop">(),</span>
+      <span class="jdc">token</span><span class="jop">.</span><span class="jfn">balanceOf</span><span class="jop">(</span><span class="jkw">await</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">signer</span><span class="jop">.</span><span class="jfn">getAddress</span><span class="jop">()),</span>
+    <span class="jop">]);</span>
+    <span class="jkw">return</span> <span class="jop">{</span>
+      <span class="jdc">symbol</span><span class="jop">,</span> <span class="jdc">decimals</span><span class="jop">:</span> <span class="jdc">Number</span><span class="jop">(</span><span class="jdc">decimals</span><span class="jop">),</span>
+      <span class="jdc">balance</span><span class="jop">:</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jfn">formatUnits</span><span class="jop">(</span><span class="jdc">balance</span><span class="jop">,</span> <span class="jdc">decimals</span><span class="jop">),</span>
+      <span class="jdc">balanceRaw</span><span class="jop">:</span> <span class="jdc">balance</span>
+    <span class="jop">};</span>
+  <span class="jop">}</span>
+
+  <span class="jkw">async</span> <span class="jfn">approveAndTransfer</span><span class="jop">(</span>
+    <span class="jdc">tokenAddress</span><span class="jop">,</span> <span class="jdc">spender</span><span class="jop">,</span> <span class="jdc">recipient</span><span class="jop">,</span> <span class="jdc">amount</span>
+  <span class="jop">) {</span>
+    <span class="jkw">const</span> <span class="jdc">token</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Contract</span><span class="jop">(</span>
+      <span class="jdc">tokenAddress</span><span class="jop">,</span> <span class="jdc">ERC20_ABI</span><span class="jop">,</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">signer</span>
+    <span class="jop">);</span>
+
+    <span class="jcm">// 1. Check allowance first (read — no gas)</span>
+    <span class="jkw">const</span> <span class="jdc">agentAddr</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">signer</span><span class="jop">.</span><span class="jfn">getAddress</span><span class="jop">();</span>
+    <span class="jkw">const</span> <span class="jdc">allowance</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jfn">allowance</span><span class="jop">(</span><span class="jdc">agentAddr</span><span class="jop">,</span> <span class="jdc">spender</span><span class="jop">);</span>
+
+    <span class="jkw">if</span> <span class="jop">(</span><span class="jdc">allowance</span> <span class="jop">&lt;</span> <span class="jdc">amount</span><span class="jop">) {</span>
+      <span class="jcm">// 2. Estimate gas for approve</span>
+      <span class="jkw">const</span> <span class="jdc">approveGas</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jdc">approve</span><span class="jop">.</span><span class="jfn">estimateGas</span><span class="jop">(</span><span class="jdc">spender</span><span class="jop">,</span> <span class="jdc">amount</span><span class="jop">);</span>
+      <span class="jkw">const</span> <span class="jdc">feeData</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">provider</span><span class="jop">.</span><span class="jfn">getFeeData</span><span class="jop">();</span>
+
+      <span class="jcm">// 3. Send approve transaction</span>
+      <span class="jkw">const</span> <span class="jdc">approveTx</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jfn">approve</span><span class="jop">(</span><span class="jdc">spender</span><span class="jop">,</span> <span class="jdc">amount</span><span class="jop">, {</span>
+        <span class="jdc">gasLimit</span><span class="jop">:</span> <span class="jdc">approveGas</span> <span class="jop">*</span> <span class="jnm">110n</span> <span class="jop">/</span> <span class="jnm">100n</span><span class="jop">,</span>  <span class="jcm">// 10% buffer</span>
+        <span class="jdc">maxFeePerGas</span><span class="jop">:</span> <span class="jdc">feeData</span><span class="jop">.</span><span class="jdc">maxFeePerGas</span><span class="jop">,</span>
+        <span class="jdc">maxPriorityFeePerGas</span><span class="jop">:</span> <span class="jdc">feeData</span><span class="jop">.</span><span class="jdc">maxPriorityFeePerGas</span>
+      <span class="jop">});</span>
+      <span class="jkw">await</span> <span class="jdc">approveTx</span><span class="jop">.</span><span class="jfn">wait</span><span class="jop">(</span><span class="jnm">1</span><span class="jop">);</span>
+      <span class="jdc">console</span><span class="jop">.</span><span class="jfn">log</span><span class="jop">(</span><span class="jst">`Approved: ${approveTx.hash}`</span><span class="jop">);</span>
+    <span class="jop">}</span>
+
+    <span class="jcm">// 4. Simulate transfer before sending</span>
+    <span class="jkw">try</span> <span class="jop">{</span>
+      <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jdc">transfer</span><span class="jop">.</span><span class="jfn">staticCall</span><span class="jop">(</span><span class="jdc">recipient</span><span class="jop">,</span> <span class="jdc">amount</span><span class="jop">);</span>
+    <span class="jop">}</span> <span class="jkw">catch</span> <span class="jop">(</span><span class="jdc">e</span><span class="jop">) {</span>
+      <span class="jkw">throw</span> <span class="jkw">new</span> <span class="jcl">Error</span><span class="jop">(</span><span class="jst">`Transfer simulation failed: ${e.message}`</span><span class="jop">);</span>
+    <span class="jop">}</span>
+
+    <span class="jcm">// 5. Send the actual transfer</span>
+    <span class="jkw">const</span> <span class="jdc">transferTx</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jfn">transfer</span><span class="jop">(</span><span class="jdc">recipient</span><span class="jop">,</span> <span class="jdc">amount</span><span class="jop">);</span>
+    <span class="jkw">const</span> <span class="jdc">receipt</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">transferTx</span><span class="jop">.</span><span class="jfn">wait</span><span class="jop">(</span><span class="jnm">1</span><span class="jop">);</span>
+    <span class="jdc">console</span><span class="jop">.</span><span class="jfn">log</span><span class="jop">(</span><span class="jst">`Transferred! Tx: ${receipt.hash}`</span><span class="jop">);</span>
+    <span class="jkw">return</span> <span class="jdc">receipt</span><span class="jop">;</span>
+  <span class="jop">}</span>
+<span class="jop">}</span>
+
+<span class="jcm">// Usage</span>
+<span class="jkw">const</span> <span class="jdc">agent</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jcl">SmartContractAgent</span><span class="jop">(</span>
+  <span class="jdc">process</span><span class="jop">.</span><span class="jdc">env</span><span class="jop">.</span><span class="jdc">PF_API_KEY</span><span class="jop">,</span>
+  <span class="jdc">process</span><span class="jop">.</span><span class="jdc">env</span><span class="jop">.</span><span class="jdc">AGENT_PRIVATE_KEY</span>
+<span class="jop">);</span>
+<span class="jkw">const</span> <span class="jdc">info</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jdc">agent</span><span class="jop">.</span><span class="jfn">readTokenInfo</span><span class="jop">(</span><span class="jst">"0xA0b8..."</span><span class="jop">);</span>  <span class="jcm">// USDC</span>
+<span class="jdc">console</span><span class="jop">.</span><span class="jfn">log</span><span class="jop">(</span><span class="jdc">info</span><span class="jop">.</span><span class="jdc">symbol</span><span class="jop">,</span> <span class="jdc">info</span><span class="jop">.</span><span class="jdc">balance</span><span class="jop">);</span>  <span class="jcm">// → USDC 1250.00</span></pre>
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="event-listening">
+    <h2>Event Parsing and Log Decoding</h2>
+    <p>Smart contract events are the primary mechanism for observing on-chain state changes without polling every block. Events are stored in transaction receipts as logs — each log has an address, up to 4 indexed topics (32 bytes each), and arbitrary non-indexed data. The first topic is always the event's Keccak-256 signature hash (the "event selector").</p>
+
+    <h3>Event Selector Calculation</h3>
+    <div class="formula-box">Transfer(address indexed from, address indexed to, uint256 value)
+
+Canonical signature (no `indexed` keyword):
+  Transfer(address,address,uint256)
+
+Keccak256("Transfer(address,address,uint256)"):
+  0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+
+Log structure:
+  topics[0]: 0xddf252ad...  ← event selector
+  topics[1]: 0x000...from   ← indexed address from
+  topics[2]: 0x000...to     ← indexed address to
+  data:       0x000...value  ← non-indexed uint256</div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-filename">event_listener.js</span>
+        <span class="code-lang lang-js">JavaScript</span>
+      </div>
+      <pre><span class="jkw">const</span> <span class="jdc">{ ethers }</span> <span class="jop">=</span> <span class="jdc">require</span><span class="jop">(</span><span class="jst">"ethers"</span><span class="jop">);</span>
+
+<span class="jkw">class</span> <span class="jcl">ContractEventMonitor</span> <span class="jop">{</span>
+  <span class="jfn">constructor</span><span class="jop">(</span><span class="jdc">provider</span><span class="jop">,</span> <span class="jdc">contractAddress</span><span class="jop">,</span> <span class="jdc">abi</span><span class="jop">) {</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">contract</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Contract</span><span class="jop">(</span><span class="jdc">contractAddress</span><span class="jop">,</span> <span class="jdc">abi</span><span class="jop">,</span> <span class="jdc">provider</span><span class="jop">);</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">iface</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Interface</span><span class="jop">(</span><span class="jdc">abi</span><span class="jop">);</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">handlers</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jcl">Map</span><span class="jop">();</span>
+  <span class="jop">}</span>
+
+  <span class="jfn">on</span><span class="jop">(</span><span class="jdc">eventName</span><span class="jop">,</span> <span class="jdc">handler</span><span class="jop">) {</span>
+    <span class="jkw">this</span><span class="jop">.</span><span class="jdc">contract</span><span class="jop">.</span><span class="jfn">on</span><span class="jop">(</span><span class="jdc">eventName</span><span class="jop">,</span> <span class="jop">(...</span><span class="jdc">args</span><span class="jop">) =></span> <span class="jop">{</span>
+      <span class="jkw">const</span> <span class="jdc">event</span> <span class="jop">=</span> <span class="jdc">args</span><span class="jop">[</span><span class="jdc">args</span><span class="jop">.</span><span class="jdc">length</span> <span class="jop">-</span> <span class="jnm">1</span><span class="jop">];</span>  <span class="jcm">// last arg is EventLog</span>
+      <span class="jfn">handler</span><span class="jop">({</span>
+        <span class="jdc">blockNumber</span><span class="jop">:</span> <span class="jdc">event</span><span class="jop">.</span><span class="jdc">blockNumber</span><span class="jop">,</span>
+        <span class="jdc">txHash</span><span class="jop">:</span> <span class="jdc">event</span><span class="jop">.</span><span class="jdc">transactionHash</span><span class="jop">,</span>
+        <span class="jdc">args</span><span class="jop">:</span> <span class="jdc">event</span><span class="jop">.</span><span class="jdc">args</span>
+      <span class="jop">});</span>
+    <span class="jop">});</span>
+    <span class="jkw">return</span> <span class="jkw">this</span><span class="jop">;</span>
+  <span class="jop">}</span>
+
+  <span class="jkw">async</span> <span class="jfn">getHistoricalLogs</span><span class="jop">(</span><span class="jdc">eventName</span><span class="jop">,</span> <span class="jdc">fromBlock</span><span class="jop">,</span> <span class="jdc">toBlock</span> <span class="jop">=</span> <span class="jst">"latest"</span><span class="jop">) {</span>
+    <span class="jkw">const</span> <span class="jdc">filter</span> <span class="jop">=</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">contract</span><span class="jop">.</span><span class="jdc">filters</span><span class="jop">[</span><span class="jdc">eventName</span><span class="jop">]();</span>
+    <span class="jkw">const</span> <span class="jdc">logs</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">contract</span><span class="jop">.</span><span class="jfn">queryFilter</span><span class="jop">(</span><span class="jdc">filter</span><span class="jop">,</span> <span class="jdc">fromBlock</span><span class="jop">,</span> <span class="jdc">toBlock</span><span class="jop">);</span>
+    <span class="jkw">return</span> <span class="jdc">logs</span><span class="jop">.</span><span class="jfn">map</span><span class="jop">(</span><span class="jdc">log</span> <span class="jop">=></span> <span class="jop">({</span>
+      <span class="jdc">block</span><span class="jop">:</span> <span class="jdc">log</span><span class="jop">.</span><span class="jdc">blockNumber</span><span class="jop">,</span>
+      <span class="jdc">tx</span><span class="jop">:</span> <span class="jdc">log</span><span class="jop">.</span><span class="jdc">transactionHash</span><span class="jop">,</span>
+      <span class="jdc">args</span><span class="jop">:</span> <span class="jdc">log</span><span class="jop">.</span><span class="jdc">args</span><span class="jop">.</span><span class="jfn">toObject</span><span class="jop">(),</span>
+    <span class="jop">}));</span>
+  <span class="jop">}</span>
+
+  <span class="jkw">async</span> <span class="jfn">decodeArbitraryLog</span><span class="jop">(</span><span class="jdc">log</span><span class="jop">) {</span>
+    <span class="jcm">// Useful for decoding logs from transactions that call</span>
+    <span class="jcm">// multiple contracts (e.g., Uniswap swaps emit token Transfer logs)</span>
+    <span class="jkw">try</span> <span class="jop">{</span>
+      <span class="jkw">return</span> <span class="jkw">this</span><span class="jop">.</span><span class="jdc">iface</span><span class="jop">.</span><span class="jfn">parseLog</span><span class="jop">({</span>
+        <span class="jdc">topics</span><span class="jop">:</span> <span class="jdc">log</span><span class="jop">.</span><span class="jdc">topics</span><span class="jop">,</span>
+        <span class="jdc">data</span><span class="jop">:</span> <span class="jdc">log</span><span class="jop">.</span><span class="jdc">data</span>
+      <span class="jop">});</span>
+    <span class="jop">}</span> <span class="jkw">catch</span> <span class="jop">{</span>
+      <span class="jkw">return</span> <span class="jkw">null</span><span class="jop">;</span>  <span class="jcm">// unknown event</span>
+    <span class="jop">}</span>
+  <span class="jop">}</span>
+<span class="jop">}</span>
+
+<span class="jcm">// Monitor USDC transfers to agent's address</span>
+<span class="jkw">const</span> <span class="jdc">monitor</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jcl">ContractEventMonitor</span><span class="jop">(</span><span class="jdc">provider</span><span class="jop">,</span> <span class="jdc">USDC_ADDRESS</span><span class="jop">,</span> <span class="jdc">ERC20_ABI</span><span class="jop">);</span>
+<span class="jdc">monitor</span><span class="jop">.</span><span class="jfn">on</span><span class="jop">(</span><span class="jst">"Transfer"</span><span class="jop">,</span> <span class="jop">(</span><span class="jdc">event</span><span class="jop">) =></span> <span class="jop">{</span>
+  <span class="jkw">const</span> <span class="jop">{</span> <span class="jdc">from</span><span class="jop">,</span> <span class="jdc">to</span><span class="jop">,</span> <span class="jdc">value</span> <span class="jop">}</span> <span class="jop">=</span> <span class="jdc">event</span><span class="jop">.</span><span class="jdc">args</span><span class="jop">;</span>
+  <span class="jkw">if</span> <span class="jop">(</span><span class="jdc">to</span><span class="jop">.</span><span class="jfn">toLowerCase</span><span class="jop">()</span> <span class="jop">===</span> <span class="jdc">agentAddress</span><span class="jop">.</span><span class="jfn">toLowerCase</span><span class="jop">()) {</span>
+    <span class="jdc">console</span><span class="jop">.</span><span class="jfn">log</span><span class="jop">(</span><span class="jst">`Received ${ethers.formatUnits(value, 6)} USDC from ${from}`</span><span class="jop">);</span>
+  <span class="jop">}</span>
+<span class="jop">});</span></pre>
+    </div>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="gas-estimation">
+    <h2>Gas Estimation and EIP-1559</h2>
+    <p>EIP-1559 (introduced in the London hard fork) replaced the simple gas price model with a two-component fee structure: a <strong>base fee</strong> (burned, set by the protocol) and a <strong>priority fee</strong> (tip to the validator). For AI agents, this means gas fee estimation requires forecasting the next base fee and choosing an appropriate tip.</p>
+
+    <div class="formula-box">EIP-1559 Transaction Fields:
+  maxFeePerGas          = max total fee per gas unit (Wei)
+  maxPriorityFeePerGas  = tip to validator (Wei)
+
+Actual fee paid per gas:
+  min(maxFeePerGas, baseFee + maxPriorityFeePerGas)
+
+Base fee adjustment (each block):
+  baseFee_new = baseFee_old × (1 + 0.125 × (gasUsed - targetGas) / targetGas)
+  Max change per block: ±12.5%
+
+Total transaction cost:
+  cost = gasUsed × (baseFee + priorityFee)
+
+Agent strategy: set maxFeePerGas = 2 × current baseFee
+  → transaction valid for ~11 blocks even if base fee rises 12.5% per block</div>
+
+    <div class="metric-row">
+      <div class="metric-card">
+        <span class="metric-value">21,000</span>
+        <div class="metric-label">ETH transfer gas</div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-value">~46,000</span>
+        <div class="metric-label">ERC-20 transfer gas</div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-value">~150,000</span>
+        <div class="metric-label">Uniswap swap gas</div>
+      </div>
+      <div class="metric-card">
+        <span class="metric-value">~400,000</span>
+        <div class="metric-label">Complex DeFi tx gas</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>RPC Method</th><th>Purpose</th><th>Gas Cost</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>eth_estimateGas</code></td><td>Estimate gas for a transaction</td><td><span class="badge badge-green">Free (read)</span></td></tr>
+          <tr><td><code>eth_call</code></td><td>Simulate transaction (no state change)</td><td><span class="badge badge-green">Free (read)</span></td></tr>
+          <tr><td><code>eth_gasPrice</code></td><td>Legacy gas price (pre-1559)</td><td><span class="badge badge-green">Free (read)</span></td></tr>
+          <tr><td><code>eth_feeHistory</code></td><td>Historical base fees + priority fees</td><td><span class="badge badge-green">Free (read)</span></td></tr>
+          <tr><td><code>eth_sendRawTransaction</code></td><td>Broadcast signed transaction</td><td><span class="badge badge-yellow">Gas required</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section id="simulation">
+    <h2>Transaction Simulation with eth_call</h2>
+    <p>Transaction simulation (eth_call) allows an agent to execute a transaction against the current state without broadcasting it to the network. This is the most important safety mechanism available to smart contract agents. If a simulation fails, the broadcast would also fail — and the agent would lose gas. Always simulate before sending.</p>
+
+    <div class="warn-box">
+      <div class="warn-box-title">Simulation Limitations</div>
+      <p>Simulations reflect the blockchain state at the moment of the eth_call. Between simulation and broadcast, another transaction may change state (e.g., allowance consumed by a competing transaction, liquidity removed from a pool). For time-sensitive operations, keep simulation-to-broadcast latency under 1 second, and set tight slippage guards in the transaction itself.</p>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-filename">contract_agent.py</span>
+        <span class="code-lang lang-py">Python</span>
+      </div>
+      <pre><span class="kw">import</span> <span class="dc">os</span>
+<span class="kw">from</span> <span class="dc">web3</span> <span class="kw">import</span> <span class="cl">Web3</span>
+<span class="kw">from</span> <span class="dc">web3.middleware</span> <span class="kw">import</span> <span class="dc">SignAndSendRawMiddlewareBuilder</span>
+<span class="kw">from</span> <span class="dc">eth_account</span> <span class="kw">import</span> <span class="cl">Account</span>
+<span class="kw">import</span> <span class="dc">json</span>
+
+<span class="cm"># Connect via Purple Flea Wallet API JSON-RPC endpoint</span>
+<span class="dc">w3</span> <span class="op">=</span> <span class="cl">Web3</span><span class="op">(</span><span class="cl">Web3</span><span class="op">.</span><span class="cl">HTTPProvider</span><span class="op">(</span>
+    <span class="st">"https://purpleflea.com/wallet-api/v1/rpc"</span><span class="op">,</span>
+    <span class="dc">request_kwargs</span><span class="op">={</span>
+        <span class="st">"headers"</span><span class="op">:</span> <span class="op">{</span><span class="st">"Authorization"</span><span class="op">:</span> <span class="dc">f</span><span class="st">"Bearer {os.getenv('PF_API_KEY')}"</span><span class="op">}</span>
+    <span class="op">}</span>
+<span class="op">))</span>
+
+<span class="dc">ERC20_ABI</span> <span class="op">=</span> <span class="dc">json</span><span class="op">.</span><span class="fn">loads</span><span class="op">(</span><span class="st">"""[
+  {"inputs":[{"type":"address"}],"name":"balanceOf","outputs":[{"type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"type":"address"},{"type":"uint256"}],"name":"transfer","outputs":[{"type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"type":"address"},{"type":"uint256"}],"name":"approve","outputs":[{"type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"type":"address"},{"type":"address"}],"name":"allowance","outputs":[{"type":"uint256"}],"stateMutability":"view","type":"function"}
+]"""</span><span class="op">)</span>
+
+
+<span class="kw">class</span> <span class="cl">ContractAgentPy</span><span class="op">:</span>
+    <span class="st">"""web3.py smart contract interaction agent."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span><span class="op">(</span><span class="dc">self</span><span class="op">,</span> <span class="dc">private_key</span><span class="op">:</span> <span class="dc">str</span><span class="op">):</span>
+        <span class="dc">self</span><span class="op">.</span><span class="dc">acct</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">account</span><span class="op">.</span><span class="fn">from_key</span><span class="op">(</span><span class="dc">private_key</span><span class="op">)</span>
+        <span class="dc">w3</span><span class="op">.</span><span class="dc">middleware_onion</span><span class="op">.</span><span class="fn">inject</span><span class="op">(</span>
+            <span class="dc">SignAndSendRawMiddlewareBuilder</span><span class="op">.</span><span class="fn">build</span><span class="op">(</span><span class="dc">self</span><span class="op">.</span><span class="dc">acct</span><span class="op">),</span>
+            <span class="dc">layer</span><span class="op">=</span><span class="nm">0</span>
+        <span class="op">)</span>
+
+    <span class="kw">def</span> <span class="fn">_get_contract</span><span class="op">(</span><span class="dc">self</span><span class="op">,</span> <span class="dc">address</span><span class="op">:</span> <span class="dc">str</span><span class="op">)</span><span class="op">:</span>
+        <span class="kw">return</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">contract</span><span class="op">(</span>
+            <span class="dc">address</span><span class="op">=</span><span class="cl">Web3</span><span class="op">.</span><span class="fn">to_checksum_address</span><span class="op">(</span><span class="dc">address</span><span class="op">),</span>
+            <span class="dc">abi</span><span class="op">=</span><span class="dc">ERC20_ABI</span>
+        <span class="op">)</span>
+
+    <span class="kw">def</span> <span class="fn">simulate_transfer</span><span class="op">(</span><span class="dc">self</span><span class="op">,</span> <span class="dc">token_addr</span><span class="op">:</span> <span class="dc">str</span><span class="op">,</span>
+                           <span class="dc">recipient</span><span class="op">:</span> <span class="dc">str</span><span class="op">,</span>
+                           <span class="dc">amount_wei</span><span class="op">:</span> <span class="dc">int</span><span class="op">)</span> <span class="op">-></span> <span class="dc">dict</span><span class="op">:</span>
+        <span class="st">"""
+        Simulate a token transfer without broadcasting.
+        Returns gas estimate and simulation success/failure.
+        """</span>
+        <span class="dc">token</span> <span class="op">=</span> <span class="dc">self</span><span class="op">.</span><span class="fn">_get_contract</span><span class="op">(</span><span class="dc">token_addr</span><span class="op">)</span>
+        <span class="dc">call</span> <span class="op">=</span> <span class="dc">token</span><span class="op">.</span><span class="dc">functions</span><span class="op">.</span><span class="fn">transfer</span><span class="op">(</span>
+            <span class="cl">Web3</span><span class="op">.</span><span class="fn">to_checksum_address</span><span class="op">(</span><span class="dc">recipient</span><span class="op">),</span>
+            <span class="dc">amount_wei</span>
+        <span class="op">)</span>
+
+        <span class="cm"># 1. eth_call simulation</span>
+        <span class="kw">try</span><span class="op">:</span>
+            <span class="dc">result</span> <span class="op">=</span> <span class="dc">call</span><span class="op">.</span><span class="fn">call</span><span class="op">({</span><span class="st">"from"</span><span class="op">:</span> <span class="dc">self</span><span class="op">.</span><span class="dc">acct</span><span class="op">.</span><span class="dc">address</span><span class="op">})</span>
+            <span class="dc">sim_ok</span> <span class="op">=</span> <span class="dc">bool</span><span class="op">(</span><span class="dc">result</span><span class="op">)</span>
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> <span class="dc">e</span><span class="op">:</span>
+            <span class="kw">return</span> <span class="op">{</span><span class="st">"ok"</span><span class="op">:</span> <span class="kw">False</span><span class="op">,</span> <span class="st">"error"</span><span class="op">:</span> <span class="dc">str</span><span class="op">(</span><span class="dc">e</span><span class="op">)}</span>
+
+        <span class="cm"># 2. gas estimate</span>
+        <span class="dc">gas_est</span> <span class="op">=</span> <span class="dc">call</span><span class="op">.</span><span class="fn">estimate_gas</span><span class="op">({</span><span class="st">"from"</span><span class="op">:</span> <span class="dc">self</span><span class="op">.</span><span class="dc">acct</span><span class="op">.</span><span class="dc">address</span><span class="op">})</span>
+
+        <span class="cm"># 3. EIP-1559 fee data</span>
+        <span class="dc">latest</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">get_block</span><span class="op">(</span><span class="st">"latest"</span><span class="op">)</span>
+        <span class="dc">base_fee</span> <span class="op">=</span> <span class="dc">latest</span><span class="op">[</span><span class="st">"baseFeePerGas"</span><span class="op">]</span>
+        <span class="dc">priority_fee</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">max_priority_fee</span>
+        <span class="dc">max_fee</span> <span class="op">=</span> <span class="nm">2</span> <span class="op">*</span> <span class="dc">base_fee</span> <span class="op">+</span> <span class="dc">priority_fee</span>
+
+        <span class="kw">return</span> <span class="op">{</span>
+            <span class="st">"ok"</span><span class="op">:</span> <span class="dc">sim_ok</span><span class="op">,</span>
+            <span class="st">"gas_estimate"</span><span class="op">:</span> <span class="dc">gas_est</span><span class="op">,</span>
+            <span class="st">"gas_limit"</span><span class="op">:</span> <span class="dc">int</span><span class="op">(</span><span class="dc">gas_est</span> <span class="op">*</span> <span class="nm">1.15</span><span class="op">),</span>  <span class="cm"># 15% buffer</span>
+            <span class="st">"base_fee_gwei"</span><span class="op">:</span> <span class="dc">w3</span><span class="op">.</span><span class="fn">from_wei</span><span class="op">(</span><span class="dc">base_fee</span><span class="op">,</span> <span class="st">"gwei"</span><span class="op">),</span>
+            <span class="st">"max_fee_gwei"</span><span class="op">:</span> <span class="dc">w3</span><span class="op">.</span><span class="fn">from_wei</span><span class="op">(</span><span class="dc">max_fee</span><span class="op">,</span> <span class="st">"gwei"</span><span class="op">),</span>
+            <span class="st">"cost_eth"</span><span class="op">:</span> <span class="dc">w3</span><span class="op">.</span><span class="fn">from_wei</span><span class="op">(</span><span class="dc">gas_est</span> <span class="op">*</span> <span class="dc">max_fee</span><span class="op">,</span> <span class="st">"ether"</span><span class="op">),</span>
+        <span class="op">}</span>
+
+    <span class="kw">def</span> <span class="fn">send_transfer</span><span class="op">(</span><span class="dc">self</span><span class="op">,</span> <span class="dc">token_addr</span><span class="op">:</span> <span class="dc">str</span><span class="op">,</span>
+                        <span class="dc">recipient</span><span class="op">:</span> <span class="dc">str</span><span class="op">,</span>
+                        <span class="dc">amount_wei</span><span class="op">:</span> <span class="dc">int</span><span class="op">)</span> <span class="op">-></span> <span class="dc">str</span><span class="op">:</span>
+        <span class="st">"""
+        Safe transfer: simulate first, then broadcast if simulation passes.
+        Returns transaction hash.
+        """</span>
+        <span class="cm"># 1. Simulate</span>
+        <span class="dc">sim</span> <span class="op">=</span> <span class="dc">self</span><span class="op">.</span><span class="fn">simulate_transfer</span><span class="op">(</span><span class="dc">token_addr</span><span class="op">,</span> <span class="dc">recipient</span><span class="op">,</span> <span class="dc">amount_wei</span><span class="op">)</span>
+        <span class="kw">if</span> <span class="kw">not</span> <span class="dc">sim</span><span class="op">[</span><span class="st">"ok"</span><span class="op">]</span><span class="op">:</span>
+            <span class="kw">raise</span> <span class="cl">RuntimeError</span><span class="op">(</span><span class="dc">f</span><span class="st">"Simulation failed: {sim.get('error')}"</span><span class="op">)</span>
+
+        <span class="dc">print</span><span class="op">(</span><span class="dc">f</span><span class="st">"Simulation OK | gas: {sim['gas_estimate']} | "</span>
+              <span class="dc">f</span><span class="st">"cost: {sim['cost_eth']:.6f} ETH"</span><span class="op">)</span>
+
+        <span class="cm"># 2. Build and sign tx</span>
+        <span class="dc">token</span> <span class="op">=</span> <span class="dc">self</span><span class="op">.</span><span class="fn">_get_contract</span><span class="op">(</span><span class="dc">token_addr</span><span class="op">)</span>
+        <span class="dc">latest</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">get_block</span><span class="op">(</span><span class="st">"latest"</span><span class="op">)</span>
+        <span class="dc">base_fee</span> <span class="op">=</span> <span class="dc">latest</span><span class="op">[</span><span class="st">"baseFeePerGas"</span><span class="op">]</span>
+        <span class="dc">prio_fee</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">max_priority_fee</span>
+
+        <span class="dc">tx_hash</span> <span class="op">=</span> <span class="dc">token</span><span class="op">.</span><span class="dc">functions</span><span class="op">.</span><span class="fn">transfer</span><span class="op">(</span>
+            <span class="cl">Web3</span><span class="op">.</span><span class="fn">to_checksum_address</span><span class="op">(</span><span class="dc">recipient</span><span class="op">),</span>
+            <span class="dc">amount_wei</span>
+        <span class="op">).</span><span class="fn">transact</span><span class="op">({</span>
+            <span class="st">"from"</span><span class="op">:</span> <span class="dc">self</span><span class="op">.</span><span class="dc">acct</span><span class="op">.</span><span class="dc">address</span><span class="op">,</span>
+            <span class="st">"gas"</span><span class="op">:</span> <span class="dc">sim</span><span class="op">[</span><span class="st">"gas_limit"</span><span class="op">],</span>
+            <span class="st">"maxFeePerGas"</span><span class="op">:</span> <span class="nm">2</span> <span class="op">*</span> <span class="dc">base_fee</span> <span class="op">+</span> <span class="dc">prio_fee</span><span class="op">,</span>
+            <span class="st">"maxPriorityFeePerGas"</span><span class="op">:</span> <span class="dc">prio_fee</span><span class="op">,</span>
+        <span class="op">})</span>
+        <span class="dc">print</span><span class="op">(</span><span class="dc">f</span><span class="st">"Broadcast: 0x{tx_hash.hex()}"</span><span class="op">)</span>
+
+        <span class="cm"># 3. Wait for confirmation</span>
+        <span class="dc">receipt</span> <span class="op">=</span> <span class="dc">w3</span><span class="op">.</span><span class="dc">eth</span><span class="op">.</span><span class="fn">wait_for_transaction_receipt</span><span class="op">(</span><span class="dc">tx_hash</span><span class="op">,</span> <span class="dc">timeout</span><span class="op">=</span><span class="nm">120</span><span class="op">)</span>
+        <span class="kw">if</span> <span class="dc">receipt</span><span class="op">[</span><span class="st">"status"</span><span class="op">]</span> <span class="op">!=</span> <span class="nm">1</span><span class="op">:</span>
+            <span class="kw">raise</span> <span class="cl">RuntimeError</span><span class="op">(</span><span class="dc">f</span><span class="st">"Tx reverted: 0x{tx_hash.hex()}"</span><span class="op">)</span>
+        <span class="kw">return</span> <span class="dc">f</span><span class="st">"0x{tx_hash.hex()}"</span>
+
+
+<span class="cm"># Example</span>
+<span class="dc">agent</span> <span class="op">=</span> <span class="cl">ContractAgentPy</span><span class="op">(</span><span class="dc">os</span><span class="op">.</span><span class="fn">getenv</span><span class="op">(</span><span class="st">"PRIVATE_KEY"</span><span class="op">))</span>
+<span class="dc">sim</span> <span class="op">=</span> <span class="dc">agent</span><span class="op">.</span><span class="fn">simulate_transfer</span><span class="op">(</span>
+    <span class="st">"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"</span><span class="op">,</span>   <span class="cm"># USDC</span>
+    <span class="st">"0xRecipientAddress"</span><span class="op">,</span>
+    <span class="dc">int</span><span class="op">(</span><span class="nm">100e6</span><span class="op">)</span>                                        <span class="cm"># 100 USDC (6 decimals)</span>
+<span class="op">)</span>
+<span class="dc">print</span><span class="op">(</span><span class="dc">f</span><span class="st">"OK={sim['ok']} gas={sim['gas_estimate']} cost={sim['cost_eth']:.6f}ETH"</span><span class="op">)</span></pre>
+    </div>
+  </section>
+
+  <!-- SECTION 6 -->
+  <section id="code-examples">
+    <h2>Complete Agent Code Examples</h2>
+    <p>Combining all the concepts above, the following is a production-ready agent scaffold that handles contract interaction, event monitoring, gas management, and retry logic — all integrated with the Purple Flea Wallet API.</p>
+
+    <h3>Purple Flea Wallet API Integration</h3>
+    <p>The Purple Flea Wallet API at <code>purpleflea.com/wallet-api</code> provides a JSON-RPC compatible endpoint that proxies to multiple EVM chains. This means agents can use the standard ethers.js or web3.py interfaces while benefiting from Purple Flea's transaction monitoring, nonce management, and gasless meta-transaction support.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Wallet API Feature</th><th>Endpoint</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>JSON-RPC Proxy</strong></td><td><code>/v1/rpc</code></td><td>Full EVM RPC compatibility. Drop-in for Infura/Alchemy.</td></tr>
+          <tr><td><strong>Nonce Management</strong></td><td><code>/v1/nonce/{address}</code></td><td>Atomic nonce allocation — prevents stuck transactions in multi-agent scenarios.</td></tr>
+          <tr><td><strong>Gas Oracle</strong></td><td><code>/v1/gas-oracle</code></td><td>Returns recommended gas settings for fast/normal/slow confirmation.</td></tr>
+          <tr><td><strong>Tx Monitor</strong></td><td><code>/v1/tx/{hash}/status</code></td><td>Track transaction confirmation status with replacement detection.</td></tr>
+          <tr><td><strong>Batch Calls</strong></td><td><code>/v1/batch-call</code></td><td>Execute multiple eth_call in a single HTTP request.</td></tr>
+          <tr><td><strong>Backup Export</strong></td><td><code>/v1/export</code></td><td>Encrypted seed export for backup and recovery drills.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box">
+      <div class="info-box-title">Getting Started with the Wallet API</div>
+      <p>New agents can claim free USDC at <strong>faucet.purpleflea.com</strong> and immediately start testing smart contract interactions via the Wallet API without needing to acquire ETH for gas first — Purple Flea's gas abstraction layer handles fee payment during the trial period. Use <strong>escrow.purpleflea.com</strong> to set up trustless agent-to-agent payment flows with automatic release conditions.</p>
+    </div>
+
+    <h3>Revert Reason Decoding</h3>
+    <p>When a smart contract call reverts, decoding the revert reason is essential for agent debugging. ethers.js and web3.py provide helpers, but custom error types (EIP-1193 custom errors) require manual ABI decoding.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-filename">decode_revert.js</span>
+        <span class="code-lang lang-js">JavaScript</span>
+      </div>
+      <pre><span class="jkw">const</span> <span class="jdc">{ ethers }</span> <span class="jop">=</span> <span class="jdc">require</span><span class="jop">(</span><span class="jst">"ethers"</span><span class="jop">);</span>
+
+<span class="jkw">async function</span> <span class="jfn">decodeRevertReason</span><span class="jop">(</span><span class="jdc">error</span><span class="jop">,</span> <span class="jdc">contractAbi</span><span class="jop">) {</span>
+  <span class="jkw">const</span> <span class="jdc">iface</span> <span class="jop">=</span> <span class="jkw">new</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jcl">Interface</span><span class="jop">(</span><span class="jdc">contractAbi</span><span class="jop">);</span>
+
+  <span class="jcm">// Case 1: standard Error(string)</span>
+  <span class="jkw">if</span> <span class="jop">(</span><span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">?..</span><span class="jfn">startsWith</span><span class="jop">(</span><span class="jst">"0x08c379a0"</span><span class="jop">)) {</span>
+    <span class="jkw">const</span> <span class="jdc">decoded</span> <span class="jop">=</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jdc">AbiCoder</span><span class="jop">.</span><span class="jfn">defaultAbiCoder</span><span class="jop">().</span><span class="jfn">decode</span><span class="jop">(</span>
+      <span class="jop">[</span><span class="jst">"string"</span><span class="jop">],</span>
+      <span class="jst">"0x"</span> <span class="jop">+</span> <span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">.</span><span class="jfn">slice</span><span class="jop">(</span><span class="jnm">10</span><span class="jop">)</span>
+    <span class="jop">);</span>
+    <span class="jkw">return</span> <span class="jop">{</span> <span class="jdc">type</span><span class="jop">:</span> <span class="jst">"Error"</span><span class="jop">,</span> <span class="jdc">message</span><span class="jop">:</span> <span class="jdc">decoded</span><span class="jop">[</span><span class="jnm">0</span><span class="jop">] };</span>
+  <span class="jop">}</span>
+
+  <span class="jcm">// Case 2: Panic(uint256) — Solidity panic codes</span>
+  <span class="jkw">if</span> <span class="jop">(</span><span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">?..</span><span class="jfn">startsWith</span><span class="jop">(</span><span class="jst">"0x4e487b71"</span><span class="jop">)) {</span>
+    <span class="jkw">const</span> <span class="jop">[</span><span class="jdc">code</span><span class="jop">]</span> <span class="jop">=</span> <span class="jdc">ethers</span><span class="jop">.</span><span class="jdc">AbiCoder</span><span class="jop">.</span><span class="jfn">defaultAbiCoder</span><span class="jop">().</span><span class="jfn">decode</span><span class="jop">(</span>
+      <span class="jop">[</span><span class="jst">"uint256"</span><span class="jop">],</span>
+      <span class="jst">"0x"</span> <span class="jop">+</span> <span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">.</span><span class="jfn">slice</span><span class="jop">(</span><span class="jnm">10</span><span class="jop">)</span>
+    <span class="jop">);</span>
+    <span class="jkw">const</span> <span class="jdc">panicCodes</span> <span class="jop">= {</span>
+      <span class="jnm">0x01</span><span class="jop">:</span> <span class="jst">"assert failed"</span><span class="jop">,</span>
+      <span class="jnm">0x11</span><span class="jop">:</span> <span class="jst">"arithmetic overflow/underflow"</span><span class="jop">,</span>
+      <span class="jnm">0x12</span><span class="jop">:</span> <span class="jst">"division by zero"</span><span class="jop">,</span>
+      <span class="jnm">0x21</span><span class="jop">:</span> <span class="jst">"invalid enum conversion"</span><span class="jop">,</span>
+      <span class="jnm">0x31</span><span class="jop">:</span> <span class="jst">"pop on empty array"</span><span class="jop">,</span>
+      <span class="jnm">0x32</span><span class="jop">:</span> <span class="jst">"array index out of bounds"</span><span class="jop">,</span>
+      <span class="jnm">0x41</span><span class="jop">:</span> <span class="jst">"out of memory"</span>
+    <span class="jop">};</span>
+    <span class="jkw">return</span> <span class="jop">{</span> <span class="jdc">type</span><span class="jop">:</span> <span class="jst">"Panic"</span><span class="jop">,</span> <span class="jdc">code</span><span class="jop">:</span> <span class="jdc">Number</span><span class="jop">(</span><span class="jdc">code</span><span class="jop">),</span>
+      <span class="jdc">message</span><span class="jop">:</span> <span class="jdc">panicCodes</span><span class="jop">[</span><span class="jdc">Number</span><span class="jop">(</span><span class="jdc">code</span><span class="jop">)]</span> <span class="jop">??</span> <span class="jst">"unknown panic"</span> <span class="jop">};</span>
+  <span class="jop">}</span>
+
+  <span class="jcm">// Case 3: Custom error (EIP-712 / Solidity 0.8.4+)</span>
+  <span class="jkw">if</span> <span class="jop">(</span><span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">)</span> <span class="jop">{</span>
+    <span class="jkw">try</span> <span class="jop">{</span>
+      <span class="jkw">const</span> <span class="jdc">decoded</span> <span class="jop">=</span> <span class="jdc">iface</span><span class="jop">.</span><span class="jfn">parseError</span><span class="jop">(</span><span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span><span class="jop">);</span>
+      <span class="jkw">return</span> <span class="jop">{</span> <span class="jdc">type</span><span class="jop">:</span> <span class="jst">"CustomError"</span><span class="jop">,</span> <span class="jdc">name</span><span class="jop">:</span> <span class="jdc">decoded</span><span class="jop">.</span><span class="jdc">name</span><span class="jop">,</span>
+        <span class="jdc">args</span><span class="jop">:</span> <span class="jdc">decoded</span><span class="jop">.</span><span class="jdc">args</span><span class="jop">.</span><span class="jfn">toObject</span><span class="jop">() };</span>
+    <span class="jop">}</span> <span class="jkw">catch</span> <span class="jop">{</span>
+      <span class="jkw">return</span> <span class="jop">{</span> <span class="jdc">type</span><span class="jop">:</span> <span class="jst">"Unknown"</span><span class="jop">,</span> <span class="jdc">data</span><span class="jop">:</span> <span class="jdc">error</span><span class="jop">.</span><span class="jdc">data</span> <span class="jop">};</span>
+    <span class="jop">}</span>
+  <span class="jop">}</span>
+
+  <span class="jkw">return</span> <span class="jop">{</span> <span class="jdc">type</span><span class="jop">:</span> <span class="jst">"NoData"</span><span class="jop">,</span> <span class="jdc">message</span><span class="jop">:</span> <span class="jdc">error</span><span class="jop">.</span><span class="jdc">message</span> <span class="jop">};</span>
+<span class="jop">}</span>
+
+<span class="jcm">// Usage in try/catch around contract calls:</span>
+<span class="jkw">try</span> <span class="jop">{</span>
+  <span class="jkw">await</span> <span class="jdc">token</span><span class="jop">.</span><span class="jfn">transfer</span><span class="jop">(</span><span class="jdc">to</span><span class="jop">,</span> <span class="jdc">amount</span><span class="jop">);</span>
+<span class="jop">}</span> <span class="jkw">catch</span> <span class="jop">(</span><span class="jdc">e</span><span class="jop">) {</span>
+  <span class="jkw">const</span> <span class="jdc">reason</span> <span class="jop">=</span> <span class="jkw">await</span> <span class="jfn">decodeRevertReason</span><span class="jop">(</span><span class="jdc">e</span><span class="jop">,</span> <span class="jdc">ERC20_ABI</span><span class="jop">);</span>
+  <span class="jdc">console</span><span class="jop">.</span><span class="jfn">error</span><span class="jop">(</span><span class="jst">`Transfer failed: ${reason.type} — ${reason.message}`</span><span class="jop">);</span>
+  <span class="jcm">// → Transfer failed: Error — ERC20: insufficient balance</span>
+<span class="jop">}</span></pre>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Start Building Smart Contract Agents</h2>
+    <p>Access the Purple Flea Wallet API's JSON-RPC endpoint, claim free USDC from the faucet, and deploy your first on-chain agent today.</p>
+    <div class="cta-buttons">
+      <a href="https://purpleflea.com/wallet-api" class="btn btn-cyan">Wallet API</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Claim Free USDC</a>
+      <a href="https://escrow.purpleflea.com" class="btn btn-secondary">Escrow Service</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="https://purpleflea.com" class="nav-logo" style="font-size:20px;">Purple Flea</a>
+        <p>Blue chip financial infrastructure for AI agents. Six production services for trading, gaming, payments, and more.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Products</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+          <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+          <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+          <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Blog</h4>
+        <ul>
+          <li><a href="/blog/agent-execution-algorithms/">Execution Algorithms</a></li>
+          <li><a href="/blog/decentralized-exchange-agents/">DEX Trading</a></li>
+          <li><a href="/blog/agent-wallet-recovery/">Wallet Recovery</a></li>
+          <li><a href="/blog/agent-smart-contract-interaction/">Smart Contracts</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Research</h4>
+        <ul>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Zenodo Paper</a></li>
+          <li><a href="https://purpleflea.com">About</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+      <p>AI agent financial infrastructure &mdash; purpleflea.com</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="How to build robust error handling for AI agents: idempotency keys, transaction status checking, retry strategies, and dead letter queues. Never lose a transaction." />
+  <meta name="keywords" content="AI agents, error handling, idempotency, retry strategies, dead letter queue, Purple Flea, agent infrastructure" />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Robust Error Handling for AI Agents: Never Lose a Transaction" />
+  <meta property="og:description" content="Idempotency keys, status checking, retry logic, and dead letter queues for production AI agent financial operations." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-error-handling/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Robust Error Handling for AI Agents: Never Lose a Transaction" />
+  <meta name="twitter:description" content="How to ensure your AI agent never loses a financial transaction, even under network failures and API errors." />
+  <title>Robust Error Handling for AI Agents: Never Lose a Transaction | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #222222;
+      --border: #2a2a2a;
+      --border-2: #333333;
+      --text: #e8e8e8;
+      --text-2: #a0a0a0;
+      --text-3: #666666;
+      --purple: #7c3aed;
+      --purple-light: #9d6ff5;
+      --purple-dim: #3d1d78;
+      --purple-glow: rgba(124, 58, 237, 0.15);
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple-light); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #fff; }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .nav-logo span { color: var(--purple-light); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-2); font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--purple-light) !important; color: #fff !important; }
+
+    .hero {
+      background: linear-gradient(180deg, #140a0a 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 24px 56px;
+    }
+    .hero-inner { max-width: 800px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+    .breadcrumb a { color: var(--text-3); }
+    .breadcrumb a:hover { color: var(--text-2); }
+    .breadcrumb-sep { color: var(--border-2); }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+    }
+    .hero h1 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; line-height: 1.2; color: #fff; margin-bottom: 20px; letter-spacing: -0.02em; }
+    .hero-meta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
+    .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
+    .hero-desc { font-size: 18px; color: var(--text-2); line-height: 1.7; max-width: 680px; }
+
+    .toc-wrapper {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 40px auto;
+      max-width: 800px;
+    }
+    .toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 14px; }
+    .toc-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .toc-list li { display: flex; align-items: center; gap: 10px; }
+    .toc-num { font-size: 11px; font-weight: 700; color: var(--purple); font-family: var(--mono); min-width: 20px; }
+    .toc-list a { font-size: 14px; color: var(--text-2); font-weight: 500; }
+    .toc-list a:hover { color: var(--purple-light); }
+
+    .content { max-width: 800px; margin: 0 auto; padding: 0 24px 80px; }
+    .section { margin-bottom: 64px; }
+    .section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+    .section-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--purple-glow);
+      border: 1px solid var(--purple-dim);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--purple-light);
+      font-family: var(--mono);
+      flex-shrink: 0;
+    }
+    .section h2 { font-size: clamp(20px, 3vw, 26px); font-weight: 700; color: #fff; letter-spacing: -0.01em; }
+    .section h3 { font-size: 18px; font-weight: 600; color: var(--text); margin: 32px 0 14px; }
+    .section p { font-size: 16px; color: var(--text-2); margin-bottom: 18px; line-height: 1.8; }
+    .section ul, .section ol { margin: 14px 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .section li { font-size: 15px; color: var(--text-2); line-height: 1.7; }
+    .section li strong { color: var(--text); font-weight: 600; }
+
+    .code-block { background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; margin: 24px 0; overflow: hidden; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-4); border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple-light); font-family: var(--mono); }
+    .code-file { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+    .code-block pre { padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.7; color: #d4d4d4; }
+    .code-block code { font-family: inherit; }
+    .kw { color: #c792ea; }
+    .fn { color: #82aaff; }
+    .st { color: #c3e88d; }
+    .cm { color: #546e7a; font-style: italic; }
+    .nm { color: #f78c6c; }
+    .op { color: #89ddff; }
+    .cl { color: #ffcb6b; }
+    .dc { color: #80cbc4; }
+
+    .callout { display: flex; gap: 14px; padding: 18px 20px; border-radius: 10px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59, 130, 246, 0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(245, 158, 11, 0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(16, 185, 129, 0.08); border-color: var(--green); }
+    .callout-danger { background: rgba(239, 68, 68, 0.08); border-color: var(--red); }
+    .callout-purple { background: var(--purple-glow); border-color: var(--purple); }
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .callout-body p { font-size: 14px; color: var(--text-2); margin: 0; line-height: 1.6; }
+
+    .table-wrapper { overflow-x: auto; margin: 24px 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-2); }
+    thead { background: var(--bg-4); }
+    th { padding: 12px 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 16px; font-size: 14px; color: var(--text-2); border-bottom: 1px solid var(--border); line-height: 1.5; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-3); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .badge-yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .badge-purple { background: var(--purple-glow); color: var(--purple-light); }
+
+    .flow-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+    .flow-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--purple-glow);
+      border: 1px solid var(--purple-dim);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--purple-light);
+      font-family: var(--mono);
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .flow-content { flex: 1; }
+    .flow-content strong { font-size: 15px; color: var(--text); display: block; margin-bottom: 4px; }
+    .flow-content p { font-size: 14px; color: var(--text-2); margin: 0; line-height: 1.6; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 48px 0; }
+
+    .highlight { background: var(--purple-glow); border: 1px solid var(--purple-dim); border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
+    .highlight p { font-size: 15px; color: var(--text); margin: 0; }
+    .highlight strong { color: var(--purple-light); }
+
+    .error-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 20px 0; }
+    .error-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .error-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .error-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-red { background: var(--red); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-green { background: var(--green); }
+    .dot-blue { background: var(--blue); }
+    .error-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .error-card-desc { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+    .error-card-example { font-size: 12px; color: var(--text-3); font-family: var(--mono); margin-top: 8px; }
+
+    .cta-section {
+      background: linear-gradient(135deg, var(--purple-glow) 0%, transparent 100%);
+      border: 1px solid var(--purple-dim);
+      border-radius: 16px;
+      padding: 48px 40px;
+      text-align: center;
+      margin: 64px 0;
+    }
+    .cta-section h2 { font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+    .cta-section p { font-size: 16px; color: var(--text-2); margin-bottom: 28px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); color: #fff; }
+    .btn-secondary { background: var(--bg-3); border: 1px solid var(--border-2); color: var(--text); }
+    .btn-secondary:hover { border-color: var(--purple); color: var(--purple-light); }
+
+    footer { background: var(--bg-2); border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 14px; color: var(--text-3); margin-top: 10px; line-height: 1.6; max-width: 240px; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 14px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .footer-col li a { font-size: 14px; color: var(--text-3); }
+    .footer-col li a:hover { color: var(--text-2); }
+    .footer-bottom { border-top: 1px solid var(--border); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .footer-bottom p { font-size: 13px; color: var(--text-3); }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 48px 20px 40px; }
+      .content { padding: 0 20px 60px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .cta-section { padding: 36px 24px; }
+    }
+    @media (max-width: 480px) {
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+    <div class="nav-links">
+      <a href="https://purpleflea.com/casino-api">Casino API</a>
+      <a href="https://purpleflea.com/trading-api">Trading API</a>
+      <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="https://purpleflea.com/blog/" class="nav-cta">Blog</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="https://purpleflea.com">Home</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <a href="https://purpleflea.com/blog/">Blog</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <span>Error Handling</span>
+    </nav>
+    <div class="tag">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg>
+      Reliability
+    </div>
+    <h1>Robust Error Handling for AI Agents:<br/>Never Lose a Transaction</h1>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        March 4, 2026
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        25 min read
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 14.66V20a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+        Purple Flea Engineering
+      </div>
+    </div>
+    <p class="hero-desc">
+      Money is at stake. An AI agent that loses a transaction — double-spends, misses a bet result, drops an escrow state transition — causes real financial harm. This guide covers every layer of error handling for agents operating Purple Flea's financial APIs: from network blips to permanent failures, and how to recover from all of them.
+    </p>
+  </div>
+</header>
+
+<div class="toc-wrapper content">
+  <div class="toc-title">Table of Contents</div>
+  <ol class="toc-list">
+    <li><span class="toc-num">01</span><a href="#error-taxonomy">Error Taxonomy: What Can Go Wrong</a></li>
+    <li><span class="toc-num">02</span><a href="#idempotency">Idempotency Keys: The Foundation</a></li>
+    <li><span class="toc-num">03</span><a href="#status-checking">Transaction Status Checking</a></li>
+    <li><span class="toc-num">04</span><a href="#retry-logic">Retry Logic and Backoff Strategies</a></li>
+    <li><span class="toc-num">05</span><a href="#dead-letter">Dead Letter Queues</a></li>
+    <li><span class="toc-num">06</span><a href="#full-manager">Complete Transaction Manager</a></li>
+  </ol>
+</div>
+
+<main class="content">
+
+  <section class="section" id="error-taxonomy">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <h2>Error Taxonomy: What Can Go Wrong</h2>
+    </div>
+
+    <p>Before writing error handling code, you need a clear mental model of which errors are transient, which are permanent, and which are ambiguous. Treating a permanent error as transient wastes resources and can cause harm. Treating a transient error as permanent causes unnecessary failures.</p>
+
+    <div class="error-types">
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-green"></div>
+          <div class="error-card-title">Transient Network</div>
+        </div>
+        <div class="error-card-desc">Connection timeout, DNS failure, TCP reset. The server never saw the request.</div>
+        <div class="error-card-example">Strategy: Retry safely</div>
+      </div>
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-yellow"></div>
+          <div class="error-card-title">Server Overload</div>
+        </div>
+        <div class="error-card-desc">HTTP 429, 503. Server received the request but couldn't process it.</div>
+        <div class="error-card-example">Strategy: Retry with backoff</div>
+      </div>
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-yellow"></div>
+          <div class="error-card-title">Ambiguous Timeout</div>
+        </div>
+        <div class="error-card-desc">Request sent, response never arrived. Server may have processed it.</div>
+        <div class="error-card-example">Strategy: Check status first</div>
+      </div>
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-red"></div>
+          <div class="error-card-title">Client Error</div>
+        </div>
+        <div class="error-card-desc">HTTP 400, 401, 403, 422. Your request was invalid. Retrying will not help.</div>
+        <div class="error-card-example">Strategy: Fix and retry once</div>
+      </div>
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-red"></div>
+          <div class="error-card-title">Permanent Server Error</div>
+        </div>
+        <div class="error-card-desc">HTTP 500 with a deterministic error body. A bug on the server side.</div>
+        <div class="error-card-example">Strategy: Dead letter queue</div>
+      </div>
+      <div class="error-card">
+        <div class="error-card-header">
+          <div class="error-dot dot-blue"></div>
+          <div class="error-card-title">Business Logic Error</div>
+        </div>
+        <div class="error-card-desc">Insufficient balance, bet limit exceeded, escrow already claimed.</div>
+        <div class="error-card-example">Strategy: Agent decision needed</div>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>HTTP Status</th>
+            <th>Category</th>
+            <th>Idempotent Retry?</th>
+            <th>Requires Status Check?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>408, 504</code></td>
+            <td>Timeout</td>
+            <td><span class="badge badge-yellow">Depends on idempotency key</span></td>
+            <td><span class="badge badge-red">Yes — unknown outcome</span></td>
+          </tr>
+          <tr>
+            <td><code>429</code></td>
+            <td>Rate Limited</td>
+            <td><span class="badge badge-green">Yes — after delay</span></td>
+            <td><span class="badge badge-green">No</span></td>
+          </tr>
+          <tr>
+            <td><code>500</code></td>
+            <td>Server Error</td>
+            <td><span class="badge badge-yellow">Sometimes</span></td>
+            <td><span class="badge badge-yellow">Depends</span></td>
+          </tr>
+          <tr>
+            <td><code>503</code></td>
+            <td>Unavailable</td>
+            <td><span class="badge badge-green">Yes</span></td>
+            <td><span class="badge badge-green">No</span></td>
+          </tr>
+          <tr>
+            <td><code>400, 422</code></td>
+            <td>Bad Request</td>
+            <td><span class="badge badge-red">No — fix first</span></td>
+            <td><span class="badge badge-green">No</span></td>
+          </tr>
+          <tr>
+            <td><code>409</code></td>
+            <td>Conflict</td>
+            <td><span class="badge badge-green">Yes — already done</span></td>
+            <td><span class="badge badge-green">No</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-danger">
+      <div class="callout-icon">&#9888;</div>
+      <div class="callout-body">
+        <strong>The Ambiguous Timeout is the Hardest Case</strong>
+        <p>When a request to <code>POST /casino/bet</code> times out after 30 seconds, you do not know if the bet was placed. The server may have processed it and the response simply never arrived. Retrying blindly without an idempotency key can result in two bets. Always use idempotency keys on all mutating operations.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="idempotency">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <h2>Idempotency Keys: The Foundation</h2>
+    </div>
+
+    <p>An idempotency key is a unique string you attach to a request that tells the server: "if you've already processed a request with this key, return the same result without executing the operation again." It converts a non-idempotent POST into a safe-to-retry operation.</p>
+
+    <div class="highlight">
+      <p><strong>Rule:</strong> Every state-mutating API call — bets, trades, escrow deposits, wallet transfers — must include an idempotency key. Read-only operations (GET requests) are inherently idempotent and do not need keys.</p>
+    </div>
+
+    <p>Purple Flea APIs accept idempotency keys via the <code>Idempotency-Key</code> header. Keys must be unique per operation and can be any string up to 64 characters. UUIDs or deterministic hashes of operation parameters both work well.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">idempotency.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> uuid
+<span class="kw">import</span> hashlib
+<span class="kw">import</span> json
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="kw">class</span> <span class="cl">IdempotencyKeyGenerator</span>:
+    <span class="st">"""
+    Generate and manage idempotency keys for financial operations.
+
+    Two strategies:
+    - Random keys (UUID): unique per attempt, safest default
+    - Deterministic keys: derived from operation params, enables
+      resumption after crash/restart without key storage
+    """</span>
+
+    <span class="dc">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">random</span>() <span class="op">-></span> str:
+        <span class="st">"""New random key — safe for immediate retries."""</span>
+        <span class="kw">return</span> <span class="fn">str</span>(uuid.uuid4())
+
+    <span class="dc">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">deterministic</span>(operation: str, params: dict, date: Optional[str] <span class="op">=</span> <span class="kw">None</span>) <span class="op">-></span> str:
+        <span class="st">"""
+        Derive key from operation + params.
+
+        Same inputs always produce the same key — if the agent restarts
+        mid-operation, it will generate the same key and the server will
+        return the cached result instead of executing twice.
+
+        Include a date to namespace keys by day (prevents week-old keys
+        from colliding with today's operations).
+        """</span>
+        date <span class="op">=</span> date <span class="op">or</span> datetime.now(timezone.utc).strftime(<span class="st">"%Y-%m-%d"</span>)
+        payload <span class="op">=</span> {<span class="st">"op"</span>: operation, <span class="st">"params"</span>: params, <span class="st">"date"</span>: date}
+        serialized <span class="op">=</span> json.dumps(payload, sort_keys<span class="op">=</span><span class="kw">True</span>)
+        digest <span class="op">=</span> hashlib.sha256(serialized.encode()).hexdigest()[:<span class="nm">32</span>]
+        <span class="kw">return</span> <span class="st">f"{operation}-{digest}"</span>
+
+<span class="cm"># Example: Generate keys for different operation types</span>
+idem <span class="op">=</span> IdempotencyKeyGenerator
+
+<span class="cm"># For a bet with specific parameters — deterministic key</span>
+bet_key <span class="op">=</span> idem.deterministic(<span class="st">"casino-bet"</span>, {
+    <span class="st">"game"</span>: <span class="st">"dice"</span>,
+    <span class="st">"amount"</span>: <span class="st">"10.00"</span>,
+    <span class="st">"target"</span>: <span class="nm">50</span>,
+    <span class="st">"prediction"</span>: <span class="st">"over"</span>,
+    <span class="st">"agent_id"</span>: <span class="st">"agent-007"</span>,
+    <span class="st">"sequence"</span>: <span class="nm">142</span>,  <span class="cm"># monotonic counter prevents same-day collisions</span>
+})
+
+<span class="cm"># For an escrow deposit — random key (we generate once and persist)</span>
+escrow_key <span class="op">=</span> idem.random()
+<span class="cm"># Store escrow_key to disk/DB before making the call!</span>
+
+<span class="kw">async def</span> <span class="fn">place_bet_idempotent</span>(client, game_params: dict, idempotency_key: str) <span class="op">-></span> dict:
+    <span class="st">"""Place a bet with an idempotency key — safe to retry on any error."""</span>
+    <span class="kw">return await</span> client._request(
+        <span class="st">"POST"</span>,
+        <span class="st">"/casino/bet"</span>,
+        json<span class="op">=</span>game_params,
+        headers<span class="op">=</span>{<span class="st">"Idempotency-Key"</span>: idempotency_key},
+    )
+
+<span class="kw">async def</span> <span class="fn">create_escrow_idempotent</span>(
+    client,
+    escrow_params: dict,
+    idempotency_key: str,
+) <span class="op">-></span> dict:
+    <span class="st">"""
+    Create an escrow with idempotency.
+
+    The key must be persisted BEFORE calling this function.
+    If the call fails and the key is lost, you cannot safely determine
+    whether the escrow was created.
+    """</span>
+    <span class="kw">return await</span> client._request(
+        <span class="st">"POST"</span>,
+        <span class="st">"/escrow/create"</span>,
+        json<span class="op">=</span>escrow_params,
+        headers<span class="op">=</span>{<span class="st">"Idempotency-Key"</span>: idempotency_key},
+    )
+</code></pre>
+    </div>
+
+    <div class="callout callout-info">
+      <div class="callout-icon">&#9432;</div>
+      <div class="callout-body">
+        <strong>Persist Keys Before Calling</strong>
+        <p>For operations where losing the key would be catastrophic (large escrow deposits, trades), write the idempotency key to durable storage <em>before</em> making the API call. If your agent crashes after the call but before receiving the response, you can recover by looking up the key and checking the operation status.</p>
+      </div>
+    </div>
+
+    <h3>Idempotency Key Lifecycle</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-content">
+        <strong>Generate key</strong>
+        <p>Create a unique key for this specific operation attempt.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-content">
+        <strong>Persist key (for large operations)</strong>
+        <p>Write to local SQLite or Redis: key → {operation, params, status: "pending"}</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-content">
+        <strong>Make API call with key in header</strong>
+        <p>Server processes the request. If it already has this key, returns cached result.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-content">
+        <strong>On success: mark key as complete</strong>
+        <p>Update local store: key → {status: "complete", result: ...}</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">5</div>
+      <div class="flow-content">
+        <strong>On failure: retry with SAME key</strong>
+        <p>The same key is safe to reuse. If the server already processed it, you get the cached result. If not, it processes it now.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="status-checking">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <h2>Transaction Status Checking</h2>
+    </div>
+
+    <p>When a request times out or returns an ambiguous error, your agent must check whether the operation was actually executed before retrying. Retrying without checking first risks double-execution — two bets placed, two escrow deposits made.</p>
+
+    <p>The pattern: after any ambiguous failure, query the operation status endpoint before deciding to retry. If the operation is found (any status), do not retry. If it is not found, retry with the same idempotency key.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">status_checker.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> enum <span class="kw">import</span> Enum
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="kw">class</span> <span class="cl">OperationStatus</span>(Enum):
+    PENDING <span class="op">=</span> <span class="st">"pending"</span>
+    PROCESSING <span class="op">=</span> <span class="st">"processing"</span>
+    COMPLETE <span class="op">=</span> <span class="st">"complete"</span>
+    FAILED <span class="op">=</span> <span class="st">"failed"</span>
+    NOT_FOUND <span class="op">=</span> <span class="st">"not_found"</span>
+
+<span class="kw">class</span> <span class="cl">TransactionStatusChecker</span>:
+    <span class="st">"""Check the status of an operation by idempotency key."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, client):
+        self.client <span class="op">=</span> client
+
+    <span class="kw">async def</span> <span class="fn">check_bet</span>(self, idempotency_key: str) <span class="op">-></span> tuple[OperationStatus, Optional[dict]]:
+        <span class="kw">try</span>:
+            result <span class="op">=</span> <span class="kw">await</span> self.client.get(
+                <span class="st">"/casino/bet/by-idempotency-key"</span>,
+                params<span class="op">=</span>{<span class="st">"key"</span>: idempotency_key},
+            )
+            status <span class="op">=</span> OperationStatus(result[<span class="st">"status"</span>])
+            <span class="kw">return</span> status, result
+        <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+            <span class="kw">if</span> e.response.status_code <span class="op">==</span> <span class="nm">404</span>:
+                <span class="kw">return</span> OperationStatus.NOT_FOUND, <span class="kw">None</span>
+            <span class="kw">raise</span>
+
+    <span class="kw">async def</span> <span class="fn">check_escrow</span>(self, escrow_id: str) <span class="op">-></span> tuple[OperationStatus, Optional[dict]]:
+        <span class="kw">try</span>:
+            result <span class="op">=</span> <span class="kw">await</span> self.client.get(<span class="st">f"/escrow/{escrow_id}"</span>)
+            status_map <span class="op">=</span> {
+                <span class="st">"created"</span>: OperationStatus.PENDING,
+                <span class="st">"funded"</span>: OperationStatus.PROCESSING,
+                <span class="st">"released"</span>: OperationStatus.COMPLETE,
+                <span class="st">"refunded"</span>: OperationStatus.FAILED,
+            }
+            status <span class="op">=</span> status_map.get(result[<span class="st">"state"</span>], OperationStatus.PENDING)
+            <span class="kw">return</span> status, result
+        <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+            <span class="kw">if</span> e.response.status_code <span class="op">==</span> <span class="nm">404</span>:
+                <span class="kw">return</span> OperationStatus.NOT_FOUND, <span class="kw">None</span>
+            <span class="kw">raise</span>
+
+<span class="kw">async def</span> <span class="fn">place_bet_with_status_check</span>(
+    client,
+    checker: TransactionStatusChecker,
+    bet_params: dict,
+    idempotency_key: str,
+    max_retries: int <span class="op">=</span> <span class="nm">3</span>,
+) <span class="op">-></span> dict:
+    <span class="st">"""
+    Place a bet with full status checking on ambiguous failures.
+
+    Flow:
+    1. Attempt to place bet
+    2. On timeout/ambiguous error: check if bet was processed
+    3. If found: return existing result
+    4. If not found: retry with same idempotency key
+    5. On permanent failure: raise
+    """</span>
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(max_retries):
+        <span class="kw">try</span>:
+            <span class="kw">return await</span> client._request(
+                <span class="st">"POST"</span>, <span class="st">"/casino/bet"</span>,
+                json<span class="op">=</span>bet_params,
+                headers<span class="op">=</span>{<span class="st">"Idempotency-Key"</span>: idempotency_key},
+            )
+
+        <span class="kw">except</span> httpx.TimeoutException:
+            <span class="cm"># Ambiguous — check if processed</span>
+            <span class="kw">await</span> asyncio.sleep(<span class="nm">1</span>)
+            status, result <span class="op">=</span> <span class="kw">await</span> checker.check_bet(idempotency_key)
+
+            <span class="kw">if</span> status <span class="kw">in</span> (OperationStatus.COMPLETE, OperationStatus.PROCESSING):
+                <span class="fn">print</span>(<span class="st">f"Bet was processed despite timeout: {result['id']}"</span>)
+                <span class="kw">return</span> result
+
+            <span class="kw">if</span> status <span class="op">==</span> OperationStatus.NOT_FOUND:
+                <span class="cm"># Genuinely not processed — safe to retry</span>
+                <span class="kw">if</span> attempt <span class="op"><</span> max_retries <span class="op">-</span> <span class="nm">1</span>:
+                    <span class="kw">await</span> asyncio.sleep(<span class="nm">2</span> <span class="op">**</span> attempt)
+                    <span class="kw">continue</span>
+            <span class="kw">raise</span>
+
+        <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+            <span class="kw">if</span> e.response.status_code <span class="op">==</span> <span class="nm">409</span>:
+                <span class="cm"># Conflict = idempotency match — get the existing result</span>
+                status, result <span class="op">=</span> <span class="kw">await</span> checker.check_bet(idempotency_key)
+                <span class="kw">return</span> result
+            <span class="kw">if</span> e.response.status_code <span class="kw">not in</span> (<span class="nm">429</span>, <span class="nm">500</span>, <span class="nm">503</span>):
+                <span class="kw">raise</span>  <span class="cm"># Permanent client error — do not retry</span>
+            <span class="kw">if</span> attempt <span class="op"><</span> max_retries <span class="op">-</span> <span class="nm">1</span>:
+                <span class="kw">await</span> asyncio.sleep(<span class="nm">2</span> <span class="op">**</span> attempt)
+
+    <span class="kw">raise</span> <span class="cl">RuntimeError</span>(<span class="st">f"Failed to place bet after {max_retries} attempts"</span>)
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="retry-logic">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <h2>Retry Logic and Backoff Strategies</h2>
+    </div>
+
+    <p>Good retry logic is more nuanced than "try three times with a one-second delay." The right strategy depends on the error type, the operation semantics, and the overall system load. Aggressive retries during a service outage make the problem worse for everyone.</p>
+
+    <h3>Jitter: Why It Matters</h3>
+    <p>Without jitter, all agents that hit the same error at the same time will retry at exactly the same moment, creating a retry storm. Adding random jitter spreads retries over time and prevents thundering herd behavior at the API level.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">retry.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> random
+<span class="kw">import</span> time
+<span class="kw">import</span> logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Callable, Set, TypeVar
+
+logger <span class="op">=</span> logging.getLogger(<span class="fn">__name__</span>)
+T <span class="op">=</span> TypeVar(<span class="st">"T"</span>)
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">RetryPolicy</span>:
+    max_attempts: int <span class="op">=</span> <span class="nm">5</span>
+    base_delay: float <span class="op">=</span> <span class="nm">1.0</span>        <span class="cm"># seconds</span>
+    max_delay: float <span class="op">=</span> <span class="nm">60.0</span>       <span class="cm"># cap backoff at 60s</span>
+    multiplier: float <span class="op">=</span> <span class="nm">2.0</span>       <span class="cm"># exponential base</span>
+    jitter: float <span class="op">=</span> <span class="nm">0.25</span>          <span class="cm"># ±25% random jitter</span>
+    retryable_status: Set[int] <span class="op">=</span> <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">__post_init__</span>(self):
+        <span class="kw">if</span> self.retryable_status <span class="kw">is None</span>:
+            self.retryable_status <span class="op">=</span> {<span class="nm">429</span>, <span class="nm">500</span>, <span class="nm">502</span>, <span class="nm">503</span>, <span class="nm">504</span>}
+
+    <span class="kw">def</span> <span class="fn">delay_for_attempt</span>(self, attempt: int) <span class="op">-></span> float:
+        <span class="st">"""Exponential backoff with full jitter."""</span>
+        base <span class="op">=</span> <span class="fn">min</span>(self.base_delay <span class="op">*</span> (self.multiplier <span class="op">**</span> attempt), self.max_delay)
+        jitter_range <span class="op">=</span> base <span class="op">*</span> self.jitter
+        <span class="kw">return</span> base <span class="op">+</span> random.uniform(<span class="op">-</span>jitter_range, jitter_range)
+
+AGGRESSIVE_RETRY <span class="op">=</span> RetryPolicy(max_attempts<span class="op">=</span><span class="nm">10</span>, base_delay<span class="op">=</span><span class="nm">0.5</span>, max_delay<span class="op">=</span><span class="nm">30</span>)
+CONSERVATIVE_RETRY <span class="op">=</span> RetryPolicy(max_attempts<span class="op">=</span><span class="nm">3</span>, base_delay<span class="op">=</span><span class="nm">2.0</span>, max_delay<span class="op">=</span><span class="nm">60</span>)
+RATE_LIMIT_RETRY <span class="op">=</span> RetryPolicy(max_attempts<span class="op">=</span><span class="nm">20</span>, base_delay<span class="op">=</span><span class="nm">5.0</span>, max_delay<span class="op">=</span><span class="nm">120</span>)
+
+<span class="kw">async def</span> <span class="fn">with_retry</span>(
+    fn: Callable[[], T],
+    policy: RetryPolicy <span class="op">=</span> <span class="kw">None</span>,
+    operation_name: str <span class="op">=</span> <span class="st">"operation"</span>,
+) <span class="op">-></span> T:
+    <span class="st">"""Execute an async function with retry policy."""</span>
+    policy <span class="op">=</span> policy <span class="op">or</span> RetryPolicy()
+    last_exc <span class="op">=</span> <span class="kw">None</span>
+
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(policy.max_attempts):
+        <span class="kw">try</span>:
+            <span class="kw">return await</span> fn()
+        <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+            last_exc <span class="op">=</span> e
+            status <span class="op">=</span> e.response.status_code
+
+            <span class="kw">if</span> status <span class="kw">not in</span> policy.retryable_status:
+                logger.warning(<span class="st">f"{operation_name}: non-retryable {status}"</span>)
+                <span class="kw">raise</span>
+
+            <span class="cm"># Respect Retry-After header if present</span>
+            retry_after <span class="op">=</span> e.response.headers.get(<span class="st">"Retry-After"</span>)
+            <span class="kw">if</span> retry_after:
+                delay <span class="op">=</span> <span class="fn">float</span>(retry_after)
+            <span class="kw">else</span>:
+                delay <span class="op">=</span> policy.delay_for_attempt(attempt)
+
+            logger.info(
+                <span class="st">f"{operation_name}: attempt {attempt+1}/{policy.max_attempts} "
+                f"failed with {status}, retrying in {delay:.1f}s"</span>
+            )
+            <span class="kw">await</span> asyncio.sleep(delay)
+
+        <span class="kw">except</span> (httpx.TimeoutException, httpx.TransportError) <span class="kw">as</span> e:
+            last_exc <span class="op">=</span> e
+            delay <span class="op">=</span> policy.delay_for_attempt(attempt)
+            logger.info(<span class="st">f"{operation_name}: network error, retrying in {delay:.1f}s: {e}"</span>)
+            <span class="kw">await</span> asyncio.sleep(delay)
+
+    logger.error(<span class="st">f"{operation_name}: exhausted {policy.max_attempts} attempts"</span>)
+    <span class="kw">raise</span> last_exc
+
+<span class="cm"># Usage with Purple Flea APIs</span>
+<span class="kw">async def</span> <span class="fn">get_balance_with_retry</span>(client) <span class="op">-></span> dict:
+    <span class="kw">return await</span> with_retry(
+        <span class="kw">lambda</span>: client.get(<span class="st">"/wallet/balance"</span>),
+        policy<span class="op">=</span>AGGRESSIVE_RETRY,
+        operation_name<span class="op">=</span><span class="st">"get-balance"</span>,
+    )
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="dead-letter">
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <h2>Dead Letter Queues</h2>
+    </div>
+
+    <p>Some operations fail permanently — bad input that cannot be fixed automatically, operations that hit business rule limits, or operations that exhaust all retries. These should not be silently dropped. They should be routed to a dead letter queue (DLQ) for inspection and manual resolution.</p>
+
+    <p>A DLQ is simply a store of failed operations plus their context. For small agents, a SQLite table is sufficient. For agents handling high volume, a proper message queue (Redis Streams, Kafka) is appropriate.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">dead_letter_queue.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> sqlite3
+<span class="kw">import</span> json
+<span class="kw">import</span> time
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, asdict
+<span class="kw">from</span> typing <span class="kw">import</span> List, Optional
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">FailedOperation</span>:
+    operation_type: str
+    idempotency_key: str
+    params: dict
+    error_code: str
+    error_message: str
+    attempt_count: int
+    first_attempt_ts: float
+    last_attempt_ts: float
+    agent_id: str
+
+<span class="kw">class</span> <span class="cl">DeadLetterQueue</span>:
+    <span class="st">"""SQLite-backed dead letter queue for failed financial operations."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, db_path: str <span class="op">=</span> <span class="st">"/var/lib/agent/dlq.db"</span>):
+        self.conn <span class="op">=</span> sqlite3.<span class="fn">connect</span>(db_path, check_same_thread<span class="op">=</span><span class="kw">False</span>)
+        self._ensure_schema()
+
+    <span class="kw">def</span> <span class="fn">_ensure_schema</span>(self):
+        self.conn.execute(<span class="st">"""
+            CREATE TABLE IF NOT EXISTS dead_letters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation_type TEXT NOT NULL,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                params_json TEXT NOT NULL,
+                error_code TEXT NOT NULL,
+                error_message TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL,
+                first_attempt_ts REAL NOT NULL,
+                last_attempt_ts REAL NOT NULL,
+                agent_id TEXT NOT NULL,
+                resolved INTEGER DEFAULT 0,
+                resolution_note TEXT,
+                created_at REAL DEFAULT (unixepoch('now'))
+            )
+        """</span>)
+        self.conn.<span class="fn">commit</span>()
+
+    <span class="kw">def</span> <span class="fn">push</span>(self, op: FailedOperation):
+        <span class="st">"""Add a failed operation to the DLQ."""</span>
+        <span class="kw">try</span>:
+            self.conn.<span class="fn">execute</span>(<span class="st">"""
+                INSERT INTO dead_letters
+                    (operation_type, idempotency_key, params_json, error_code,
+                     error_message, attempt_count, first_attempt_ts,
+                     last_attempt_ts, agent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(idempotency_key) DO UPDATE SET
+                    error_message=excluded.error_message,
+                    attempt_count=excluded.attempt_count,
+                    last_attempt_ts=excluded.last_attempt_ts
+            """</span>, (
+                op.operation_type,
+                op.idempotency_key,
+                json.dumps(op.params),
+                op.error_code,
+                op.error_message,
+                op.attempt_count,
+                op.first_attempt_ts,
+                op.last_attempt_ts,
+                op.agent_id,
+            ))
+            self.conn.<span class="fn">commit</span>()
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+            <span class="cm"># Never let DLQ failures crash the agent</span>
+            logger.error(<span class="st">f"Failed to push to DLQ: {e}"</span>)
+
+    <span class="kw">def</span> <span class="fn">list_unresolved</span>(self, limit: int <span class="op">=</span> <span class="nm">50</span>) <span class="op">-></span> List[dict]:
+        cursor <span class="op">=</span> self.conn.<span class="fn">execute</span>(
+            <span class="st">"SELECT * FROM dead_letters WHERE resolved=0 ORDER BY last_attempt_ts DESC LIMIT ?"</span>,
+            (limit,)
+        )
+        cols <span class="op">=</span> [d[<span class="nm">0</span>] <span class="kw">for</span> d <span class="kw">in</span> cursor.description]
+        <span class="kw">return</span> [dict(<span class="fn">zip</span>(cols, row)) <span class="kw">for</span> row <span class="kw">in</span> cursor.fetchall()]
+
+    <span class="kw">def</span> <span class="fn">resolve</span>(self, idempotency_key: str, note: str):
+        self.conn.<span class="fn">execute</span>(
+            <span class="st">"UPDATE dead_letters SET resolved=1, resolution_note=? WHERE idempotency_key=?"</span>,
+            (note, idempotency_key)
+        )
+        self.conn.<span class="fn">commit</span>()
+
+<span class="cm"># Integrate with retry logic</span>
+dlq <span class="op">=</span> DeadLetterQueue()
+
+<span class="kw">async def</span> <span class="fn">safe_execute</span>(operation_type: str, fn, params: dict, key: str, agent_id: str):
+    <span class="st">"""Execute with full retry + DLQ fallback."""</span>
+    start <span class="op">=</span> time.time()
+    attempts <span class="op">=</span> <span class="nm">0</span>
+    <span class="kw">try</span>:
+        <span class="kw">return await</span> with_retry(fn, operation_name<span class="op">=</span>operation_type)
+    <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+        dlq.<span class="fn">push</span>(FailedOperation(
+            operation_type<span class="op">=</span>operation_type,
+            idempotency_key<span class="op">=</span>key,
+            params<span class="op">=</span>params,
+            error_code<span class="op">=</span><span class="fn">type</span>(e).<span class="fn">__name__</span>,
+            error_message<span class="op">=</span><span class="fn">str</span>(e),
+            attempt_count<span class="op">=</span><span class="nm">5</span>,
+            first_attempt_ts<span class="op">=</span>start,
+            last_attempt_ts<span class="op">=</span>time.time(),
+            agent_id<span class="op">=</span>agent_id,
+        ))
+        logger.error(<span class="st">f"Operation {key} moved to DLQ after exhausting retries"</span>)
+        <span class="kw">raise</span>
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="full-manager">
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <h2>Complete Transaction Manager</h2>
+    </div>
+
+    <p>Combining all the patterns above into a single <code>TransactionManager</code> class provides a clean interface for agents: submit an operation, get a result, never lose a transaction. The manager handles idempotency, status checking, retry, and DLQ routing internally.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">transaction_manager.py</span>
+      </div>
+      <pre><code><span class="kw">class</span> <span class="cl">TransactionManager</span>:
+    <span class="st">"""
+    High-level transaction manager for Purple Flea financial operations.
+
+    Usage:
+        mgr = TransactionManager(client, agent_id="agent-001")
+        result = await mgr.place_bet(game="dice", amount="10.00", target=50)
+        result = await mgr.create_escrow(buyer=..., seller=..., amount="100.00")
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, client, agent_id: str, dlq: Optional[DeadLetterQueue] <span class="op">=</span> <span class="kw">None</span>):
+        self.client <span class="op">=</span> client
+        self.agent_id <span class="op">=</span> agent_id
+        self.dlq <span class="op">=</span> dlq <span class="op">or</span> DeadLetterQueue()
+        self.checker <span class="op">=</span> TransactionStatusChecker(client)
+        self._sequence <span class="op">=</span> <span class="nm">0</span>
+
+    <span class="kw">def</span> <span class="fn">_next_key</span>(self, operation: str) <span class="op">-></span> str:
+        self._sequence <span class="op">+=</span> <span class="nm">1</span>
+        <span class="kw">return</span> IdempotencyKeyGenerator.deterministic(operation, {
+            <span class="st">"agent_id"</span>: self.agent_id,
+            <span class="st">"seq"</span>: self._sequence,
+        })
+
+    <span class="kw">async def</span> <span class="fn">place_bet</span>(self, <span class="op">**</span>params) <span class="op">-></span> dict:
+        key <span class="op">=</span> self._next_key(<span class="st">"bet"</span>)
+        <span class="kw">return await</span> safe_execute(
+            operation_type<span class="op">=</span><span class="st">"casino-bet"</span>,
+            fn<span class="op">=</span><span class="kw">lambda</span>: place_bet_with_status_check(
+                self.client, self.checker, params, key
+            ),
+            params<span class="op">=</span>params,
+            key<span class="op">=</span>key,
+            agent_id<span class="op">=</span>self.agent_id,
+        )
+
+    <span class="kw">async def</span> <span class="fn">create_escrow</span>(self, buyer: str, seller: str, amount: str, <span class="op">**</span>extra) <span class="op">-></span> dict:
+        params <span class="op">=</span> {<span class="st">"buyer"</span>: buyer, <span class="st">"seller"</span>: seller, <span class="st">"amount"</span>: amount, <span class="op">**</span>extra}
+        key <span class="op">=</span> self._next_key(<span class="st">"escrow-create"</span>)
+        <span class="kw">return await</span> safe_execute(
+            operation_type<span class="op">=</span><span class="st">"escrow-create"</span>,
+            fn<span class="op">=</span><span class="kw">lambda</span>: create_escrow_idempotent(self.client, params, key),
+            params<span class="op">=</span>params,
+            key<span class="op">=</span>key,
+            agent_id<span class="op">=</span>self.agent_id,
+        )
+
+    <span class="kw">def</span> <span class="fn">get_failed_operations</span>(self) <span class="op">-></span> List[dict]:
+        <span class="st">"""Return all unresolved DLQ entries for this agent."""</span>
+        <span class="kw">return</span> [
+            op <span class="kw">for</span> op <span class="kw">in</span> self.dlq.list_unresolved()
+            <span class="kw">if</span> op[<span class="st">"agent_id"</span>] <span class="op">==</span> self.agent_id
+        ]
+
+<span class="cm"># Clean usage in an agent loop</span>
+<span class="kw">async def</span> <span class="fn">run_casino_agent</span>():
+    <span class="kw">async with</span> PurpleFleatClient() <span class="kw">as</span> client:
+        mgr <span class="op">=</span> TransactionManager(client, agent_id<span class="op">=</span><span class="st">"dice-agent-001"</span>)
+
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">100</span>):
+            <span class="kw">try</span>:
+                result <span class="op">=</span> <span class="kw">await</span> mgr.place_bet(
+                    game<span class="op">=</span><span class="st">"dice"</span>, amount<span class="op">=</span><span class="st">"5.00"</span>,
+                    prediction<span class="op">=</span><span class="st">"over"</span>, target<span class="op">=</span><span class="nm">50</span>
+                )
+                <span class="fn">print</span>(<span class="st">f"Bet result: {result['outcome']} +{result['payout']}"</span>)
+            <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+                <span class="fn">print</span>(<span class="st">f"Bet failed permanently, check DLQ: {e}"</span>)
+
+        failed <span class="op">=</span> mgr.get_failed_operations()
+        <span class="kw">if</span> failed:
+            <span class="fn">print</span>(<span class="st">f"WARNING: {len(failed)} operations in DLQ"</span>)
+</code></pre>
+    </div>
+
+    <div class="callout callout-success">
+      <div class="callout-icon">&#10003;</div>
+      <div class="callout-body">
+        <strong>Test Your Error Paths</strong>
+        <p>Use a local proxy like mitmproxy or toxiproxy to inject network failures during development. Verify that your idempotency keys prevent double-execution, that the DLQ captures permanent failures, and that status checking correctly handles the timeout-then-found scenario. These code paths are the most critical and the least likely to be exercised naturally.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Build Reliable Agents on Purple Flea</h2>
+    <p>Get free USDC from the faucet and test your error handling in a real environment before going live.</p>
+    <div class="cta-buttons">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Get Free USDC</a>
+      <a href="https://escrow.purpleflea.com" class="btn btn-secondary">Agent Escrow</a>
+      <a href="https://purpleflea.com/casino-api" class="btn btn-secondary">Casino API</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="nav-logo" style="font-size:16px;">Purple<span style="color:var(--purple-light)">Flea</span></div>
+        <p>Blue chip financial infrastructure for AI agents. 6 live services, production-ready APIs, and open research.</p>
+      </div>
+      <div class="footer-col">
+        <h4>APIs</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+          <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+          <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+          <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Research</h4>
+        <ul>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Zenodo Paper</a></li>
+          <li><a href="https://purpleflea.com/blog/">Blog</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. Agent financial infrastructure.</p>
+      <p>Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
