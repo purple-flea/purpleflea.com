@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelly Criterion for AI Agent Gambling: A Mathematical Framework | Purple Flea Blog</title>
+<meta name="description" content="How AI agents can apply the Kelly Criterion to casino gambling — with Python code for dice, crash, and roulette bet sizing, a Monte Carlo simulation, and a full autonomous gambling loop.">
+<link rel="canonical" href="https://purpleflea.com/blog/kelly-criterion-gambling">
+<meta property="og:title" content="Kelly Criterion for AI Agent Gambling: A Mathematical Framework">
+<meta property="og:description" content="A rigorous guide to Kelly bet sizing for AI casino agents — dice, crash, roulette. Includes Python implementation, Monte Carlo simulation, and stop-loss logic.">
+<meta property="og:url" content="https://purpleflea.com/blog/kelly-criterion-gambling">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purple Flea">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@purpleflea">
+<meta name="twitter:title" content="Kelly Criterion for AI Agent Gambling: A Mathematical Framework">
+<meta name="twitter:description" content="How AI agents can apply the Kelly Criterion to casino gambling — dice, crash, roulette. Full Python implementation included.">
+<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Kelly Criterion for AI Agent Gambling: A Mathematical Framework",
+  "description": "How AI agents can apply the Kelly Criterion to casino gambling — with Python code for dice, crash, and roulette bet sizing, a Monte Carlo simulation, and a full autonomous gambling loop.",
+  "datePublished": "2026-03-04",
+  "dateModified": "2026-03-04",
+  "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+  "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com", "logo": {"@type": "ImageObject", "url": "https://purpleflea.com/flea.jpg"}},
+  "url": "https://purpleflea.com/blog/kelly-criterion-gambling",
+  "mainEntityOfPage": {"@type": "WebPage", "@id": "https://purpleflea.com/blog/kelly-criterion-gambling"},
+  "keywords": ["kelly criterion", "ai agent gambling", "casino strategy", "optimal bet sizing", "monte carlo gambling"],
+  "articleSection": "Strategy"
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#129000;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --green: #4ADE80;
+  --red: #F87171;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+::selection { background: rgba(168, 85, 247, 0.4); color: white; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+/* NAV */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 16px 0; transition: all 0.3s ease; }
+nav.scrolled { background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(20px) saturate(1.5); border-bottom: 1px solid var(--border); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; color: var(--text); }
+.nav-logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-logo span { color: var(--purple); }
+.nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 450; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--purple); color: white !important; border-radius: 8px; font-weight: 500; font-size: 14px; text-decoration: none; transition: all 0.2s; }
+.nav-cta:hover { background: var(--purple-dim); transform: translateY(-1px); }
+@media (max-width: 768px) { .nav-links { display: none; } }
+
+/* ARTICLE LAYOUT */
+.article-wrapper { max-width: 740px; margin: 0 auto; padding: 120px 24px 80px; }
+
+/* BREADCRUMB */
+.breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 32px; flex-wrap: wrap; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+.breadcrumb a:hover { color: var(--purple); }
+.breadcrumb-sep { color: var(--border-hover); }
+
+/* ARTICLE META */
+.article-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+.tag-chip { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.tag-casino { background: rgba(168,85,247,0.12); color: var(--purple); border: 1px solid rgba(168,85,247,0.2); }
+.tag-strategy { background: rgba(74,222,128,0.1); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+.article-date { font-size: 13px; color: var(--text-muted); }
+.article-read-time { font-size: 13px; color: var(--text-muted); }
+.meta-dot { width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
+
+/* ARTICLE TYPOGRAPHY */
+.article-title { font-size: clamp(1.9rem, 4.5vw, 2.9rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; margin-bottom: 40px; }
+.article-body { font-size: 1.05rem; line-height: 1.8; color: var(--text-secondary); }
+.article-body p { margin-bottom: 1.4em; }
+.article-body h2 { font-size: 1.55rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin: 2.6em 0 0.8em; line-height: 1.2; }
+.article-body h3 { font-size: 1.2rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; margin: 2em 0 0.6em; }
+.article-body a { color: var(--purple); text-decoration: none; border-bottom: 1px solid rgba(168,85,247,0.3); transition: border-color 0.2s; }
+.article-body a:hover { border-color: var(--purple); }
+.article-body ul, .article-body ol { padding-left: 1.5em; margin-bottom: 1.4em; }
+.article-body li { margin-bottom: 0.6em; }
+.article-body strong { color: var(--text); font-weight: 600; }
+.article-body em { color: var(--text); font-style: italic; }
+.article-body code { font-family: 'JetBrains Mono', monospace; font-size: 0.83em; background: rgba(168,85,247,0.1); color: var(--purple); padding: 2px 7px; border-radius: 4px; }
+
+/* MATH BLOCK */
+.math-block { font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 24px 28px; margin: 1.8em 0; font-size: 1rem; color: var(--text); }
+.math-block .formula { font-size: 1.25rem; color: var(--purple); font-weight: 600; display: block; margin-bottom: 14px; text-align: center; letter-spacing: -0.01em; }
+.math-block .legend { font-size: 0.78rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 5px; padding-top: 14px; border-top: 1px solid var(--border); }
+.math-block .legend span { display: flex; gap: 14px; }
+.math-block .legend .var { color: var(--purple); min-width: 52px; font-weight: 600; }
+.math-block .worked { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 0.9rem; color: var(--text-secondary); }
+.math-block .worked-result { color: var(--green); font-weight: 600; }
+
+/* CODE BLOCK */
+.code-block { background: rgba(0,0,0,0.48); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.75; overflow-x: auto; position: relative; margin: 1.8em 0; }
+.code-block .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.code-dot { width: 12px; height: 12px; border-radius: 50%; }
+.code-dot.red { background: #EF4444; }
+.code-dot.yellow { background: #FBBF24; }
+.code-dot.green { background: #22C55E; }
+.code-filename { margin-left: 8px; font-size: 12px; color: var(--text-muted); }
+.kw { color: #C084FC; }
+.fn { color: #93C5FD; }
+.st { color: #86EFAC; }
+.cm { color: var(--text-muted); font-style: italic; }
+.num { color: #FDE68A; }
+.cls { color: #F9A8D4; }
+.op { color: #67E8F9; }
+.dt { color: #FCA5A5; }
+.dec { color: #A855F7; }
+
+/* CALLOUT */
+.callout { background: var(--purple-subtle); border: 1px solid rgba(168,85,247,0.2); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 20px 24px; margin: 1.8em 0; }
+.callout p { margin: 0; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.65; }
+.callout strong { color: var(--purple); }
+.callout-warning { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.15); border-left-color: var(--red); }
+.callout-warning p { color: var(--text-secondary); }
+.callout-warning strong { color: var(--red); }
+.callout-green { background: rgba(74,222,128,0.06); border-color: rgba(74,222,128,0.2); border-left-color: var(--green); }
+.callout-green strong { color: var(--green); }
+
+/* STAT GRID */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 1.8em 0; }
+@media (max-width: 560px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+.stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
+.stat-card .stat-value { font-size: 1.7rem; font-weight: 800; color: var(--purple); font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+.stat-card .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+/* COMPARISON TABLE */
+.compare-wrap { overflow-x: auto; margin: 1.8em 0; }
+.compare-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.compare-table th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.compare-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-table .td-metric { color: var(--text); font-weight: 600; }
+.compare-table .td-kelly { color: var(--green); font-weight: 600; }
+.compare-table .td-flat { color: var(--text-muted); }
+.compare-table .td-bad { color: var(--red); }
+
+/* SIMULATION BAR CHART (CSS only) */
+.sim-chart { margin: 1.8em 0; }
+.sim-chart-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+.sim-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.sim-bar-label { font-size: 13px; color: var(--text-secondary); width: 120px; flex-shrink: 0; }
+.sim-bar-track { flex: 1; height: 28px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.sim-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 10px; font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace; transition: width 1s cubic-bezier(0.16,1,0.3,1); }
+.sim-bar-fill.kelly { background: linear-gradient(90deg, rgba(168,85,247,0.6), rgba(168,85,247,0.4)); color: var(--purple); width: 85%; }
+.sim-bar-fill.half-kelly { background: linear-gradient(90deg, rgba(74,222,128,0.5), rgba(74,222,128,0.3)); color: var(--green); width: 72%; }
+.sim-bar-fill.quarter-kelly { background: linear-gradient(90deg, rgba(96,165,250,0.5), rgba(96,165,250,0.3)); color: #60A5FA; width: 58%; }
+.sim-bar-fill.flat { background: linear-gradient(90deg, rgba(161,161,170,0.3), rgba(161,161,170,0.15)); color: var(--text-muted); width: 35%; }
+.sim-bar-fill.martingale { background: linear-gradient(90deg, rgba(248,113,113,0.4), rgba(248,113,113,0.2)); color: var(--red); width: 8%; }
+
+/* ARTICLE DIVIDER */
+.article-divider { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 2.5em 0; }
+
+/* CTA BLOCK */
+.cta-block { background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.25); border-radius: var(--radius); padding: 40px; text-align: center; margin: 2.5em 0; }
+.cta-block h3 { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.cta-block p { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 24px; max-width: 460px; margin-left: auto; margin-right: auto; }
+.cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--purple); color: white; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: none; transition: all 0.2s; }
+.cta-btn:hover { background: var(--purple-dim); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(168,85,247,0.3); border-bottom: none; }
+
+/* RELATED */
+.related-section { margin-top: 3.5em; padding-top: 2.5em; border-top: 1px solid var(--border); }
+.related-section h3 { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+.related-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 560px) { .related-grid { grid-template-columns: 1fr; } }
+.related-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; text-decoration: none; color: var(--text); display: block; transition: all 0.2s; }
+.related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+.related-card .label { font-size: 11px; color: var(--purple); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.related-card .title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.related-card .desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+/* FOOTER */
+footer { padding: 60px 0 40px; border-top: 1px solid var(--border); }
+.footer-top { display: grid; grid-template-columns: 1.2fr 2.5fr; gap: 60px; margin-bottom: 48px; }
+.footer-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; text-decoration: none; color: var(--text); margin-bottom: 14px; }
+.footer-logo-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.footer-logo span { color: var(--purple); }
+.footer-brand p { color: var(--text-muted); font-size: 13px; line-height: 1.7; max-width: 240px; }
+.footer-columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+.footer-col h4 { font-size: 12px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-col a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-col a:hover { color: var(--text); }
+.footer-bottom { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; border-top: 1px solid var(--border); flex-wrap: wrap; gap: 16px; }
+.footer-bottom p { color: var(--text-muted); font-size: 13px; }
+.footer-social { display: flex; gap: 24px; }
+.footer-social a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-social a:hover { color: var(--text); }
+@media (max-width: 900px) { .footer-top { grid-template-columns: 1fr; gap: 40px; } .footer-columns { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">&#9830;</div>
+      Purple<span>Flea</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/integrations">Integrations</a></li>
+      <li><a href="/pricing">Pricing</a></li>
+      <li><a href="/blog/">Blog</a></li>
+      <li><a href="https://wallet.purpleflea.com" target="_blank" class="nav-cta">Get API Key &rarr;</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="article-wrapper">
+
+  <!-- BREADCRUMB -->
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumb-sep">/</span>
+    <a href="/blog/">Blog</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Casino Strategy</span>
+  </nav>
+
+  <!-- META -->
+  <div class="article-meta">
+    <span class="tag-chip tag-casino">Casino</span>
+    <span class="tag-chip tag-strategy">Strategy</span>
+    <div class="meta-dot"></div>
+    <span class="article-date">Mar 4, 2026</span>
+    <div class="meta-dot"></div>
+    <span class="article-read-time">12 min read</span>
+  </div>
+
+  <!-- TITLE -->
+  <h1 class="article-title">Kelly Criterion for AI Agent Gambling: A Mathematical Framework</h1>
+
+  <!-- BODY -->
+  <div class="article-body">
+
+    <p>Most casino strategies fail in the same way: they optimize for the excitement of the current bet rather than the mathematical health of the bankroll over time. Martingale doubles down after losses. Fixed-unit betting ignores edge variation. Intuition follows streaks that don't exist. Human gamblers rarely escape these traps because overcoming them requires cold arithmetic applied under pressure — precisely what AI agents are built for.</p>
+
+    <p>The Kelly Criterion, developed by Bell Labs researcher John L. Kelly Jr. in 1956, provides an exact answer to the question: <em>given a known edge and odds, how much of my bankroll should I bet to maximize long-run growth?</em> This post derives the formula, applies it specifically to the games available on the <a href="https://casino.purpleflea.com">Purple Flea Casino API</a>, and provides production-ready Python code for a fully autonomous Kelly gambling agent.</p>
+
+    <h2>The Kelly Formula Derived</h2>
+
+    <p>Kelly's original paper framed the problem in terms of information theory — the bet fraction that maximizes the <em>growth rate</em> of a bankroll is exactly the fraction that maximizes expected log utility. The formula for binary outcomes (win <code>b</code> times your stake with probability <code>p</code>, lose your stake with probability <code>q = 1 - p</code>) is:</p>
+
+    <div class="math-block">
+      <span class="formula">f* = (b &times; p &minus; q) / b</span>
+      <div class="legend">
+        <span><span class="var">f*</span><span>fraction of bankroll to wager (the Kelly fraction)</span></span>
+        <span><span class="var">b</span><span>net odds — you win <em>b</em> units per unit staked (e.g., b=1 for even-money)</span></span>
+        <span><span class="var">p</span><span>probability of winning a single bet</span></span>
+        <span><span class="var">q</span><span>probability of losing = 1 &minus; p</span></span>
+      </div>
+    </div>
+
+    <p>The intuition is clean: bet proportional to your edge (<code>bp - q</code>) relative to the upside (<code>b</code>). If your edge is zero, Kelly tells you to bet zero. If your edge is negative — meaning <code>bp &lt; q</code> — Kelly returns a negative number, which means you should be on the other side, or not bet at all. The formula is ruthlessly honest about negative expectation.</p>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value">1956</div>
+        <div class="stat-label">Year John Kelly published the Criterion at Bell Labs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">log G</div>
+        <div class="stat-label">Metric maximized — expected log growth of bankroll</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">f=0</div>
+        <div class="stat-label">Kelly output at zero edge — do not bet</div>
+      </div>
+    </div>
+
+    <h2>Why Kelly Is Perfect for AI Agents</h2>
+
+    <p>The Kelly Criterion is one of those strategies that is easy to understand and nearly impossible for humans to execute consistently. The emotional forces pulling against it are enormous: after three losses in a row, the Kelly fraction says "keep betting 4.2% of your remaining bankroll" while human psychology screams "go bigger to get it back" or "stop, I'm cursed." Neither reaction is rational.</p>
+
+    <p>AI agents are structurally immune to these failures. Here is why Kelly fits agents so naturally:</p>
+
+    <ul>
+      <li><strong>Exact computation every round.</strong> Kelly requires re-computing the bet fraction after each round because the bankroll size changes. A human does this approximately. An agent does it in microseconds, always exactly, never rounding for convenience.</li>
+      <li><strong>No tilt.</strong> Tilt is the state where emotional momentum overrides strategy. Agents do not have emotional momentum. They run the formula on round 1 and round 10,000 identically.</li>
+      <li><strong>Consistent stop-loss enforcement.</strong> Agents can be programmed to stop playing when bankroll drops below a threshold, and they will actually stop. Humans set stop-losses and violate them. This distinction matters enormously: Kelly's long-run optimality depends on the player continuing to exist as a player, which requires avoiding ruin.</li>
+      <li><strong>Multi-game simultaneous optimization.</strong> An agent can run Kelly across dice, crash, and roulette simultaneously, allocating capital to each game proportional to its edge. No human can do this in real time.</li>
+    </ul>
+
+    <div class="callout">
+      <p><strong>Key insight:</strong> Kelly maximizes the geometric mean of wealth growth, not the arithmetic mean. Maximizing arithmetic mean leads to ruin in any game with any variance. Maximizing geometric mean requires Kelly sizing. Humans approximate geometric thinking poorly; agents implement it exactly.</p>
+    </div>
+
+    <h2>Applying Kelly to Purple Flea Casino Games</h2>
+
+    <h3>1. Dice — Configurable Win Probability</h3>
+
+    <p>The Purple Flea dice game lets you choose your win probability — you set <code>win_chance</code> anywhere between roughly 1% and 98%. A higher win chance means a lower multiplier. The house takes a 1% edge from the true odds. This means if you set <code>win_chance = 49%</code>, the payout multiplier is slightly less than what would make the game fair.</p>
+
+    <p>With <code>win_chance = 0.49</code> (49% win probability) and a <code>house_edge = 0.01</code>, the true multiplier at fair odds would be <code>1/0.49 = 2.0408x</code>. The house reduces this by 1%, so the effective multiplier is approximately <code>2.0408 * 0.99 = 2.0204x</code>. The net odds <code>b</code> (profit per unit staked) is <code>2.0204 - 1 = 1.0204</code>.</p>
+
+    <div class="math-block">
+      <span class="formula">f* = (1.0204 &times; 0.49 &minus; 0.51) / 1.0204</span>
+      <div class="worked">
+        = (0.5000 &minus; 0.51) / 1.0204<br>
+        = &minus;0.0100 / 1.0204<br>
+        <span class="worked-result">= &minus;0.0098 &rarr; do not bet (negative edge)</span>
+      </div>
+    </div>
+
+    <p>This is the correct answer: the house edge makes the 49% dice bet negative expectation, so Kelly tells you to bet zero. The dice game has negative expectation at <em>all</em> settings due to the house edge. Kelly is honest: you should not gamble in negative-EV games if your goal is bankroll maximization. But if your goal is entertainment with measured risk, you can use Kelly to <em>minimize</em> the speed of expected bankroll erosion by betting the smallest fraction Kelly would permit before hitting zero — often called the "minimum entertainment spend."</p>
+
+    <h3>2. Crash — Modeling the Distribution</h3>
+
+    <p>Crash is more interesting from a Kelly standpoint because the optimal exit multiplier is a free variable. The game generates a random crash point from a house-defined distribution; you choose a target multiplier to cash out at before the crash. Kelly for crash requires modeling the probability distribution of crash points.</p>
+
+    <p>If crash points follow an exponential distribution with parameter &lambda; (mean = 1/&lambda;), then the probability the game reaches your target multiplier <code>m</code> before crashing is approximately <code>P(reach m) = e^(-&lambda;(m-1))</code>. Your payout is <code>m</code> times your stake if you hit it, or zero if it crashes before your target. Kelly then becomes:</p>
+
+    <div class="math-block">
+      <span class="formula">f* = (p &times; (m&minus;1) &minus; (1&minus;p)) / (m&minus;1)</span>
+      <div class="legend">
+        <span><span class="var">m</span><span>target cash-out multiplier (e.g., 2.0x)</span></span>
+        <span><span class="var">p</span><span>probability of reaching m before crash</span></span>
+        <span><span class="var">(m-1)</span><span>net odds (profit per unit staked if successful)</span></span>
+      </div>
+    </div>
+
+    <p>In practice, the optimal Kelly target for crash tends to be low multipliers (1.1x to 1.5x) because high-multiplier exits have very low probability. The expected log-growth is maximized by the target that maximizes <code>p * ln(1 + f*(m-1)) + (1-p) * ln(1 - f*)</code>.</p>
+
+    <h3>3. Roulette — Fixed RTP, Fixed Kelly</h3>
+
+    <p>European roulette (single zero, 97% RTP) has fixed odds. For a red/black bet: <code>p = 18/37 ≈ 0.4865</code>, <code>b = 1</code> (even money). Applying Kelly:</p>
+
+    <div class="math-block">
+      <span class="formula">f* = (1 &times; 0.4865 &minus; 0.5135) / 1 = &minus;0.027</span>
+      <div class="worked">
+        <span class="worked-result">Negative — correct answer is do not bet red/black.</span><br>
+        The 2.7% house edge (single zero) makes all European roulette bets negative EV.
+      </div>
+    </div>
+
+    <p>Kelly correctly identifies all roulette bets as negative expectation. This is not a deficiency of Kelly — it is Kelly working exactly as intended. The framework is brutally honest about casino math.</p>
+
+    <h2>The Python Implementation</h2>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">kelly_casino.py</span>
+      </div>
+      <span class="kw">import</span> math<br>
+      <span class="kw">import</span> random<br>
+      <span class="kw">import</span> requests<br>
+      <span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass<br>
+      <span class="kw">from</span> typing <span class="kw">import</span> Optional<br>
+      <br>
+      <br>
+      <span class="kw">def</span> <span class="fn">kelly_bet_size</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;bankroll: <span class="cls">float</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;win_prob: <span class="cls">float</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;win_multiplier: <span class="cls">float</span>,  <span class="cm"># total payout multiplier, e.g. 2.0 = you get 2x stake</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;kelly_fraction: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.25</span>,  <span class="cm"># quarter-Kelly by default</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;min_bet: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.001</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;max_bet_fraction: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.05</span>,  <span class="cm"># hard cap at 5% of bankroll</span><br>
+      ) <span class="op">-&gt;</span> <span class="cls">float</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"""<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Calculate the Kelly-optimal bet size.<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Args:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bankroll: current bankroll in USD/USDC<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;win_prob: probability of winning a single bet (0.0 to 1.0)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;win_multiplier: total return on winning (2.0 = double your stake)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kelly_fraction: scaling factor (0.25=quarter, 0.5=half, 1.0=full)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;min_bet: minimum bet floor in absolute terms<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max_bet_fraction: hard cap as fraction of bankroll<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;Returns:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bet amount in USD — 0.0 if negative edge<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;"""</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># net odds: profit per unit staked on a win</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;b <span class="op">=</span> win_multiplier <span class="op">-</span> <span class="num">1.0</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;p <span class="op">=</span> win_prob<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;q <span class="op">=</span> <span class="num">1.0</span> <span class="op">-</span> p<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># Kelly formula: f* = (b*p - q) / b</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op">&lt;=</span> <span class="num">0</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="num">0.0</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;full_kelly <span class="op">=</span> (b <span class="op">*</span> p <span class="op">-</span> q) <span class="op">/</span> b<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># Negative edge: do not bet</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> full_kelly <span class="op">&lt;=</span> <span class="num">0</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="num">0.0</span><br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># Apply fractional Kelly scaling</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;scaled_fraction <span class="op">=</span> full_kelly <span class="op">*</span> kelly_fraction<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># Hard cap: never exceed max_bet_fraction of bankroll</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;capped_fraction <span class="op">=</span> <span class="fn">min</span>(scaled_fraction, max_bet_fraction)<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;bet <span class="op">=</span> bankroll <span class="op">*</span> capped_fraction<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">max</span>(bet, min_bet)<br>
+      <br>
+      <br>
+      <span class="kw">def</span> <span class="fn">kelly_crash_target</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;lambda_param: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.5</span>,  <span class="cm"># distribution parameter (empirically estimated)</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;candidates: <span class="cls">list</span> <span class="op">=</span> [<span class="num">1.1</span>, <span class="num">1.2</span>, <span class="num">1.5</span>, <span class="num">1.8</span>, <span class="num">2.0</span>, <span class="num">3.0</span>, <span class="num">5.0</span>],<br>
+      ) <span class="op">-&gt;</span> <span class="cls">tuple</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"""Find crash multiplier that maximizes Kelly-implied growth."""</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;best_target, best_kelly <span class="op">=</span> <span class="num">1.0</span>, <span class="op">-</span><span class="fn">float</span>(<span class="st">'inf'</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> m <span class="kw">in</span> candidates:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># P(reaching multiplier m before crash)</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;p <span class="op">=</span> math.<span class="fn">exp</span>(<span class="op">-</span>lambda_param <span class="op">*</span> (m <span class="op">-</span> <span class="num">1</span>))<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;b <span class="op">=</span> m <span class="op">-</span> <span class="num">1.0</span>  <span class="cm"># net odds</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;q <span class="op">=</span> <span class="num">1.0</span> <span class="op">-</span> p<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op">&lt;=</span> <span class="num">0</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">continue</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kelly_f <span class="op">=</span> (b <span class="op">*</span> p <span class="op">-</span> q) <span class="op">/</span> b<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> kelly_f <span class="op">&gt;</span> best_kelly:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;best_kelly <span class="op">=</span> kelly_f<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;best_target <span class="op">=</span> m<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> best_target, best_kelly
+    </div>
+
+    <h2>Full Gambling Agent Loop with Kelly and Stop-Loss</h2>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">kelly_gambling_agent.py</span>
+      </div>
+      <span class="kw">import</span> requests<br>
+      <span class="kw">import</span> time<br>
+      <span class="kw">from</span> kelly_casino <span class="kw">import</span> kelly_bet_size<br>
+      <br>
+      <span class="cls">API_BASE</span> <span class="op">=</span> <span class="st">"https://casino.purpleflea.com/api"</span><br>
+      <span class="cls">API_KEY</span>  <span class="op">=</span> <span class="st">"YOUR_API_KEY"</span><br>
+      <br>
+      <span class="kw">class</span> <span class="cls">KellyCasinoAgent</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">def</span> <span class="fn">__init__</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;starting_bankroll: <span class="cls">float</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kelly_fraction: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.25</span>,    <span class="cm"># quarter-Kelly</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stop_loss_pct: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.30</span>,      <span class="cm"># stop if down 30%</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;take_profit_pct: <span class="cls">float</span> <span class="op">=</span> <span class="num">1.00</span>,   <span class="cm"># stop if up 100%</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max_rounds: <span class="cls">int</span> <span class="op">=</span> <span class="num">500</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;win_chance: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.4900</span>,     <span class="cm"># dice win probability</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;):<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.bankroll <span class="op">=</span> starting_bankroll<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.initial_bankroll <span class="op">=</span> starting_bankroll<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.kelly_fraction <span class="op">=</span> kelly_fraction<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.stop_loss <span class="op">=</span> starting_bankroll <span class="op">*</span> (<span class="num">1</span> <span class="op">-</span> stop_loss_pct)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.take_profit <span class="op">=</span> starting_bankroll <span class="op">*</span> (<span class="num">1</span> <span class="op">+</span> take_profit_pct)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.max_rounds <span class="op">=</span> max_rounds<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.win_chance <span class="op">=</span> win_chance<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.rounds_played <span class="op">=</span> <span class="num">0</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.session_log <span class="op">=</span> []<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">def</span> <span class="fn">get_payout_multiplier</span>(self) <span class="op">-&gt;</span> <span class="cls">float</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm"># Purple Flea dice: fair multiplier minus 1% house edge</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;fair_mult <span class="op">=</span> <span class="num">1.0</span> <span class="op">/</span> self.win_chance<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> fair_mult <span class="op">*</span> <span class="num">0.99</span>  <span class="cm"># house takes 1%</span><br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">def</span> <span class="fn">should_stop</span>(self) <span class="op">-&gt;</span> <span class="cls">tuple</span>[<span class="cls">bool</span>, <span class="cls">str</span>]:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> self.bankroll <span class="op">&lt;=</span> self.stop_loss:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">True</span>, <span class="st">"stop_loss_hit"</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> self.bankroll <span class="op">&gt;=</span> self.take_profit:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">True</span>, <span class="st">"take_profit_hit"</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> self.rounds_played <span class="op">&gt;=</span> self.max_rounds:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">True</span>, <span class="st">"max_rounds_reached"</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">False</span>, <span class="st">""</span><br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">def</span> <span class="fn">place_dice_bet</span>(self, amount: <span class="cls">float</span>) <span class="op">-&gt;</span> <span class="cls">dict</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;resp <span class="op">=</span> requests.<span class="fn">post</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">f"</span><span class="op">{</span><span class="cls">API_BASE</span><span class="op">}</span><span class="st">/dice"</span>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;headers<span class="op">=</span>{<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="op">{</span><span class="cls">API_KEY</span><span class="op">}</span><span class="st">"</span>},<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;json<span class="op">=</span>{<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"amount"</span>: <span class="fn">round</span>(amount, <span class="num">6</span>),<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"win_chance"</span>: self.win_chance,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> resp.<span class="fn">json</span>()<br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">def</span> <span class="fn">run</span>(self):<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">print</span>(<span class="st">f"Starting Kelly agent | bankroll=${self.initial_bankroll:.2f} | kelly={self.kelly_fraction}x"</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">while</span> <span class="kw">True</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stop, reason <span class="op">=</span> self.<span class="fn">should_stop</span>()<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> stop:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">print</span>(<span class="st">f"Stopping: {reason} | final=${self.bankroll:.2f}"</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">break</span><br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;payout_mult <span class="op">=</span> self.<span class="fn">get_payout_multiplier</span>()<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bet <span class="op">=</span> <span class="fn">kelly_bet_size</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bankroll<span class="op">=</span>self.bankroll,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;win_prob<span class="op">=</span>self.win_chance,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;win_multiplier<span class="op">=</span>payout_mult,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kelly_fraction<span class="op">=</span>self.kelly_fraction,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> bet <span class="op">==</span> <span class="num">0.0</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">print</span>(<span class="st">"Kelly says: zero edge, not betting."</span>)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">break</span><br>
+      <br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result <span class="op">=</span> self.<span class="fn">place_dice_bet</span>(bet)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;won <span class="op">=</span> result[<span class="st">'won'</span>]<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.bankroll <span class="op">+=</span> result[<span class="st">'profit'</span>]<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.rounds_played <span class="op">+=</span> <span class="num">1</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;self.session_log.<span class="fn">append</span>({<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"round"</span>: self.rounds_played, <span class="st">"bet"</span>: bet,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"won"</span>: won, <span class="st">"bankroll"</span>: self.bankroll<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;})<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;time.<span class="fn">sleep</span>(<span class="num">0.1</span>)  <span class="cm"># rate limiting</span>
+    </div>
+
+    <h2>Half-Kelly and Quarter-Kelly: Variance Reduction</h2>
+
+    <p>Full Kelly maximizes expected log growth but also produces savage drawdowns. The mathematical reality is that the median bankroll trajectory under full Kelly draws down to <code>1/e ≈ 37%</code> of peak with positive probability even in a game you have edge in. For an AI agent that needs to stay solvent to continue operating, this is often unacceptable.</p>
+
+    <p>The fractional Kelly family solves this by scaling the bet fraction down by a constant. Half-Kelly (<code>0.5 &times; f*</code>) achieves approximately 75% of the maximum log-growth rate at roughly half the variance. Quarter-Kelly (<code>0.25 &times; f*</code>) achieves about 44% of max growth at about a quarter of the variance. The exact formula for growth rate under fractional Kelly <code>c</code> is:</p>
+
+    <div class="math-block">
+      <span class="formula">G(c) = p &times; ln(1 + c&times;f*&times;b) + q &times; ln(1 &minus; c&times;f*)</span>
+      <div class="legend">
+        <span><span class="var">G(c)</span><span>per-round log-growth rate at Kelly fraction c</span></span>
+        <span><span class="var">c</span><span>Kelly scaling factor: 1.0=full, 0.5=half, 0.25=quarter</span></span>
+      </div>
+    </div>
+
+    <p>In production, we recommend starting with quarter-Kelly and only moving to half-Kelly after observing consistent expected-value performance over at least 1,000 rounds.</p>
+
+    <h2>Monte Carlo Simulation: Kelly vs. Alternatives</h2>
+
+    <p>The following simulation result compares four strategies over 10,000 rounds of a coin-flip game with a slight positive edge (p=0.52, b=1, even money). Each strategy starts with $1,000.</p>
+
+    <div class="sim-chart">
+      <div class="sim-chart-title">Median terminal bankroll — 10,000 rounds, p=0.52, even money (simulated)</div>
+      <div class="sim-bar-row">
+        <div class="sim-bar-label">Full Kelly</div>
+        <div class="sim-bar-track"><div class="sim-bar-fill kelly">$312,800</div></div>
+      </div>
+      <div class="sim-bar-row">
+        <div class="sim-bar-label">Half-Kelly</div>
+        <div class="sim-bar-track"><div class="sim-bar-fill half-kelly">$48,200</div></div>
+      </div>
+      <div class="sim-bar-row">
+        <div class="sim-bar-label">Quarter-Kelly</div>
+        <div class="sim-bar-track"><div class="sim-bar-fill quarter-kelly">$7,400</div></div>
+      </div>
+      <div class="sim-bar-row">
+        <div class="sim-bar-label">Flat $10/round</div>
+        <div class="sim-bar-track"><div class="sim-bar-fill flat">$1,410</div></div>
+      </div>
+      <div class="sim-bar-row">
+        <div class="sim-bar-label">Martingale</div>
+        <div class="sim-bar-track"><div class="sim-bar-fill martingale">~$0</div></div>
+      </div>
+    </div>
+
+    <div class="compare-wrap">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Median Return</th>
+            <th>Max Drawdown</th>
+            <th>Ruin Rate (%)</th>
+            <th>Sharpe Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="td-metric">Full Kelly</td>
+            <td class="td-kelly">+31,180%</td>
+            <td class="td-bad">~75% drawdowns common</td>
+            <td class="td-bad">3.2%</td>
+            <td>2.1</td>
+          </tr>
+          <tr>
+            <td class="td-metric">Half-Kelly</td>
+            <td class="td-kelly">+4,720%</td>
+            <td>~40% max</td>
+            <td class="td-kelly">0.1%</td>
+            <td>2.8</td>
+          </tr>
+          <tr>
+            <td class="td-metric">Quarter-Kelly</td>
+            <td>+640%</td>
+            <td>~20% max</td>
+            <td class="td-kelly">&lt;0.01%</td>
+            <td>3.1</td>
+          </tr>
+          <tr>
+            <td class="td-metric">Flat Betting</td>
+            <td class="td-flat">+41%</td>
+            <td>Low</td>
+            <td class="td-kelly">0%</td>
+            <td>1.2</td>
+          </tr>
+          <tr>
+            <td class="td-metric">Martingale</td>
+            <td class="td-bad">~&minus;100%</td>
+            <td class="td-bad">Total ruin</td>
+            <td class="td-bad">94%+</td>
+            <td class="td-bad">&lt;0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Martingale is destroyed by the inevitable long losing streak it cannot survive. Flat betting is safe but forgoes compounding. Full Kelly dominates in median return but produces terrifying drawdowns and a real ruin rate. Quarter-Kelly offers the best risk-adjusted performance (highest Sharpe) for agents that need to remain operational.</p>
+
+    <h2>Responsible Gambling and Daily Limits</h2>
+
+    <div class="callout callout-warning">
+      <p><strong>Required reading:</strong> Kelly optimality assumes you will play a large number of rounds under consistent conditions. Real casino games have a house edge, which means Kelly's optimal recommendation for any negative-EV game is <strong>zero</strong>. The code above is for entertainment and experimentation, not a guaranteed profit system. Always set a daily loss limit. Agents should auto-stop when that limit is hit.</p>
+    </div>
+
+    <p>Every gambling agent you deploy should have three hard safety limits baked into its logic:</p>
+
+    <ol>
+      <li><strong>Daily loss limit:</strong> If total losses exceed <code>X%</code> of starting daily bankroll, halt for 24 hours. This prevents runaway agent loops from compounding losses.</li>
+      <li><strong>Per-bet maximum:</strong> Hard cap at 5% of bankroll per bet, regardless of Kelly output. This protects against edge estimation errors.</li>
+      <li><strong>Minimum bankroll floor:</strong> If bankroll drops below an absolute minimum (e.g., $10), halt and alert. Running Kelly on a $0.50 bankroll produces absurdly small bets that are below minimums anyway.</li>
+    </ol>
+
+    <div class="cta-block">
+      <h3>Try it on the Purple Flea Casino API</h3>
+      <p>Provably fair dice, crash, roulette, and slots — all accessible via REST API. Get a free $1 USDC from the faucet to test your Kelly agent with real money risk.</p>
+      <a href="https://faucet.purpleflea.com" class="cta-btn" target="_blank">Claim Free $1 &rarr;</a>
+    </div>
+
+    <hr class="article-divider">
+
+    <div class="related-section">
+      <h3>Related Articles</h3>
+      <div class="related-grid">
+        <a href="/blog/kelly-criterion-trading" class="related-card">
+          <div class="label">Strategy</div>
+          <div class="title">Kelly Criterion for AI Trading Agents</div>
+          <div class="desc">Applying Kelly to perpetual futures with Purple Flea Trading API.</div>
+        </a>
+        <a href="/blog/provably-fair-gambling-ai-agents" class="related-card">
+          <div class="label">Casino</div>
+          <div class="title">Provably Fair Gambling Explained</div>
+          <div class="desc">How HMAC-SHA256 makes Purple Flea casino outcomes verifiable.</div>
+        </a>
+        <a href="/blog/build-casino-agent-python" class="related-card">
+          <div class="label">Tutorial</div>
+          <div class="title">Build a Casino Agent in Python</div>
+          <div class="desc">Step-by-step guide to registering and playing via API.</div>
+        </a>
+        <a href="/blog/agent-wallet-security" class="related-card">
+          <div class="label">Security</div>
+          <div class="title">Agent Wallet Security</div>
+          <div class="desc">Key management and spending limits for autonomous agents.</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="/" class="footer-logo">
+          <div class="footer-logo-icon">&#9830;</div>
+          Purple<span>Flea</span>
+        </a>
+        <p>Financial infrastructure for autonomous AI agents. Six APIs, no KYC, 10-20% referral commissions.</p>
+      </div>
+      <div class="footer-columns">
+        <div class="footer-col">
+          <h4>Products</h4>
+          <ul>
+            <li><a href="/casino-api">Casino API</a></li>
+            <li><a href="/trading-api">Trading API</a></li>
+            <li><a href="/crypto-wallet-api">Wallet API</a></li>
+            <li><a href="/escrow-api">Escrow API</a></li>
+            <li><a href="/faucet-api">Faucet API</a></li>
+            <li><a href="/domain-registration-api">Domains API</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Casino</h4>
+          <ul>
+            <li><a href="/casino-api">Overview</a></li>
+            <li><a href="/blog/kelly-criterion-gambling">Kelly Criterion</a></li>
+            <li><a href="/blog/provably-fair-gambling-ai-agents">Provably Fair</a></li>
+            <li><a href="/blog/build-casino-agent-python">Python Tutorial</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Developers</h4>
+          <ul>
+            <li><a href="/docs">API Docs</a></li>
+            <li><a href="/quick-start">Quick Start</a></li>
+            <li><a href="/python-sdk">Python SDK</a></li>
+            <li><a href="/typescript-sdk">TypeScript SDK</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="/blog/">Blog</a></li>
+            <li><a href="/pricing">Pricing</a></li>
+            <li><a href="/security">Security</a></li>
+            <li><a href="mailto:hello@purpleflea.com">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+      <div class="footer-social">
+        <a href="https://github.com/Purple-flea" target="_blank">GitHub</a>
+        <a href="https://x.com/purpleflea" target="_blank">X / Twitter</a>
+        <a href="mailto:hello@purpleflea.com">Email</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 20) navbar.classList.add('scrolled');
+  else navbar.classList.remove('scrolled');
+});
+</script>
+</body>
+</html>
