@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Agent Liquidation Strategies: Surviving Margin Calls and Forced Exits. Learn maintenance margin, liquidation price calculation, auto-deleveraging, and stop-loss implementation for AI trading agents." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Agent Liquidation Strategies: Surviving Margin Calls and Forced Exits" />
+  <meta property="og:description" content="A deep dive into margin mechanics, liquidation cascades, and survival strategies for AI trading agents on leveraged markets." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-liquidation-strategies/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>Agent Liquidation Strategies: Surviving Margin Calls and Forced Exits | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-card: #111111;
+      --bg-code: #0d0d1a;
+      --border: #1e1e2e;
+      --purple: #7c3aed;
+      --purple-light: #a855f7;
+      --purple-dim: #3b1f6b;
+      --text: #e8e8f0;
+      --text-muted: #888899;
+      --text-dim: #555566;
+      --red: #ef4444;
+      --red-dim: #450a0a;
+      --green: #22c55e;
+      --green-dim: #052e16;
+      --yellow: #eab308;
+      --yellow-dim: #422006;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--purple-light);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo span { color: var(--text-muted); font-weight: 400; font-size: 0.85rem; margin-left: 0.5rem; }
+
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    /* HERO */
+    .hero {
+      padding: 5rem 2rem 3rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--purple-dim);
+      color: var(--purple-light);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      color: #fff;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--purple-light);
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-meta .dot { color: var(--text-dim); }
+
+    .hero-lead {
+      font-size: 1.15rem;
+      color: #b0b0c0;
+      max-width: 720px;
+      line-height: 1.8;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+      max-width: 860px;
+      margin: 2rem auto;
+    }
+
+    /* CONTENT */
+    .content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 2rem 6rem;
+    }
+
+    /* TOC */
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 3.5rem;
+    }
+
+    .toc h3 {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .toc ol {
+      list-style: none;
+      counter-reset: toc;
+    }
+
+    .toc ol li {
+      counter-increment: toc;
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .toc ol li::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--purple);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      min-width: 1.6rem;
+    }
+
+    .toc a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    .toc a:hover { color: var(--purple-light); }
+
+    /* SECTIONS */
+    section { margin-bottom: 4rem; }
+
+    section h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 1.25rem;
+      scroll-margin-top: 80px;
+    }
+
+    section h2 .num {
+      color: var(--purple);
+      font-size: 0.875rem;
+      font-weight: 500;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    section h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2rem 0 0.75rem;
+    }
+
+    p { margin-bottom: 1.1rem; color: #c0c0d0; }
+
+    strong { color: var(--text); }
+
+    a { color: var(--purple-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* CALLOUTS */
+    .callout {
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+      border-left: 3px solid;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .callout-icon { font-size: 1.1rem; margin-top: 0.1rem; flex-shrink: 0; }
+
+    .callout p { margin: 0; font-size: 0.93rem; }
+
+    .callout.warning {
+      background: rgba(234, 179, 8, 0.07);
+      border-color: var(--yellow);
+      color: #d4c060;
+    }
+
+    .callout.danger {
+      background: rgba(239, 68, 68, 0.07);
+      border-color: var(--red);
+      color: #d08080;
+    }
+
+    .callout.info {
+      background: rgba(124, 58, 237, 0.08);
+      border-color: var(--purple);
+      color: #b090e0;
+    }
+
+    .callout.success {
+      background: rgba(34, 197, 94, 0.07);
+      border-color: var(--green);
+      color: #80c090;
+    }
+
+    /* TABLES */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 2rem 0;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    thead tr {
+      background: #161622;
+    }
+
+    thead th {
+      padding: 0.85rem 1.25rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(124,58,237,0.05); }
+
+    tbody td {
+      padding: 0.85rem 1.25rem;
+      color: #c0c0d0;
+    }
+
+    .td-red { color: var(--red); font-weight: 500; }
+    .td-green { color: var(--green); font-weight: 500; }
+    .td-yellow { color: var(--yellow); font-weight: 500; }
+    .td-purple { color: var(--purple-light); font-weight: 500; }
+
+    /* CODE */
+    .code-block {
+      margin: 2rem 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .code-header {
+      background: #131320;
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-lang {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple-light);
+    }
+
+    .code-filename {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    pre {
+      background: var(--bg-code);
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.825rem;
+      line-height: 1.7;
+      tab-size: 4;
+    }
+
+    code { font-family: var(--mono); }
+
+    .k { color: #c084fc; }   /* keyword */
+    .s { color: #86efac; }   /* string */
+    .n { color: #93c5fd; }   /* name/var */
+    .c { color: #6b7280; font-style: italic; }  /* comment */
+    .num { color: #fcd34d; }  /* number */
+    .fn { color: #67e8f9; }   /* function */
+    .o { color: #f9a8d4; }    /* operator */
+    .dec { color: #a5b4fc; }  /* decorator */
+
+    /* FORMULA BOX */
+    .formula {
+      background: #0d0d1a;
+      border: 1px solid var(--purple-dim);
+      border-radius: 10px;
+      padding: 1.25rem 1.75rem;
+      margin: 1.5rem 0;
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--purple-light);
+      text-align: center;
+    }
+
+    .formula .label {
+      font-family: var(--font);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+
+    /* STAT CARDS */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .stat-card .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-card .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--purple-light);
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-card .sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* CTA */
+    .cta-block {
+      background: linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(168,85,247,0.08) 100%);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 16px;
+      padding: 2.5rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+
+    .cta-block h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 0.75rem;
+    }
+
+    .cta-block p {
+      color: #b0b0c0;
+      max-width: 520px;
+      margin: 0 auto 1.75rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--purple);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: var(--purple-light); text-decoration: none; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-outline:hover { border-color: var(--purple); color: var(--purple-light); text-decoration: none; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      text-align: center;
+    }
+
+    .footer-logo {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--purple-light);
+      margin-bottom: 0.75rem;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+
+    .footer-links a:hover { color: var(--text); }
+
+    .footer-copy { color: var(--text-dim); font-size: 0.8rem; }
+
+    /* BREADCRUMB */
+    .breadcrumb {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 1rem 2rem 0;
+    }
+
+    .breadcrumb a { color: var(--text-dim); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--text-muted); }
+    .breadcrumb .sep { color: var(--text-dim); }
+
+    /* INLINE CODE */
+    p code, li code {
+      background: rgba(124,58,237,0.12);
+      color: var(--purple-light);
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+      font-size: 0.875em;
+    }
+
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.1rem; }
+    li { margin-bottom: 0.4rem; color: #c0c0d0; }
+
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      .nav-links { display: none; }
+      .hero { padding: 3rem 1rem 2rem; }
+      .content { padding: 0 1rem 4rem; }
+      .hero h1 { font-size: 1.75rem; }
+      .cta-block { padding: 1.75rem 1.25rem; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://purpleflea.com" class="nav-logo">Purple Flea <span>/ Blog</span></a>
+  <ul class="nav-links">
+    <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+    <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+    <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+  </ul>
+</nav>
+
+<div class="breadcrumb">
+  <a href="https://purpleflea.com">Home</a>
+  <span class="sep">›</span>
+  <a href="https://purpleflea.com/blog">Blog</a>
+  <span class="sep">›</span>
+  <span>Liquidation Strategies</span>
+</div>
+
+<header class="hero">
+  <div class="hero-tag">Trading</div>
+  <h1>Agent Liquidation Strategies:<br/><em>Surviving Margin Calls and Forced Exits</em></h1>
+  <div class="hero-meta">
+    <span>Purple Flea Engineering</span>
+    <span class="dot">·</span>
+    <span>March 4, 2026</span>
+    <span class="dot">·</span>
+    <span>18 min read</span>
+  </div>
+  <p class="hero-lead">Liquidation is the most feared event in leveraged trading — and AI agents are especially vulnerable because they execute without hesitation. This post dissects the mechanics of margin, forced liquidations, and the code patterns every trading agent must implement to survive.</p>
+</header>
+
+<div class="divider"></div>
+
+<main class="content">
+
+  <nav class="toc">
+    <h3>Table of Contents</h3>
+    <ol>
+      <li><a href="#margin-mechanics">Margin Mechanics and Maintenance Requirements</a></li>
+      <li><a href="#liquidation-price">Liquidation Price Calculation</a></li>
+      <li><a href="#cascade">Liquidation Cascades and Auto-Deleveraging</a></li>
+      <li><a href="#survival">Survival Strategies: Soft and Hard Stops</a></li>
+      <li><a href="#code">Python Implementation: Liquidation-Aware Agent</a></li>
+      <li><a href="#purpleflea">Purple Flea Trading API Integration</a></li>
+    </ol>
+  </nav>
+
+  <!-- SECTION 1 -->
+  <section id="margin-mechanics">
+    <h2><span class="num">01</span>Margin Mechanics and Maintenance Requirements</h2>
+
+    <p>Leverage is borrowed capital — and borrowed capital comes with conditions. When you open a leveraged position, the exchange requires you to lock up a portion of the notional value as <strong>initial margin</strong>. As your position moves against you, the exchange monitors your <strong>maintenance margin</strong>: the minimum equity needed to keep the position open. Fall below it and the exchange liquidates you, forcibly closing your position to protect their loan.</p>
+
+    <p>For AI agents operating on leveraged markets, margin is not an abstraction. It is a hard constraint that must be modeled explicitly. An agent that ignores margin ratios will eventually discover them the hard way — through a forced liquidation at the worst possible moment, typically during a volatility spike when spreads are wide and slippage is maximum.</p>
+
+    <h3>Initial vs Maintenance Margin</h3>
+
+    <p>The two critical thresholds are:</p>
+
+    <ul>
+      <li><strong>Initial Margin (IM):</strong> Required to open a position. Typically 1/leverage. At 10x leverage, IM = 10% of notional.</li>
+      <li><strong>Maintenance Margin (MM):</strong> Minimum to keep position open. Usually 50-75% of IM. Below this, liquidation is triggered.</li>
+      <li><strong>Margin Ratio:</strong> Current equity / total notional. Real-time health indicator.</li>
+    </ul>
+
+    <div class="callout warning">
+      <div class="callout-icon">&#9888;</div>
+      <p><strong>Agent Risk:</strong> Many agents treat margin as a one-time check at position open. In reality, funding rates, unrealized PnL fluctuations, and fee accrual continuously erode effective margin. Your agent must poll margin health on every tick or at minimum every 30 seconds.</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="label">5x Leverage MM</div>
+        <div class="value">10%</div>
+        <div class="sub">of notional value</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">10x Leverage MM</div>
+        <div class="value">5%</div>
+        <div class="sub">of notional value</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">20x Leverage MM</div>
+        <div class="value">2.5%</div>
+        <div class="sub">of notional value</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">50x Leverage MM</div>
+        <div class="value">1%</div>
+        <div class="sub">of notional value</div>
+      </div>
+    </div>
+
+    <h3>Cross vs Isolated Margin</h3>
+
+    <p>Margin mode determines how losses are socialized across your portfolio:</p>
+
+    <p><strong>Cross margin</strong> pools all available balance against all open positions. A winning position can backstop a losing one — but a catastrophic loss on one position can drain your entire account. For agents running multiple uncorrelated strategies, cross margin creates hidden tail risk.</p>
+
+    <p><strong>Isolated margin</strong> caps each position's loss at its allocated margin. Liquidation on one trade cannot spill into others. The tradeoff: smaller effective buffer per position, which means tighter liquidation distances.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Leverage</th>
+            <th>Initial Margin</th>
+            <th>Maintenance Margin</th>
+            <th>Buffer to Liquidation</th>
+            <th>Risk Level</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2x</td>
+            <td>50%</td>
+            <td>25%</td>
+            <td>25%</td>
+            <td class="td-green">Low</td>
+          </tr>
+          <tr>
+            <td>5x</td>
+            <td>20%</td>
+            <td>10%</td>
+            <td>10%</td>
+            <td class="td-yellow">Moderate</td>
+          </tr>
+          <tr>
+            <td>10x</td>
+            <td>10%</td>
+            <td>5%</td>
+            <td>5%</td>
+            <td class="td-yellow">High</td>
+          </tr>
+          <tr>
+            <td>20x</td>
+            <td>5%</td>
+            <td>2.5%</td>
+            <td>2.5%</td>
+            <td class="td-red">Very High</td>
+          </tr>
+          <tr>
+            <td>50x</td>
+            <td>2%</td>
+            <td>1%</td>
+            <td>1%</td>
+            <td class="td-red">Extreme</td>
+          </tr>
+          <tr>
+            <td>100x</td>
+            <td>1%</td>
+            <td>0.5%</td>
+            <td>0.5%</td>
+            <td class="td-red">Suicidal</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="liquidation-price">
+    <h2><span class="num">02</span>Liquidation Price Calculation</h2>
+
+    <p>Every agent must be able to compute its own liquidation price before the exchange does. Knowing your liquidation distance — expressed in price terms — allows you to set stop-losses at safe distances, size positions appropriately, and monitor in real-time.</p>
+
+    <h3>Long Position Liquidation Price</h3>
+
+    <p>For a long position with isolated margin, liquidation occurs when:</p>
+
+    <div class="formula">
+      <div class="label">Long Liquidation Price</div>
+      Liq_Price = Entry_Price × (1 - Initial_Margin% + Maintenance_Margin%)
+    </div>
+
+    <p>At 10x leverage (10% IM, 5% MM): <code>Liq = Entry × (1 - 0.10 + 0.05) = Entry × 0.95</code>. The price only needs to drop 5% for forced liquidation. That is a single bad hourly candle in a volatile market.</p>
+
+    <h3>Short Position Liquidation Price</h3>
+
+    <div class="formula">
+      <div class="label">Short Liquidation Price</div>
+      Liq_Price = Entry_Price × (1 + Initial_Margin% - Maintenance_Margin%)
+    </div>
+
+    <p>At 10x: <code>Liq = Entry × (1 + 0.10 - 0.05) = Entry × 1.05</code>. The price needs to rise only 5% against your short to trigger liquidation.</p>
+
+    <h3>Including Funding Rate Impact</h3>
+
+    <p>Perpetual futures have funding rates — periodic payments between longs and shorts that can be positive or negative. In sustained bull markets, longs pay 0.01-0.1% every 8 hours. Over a week at 0.05%/8h, that accumulates to ~1.05% — material at 20x leverage. Your agent must incorporate accumulated funding into margin calculations:</p>
+
+    <div class="formula">
+      <div class="label">Effective Margin After Funding</div>
+      Effective_IM% = Initial_IM% - accumulated_funding_paid%
+    </div>
+
+    <div class="callout danger">
+      <div class="callout-icon">&#128683;</div>
+      <p><strong>Funding Death Spiral:</strong> An agent holding a leveraged position for days during high funding periods will find its effective margin eroded significantly. A position opened with 10% IM can slide to 6% effective IM after 4 days of 0.05%/8h funding — materially closer to the 5% MM threshold than the agent's initial model assumed.</p>
+    </div>
+
+    <h3>Liquidation Scenarios</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Entry</th>
+            <th>Leverage</th>
+            <th>Liq Price</th>
+            <th>% Move to Liq</th>
+            <th>Outcome</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>BTC Long (conservative)</td>
+            <td>$95,000</td>
+            <td>3x</td>
+            <td>$79,583</td>
+            <td>-16.2%</td>
+            <td class="td-green">Survivable</td>
+          </tr>
+          <tr>
+            <td>BTC Long (moderate)</td>
+            <td>$95,000</td>
+            <td>10x</td>
+            <td>$90,250</td>
+            <td>-5%</td>
+            <td class="td-yellow">Risky</td>
+          </tr>
+          <tr>
+            <td>ETH Short (moderate)</td>
+            <td>$2,800</td>
+            <td>10x</td>
+            <td>$2,940</td>
+            <td>+5%</td>
+            <td class="td-yellow">Risky</td>
+          </tr>
+          <tr>
+            <td>SOL Long (aggressive)</td>
+            <td>$140</td>
+            <td>25x</td>
+            <td>$137.2</td>
+            <td>-2%</td>
+            <td class="td-red">Dangerous</td>
+          </tr>
+          <tr>
+            <td>Altcoin Long (extreme)</td>
+            <td>$1.00</td>
+            <td>50x</td>
+            <td>$0.991</td>
+            <td>-0.9%</td>
+            <td class="td-red">Suicidal</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="cascade">
+    <h2><span class="num">03</span>Liquidation Cascades and Auto-Deleveraging</h2>
+
+    <p>Individual liquidations are painful. Cascading liquidations are catastrophic. When price drops sharply, multiple leveraged longs hit their liquidation prices simultaneously. The exchange's liquidation engine sells these positions into the market — pushing price further down, triggering more liquidations, which sell more, in a self-reinforcing loop.</p>
+
+    <h3>The Cascade Mechanism</h3>
+
+    <p>Consider a scenario where BTC drops 3% in 5 minutes. Agents at 30x+ leverage get liquidated. Their sell orders push price down another 1.5%. This triggers agents at 20x. Their liquidation adds more sell pressure, pushing down another 1%. Now 15x agents are underwater. The cascade unfolds in seconds.</p>
+
+    <p>Historical examples: BitMEX's March 2020 crash saw $700M in BTC longs liquidated in under an hour, with price gaps of over 15%. FTX's final days involved liquidation cascades that moved prices 20-40% in minutes. AI agents operating at that time with leveraged positions were liquidated at prices vastly different from their stop-loss targets.</p>
+
+    <h3>Auto-Deleveraging (ADL)</h3>
+
+    <p>When an exchange's insurance fund is depleted and a counterparty position cannot be liquidated at market price, the exchange invokes <strong>auto-deleveraging</strong>: it forcibly closes your winning position to offset the bankrupt loser's position. The price used is the bankruptcy price of the losing trader — often far worse than market.</p>
+
+    <ul>
+      <li>ADL is ranked by profit percentage and leverage — highest P&amp;L% and highest leverage get ADL'd first.</li>
+      <li>An agent with a well-performing leveraged position can be involuntarily exited at no notice.</li>
+      <li>ADL events correlate with the worst market conditions — exactly when your agent needs its position most.</li>
+    </ul>
+
+    <div class="callout info">
+      <div class="callout-icon">&#9432;</div>
+      <p><strong>Agent Defense Against ADL:</strong> Reduce leverage aggressively when open interest on your side of the market is extremely high relative to the insurance fund. Monitor the exchange's ADL risk queue — most exchanges expose this via API. If you are in the top 10% of the ADL queue, reduce position size or take profit.</p>
+    </div>
+
+    <h3>Slippage During Cascade Events</h3>
+
+    <p>Order book depth evaporates during cascades. A stop-loss set at $90,000 on BTC may execute at $87,500 if you are one of 10,000 agents trying to exit simultaneously. Slippage of 2-3% on a 10x leveraged position represents 20-30% of your original capital — after the position was already moving against you.</p>
+
+    <p>Agents must budget for catastrophic slippage in their risk models. The liquidation price calculation should incorporate a slippage buffer: treat your effective liquidation price as 1-2% inside the theoretical price, not at it.</p>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="survival">
+    <h2><span class="num">04</span>Survival Strategies: Soft and Hard Stop-Losses</h2>
+
+    <p>A robust agent uses layered stop-loss architecture. No single mechanism is reliable under all conditions. Defense in depth is the only approach that survives adversarial market conditions.</p>
+
+    <h3>Soft Stop-Loss (Trailing Margin Alert)</h3>
+
+    <p>A soft stop is a trigger that <em>informs</em> rather than immediately exits. When margin ratio drops to a threshold (e.g., 150% of maintenance), the agent receives an alert and begins evaluation: should it add margin, reduce position, or fully exit? Soft stops allow nuanced responses when time permits.</p>
+
+    <p>Use cases: positions in liquid markets where slippage is manageable, positions where the agent has additional margin available, situations where a brief price dip is expected to reverse.</p>
+
+    <h3>Hard Stop-Loss (Immediate Market Order)</h3>
+
+    <p>A hard stop fires a market sell/buy immediately upon trigger. No evaluation, no hesitation. The trigger should be set well above the maintenance margin to ensure execution before the exchange liquidates, typically at 120-130% of MM.</p>
+
+    <p>Hard stops must be implemented at two levels: in the agent code itself (in-process) AND as exchange-native stop orders (out-of-process). Agent code can crash. Exchange orders persist even when your server is down.</p>
+
+    <h3>Position Sizing as Primary Defense</h3>
+
+    <p>Stop-losses are a secondary defense. Primary defense is position sizing that keeps any single liquidation from being catastrophic. The Kelly Criterion applied to leveraged positions suggests:</p>
+
+    <div class="formula">
+      <div class="label">Max Leveraged Position Size (Kelly-Adjusted)</div>
+      f* = (edge / leverage) × total_capital
+    </div>
+
+    <p>Where <code>edge</code> is your expected return per trade and <code>leverage</code> is the amplification factor. For an agent with 2% expected edge per trade at 10x leverage: <code>f* = 0.02/10 = 0.2%</code> of total capital per trade. This sounds conservative — it is. Kelly sizing on leveraged positions requires extreme restraint.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stop Type</th>
+            <th>Trigger Level</th>
+            <th>Action</th>
+            <th>Latency Required</th>
+            <th>Failure Mode</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Exchange Stop Order</td>
+            <td>Configurable</td>
+            <td>Auto market close</td>
+            <td>None (server-side)</td>
+            <td class="td-yellow">Slippage on gap</td>
+          </tr>
+          <tr>
+            <td>Agent Hard Stop</td>
+            <td>130% of MM</td>
+            <td>Immediate market exit</td>
+            <td>&lt; 500ms</td>
+            <td class="td-yellow">Agent downtime</td>
+          </tr>
+          <tr>
+            <td>Agent Soft Stop</td>
+            <td>150% of MM</td>
+            <td>Alert + evaluate</td>
+            <td>&lt; 5s</td>
+            <td class="td-green">Misses fast cascades</td>
+          </tr>
+          <tr>
+            <td>Margin Top-Up</td>
+            <td>160% of MM</td>
+            <td>Add margin from reserve</td>
+            <td>&lt; 10s</td>
+            <td class="td-green">Reserve exhaustion</td>
+          </tr>
+          <tr>
+            <td>Portfolio Hedge</td>
+            <td>Continuous</td>
+            <td>Offsetting position</td>
+            <td>Continuous</td>
+            <td class="td-green">Correlation breakdown</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success">
+      <div class="callout-icon">&#10003;</div>
+      <p><strong>Best Practice:</strong> Always place exchange-native stop orders as your backstop the moment a position is opened. Your agent code may fail — network partitions, OOM crashes, runaway loops. The exchange stop order is your insurance against agent death. Never rely on in-process logic alone for liquidation protection.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section id="code">
+    <h2><span class="num">05</span>Python Implementation: Liquidation-Aware Agent</h2>
+
+    <p>The following code provides a complete liquidation calculator and an automated stop-loss agent pattern. These are production-grade patterns used by agents on Purple Flea's Trading API.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">liquidation_calculator.py</span>
+      </div>
+      <pre><span class="k">from</span> <span class="n">dataclasses</span> <span class="k">import</span> <span class="n">dataclass</span>
+<span class="k">from</span> <span class="n">typing</span> <span class="k">import</span> <span class="n">Literal</span>
+<span class="k">import</span> <span class="n">math</span>
+
+<span class="dec">@dataclass</span>
+<span class="k">class</span> <span class="fn">MarginConfig</span>:
+    <span class="s">"""Exchange margin parameters."""</span>
+    leverage: <span class="n">float</span>
+    initial_margin_pct: <span class="n">float</span>      <span class="c"># e.g. 0.10 for 10%</span>
+    maintenance_margin_pct: <span class="n">float</span>   <span class="c"># e.g. 0.05 for 5%</span>
+    mode: <span class="n">Literal</span>[<span class="s">'isolated'</span>, <span class="s">'cross'</span>] = <span class="s">'isolated'</span>
+    taker_fee: <span class="n">float</span> = <span class="num">0.0005</span>        <span class="c"># 0.05% taker fee</span>
+
+<span class="dec">@dataclass</span>
+<span class="k">class</span> <span class="fn">Position</span>:
+    <span class="s">"""Open leveraged position."""</span>
+    symbol: <span class="n">str</span>
+    side: <span class="n">Literal</span>[<span class="s">'long'</span>, <span class="s">'short'</span>]
+    entry_price: <span class="n">float</span>
+    quantity: <span class="n">float</span>                  <span class="c"># base asset amount</span>
+    allocated_margin: <span class="n">float</span>           <span class="c"># USDC locked as margin</span>
+    accumulated_funding: <span class="n">float</span> = <span class="num">0.0</span>  <span class="c"># negative means paid out</span>
+    config: <span class="n">MarginConfig</span> = <span class="k">None</span>
+
+<span class="k">class</span> <span class="fn">LiquidationCalculator</span>:
+    <span class="s">"""
+    Compute liquidation prices and margin health for leveraged positions.
+    Accounts for fees, funding, and slippage buffers.
+    """</span>
+
+    <span class="k">def</span> <span class="fn">__init__</span>(<span class="n">self</span>, slippage_buffer: <span class="n">float</span> = <span class="num">0.005</span>):
+        <span class="c"># Add 0.5% slippage buffer to all liquidation estimates</span>
+        <span class="n">self</span>.slippage_buffer = slippage_buffer
+
+    <span class="k">def</span> <span class="fn">liquidation_price</span>(<span class="n">self</span>, pos: <span class="n">Position</span>) -> <span class="n">float</span>:
+        <span class="s">"""
+        Calculate theoretical liquidation price for isolated margin.
+        Incorporates fees and accumulated funding.
+        """</span>
+        cfg = pos.config
+        notional = pos.entry_price <span class="o">*</span> pos.quantity
+
+        <span class="c"># Total fees paid at entry + expected at exit</span>
+        fees_paid = notional <span class="o">*</span> cfg.taker_fee <span class="o">*</span> <span class="num">2</span>
+
+        <span class="c"># Effective margin after funding and fees</span>
+        effective_margin = (
+            pos.allocated_margin
+            <span class="o">+</span> pos.accumulated_funding
+            <span class="o">-</span> fees_paid
+        )
+
+        <span class="k">if</span> pos.side <span class="o">==</span> <span class="s">'long'</span>:
+            <span class="c"># Liq when: price_drop * quantity >= effective_margin - MM</span>
+            mm_required = notional <span class="o">*</span> cfg.maintenance_margin_pct
+            loss_buffer = effective_margin <span class="o">-</span> mm_required
+            liq = pos.entry_price <span class="o">-</span> (loss_buffer <span class="o">/</span> pos.quantity)
+            <span class="c"># Apply slippage buffer (liquidation happens a bit earlier)</span>
+            <span class="k">return</span> liq <span class="o">*</span> (<span class="num">1</span> <span class="o">+</span> <span class="n">self</span>.slippage_buffer)
+        <span class="k">else</span>:
+            mm_required = notional <span class="o">*</span> cfg.maintenance_margin_pct
+            loss_buffer = effective_margin <span class="o">-</span> mm_required
+            liq = pos.entry_price <span class="o">+</span> (loss_buffer <span class="o">/</span> pos.quantity)
+            <span class="k">return</span> liq <span class="o">*</span> (<span class="num">1</span> <span class="o">-</span> <span class="n">self</span>.slippage_buffer)
+
+    <span class="k">def</span> <span class="fn">margin_ratio</span>(<span class="n">self</span>, pos: <span class="n">Position</span>, current_price: <span class="n">float</span>) -> <span class="n">float</span>:
+        <span class="s">"""Current margin ratio: equity / notional. Below MM_pct = liquidation."""</span>
+        notional = current_price <span class="o">*</span> pos.quantity
+        <span class="k">if</span> pos.side <span class="o">==</span> <span class="s">'long'</span>:
+            unrealized_pnl = (current_price <span class="o">-</span> pos.entry_price) <span class="o">*</span> pos.quantity
+        <span class="k">else</span>:
+            unrealized_pnl = (pos.entry_price <span class="o">-</span> current_price) <span class="o">*</span> pos.quantity
+
+        equity = pos.allocated_margin <span class="o">+</span> unrealized_pnl <span class="o">+</span> pos.accumulated_funding
+        <span class="k">return</span> equity <span class="o">/</span> notional
+
+    <span class="k">def</span> <span class="fn">safe_stop_price</span>(<span class="n">self</span>, pos: <span class="n">Position</span>, safety_multiple: <span class="n">float</span> = <span class="num">1.3</span>) -> <span class="n">float</span>:
+        <span class="s">"""
+        Recommended stop-loss price: liquidation price with safety buffer.
+        Default 30% above maintenance requirement.
+        """</span>
+        liq = <span class="n">self</span>.liquidation_price(pos)
+        cfg = pos.config
+        buffer = pos.entry_price <span class="o">*</span> cfg.maintenance_margin_pct <span class="o">*</span> safety_multiple
+
+        <span class="k">if</span> pos.side <span class="o">==</span> <span class="s">'long'</span>:
+            <span class="k">return</span> liq <span class="o">+</span> buffer
+        <span class="k">else</span>:
+            <span class="k">return</span> liq <span class="o">-</span> buffer
+
+    <span class="k">def</span> <span class="fn">distance_to_liquidation_pct</span>(<span class="n">self</span>, pos: <span class="n">Position</span>, current_price: <span class="n">float</span>) -> <span class="n">float</span>:
+        <span class="s">"""Percentage price move before liquidation."""</span>
+        liq = <span class="n">self</span>.liquidation_price(pos)
+        <span class="k">return</span> <span class="n">abs</span>((liq <span class="o">-</span> current_price) <span class="o">/</span> current_price) <span class="o">*</span> <span class="num">100</span>
+
+    <span class="k">def</span> <span class="fn">print_report</span>(<span class="n">self</span>, pos: <span class="n">Position</span>, current_price: <span class="n">float</span>):
+        liq = <span class="n">self</span>.liquidation_price(pos)
+        ratio = <span class="n">self</span>.margin_ratio(pos, current_price)
+        stop = <span class="n">self</span>.safe_stop_price(pos)
+        dist = <span class="n">self</span>.distance_to_liquidation_pct(pos, current_price)
+        mm = pos.config.maintenance_margin_pct
+
+        <span class="n">print</span>(<span class="s">f"\n=== Margin Report: {pos.symbol} {pos.side.upper()} ==="</span>)
+        <span class="n">print</span>(<span class="s">f"  Entry Price:       ${pos.entry_price:,.2f}"</span>)
+        <span class="n">print</span>(<span class="s">f"  Current Price:     ${current_price:,.2f}"</span>)
+        <span class="n">print</span>(<span class="s">f"  Liquidation Price: ${liq:,.2f}"</span>)
+        <span class="n">print</span>(<span class="s">f"  Safe Stop:         ${stop:,.2f}"</span>)
+        <span class="n">print</span>(<span class="s">f"  Margin Ratio:      {ratio:.2%} (MM: {mm:.2%})"</span>)
+        <span class="n">print</span>(<span class="s">f"  Distance to Liq:   {dist:.2f}%"</span>)
+        health = <span class="s">"HEALTHY"</span> <span class="k">if</span> ratio <span class="o">></span> mm <span class="o">*</span> <span class="num">1.5</span> <span class="k">else</span> <span class="s">"WARNING"</span> <span class="k">if</span> ratio <span class="o">></span> mm <span class="o">*</span> <span class="num">1.2</span> <span class="k">else</span> <span class="s">"DANGER"</span>
+        <span class="n">print</span>(<span class="s">f"  Status:            {health}"</span>)
+
+<span class="c"># Example usage</span>
+cfg = <span class="fn">MarginConfig</span>(leverage=<span class="num">10</span>, initial_margin_pct=<span class="num">0.10</span>, maintenance_margin_pct=<span class="num">0.05</span>)
+pos = <span class="fn">Position</span>(
+    symbol=<span class="s">"BTC-USDC"</span>,
+    side=<span class="s">"long"</span>,
+    entry_price=<span class="num">95000</span>,
+    quantity=<span class="num">0.1</span>,
+    allocated_margin=<span class="num">950</span>,   <span class="c"># $950 margin for $9500 notional at 10x</span>
+    accumulated_funding=<span class="o">-</span><span class="num">12.50</span>,  <span class="c"># paid $12.50 in funding so far</span>
+    config=cfg
+)
+
+calc = <span class="fn">LiquidationCalculator</span>()
+calc.print_report(pos, current_price=<span class="num">93500</span>)</pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">stop_loss_agent.py</span>
+      </div>
+      <pre"><span class="k">import</span> <span class="n">asyncio</span>
+<span class="k">import</span> <span class="n">httpx</span>
+<span class="k">import</span> <span class="n">logging</span>
+<span class="k">from</span> <span class="n">datetime</span> <span class="k">import</span> <span class="n">datetime</span>
+
+<span class="n">logger</span> = <span class="n">logging</span>.getLogger(<span class="s">"stop_loss_agent"</span>)
+
+<span class="k">class</span> <span class="fn">StopLossAgent</span>:
+    <span class="s">"""
+    Monitors open positions and executes layered stop-loss logic.
+    Integrates with Purple Flea Trading API.
+    """</span>
+
+    SOFT_STOP_RATIO = <span class="num">1.5</span>   <span class="c"># 150% of maintenance margin</span>
+    HARD_STOP_RATIO = <span class="num">1.3</span>   <span class="c"># 130% of maintenance margin</span>
+    POLL_INTERVAL = <span class="num">15</span>      <span class="c"># seconds between checks</span>
+
+    <span class="k">def</span> <span class="fn">__init__</span>(<span class="n">self</span>, api_key: <span class="n">str</span>, base_url: <span class="n">str</span> = <span class="s">"https://purpleflea.com/trading-api"</span>):
+        <span class="n">self</span>.api_key = api_key
+        <span class="n">self</span>.base_url = base_url
+        <span class="n">self</span>.client = <span class="n">httpx</span>.<span class="fn">AsyncClient</span>(
+            headers={<span class="s">"Authorization"</span>: <span class="s">f"Bearer {api_key}"</span>},
+            timeout=<span class="num">10.0</span>
+        )
+        <span class="n">self</span>.calculator = <span class="fn">LiquidationCalculator</span>()
+        <span class="n">self</span>.alerted_positions: <span class="n">set</span> = <span class="n">set</span>()
+
+    <span class="k">async def</span> <span class="fn">get_open_positions</span>(<span class="n">self</span>) -> <span class="n">list</span>:
+        resp = <span class="k">await</span> <span class="n">self</span>.client.get(<span class="s">f"{self.base_url}/positions"</span>)
+        resp.raise_for_status()
+        <span class="k">return</span> resp.json()[<span class="s">"positions"</span>]
+
+    <span class="k">async def</span> <span class="fn">get_price</span>(<span class="n">self</span>, symbol: <span class="n">str</span>) -> <span class="n">float</span>:
+        resp = <span class="k">await</span> <span class="n">self</span>.client.get(<span class="s">f"{self.base_url}/ticker/{symbol}"</span>)
+        resp.raise_for_status()
+        <span class="k">return</span> <span class="n">float</span>(resp.json()[<span class="s">"mark_price"</span>])
+
+    <span class="k">async def</span> <span class="fn">close_position</span>(<span class="n">self</span>, symbol: <span class="n">str</span>, side: <span class="n">str</span>, quantity: <span class="n">float</span>, reason: <span class="n">str</span>):
+        close_side = <span class="s">"sell"</span> <span class="k">if</span> side <span class="o">==</span> <span class="s">"long"</span> <span class="k">else</span> <span class="s">"buy"</span>
+        <span class="n">logger</span>.warning(<span class="s">f"HARD STOP TRIGGERED: {symbol} {side} | Reason: {reason}"</span>)
+        resp = <span class="k">await</span> <span class="n">self</span>.client.post(
+            <span class="s">f"{self.base_url}/order"</span>,
+            json={
+                <span class="s">"symbol"</span>: symbol,
+                <span class="s">"side"</span>: close_side,
+                <span class="s">"quantity"</span>: quantity,
+                <span class="s">"type"</span>: <span class="s">"market"</span>,
+                <span class="s">"reduce_only"</span>: <span class="k">True</span>,
+                <span class="s">"metadata"</span>: {<span class="s">"reason"</span>: reason, <span class="s">"timestamp"</span>: <span class="n">datetime</span>.utcnow().isoformat()}
+            }
+        )
+        resp.raise_for_status()
+        <span class="k">return</span> resp.json()
+
+    <span class="k">async def</span> <span class="fn">evaluate_position</span>(<span class="n">self</span>, raw_pos: <span class="n">dict</span>):
+        <span class="c"># Parse raw API position into our Position dataclass</span>
+        cfg = <span class="fn">MarginConfig</span>(
+            leverage=raw_pos[<span class="s">"leverage"</span>],
+            initial_margin_pct=<span class="num">1.0</span> <span class="o">/</span> raw_pos[<span class="s">"leverage"</span>],
+            maintenance_margin_pct=<span class="num">1.0</span> <span class="o">/</span> raw_pos[<span class="s">"leverage"</span>] <span class="o">*</span> <span class="num">0.5</span>
+        )
+        pos = <span class="fn">Position</span>(
+            symbol=raw_pos[<span class="s">"symbol"</span>],
+            side=raw_pos[<span class="s">"side"</span>],
+            entry_price=raw_pos[<span class="s">"avg_entry_price"</span>],
+            quantity=raw_pos[<span class="s">"quantity"</span>],
+            allocated_margin=raw_pos[<span class="s">"margin"</span>],
+            accumulated_funding=raw_pos.get(<span class="s">"accumulated_funding"</span>, <span class="num">0</span>),
+            config=cfg
+        )
+
+        current_price = <span class="k">await</span> <span class="n">self</span>.get_price(pos.symbol)
+        ratio = <span class="n">self</span>.calculator.margin_ratio(pos, current_price)
+        mm = cfg.maintenance_margin_pct
+
+        pos_id = raw_pos.get(<span class="s">"position_id"</span>, pos.symbol)
+
+        <span class="k">if</span> ratio <span class="o">&lt;=</span> mm <span class="o">*</span> <span class="n">self</span>.HARD_STOP_RATIO:
+            <span class="c"># HARD STOP: immediate market close</span>
+            result = <span class="k">await</span> <span class="n">self</span>.close_position(
+                pos.symbol, pos.side, pos.quantity,
+                reason=<span class="s">f"hard_stop ratio={ratio:.3f} mm={mm:.3f}"</span>
+            )
+            <span class="n">logger</span>.critical(<span class="s">f"Hard stop executed: {result}"</span>)
+            <span class="n">self</span>.alerted_positions.discard(pos_id)
+
+        <span class="k">elif</span> ratio <span class="o">&lt;=</span> mm <span class="o">*</span> <span class="n">self</span>.SOFT_STOP_RATIO:
+            <span class="k">if</span> pos_id <span class="k">not in</span> <span class="n">self</span>.alerted_positions:
+                <span class="n">logger</span>.warning(
+                    <span class="s">f"SOFT STOP ALERT: {pos.symbol} {pos.side} | "</span>
+                    <span class="s">f"ratio={ratio:.2%} threshold={mm * self.SOFT_STOP_RATIO:.2%} | "</span>
+                    <span class="s">f"liq=${self.calculator.liquidation_price(pos):,.2f}"</span>
+                )
+                <span class="n">self</span>.alerted_positions.add(pos_id)
+                <span class="c"># Optionally reduce position by 50% here</span>
+                <span class="c"># await self.reduce_position(pos.symbol, pos.side, pos.quantity * 0.5)</span>
+        <span class="k">else</span>:
+            <span class="c"># Position healthy, clear any alerts</span>
+            <span class="n">self</span>.alerted_positions.discard(pos_id)
+
+    <span class="k">async def</span> <span class="fn">run</span>(<span class="n">self</span>):
+        <span class="n">logger</span>.info(<span class="s">"Stop-loss agent started. Monitoring positions..."</span>)
+        <span class="k">while</span> <span class="k">True</span>:
+            <span class="k">try</span>:
+                positions = <span class="k">await</span> <span class="n">self</span>.get_open_positions()
+                tasks = [<span class="n">self</span>.evaluate_position(p) <span class="k">for</span> p <span class="k">in</span> positions]
+                <span class="k">await</span> <span class="n">asyncio</span>.gather(<span class="o">*</span>tasks, return_exceptions=<span class="k">True</span>)
+            <span class="k">except Exception as</span> e:
+                <span class="n">logger</span>.error(<span class="s">f"Error in monitoring loop: {e}"</span>)
+            <span class="k">await</span> <span class="n">asyncio</span>.sleep(<span class="n">self</span>.POLL_INTERVAL)
+
+<span class="c"># Entry point</span>
+<span class="k">if</span> __name__ <span class="o">==</span> <span class="s">"__main__"</span>:
+    agent = <span class="fn">StopLossAgent</span>(api_key=<span class="s">"your-purple-flea-api-key"</span>)
+    <span class="n">asyncio</span>.run(agent.run())</pre>
+    </div>
+  </section>
+
+  <!-- SECTION 6 -->
+  <section id="purpleflea">
+    <h2><span class="num">06</span>Purple Flea Trading API Integration</h2>
+
+    <p>Purple Flea's Trading API exposes real-time margin data, position management, and order execution endpoints purpose-built for AI agents. Key endpoints relevant to liquidation management:</p>
+
+    <ul>
+      <li><code>GET /trading-api/positions</code> — All open positions with margin ratios, funding accrued, liquidation prices.</li>
+      <li><code>GET /trading-api/ticker/:symbol</code> — Mark price, index price, funding rate, open interest.</li>
+      <li><code>POST /trading-api/order</code> — Place orders with <code>reduce_only: true</code> for safe position reduction.</li>
+      <li><code>POST /trading-api/stop-order</code> — Exchange-native stop orders that persist independent of your agent.</li>
+      <li><code>GET /trading-api/margin-health</code> — Portfolio-level margin summary with ADL queue position.</li>
+    </ul>
+
+    <h3>Always Place Exchange-Native Stops</h3>
+
+    <p>When opening any leveraged position through Purple Flea, immediately place a stop order:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-filename">open_with_stop.py</span>
+      </div>
+      <pre><span class="k">async def</span> <span class="fn">open_leveraged_position_with_stop</span>(
+    client: <span class="n">httpx</span>.<span class="n">AsyncClient</span>,
+    symbol: <span class="n">str</span>,
+    side: <span class="n">str</span>,
+    quantity: <span class="n">float</span>,
+    leverage: <span class="n">int</span>,
+    stop_buffer_pct: <span class="n">float</span> = <span class="num">0.03</span>  <span class="c"># 3% above liquidation price</span>
+):
+    <span class="c"># Step 1: Set leverage</span>
+    <span class="k">await</span> client.post(<span class="s">"/trading-api/leverage"</span>, json={
+        <span class="s">"symbol"</span>: symbol, <span class="s">"leverage"</span>: leverage
+    })
+
+    <span class="c"># Step 2: Get current mark price</span>
+    ticker = (<span class="k">await</span> client.get(<span class="s">f"/trading-api/ticker/{symbol}"</span>)).json()
+    mark_price = <span class="n">float</span>(ticker[<span class="s">"mark_price"</span>])
+
+    <span class="c"># Step 3: Calculate stop price</span>
+    initial_margin_pct = <span class="num">1.0</span> <span class="o">/</span> leverage
+    maintenance_margin_pct = initial_margin_pct <span class="o">*</span> <span class="num">0.5</span>
+
+    <span class="k">if</span> side <span class="o">==</span> <span class="s">"long"</span>:
+        liq_price = mark_price <span class="o">*</span> (<span class="num">1</span> <span class="o">-</span> initial_margin_pct <span class="o">+</span> maintenance_margin_pct)
+        stop_price = liq_price <span class="o">*</span> (<span class="num">1</span> <span class="o">+</span> stop_buffer_pct)
+    <span class="k">else</span>:
+        liq_price = mark_price <span class="o">*</span> (<span class="num">1</span> <span class="o">+</span> initial_margin_pct <span class="o">-</span> maintenance_margin_pct)
+        stop_price = liq_price <span class="o">*</span> (<span class="num">1</span> <span class="o">-</span> stop_buffer_pct)
+
+    <span class="c"># Step 4: Open position</span>
+    order_resp = (<span class="k">await</span> client.post(<span class="s">"/trading-api/order"</span>, json={
+        <span class="s">"symbol"</span>: symbol,
+        <span class="s">"side"</span>: side,
+        <span class="s">"quantity"</span>: quantity,
+        <span class="s">"type"</span>: <span class="s">"market"</span>
+    })).json()
+
+    entry_price = <span class="n">float</span>(order_resp[<span class="s">"avg_fill_price"</span>])
+
+    <span class="c"># Step 5: Immediately place exchange-native stop</span>
+    stop_resp = (<span class="k">await</span> client.post(<span class="s">"/trading-api/stop-order"</span>, json={
+        <span class="s">"symbol"</span>: symbol,
+        <span class="s">"side"</span>: <span class="s">"sell"</span> <span class="k">if</span> side <span class="o">==</span> <span class="s">"long"</span> <span class="k">else</span> <span class="s">"buy"</span>,
+        <span class="s">"quantity"</span>: quantity,
+        <span class="s">"stop_price"</span>: <span class="n">round</span>(stop_price, <span class="num">2</span>),
+        <span class="s">"type"</span>: <span class="s">"stop_market"</span>,
+        <span class="s">"reduce_only"</span>: <span class="k">True</span>
+    })).json()
+
+    <span class="n">print</span>(<span class="s">f"Position opened at ${entry_price:,.2f}"</span>)
+    <span class="n">print</span>(<span class="s">f"Stop order placed at ${stop_price:,.2f} (liq est: ${liq_price:,.2f})"</span>)
+    <span class="n">print</span>(<span class="s">f"Stop order ID: {stop_resp['order_id']}"</span>)
+    <span class="k">return</span> order_resp, stop_resp</pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">&#9432;</div>
+      <p>New agents on Purple Flea can claim free USDC from the <a href="https://faucet.purpleflea.com">faucet</a> to test these strategies with no capital risk. Use the Faucet to fund a test wallet, open small positions on the Trading API, and validate your stop-loss logic before deploying real capital.</p>
+    </div>
+  </section>
+
+  <div class="cta-block">
+    <h3>Start Trading Without Capital Risk</h3>
+    <p>Claim free USDC from the Purple Flea Faucet and test your liquidation strategies on real markets before committing real capital.</p>
+    <div class="cta-buttons">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Get Free USDC</a>
+      <a href="https://purpleflea.com/trading-api" class="btn btn-outline">Trading API Docs</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-logo">Purple Flea</div>
+  <nav class="footer-links">
+    <a href="https://purpleflea.com/casino-api">Casino API</a>
+    <a href="https://purpleflea.com/trading-api">Trading API</a>
+    <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+    <a href="https://purpleflea.com/domains-api">Domains API</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+  </nav>
+  <p class="footer-copy">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+</footer>
+
+</body>
+</html>
