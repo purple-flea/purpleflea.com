@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Crypto Price Feeds for AI Agents: TWAP, OHLCV &amp; Oracle Design | Purple Flea Blog</title>
+  <meta name="description" content="How AI agents consume and validate crypto price data. TWAP vs spot prices, manipulation resistance, batch fetching, and building reliable price oracle pipelines with Purple Flea." />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:title" content="Real-Time Crypto Price Feeds for AI Agents: TWAP, OHLCV &amp; Oracle Design | Purple Flea Blog" />
+  <meta property="og:description" content="How AI agents consume and validate crypto price data. TWAP vs spot prices, manipulation resistance, batch fetching, and building reliable price oracle pipelines with Purple Flea." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/crypto-price-feeds-ai-agents/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Real-Time Crypto Price Feeds for AI Agents: TWAP, OHLCV &amp; Oracle Design" />
+  <meta name="twitter:description" content="How AI agents consume and validate crypto price data. TWAP vs spot prices, manipulation resistance, batch fetching, and building reliable price oracle pipelines with Purple Flea." />
+  <link rel="canonical" href="https://purpleflea.com/blog/crypto-price-feeds-ai-agents/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Real-Time Crypto Price Feeds for AI Agents: TWAP, OHLCV & Oracle Design",
+    "description": "How AI agents consume and validate crypto price data. TWAP vs spot prices, manipulation resistance, batch fetching, and building reliable price oracle pipelines with Purple Flea.",
+    "url": "https://purpleflea.com/blog/crypto-price-feeds-ai-agents/",
+    "datePublished": "2026-03-04",
+    "dateModified": "2026-03-04",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea Team",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/logo.png"
+      }
+    },
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/crypto-price-feeds-ai-agents/"
+    },
+    "keywords": ["crypto price feed", "TWAP", "OHLCV", "price oracle", "AI trading agent", "Chainlink", "DEX oracle", "Purple Flea price API"]
+  }
+  </script>
+  <style>
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-subtle: rgba(168, 85, 247, 0.08);
+      --bg: #09090B;
+      --bg-card: rgba(255, 255, 255, 0.03);
+      --bg-card-hover: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(168, 85, 247, 0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 64px;
+      background: transparent;
+      transition: background 0.3s, border-bottom 0.3s;
+    }
+    nav.scrolled {
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 0.5rem;
+      text-decoration: none; color: var(--text);
+      font-weight: 700; font-size: 1.1rem;
+    }
+    .nav-logo span { color: var(--purple); font-size: 1.3rem; }
+    .nav-links {
+      display: flex; align-items: center; gap: 1.75rem;
+      list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none; color: var(--text-secondary);
+      font-size: 0.875rem; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      display: inline-flex; align-items: center;
+      background: var(--purple); color: #fff !important;
+      padding: 0.45rem 1.1rem; border-radius: var(--radius-sm);
+      font-weight: 600 !important; font-size: 0.875rem !important;
+      transition: background 0.2s !important;
+      text-decoration: none;
+    }
+    .nav-cta:hover { background: var(--purple-dim) !important; color: #fff !important; }
+
+    .article-hero {
+      padding: 120px 2rem 60px;
+      text-align: center;
+      background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(168,85,247,0.12) 0%, transparent 70%);
+      border-bottom: 1px solid var(--border);
+    }
+    .article-tag {
+      display: inline-block;
+      background: var(--purple-subtle);
+      color: var(--purple);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 999px;
+      padding: 0.3rem 1rem;
+      font-size: 0.8rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+    .article-hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800; line-height: 1.15;
+      max-width: 820px; margin: 0 auto 1.25rem;
+      background: linear-gradient(135deg, var(--text) 0%, var(--purple) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .article-meta {
+      display: flex; align-items: center; justify-content: center;
+      gap: 1rem; flex-wrap: wrap;
+      color: var(--text-muted); font-size: 0.875rem;
+    }
+    .article-meta span { display: flex; align-items: center; gap: 0.4rem; }
+    .meta-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); }
+
+    .article-layout {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem 5rem;
+    }
+
+    .prose p {
+      color: var(--text-secondary);
+      font-size: 1.0625rem;
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+    }
+    .prose h2 {
+      font-size: 1.6rem; font-weight: 700;
+      color: var(--text);
+      margin: 2.75rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .prose h3 {
+      font-size: 1.15rem; font-weight: 600;
+      color: var(--text); margin: 1.75rem 0 0.5rem;
+    }
+    .prose ul, .prose ol {
+      padding-left: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 1.0625rem;
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+    }
+    .prose li { margin-bottom: 0.4rem; }
+    .prose strong { color: var(--text); font-weight: 600; }
+    .prose a {
+      color: var(--purple); text-decoration: none;
+      border-bottom: 1px solid rgba(168,85,247,0.3);
+      transition: border-color 0.2s;
+    }
+    .prose a:hover { border-color: var(--purple); }
+    .prose code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875em;
+      background: rgba(168,85,247,0.1);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      color: #c084fc;
+    }
+
+    .code-block {
+      background: rgba(0,0,0,0.45);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.5rem;
+      margin: 1.5rem 0 2rem;
+      overflow-x: auto;
+    }
+    .code-block pre {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.835rem;
+      line-height: 1.7;
+      color: #e2e8f0;
+    }
+    .code-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+    .kw  { color: #c084fc; }
+    .fn  { color: #86efac; }
+    .st  { color: #fde68a; }
+    .cm  { color: #6b7280; font-style: italic; }
+    .nb  { color: #93c5fd; }
+    .nn  { color: #f9a8d4; }
+    .dc  { color: #67e8f9; }
+    .num { color: #fb923c; }
+
+    /* CONCEPT CARDS */
+    .concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0 2rem; }
+    .concept-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1.25rem;
+    }
+    .concept-card h4 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+    .concept-card p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+    .concept-card .tag {
+      display: inline-block; font-size: 0.68rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 0.15rem 0.55rem; border-radius: 999px;
+      margin-bottom: 0.5rem;
+    }
+    .tag-spot { background: rgba(134,239,172,0.1); color: #86efac; }
+    .tag-twap { background: rgba(168,85,247,0.1); color: var(--purple); }
+
+    /* PERFORMANCE BAR */
+    .perf-compare {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1.5rem; margin: 1.5rem 0 2rem;
+    }
+    .perf-title { font-size: 0.875rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 1rem; }
+    .perf-row { margin-bottom: 0.75rem; }
+    .perf-row:last-child { margin-bottom: 0; }
+    .perf-label {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.3rem;
+    }
+    .perf-label span:first-child { font-size: 0.8rem; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+    .perf-label span:last-child { font-size: 0.8rem; font-weight: 700; color: var(--text); }
+    .perf-bar-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 999px; }
+    .perf-bar-fill { height: 100%; border-radius: 999px; background: var(--purple); }
+
+    .info-box {
+      background: var(--purple-subtle);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .info-box p { color: var(--text-secondary) !important; margin: 0 !important; font-size: 0.95rem !important; }
+    .info-box strong { color: var(--purple) !important; }
+
+    .warn-box {
+      background: rgba(234, 179, 8, 0.07);
+      border: 1px solid rgba(234, 179, 8, 0.25);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .warn-box p { color: var(--text-secondary) !important; margin: 0 !important; font-size: 0.95rem !important; }
+    .warn-box strong { color: #fbbf24 !important; }
+
+    .cta-block {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: var(--radius);
+      padding: 2.5rem; text-align: center; margin: 3rem 0;
+    }
+    .cta-block h3 { font-size: 1.4rem; font-weight: 700; color: var(--text); margin-bottom: 0.75rem; }
+    .cta-block p { color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.975rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center;
+      background: var(--purple); color: #fff;
+      padding: 0.7rem 1.6rem; border-radius: var(--radius-sm);
+      font-weight: 600; font-size: 0.9rem;
+      text-decoration: none; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--purple-dim); }
+    .btn-secondary {
+      display: inline-flex; align-items: center;
+      background: var(--bg-card); color: var(--text);
+      padding: 0.7rem 1.6rem; border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      font-weight: 600; font-size: 0.9rem;
+      text-decoration: none; transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      color: var(--text-muted); font-size: 0.875rem;
+      text-decoration: none; margin-bottom: 2rem; transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--purple); }
+
+    .related-section { margin-top: 4rem; padding-top: 2.5rem; border-top: 1px solid var(--border); }
+    .related-section h3 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 1.5rem; }
+    .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+    .related-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 1.25rem;
+      text-decoration: none; transition: border-color 0.2s, background 0.2s; display: block;
+    }
+    .related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+    .related-card-tag { font-size: 0.72rem; font-weight: 600; color: var(--purple); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
+    .related-card h4 { font-size: 0.9rem; font-weight: 600; color: var(--text); line-height: 1.4; }
+
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.55s ease, transform 0.55s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    footer {
+      background: rgba(0,0,0,0.4); border-top: 1px solid var(--border); padding: 4rem 2rem 2rem;
+    }
+    .footer-grid {
+      max-width: 1100px; margin: 0 auto;
+      display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr;
+      gap: 3rem; margin-bottom: 3rem;
+    }
+    .footer-brand p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.7; margin-top: 0.75rem; }
+    .footer-col h4 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 1rem; }
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 0.55rem; }
+    .footer-col a { color: var(--text-secondary); font-size: 0.875rem; text-decoration: none; transition: color 0.2s; }
+    .footer-col a:hover { color: var(--purple); }
+    .footer-bottom {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid var(--border); padding-top: 1.5rem;
+      flex-wrap: wrap; gap: 1rem;
+    }
+    .footer-bottom p { color: var(--text-muted); font-size: 0.8rem; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .article-hero { padding: 100px 1.25rem 40px; }
+      .article-layout { padding: 2rem 1.25rem 4rem; }
+      .cta-block { padding: 1.75rem; }
+      .concept-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <a href="/" class="nav-logo"><span>&#9826;</span> Purple Flea</a>
+  <ul class="nav-links">
+    <li><a href="/">Products</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/for-agents">For Agents</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/blog">Blog</a></li>
+    <li><a href="https://github.com/purple-flea" class="nav-cta">GitHub</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<header class="article-hero">
+  <div class="article-tag">Price Oracles</div>
+  <h1>Real-Time Crypto Price Feeds for AI Agents: TWAP, OHLCV &amp; Oracle Design</h1>
+  <div class="article-meta">
+    <span>Purple Flea Team</span>
+    <span class="meta-dot"></span>
+    <span>March 4, 2026</span>
+    <span class="meta-dot"></span>
+    <span>7 min read</span>
+  </div>
+</header>
+
+<!-- ARTICLE -->
+<main class="article-layout">
+  <a href="/blog" class="back-link">&#8592; Back to Blog</a>
+
+  <article class="prose">
+
+    <p>
+      Price data quality is the most underappreciated input variable in AI trading systems. A language
+      model that reasons brilliantly about market conditions and trade sizing can still lose money
+      consistently if it is working from stale, manipulated, or incorrectly aggregated price data.
+      The failure mode is not obvious: a 0.3% price error does not look catastrophic until it is
+      compounded across hundreds of trades, or until a flash loan attack moves a DEX price 12% for
+      one block and your agent fires an entry order at the wrong level. Understanding the different
+      types of price data — spot, TWAP, and OHLCV — and knowing when to use each is a foundational
+      skill for any agent that touches financial markets.
+    </p>
+
+    <h2>Why Price Data Quality Matters for AI Agents</h2>
+
+    <p>
+      Three concrete failure modes illustrate why this matters at a system level:
+    </p>
+    <ul>
+      <li>
+        <strong>Wrong trade, wrong price:</strong> Your agent uses a DEX spot price to decide to buy
+        ETH because it appears cheap versus Chainlink. The DEX price is depressed because of a large
+        sell order that landed 30 seconds ago. By the time the buy executes, the DEX has partially
+        recovered and the agent buys at a worse-than-expected price, negating the edge.
+      </li>
+      <li>
+        <strong>Flash loan manipulation:</strong> A sophisticated attacker uses a flash loan to
+        temporarily move a Uniswap V2 pool price 8% in a single block. Your agent's stop-loss logic
+        reads this as a genuine price drop and closes a position. The attacker exits, price recovers,
+        and your agent has been forced out of a good position at the bottom.
+      </li>
+      <li>
+        <strong>Stale data liquidation:</strong> Your agent monitors a DeFi position using a cached
+        price that is 45 seconds old. The actual price has already crossed the liquidation threshold.
+        The auto-repay transaction fires 45 seconds too late, and the position is liquidated at the
+        penalty rate.
+      </li>
+    </ul>
+
+    <h2>Spot Price vs TWAP: When to Use Each</h2>
+
+    <p>
+      These are not interchangeable. They measure fundamentally different things and have different
+      manipulation profiles:
+    </p>
+
+    <div class="concept-grid">
+      <div class="concept-card">
+        <div class="tag tag-spot">Spot Price</div>
+        <h4>Current Best Bid/Ask</h4>
+        <p>
+          The price at which a token would execute right now. Maximally fresh but also maximally
+          manipulable. A single large order can move a spot price significantly on a thin DEX.
+          Use spot prices for: market order execution, real-time UI display, immediate entry/exit
+          decisions where recency matters more than manipulation resistance.
+        </p>
+      </div>
+      <div class="concept-card">
+        <div class="tag tag-twap">TWAP</div>
+        <h4>Time-Weighted Average Price</h4>
+        <p>
+          The average price over a time window (typically 5–30 minutes), weighted by time rather
+          than volume. Expensive to manipulate: an attacker must hold the price off-market for the
+          entire window, paying the price of capital lockup plus opportunity cost. Use TWAPs for:
+          DeFi lending collateral valuation, take-profit triggers, long-horizon signal generation.
+        </p>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <p>
+        <strong>Rule of thumb:</strong> Use spot price to execute. Use TWAP to decide. If your agent
+        is deciding whether a condition is true (e.g., "is ETH up 20% from my entry?"), use a
+        30-minute TWAP. If your agent is actually placing an order, use spot to get the best fill.
+      </p>
+    </div>
+
+    <h2>OHLCV Candles: How Agents Use Time-Series Price Data</h2>
+
+    <p>
+      OHLCV (Open, High, Low, Close, Volume) candles are the standard format for time-series price
+      data. Each candle represents one time period and captures four price points plus traded volume.
+      AI agents use different candle intervals for different purposes:
+    </p>
+    <ul>
+      <li><strong>1-minute candles:</strong> High-frequency signal generation, scalping entries, volatility spikes. Noisy but immediate.</li>
+      <li><strong>5-minute candles:</strong> Short-term trend identification, momentum signals, breakout detection. The most widely used timeframe for intraday trading agents.</li>
+      <li><strong>1-hour candles:</strong> Regime detection ("are we trending or ranging?"), swing trade setups, macro context for lower-timeframe signals. Less noise, slower signal.</li>
+      <li><strong>Daily candles:</strong> Portfolio rebalancing decisions, long-horizon position sizing, fundamental context. Useful for agents managing multi-week positions.</li>
+    </ul>
+    <p>
+      The standard pattern is to use a higher-timeframe candle for context and a lower-timeframe
+      candle for entry timing. An agent might use 1-hour candles to confirm an uptrend, then use
+      5-minute candles to find a pullback entry within that trend.
+    </p>
+
+    <h2>Price Manipulation Attacks on DEX Oracles and How to Defend</h2>
+
+    <p>
+      Uniswap V2 spot prices are among the most widely used price references in DeFi, and among
+      the most frequently attacked. The attack is straightforward: borrow a large amount of one
+      asset, dump it into the pool to move the price, trigger your target smart contract at the
+      manipulated price, then restore the pool in the same transaction. Uniswap V3 and later
+      versions offer built-in TWAP oracles via the <code>observe()</code> function, which makes
+      manipulation require sustained capital commitment across multiple blocks.
+    </p>
+    <p>
+      For AI agents, three defensive techniques apply:
+    </p>
+    <ul>
+      <li>
+        <strong>Minimum TWAP window of 5 minutes.</strong> An attack requires holding an abnormal
+        price for the full window. Flash loans are limited to one block (&lt;15 seconds), so a 5-minute
+        TWAP is inherently immune to flash loan manipulation.
+      </li>
+      <li>
+        <strong>Outlier rejection.</strong> If a new price reading is more than 3% away from the
+        preceding 10-reading average, flag it as a potential anomaly rather than accepting it
+        immediately.
+      </li>
+      <li>
+        <strong>Multi-source validation.</strong> Cross-check a Uniswap TWAP against a Chainlink
+        price feed. If the deviation exceeds 2%, halt trading until the discrepancy resolves.
+      </li>
+    </ul>
+
+    <h2>Batch Price Fetching: 100 Tokens in One Call</h2>
+
+    <p>
+      Sequential price fetching is a common performance bottleneck in multi-asset agents. If your
+      agent monitors 100 tokens and makes one HTTP call per token, that is 100 sequential round trips.
+      At 50ms average latency per call, that is 5 seconds to refresh your universe — long enough
+      for significant price movement in volatile markets.
+    </p>
+
+    <div class="perf-compare">
+      <div class="perf-title">Latency comparison: Sequential vs Batch price fetching (100 tokens)</div>
+      <div class="perf-row">
+        <div class="perf-label">
+          <span>Sequential (100 calls × 50ms)</span>
+          <span style="color:#f87171;">5,000ms</span>
+        </div>
+        <div class="perf-bar-track"><div class="perf-bar-fill" style="width:100%;background:#f87171;"></div></div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-label">
+          <span>Concurrent async (100 calls, all at once)</span>
+          <span style="color:#fbbf24;">~180ms</span>
+        </div>
+        <div class="perf-bar-track"><div class="perf-bar-fill" style="width:3.6%;background:#fbbf24;"></div></div>
+      </div>
+      <div class="perf-row">
+        <div class="perf-label">
+          <span>Batch API (1 call, 100 tokens)</span>
+          <span style="color:#86efac;">~65ms</span>
+        </div>
+        <div class="perf-bar-track"><div class="perf-bar-fill" style="width:1.3%;background:#86efac;"></div></div>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-label">Python — price_fetching.py</div>
+      <pre><span class="kw">from</span> <span class="nn">purpleflea</span> <span class="kw">import</span> <span class="nb">PurpleFleaClient</span>
+<span class="kw">import</span> <span class="nn">os</span>
+
+pf = <span class="fn">PurpleFleaClient</span>(api_key=<span class="nb">os</span>.environ[<span class="st">"PURPLEFLEA_API_KEY"</span>])
+
+<span class="cm"># --- Spot price: single token ---</span>
+<span class="kw">async def</span> <span class="fn">get_spot</span>(symbol: <span class="nb">str</span>) -> <span class="nb">dict</span>:
+    <span class="kw">return await</span> pf.prices.<span class="fn">spot</span>(symbol)
+    <span class="cm"># {"symbol": "ETH", "price_usd": 2841.30, "timestamp": 1740000000}</span>
+
+<span class="cm"># --- TWAP: 30-minute window ---</span>
+<span class="kw">async def</span> <span class="fn">get_twap</span>(symbol: <span class="nb">str</span>, window_minutes: <span class="nb">int</span> = <span class="num">30</span>) -> <span class="nb">dict</span>:
+    <span class="kw">return await</span> pf.prices.<span class="fn">twap</span>(symbol, window_minutes=window_minutes)
+    <span class="cm"># {"symbol": "ETH", "twap_usd": 2836.80, "window_minutes": 30,</span>
+    <span class="cm">#  "samples": 360, "from_timestamp": 1739998200}</span>
+
+<span class="cm"># --- OHLCV candles: last 24 1-hour candles ---</span>
+<span class="kw">async def</span> <span class="fn">get_ohlcv</span>(symbol: <span class="nb">str</span>, interval: <span class="nb">str</span> = <span class="st">"1h"</span>, limit: <span class="nb">int</span> = <span class="num">24</span>) -> <span class="nb">list</span>:
+    <span class="kw">return await</span> pf.prices.<span class="fn">ohlcv</span>(symbol, interval=interval, limit=limit)
+    <span class="cm"># [{"t": 1739998200, "o": 2810.0, "h": 2856.5, "l": 2805.0, "c": 2841.3, "v": 142500.0}, ...]</span>
+
+<span class="cm"># --- Batch fetch: 100 tokens in a single HTTP call ---</span>
+WATCHLIST = [
+    <span class="st">"ETH"</span>, <span class="st">"BTC"</span>, <span class="st">"SOL"</span>, <span class="st">"AVAX"</span>, <span class="st">"ARB"</span>, <span class="st">"OP"</span>, <span class="st">"MATIC"</span>, <span class="st">"LINK"</span>,
+    <span class="st">"UNI"</span>, <span class="st">"AAVE"</span>, <span class="st">"CRV"</span>, <span class="st">"MKR"</span>, <span class="st">"COMP"</span>, <span class="st">"SNX"</span>, <span class="st">"BAL"</span>, <span class="st">"YFI"</span>,
+    <span class="cm"># ... up to 100 tokens</span>
+]
+
+<span class="kw">async def</span> <span class="fn">get_all_prices</span>() -> <span class="nb">dict</span>[<span class="nb">str</span>, <span class="nb">float</span>]:
+    <span class="cm"># One HTTP call returns all prices — 10x faster than sequential</span>
+    results = <span class="kw">await</span> pf.prices.<span class="fn">batch_spot</span>(symbols=WATCHLIST)
+    <span class="kw">return</span> {r[<span class="st">"symbol"</span>]: r[<span class="st">"price_usd"</span>] <span class="kw">for</span> r <span class="kw">in</span> results}
+    <span class="cm"># {"ETH": 2841.30, "BTC": 94200.50, "SOL": 188.40, ...}</span></pre>
+    </div>
+
+    <h2>Multi-Source Validation: Chainlink vs DEX TWAP</h2>
+
+    <p>
+      The most robust price pipeline for a production agent cross-references at least two independent
+      sources and flags divergence. Chainlink is an off-chain oracle network: data comes from
+      professional data providers who aggregate CEX prices. Uniswap V3 TWAP is on-chain: derived
+      purely from DEX activity. They should agree within ~1% under normal conditions. When they
+      diverge by more, something unusual is happening — either genuine CEX/DEX price discovery lag,
+      or an oracle manipulation attempt.
+    </p>
+
+    <div class="code-block">
+      <div class="code-label">Python — multi_source_validation.py</div>
+      <pre><span class="kw">import</span> <span class="nn">asyncio</span>
+
+MAX_DEVIATION_PCT = <span class="num">2.0</span>  <span class="cm"># Flag if sources diverge by more than 2%</span>
+
+<span class="kw">async def</span> <span class="fn">get_validated_price</span>(pf, symbol: <span class="nb">str</span>) -> <span class="nb">dict</span>:
+    <span class="st">"""Fetch price from Chainlink and Uniswap V3 TWAP. Flag if divergence > 2%."""</span>
+    chainlink, dex_twap = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+        pf.prices.<span class="fn">chainlink</span>(symbol),
+        pf.prices.<span class="fn">twap</span>(symbol, window_minutes=<span class="num">30</span>, source=<span class="st">"uniswap_v3"</span>),
+    )
+
+    cl_price = chainlink[<span class="st">"price_usd"</span>]
+    dex_price = dex_twap[<span class="st">"twap_usd"</span>]
+    deviation_pct = <span class="fn">abs</span>(cl_price - dex_price) / cl_price * <span class="num">100</span>
+
+    <span class="kw">if</span> deviation_pct > MAX_DEVIATION_PCT:
+        <span class="kw">return</span> {
+            <span class="st">"symbol"</span>: symbol,
+            <span class="st">"status"</span>: <span class="st">"ANOMALY"</span>,
+            <span class="st">"chainlink_usd"</span>: cl_price,
+            <span class="st">"dex_twap_usd"</span>: dex_price,
+            <span class="st">"deviation_pct"</span>: deviation_pct,
+            <span class="st">"action"</span>: <span class="st">"halt_trading"</span>,  <span class="cm"># Do not trade on anomalous prices</span>
+        }
+
+    <span class="cm"># Use the average of both sources as the canonical price</span>
+    canonical = (cl_price + dex_price) / <span class="num">2</span>
+    <span class="kw">return</span> {
+        <span class="st">"symbol"</span>: symbol,
+        <span class="st">"status"</span>: <span class="st">"OK"</span>,
+        <span class="st">"price_usd"</span>: canonical,
+        <span class="st">"deviation_pct"</span>: deviation_pct,
+    }
+
+
+<span class="kw">async def</span> <span class="fn">anomaly_detection_loop</span>(pf, symbols: <span class="nb">list</span>[<span class="nb">str</span>], poll_interval: <span class="nb">int</span> = <span class="num">30</span>):
+    <span class="st">"""Continuously validate prices and alert on anomalies."""</span>
+    <span class="kw">while</span> <span class="kw">True</span>:
+        tasks = [<span class="fn">get_validated_price</span>(pf, s) <span class="kw">for</span> s <span class="kw">in</span> symbols]
+        results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*tasks)
+
+        anomalies = [r <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if</span> r[<span class="st">"status"</span>] == <span class="st">"ANOMALY"</span>]
+        <span class="kw">if</span> anomalies:
+            <span class="kw">for</span> a <span class="kw">in</span> anomalies:
+                <span class="kw">print</span>(<span class="st">f"PRICE ANOMALY: {a['symbol']} — CL: ${a['chainlink_usd']:.2f}, "</span>
+                      <span class="st">f"DEX TWAP: ${a['dex_twap_usd']:.2f}, deviation: {a['deviation_pct']:.2f}%"</span>)
+
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(poll_interval)</pre>
+    </div>
+
+    <h2>Use Case: Take-Profit Agent Using TWAP Monitoring</h2>
+
+    <p>
+      This is a complete, practical example: an agent that monitors ETH's TWAP against an entry
+      price and triggers a take-profit sell when it detects a sustained 20% gain. Using TWAP
+      instead of spot prevents the agent from taking profit on a brief spike that immediately
+      reverses — a common failure mode of spot-based take-profit logic.
+    </p>
+
+    <div class="code-block">
+      <div class="code-label">Python — take_profit_agent.py</div>
+      <pre><span class="kw">import</span> <span class="nn">asyncio</span>
+<span class="kw">from</span> <span class="nn">purpleflea</span> <span class="kw">import</span> <span class="nb">PurpleFleaClient</span>
+<span class="kw">import</span> <span class="nn">os</span>
+
+pf = <span class="fn">PurpleFleaClient</span>(api_key=<span class="nb">os</span>.environ[<span class="st">"PURPLEFLEA_API_KEY"</span>], mnemonic=<span class="nb">os</span>.environ[<span class="st">"AGENT_MNEMONIC"</span>])
+
+<span class="kw">async def</span> <span class="fn">run_take_profit_agent</span>(
+    symbol: <span class="nb">str</span>,
+    entry_price_usd: <span class="nb">float</span>,
+    take_profit_pct: <span class="nb">float</span>,
+    eth_amount: <span class="nb">float</span>,
+    twap_window_minutes: <span class="nb">int</span> = <span class="num">30</span>,
+):
+    <span class="st">"""Monitor TWAP and sell when it confirms a take-profit level."""</span>
+    target_price = entry_price_usd * (<span class="nb">1</span> + take_profit_pct / <span class="num">100</span>)
+    <span class="kw">print</span>(<span class="st">f"Monitoring {symbol}. Entry: ${entry_price_usd:,.2f}. "</span>
+          <span class="st">f"TP target: ${target_price:,.2f} (+{take_profit_pct}%)"</span>)
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        <span class="cm"># Get validated price (cross-checks Chainlink + Uniswap TWAP)</span>
+        price_data = <span class="kw">await</span> <span class="fn">get_validated_price</span>(pf, symbol)
+
+        <span class="kw">if</span> price_data[<span class="st">"status"</span>] == <span class="st">"ANOMALY"</span>:
+            <span class="kw">print</span>(<span class="st">f"Price anomaly detected for {symbol}. Skipping this cycle."</span>)
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">60</span>)
+            <span class="kw">continue</span>
+
+        twap = price_data[<span class="st">"price_usd"</span>]
+        gain_pct = (twap - entry_price_usd) / entry_price_usd * <span class="num">100</span>
+        <span class="kw">print</span>(<span class="st">f"{symbol} TWAP: ${twap:,.2f} ({gain_pct:+.2f}% from entry)"</span>)
+
+        <span class="kw">if</span> twap >= target_price:
+            <span class="kw">print</span>(<span class="st">f"Take-profit target reached. Selling {eth_amount} {symbol}..."</span>)
+            sell_result = <span class="kw">await</span> pf.trading.<span class="fn">close_position</span>(symbol=symbol)
+            <span class="kw">print</span>(<span class="st">f"Sold. Net PnL: ${sell_result['realized_pnl_usd']:+,.2f}"</span>)
+            <span class="kw">return</span> sell_result
+
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">60</span>)  <span class="cm"># Poll every 60 seconds</span>
+
+
+<span class="cm"># Example: enter long ETH at $2,400, take profit when 30-min TWAP hits +20%</span>
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    asyncio.<span class="fn">run</span>(<span class="fn">run_take_profit_agent</span>(
+        symbol=<span class="st">"ETH"</span>,
+        entry_price_usd=<span class="num">2400.00</span>,
+        take_profit_pct=<span class="num">20.0</span>,  <span class="cm"># exit when TWAP confirms +20%</span>
+        eth_amount=<span class="num">2.5</span>,
+        twap_window_minutes=<span class="num">30</span>,
+    ))</pre>
+    </div>
+
+    <div class="warn-box">
+      <p>
+        <strong>Latency matters for DeFi:</strong> If you are using price data to trigger an auto-repay
+        on a lending position, poll every 30–60 seconds. If you are using it for trading signal
+        generation, 5-minute polling is often sufficient. Polling faster than every 10 seconds will
+        exhaust most free-tier API quotas and provides minimal additional accuracy for most strategies.
+      </p>
+    </div>
+
+    <p>
+      A reliable price oracle pipeline is the foundation of every competent AI trading agent. The
+      distinction between spot and TWAP should be internalized at the architecture level — not
+      decided per-trade. Batch fetching eliminates the latency penalty of monitoring large token
+      universes. Multi-source validation with automatic anomaly detection keeps your agent safe from
+      the manipulation attempts that will inevitably target any on-chain price reference it uses.
+      Purple Flea's price oracle API provides all three primitives — spot, TWAP, and OHLCV — with
+      batch and multi-source support built in, so you can focus on trading logic rather than data
+      infrastructure.
+    </p>
+
+  </article>
+
+  <!-- CTA -->
+  <div class="cta-block reveal">
+    <h3>Production-Grade Price Data for Your Agent</h3>
+    <p>Spot, TWAP, OHLCV, batch fetch, and multi-source validation — all behind one endpoint. No Chainlink node required.</p>
+    <div class="cta-buttons">
+      <a href="/price-oracle-api" class="btn-primary">Price Oracle API Docs</a>
+      <a href="/trading-api" class="btn-secondary">Trading API</a>
+      <a href="/hyperliquid-api" class="btn-secondary">Hyperliquid API</a>
+    </div>
+  </div>
+
+  <!-- INTERNAL LINKS -->
+  <div class="prose reveal">
+    <h3>Explore More</h3>
+    <ul>
+      <li><a href="/price-oracle-api">Price Oracle API — Spot, TWAP, OHLCV &amp; Batch Endpoints</a></li>
+      <li><a href="/trading-api">Trading API Reference — 275 Perpetual Markets on Hyperliquid</a></li>
+      <li><a href="/defi-arbitrage-api">DeFi Arbitrage API — Flash Loan Cross-DEX Strategies</a></li>
+      <li><a href="/hyperliquid-api">Hyperliquid API — Direct Access to On-Chain Derivatives</a></li>
+    </ul>
+  </div>
+
+  <!-- RELATED ARTICLES -->
+  <div class="related-section reveal">
+    <h3>Related Articles</h3>
+    <div class="related-grid">
+      <a href="/blog/autonomous-trading-hyperliquid/" class="related-card">
+        <div class="related-card-tag">Trading</div>
+        <h4>Autonomous Trading on Hyperliquid</h4>
+      </a>
+      <a href="/blog/cross-chain-arbitrage/" class="related-card">
+        <div class="related-card-tag">Arbitrage</div>
+        <h4>Cross-Chain Arbitrage for AI Agents</h4>
+      </a>
+      <a href="/blog/five-trading-strategies/" class="related-card">
+        <div class="related-card-tag">Strategy</div>
+        <h4>Five Trading Strategies for AI Agents</h4>
+      </a>
+      <a href="/blog/defi-lending-strategies/" class="related-card">
+        <div class="related-card-tag">DeFi</div>
+        <h4>DeFi Lending Strategies: Aave, Compound &amp; Spark</h4>
+      </a>
+      <a href="/blog/build-trading-agent-python/" class="related-card">
+        <div class="related-card-tag">Tutorial</div>
+        <h4>Build a Trading Agent in Python</h4>
+      </a>
+      <a href="/blog/zk-rollups-for-ai-agents/" class="related-card">
+        <div class="related-card-tag">Infrastructure</div>
+        <h4>ZK Rollups for AI Agents</h4>
+      </a>
+    </div>
+  </div>
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a href="/" class="nav-logo" style="margin-bottom:0.5rem;display:inline-flex;"><span>&#9826;</span> Purple Flea</a>
+      <p>Blue chip financial infrastructure for AI agents. Wallets, trading, casino, domains, escrow, and faucet — all in one API.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Products</h4>
+      <ul>
+        <li><a href="/crypto-wallet-api">Wallet API</a></li>
+        <li><a href="/trading-api">Trading API</a></li>
+        <li><a href="/price-oracle-api">Price Oracle API</a></li>
+        <li><a href="/defi-lending-api">DeFi Lending API</a></li>
+        <li><a href="/escrow-api">Escrow API</a></li>
+        <li><a href="/faucet">Agent Faucet</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Price Data</h4>
+      <ul>
+        <li><a href="/price-oracle-api">Oracle API</a></li>
+        <li><a href="/hyperliquid-api">Hyperliquid API</a></li>
+        <li><a href="/defi-arbitrage-api">Arbitrage API</a></li>
+        <li><a href="/trading-api">Trading API</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="https://github.com/purple-flea">GitHub</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&#169; 2026 Purple Flea. Built for the agentic economy.</p>
+    <p style="color:var(--text-muted);font-size:0.8rem;">
+      <a href="/privacy" style="color:var(--text-muted);text-decoration:none;margin-right:1rem;">Privacy</a>
+      <a href="/terms" style="color:var(--text-muted);text-decoration:none;">Terms</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 20);
+  });
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  revealEls.forEach(el => revealObserver.observe(el));
+</script>
+</body>
+</html>
