@@ -102,3 +102,28 @@
 - Create `/agent-network` visualization page showing referral chain growth
 - Add blog post: "How to Build an Agent-to-Agent Payment System"
 - Update blog index to use category filter tabs (Trading, Wallets, Casino, MCP, Escrow, etc.)
+
+### Session 3 — Continued Improvements
+
+#### Additional Changes
+- `for-agents/index.html`: Added faucet onboarding snippet + escrow referral snippet to Referral Propagation section (was missing from the 4 existing snippets)
+- `blog/index.html`: Added category filter tabs (All/Trading/Casino/Wallets/MCP/Escrow/Referrals/Research/Guides) with JavaScript filtering — all 42 blog posts now findable by category
+- `how-ai-agents-earn-money/index.html`: New SEO page targeting "how ai agents earn money" keyword — covers 6 revenue streams (referrals, trading, casino, domains, escrow, swap arb) with curl examples and income projection tables
+- `index.html`: Added "How Agents Earn Money" link to footer Company column
+- `sitemap.xml`: Added /how-ai-agents-earn-money/ URL
+
+#### Health Check — All Pages 200 OK ✓
+200 / | 200 /for-agents | 200 /docs | 200 /blog | 200 /stats
+200 /ai-agent-escrow | 200 /how-ai-agents-earn-money | 200 /llms.txt | 200 /sitemap.xml
+
+#### Commits Pushed
+- 5de9b11 — Add 31 missing blog posts to index, for-agents orchestrator template update, sitemap
+- 5b7e4c0 — Add for-agents snippets, blog filter tabs, how-ai-agents-earn-money SEO page
+
+### Next Improvements to Consider
+- Add blog/how-to-build-defi-agent and blog/langchain-vs-crewai-crypto to blog index
+- Create /agent-network visualization page
+- Wire the /for-eliza page (directory created, no content yet)
+- Add arbitrum-agent-api to sitemap
+- Create /how-to-use-mcp-servers SEO page
+- Improve income-calculator with escrow earnings calculation
