@@ -811,6 +811,77 @@ def generate_tax_summary(tax_year: int) -> dict:
 
           <p>The Python implementation above is a functional starting point. For production, extend with integration to a tax software API (Koinly, TaxBit) for automated form generation, add per-exchange cost basis import, and implement jurisdiction-aware rule switching for agents operating across multiple legal entities.</p>
 
+          <h2 id="harvesting-with-perpetuals">Combining Spot Harvesting with Perpetual Positions</h2>
+
+          <p>AI agents using Purple Flea's <a href="https://purpleflea.com/trading/">Trading API</a> across 275 perpetual markets have a powerful additional tool: short perpetual positions as temporary hedges during harvest waiting periods. When an agent sells spot ETH to harvest a loss and wants to maintain market exposure during a wash sale window, opening a long ETH-PERP position creates a synthetic long without touching the spot asset.</p>
+
+          <p>This approach:</p>
+
+          <ul>
+            <li>Maintains full market delta (1:1 with spot ETH price movement)</li>
+            <li>Avoids any wash sale concern since the perp is a derivative, not the underlying asset</li>
+            <li>Incurs a funding rate cost (can be positive or negative depending on market conditions)</li>
+            <li>Requires sufficient margin in the trading account</li>
+          </ul>
+
+          <pre><code class="language-python">async def hedge_with_perp(
+    session: aiohttp.ClientSession,
+    asset: str,
+    quantity: float,
+    pf_api_key: str,
+    agent_id: str,
+):
+    """
+    Open a long perp position to hedge spot sale during wash sale window.
+    Uses Purple Flea Trading API (Hyperliquid integration).
+    """
+    payload = {
+        "agent_id": agent_id,
+        "market": f"{asset}-PERP",
+        "side": "long",
+        "size": quantity,
+        "order_type": "market",
+        "reduce_only": False,
+    }
+    headers = {
+        "Authorization": f"Bearer {pf_api_key}",
+        "Content-Type": "application/json",
+    }
+    async with session.post(
+        "https://purpleflea.com/api/trading/open",
+        json=payload,
+        headers=headers,
+    ) as resp:
+        data = await resp.json()
+        if data.get("success"):
+            print(f"Opened long {quantity} {asset}-PERP at ${data['fill_price']:.2f}")
+        else:
+            print(f"Failed to open hedge: {data.get('error')}")
+        return data
+</code></pre>
+
+          <p>The funding cost of holding a perpetual hedge for 30 days is typically less than 0.5% in normal market conditions—far less than the tax benefit from harvesting a 5%+ unrealized loss. During periods of extreme positive funding (when longs pay shorts heavily), agents should weigh the funding cost against the tax benefit before using a perp hedge.</p>
+
+          <h2 id="year-round-calendar">Year-Round Tax Calendar for Agent Operators</h2>
+
+          <p>Beyond continuous harvesting, there are calendar-driven optimization windows:</p>
+
+          <table>
+            <thead>
+              <tr><th>Month</th><th>Action</th><th>Rationale</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>January</td><td>Review prior year harvest log, confirm loss carry-forwards</td><td>Set baseline for new tax year</td></tr>
+              <tr><td>March-April</td><td>File prior year return or extension; confirm estimated payments</td><td>Avoid underpayment penalties</td></tr>
+              <tr><td>June</td><td>Mid-year portfolio review; harvest losses that have accumulated</td><td>Don't wait until year-end rush</td></tr>
+              <tr><td>September</td><td>Q3 review; check if short-term positions can become long-term before year-end</td><td>Rate planning (STCG vs. LTCG)</td></tr>
+              <tr><td>October-November</td><td>Aggressive harvest scan; identify all positions with &gt;$500 unrealized loss</td><td>Leave time for wash sale windows if needed</td></tr>
+              <tr><td>December 31</td><td>Final deadline for all harvests to count in current tax year</td><td>Settlement must occur on or before Dec 31</td></tr>
+            </tbody>
+          </table>
+
+          <p>AI agents running continuously should treat the October-November period as a "harvest intensification" window—lowering the minimum harvest threshold (e.g., from $25 to $10 net benefit) to capture every available loss before the year closes.</p>
+
         </div>
       </article>
     </main>
