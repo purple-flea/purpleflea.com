@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NLP Trading Signals for AI Agents | Purple Flea Blog</title>
+  <meta name="description" content="How AI agents derive trading signals from text: news sentiment, earnings calls, FinBERT scoring, and live Python pipelines integrated with Purple Flea trading API." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="NLP Trading Signals for AI Agents" />
+  <meta property="og:description" content="Build a production NLP pipeline that turns raw text into trading decisions — news, earnings calls, social feeds, and LLM-scored sentiment." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-nlp-trading-signals/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-nlp-trading-signals/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "NLP Trading Signals for AI Agents",
+    "description": "How AI agents derive trading signals from text: news sentiment, earnings calls, FinBERT scoring, and live Python pipelines integrated with Purple Flea trading API.",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-nlp-trading-signals/",
+    "keywords": ["NLP", "trading signals", "AI agents", "sentiment analysis", "FinBERT", "financial NLP"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #F59E0B;
+      --blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 9999; transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(9,9,11,0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-weight: 700; font-size: 1rem; text-decoration: none; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent); color: #fff; padding: 7px 16px;
+      border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+      text-decoration: none; transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--accent-dim); }
+    .layout {
+      max-width: 1200px; margin: 0 auto; padding: 48px 24px;
+      display: grid; grid-template-columns: 1fr 240px; gap: 48px;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    article { min-width: 0; }
+    .tag { display: inline-flex; align-items: center; background: rgba(168,85,247,0.15); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); border-radius: 4px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+    h1 { font-size: 2.4rem; font-weight: 700; line-height: 1.25; margin-bottom: 16px; }
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 40px; display: flex; gap: 16px; flex-wrap: wrap; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 32px 0 12px; color: var(--text); }
+    p { margin-bottom: 16px; color: #D4D4D8; }
+    ul, ol { padding-left: 24px; margin-bottom: 16px; color: #D4D4D8; }
+    li { margin-bottom: 6px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 6px; font-size: 0.85em; color: #C4B5FD;
+    }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 20px; overflow-x: auto;
+      margin: 24px 0; position: relative;
+    }
+    pre code { background: none; border: none; padding: 0; font-size: 0.85rem; color: #E2E8F0; line-height: 1.6; }
+    .callout {
+      border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07);
+      border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 24px 0;
+    }
+    .callout.info { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.warn { border-color: var(--yellow); background: rgba(245,158,11,0.07); }
+    .callout.success { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout p { margin-bottom: 0; }
+    .callout-title { font-weight: 700; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 0.9rem; }
+    th { background: var(--surface); text-align: left; padding: 10px 14px; border: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    td { padding: 10px 14px; border: 1px solid var(--border); color: #D4D4D8; vertical-align: top; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .toc-sidebar { position: sticky; top: 80px; align-self: start; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .toc-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+    .toc-list { list-style: none; padding: 0; }
+    .toc-list li { margin-bottom: 4px; }
+    .toc-list a { color: var(--muted); font-size: 0.85rem; text-decoration: none; display: block; padding: 4px 8px; border-radius: 4px; transition: all 0.2s; border-left: 2px solid transparent; }
+    .toc-list a:hover, .toc-list a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(168,85,247,0.07); }
+    .signal-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px;
+      border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    }
+    .pill-bull { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .pill-bear { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+    .pill-neutral { background: rgba(161,161,170,0.15); color: var(--muted); border: 1px solid rgba(161,161,170,0.3); }
+    .pipeline-step {
+      display: flex; gap: 16px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 20px; margin: 12px 0;
+    }
+    .step-num {
+      flex-shrink: 0; width: 32px; height: 32px;
+      background: rgba(168,85,247,0.2); color: var(--accent);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.9rem;
+    }
+    .step-body h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; }
+    .step-body p { margin: 0; font-size: 0.88rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/api-keys" class="nav-cta">Get API Key →</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <article>
+      <span class="tag">Strategy</span>
+      <h1>NLP Trading Signals for AI Agents</h1>
+      <div class="meta">
+        <span>March 6, 2026</span>
+        <span>·</span>
+        <span>22 min read</span>
+        <span>·</span>
+        <span>Purple Flea Research</span>
+      </div>
+
+      <!-- INTRO -->
+      <p>Markets move on information before they move on price. For AI agents operating in financial environments, the ability to extract structured signals from unstructured text — news articles, earnings transcripts, SEC filings, social media — is a fundamental edge. This guide walks through a complete NLP pipeline: from raw text ingestion to FinBERT scoring to live trade execution via the Purple Flea trading API.</p>
+
+      <div class="callout">
+        <div class="callout-title">What you will build</div>
+        <p>A production Python pipeline that subscribes to news feeds and social APIs, scores incoming text with FinBERT and GPT-4, aggregates into a rolling sentiment index, and fires buy/sell signals to the Purple Flea trading API — all running autonomously as a PM2 process.</p>
+      </div>
+
+      <!-- SECTION 1 -->
+      <h2 id="why-nlp">Why NLP Gives Agents an Edge</h2>
+      <p>Traditional quantitative strategies operate on OHLCV data — open, high, low, close, volume. These signals are available to every market participant simultaneously. Text data is different: it arrives in an enormous variety of forms, requires interpretation, and most market participants either ignore it or process it slowly.</p>
+      <p>AI agents are uniquely positioned to exploit this asymmetry. A well-designed agent can monitor thousands of sources simultaneously, parse earnings calls within seconds of release, and translate nuanced language into numeric signals faster than any human trader.</p>
+
+      <h3>The NLP signal taxonomy</h3>
+      <table>
+        <thead>
+          <tr><th>Signal Type</th><th>Source</th><th>Latency</th><th>Alpha Decay</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Breaking news sentiment</td><td>RSS, newsapi.org</td><td>&lt; 30s</td><td>Minutes</td></tr>
+          <tr><td>Earnings call tone</td><td>Whisper + transcript APIs</td><td>~60s post-call</td><td>Hours</td></tr>
+          <tr><td>SEC filing language shifts</td><td>EDGAR full-text</td><td>Minutes</td><td>Days</td></tr>
+          <tr><td>Social media momentum</td><td>Twitter/Reddit APIs</td><td>Real-time</td><td>Minutes–hours</td></tr>
+          <tr><td>Fear/Greed index proxy</td><td>Aggregated multi-source</td><td>~15 min</td><td>Days</td></tr>
+          <tr><td>Central bank language</td><td>Fed/ECB press releases</td><td>Seconds</td><td>Days–weeks</td></tr>
+        </tbody>
+      </table>
+
+      <!-- SECTION 2 -->
+      <h2 id="news-sentiment">News Sentiment Analysis</h2>
+      <p>News sentiment is the most actionable short-term NLP signal. The pipeline starts with ingesting headlines and articles from structured feeds, then scoring each article against a target entity.</p>
+
+      <h3>Source ingestion</h3>
+      <p>The two most accessible sources for agents are RSS feeds (free, no API key required) and <code>newsapi.org</code> (free tier: 100 req/day, paid: unlimited). For crypto assets, <code>cryptopanic.com</code> provides pre-labeled bullish/bearish tags that can serve as a weak supervision signal.</p>
+
+      <pre><code># news_ingestion.py
+import feedparser
+import httpx
+import asyncio
+from datetime import datetime, timezone
+from typing import AsyncGenerator
+
+RSS_FEEDS = {
+    "reuters_markets":  "https://feeds.reuters.com/reuters/businessNews",
+    "coindesk":         "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    "cointelegraph":    "https://cointelegraph.com/rss",
+    "wsj_markets":      "https://feeds.a.wsj.com/rss/RSSWSJD.xml",
+}
+
+async def stream_rss_headlines(
+    feeds: dict[str, str],
+    poll_interval: int = 30
+) -> AsyncGenerator[dict, None]:
+    """Yield new headlines as they appear across all RSS feeds."""
+    seen: set[str] = set()
+    while True:
+        for name, url in feeds.items():
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries:
+                    uid = entry.get("id") or entry.get("link", "")
+                    if uid not in seen:
+                        seen.add(uid)
+                        yield {
+                            "source": name,
+                            "title": entry.get("title", ""),
+                            "summary": entry.get("summary", ""),
+                            "link": entry.get("link", ""),
+                            "published": entry.get("published", ""),
+                            "fetched_at": datetime.now(timezone.utc).isoformat(),
+                        }
+            except Exception as e:
+                print(f"[RSS error] {name}: {e}")
+        await asyncio.sleep(poll_interval)</code></pre>
+
+      <h3>Entity-level filtering</h3>
+      <p>A global news stream contains far more noise than signal for any specific asset. The first filter step is entity recognition: only process articles that mention your target assets, and track the sentiment of the entity-specific sentences, not the entire article.</p>
+
+      <pre><code>import spacy
+from collections import defaultdict
+
+nlp = spacy.load("en_core_web_sm")
+
+TARGET_ENTITIES = {
+    "BTC": ["bitcoin", "btc", "satoshi"],
+    "ETH": ["ethereum", "ether", "eth"],
+    "SOL": ["solana", "sol"],
+}
+
+def extract_entity_sentences(text: str) -> dict[str, list[str]]:
+    """Return only sentences that mention tracked entities."""
+    doc = nlp(text.lower())
+    matched: dict[str, list[str]] = defaultdict(list)
+    for sent in doc.sents:
+        sent_text = sent.text
+        for symbol, aliases in TARGET_ENTITIES.items():
+            if any(alias in sent_text for alias in aliases):
+                matched[symbol].append(sent.text)
+    return dict(matched)</code></pre>
+
+      <!-- SECTION 3 -->
+      <h2 id="finbert">FinBERT and LLM Sentiment Scoring</h2>
+      <p>Generic sentiment models (VADER, TextBlob) perform poorly on financial text — they misinterpret domain-specific phrases like "volatile growth" or "strong resistance." FinBERT, a BERT variant fine-tuned on financial communications, achieves significantly better calibration on financial news.</p>
+
+      <h3>FinBERT setup</h3>
+
+      <pre><code>from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+import torch
+
+def load_finbert():
+    model_name = "ProsusAI/finbert"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    device = 0 if torch.cuda.is_available() else -1
+    return pipeline(
+        "text-classification",
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        top_k=None,  # return all class probabilities
+    )
+
+finbert = load_finbert()
+
+def score_finbert(text: str) -> dict:
+    """Return {positive, negative, neutral} probabilities."""
+    # FinBERT max input: 512 tokens — truncate long text
+    truncated = text[:800]
+    results = finbert(truncated)[0]
+    scores = {r["label"].lower(): r["score"] for r in results}
+    # Compound: bullish score = positive - negative
+    scores["compound"] = scores.get("positive", 0) - scores.get("negative", 0)
+    return scores</code></pre>
+
+      <h3>LLM scoring with Purple Flea API context</h3>
+      <p>For higher-stakes decisions, pure FinBERT scores can be augmented with an LLM that has access to broader market context. The LLM prompt includes recent price action and the text to score, producing a richer signal.</p>
+
+      <pre><code>import httpx
+import json
+
+PURPLE_FLEA_API = "https://api.purpleflea.com"
+
+async def llm_score_with_context(
+    article_text: str,
+    symbol: str,
+    api_key: str = "pf_live_&lt;your_key&gt;"
+) -> dict:
+    """Score article sentiment with LLM + live market context."""
+    # Fetch current price from Purple Flea
+    async with httpx.AsyncClient() as client:
+        price_resp = await client.get(
+            f"{PURPLE_FLEA_API}/v1/market/price/{symbol}",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        price_data = price_resp.json()
+
+    prompt = f"""You are a financial sentiment analyst.
+Asset: {symbol}
+Current price: {price_data.get('price', 'unknown')}
+24h change: {price_data.get('change_24h', 'unknown')}%
+
+Article:
+{article_text[:1200]}
+
+Respond with JSON only:
+{{
+  "sentiment": "bullish|bearish|neutral",
+  "confidence": 0.0-1.0,
+  "key_phrases": ["phrase1", "phrase2"],
+  "trading_implication": "brief one-sentence implication"
+}}"""
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{PURPLE_FLEA_API}/v1/agent/llm",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"prompt": prompt, "model": "gpt-4o-mini", "response_format": "json"}
+        )
+    return resp.json()</code></pre>
+
+      <div class="callout info">
+        <div class="callout-title">Model calibration note</div>
+        <p>FinBERT is fast and cheap (runs locally, ~2ms/article). LLM scoring costs ~0.01 USD per article. Use FinBERT for real-time streaming and LLM scoring for high-confidence signals that trigger large position changes.</p>
+      </div>
+
+      <!-- SECTION 4 -->
+      <h2 id="social-media">Social Media Signal Extraction</h2>
+      <p>Social media provides volume-weighted sentiment — a strong divergence between retail social sentiment and price action is a historically predictive signal. The challenge is filtering signal from noise (spam, bots, coordinated pumps).</p>
+
+      <h3>Reddit PRAW integration</h3>
+
+      <pre><code>import praw
+from textblob import TextBlob
+import re
+
+reddit = praw.Reddit(
+    client_id="YOUR_CLIENT_ID",
+    client_secret="YOUR_CLIENT_SECRET",
+    user_agent="PurpleFlea-NLP-Agent/1.0"
+)
+
+CRYPTO_SUBREDDITS = ["CryptoCurrency", "Bitcoin", "ethereum", "solana"]
+
+def clean_text(text: str) -> str:
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"[^a-zA-Z\s]", " ", text)
+    return text.lower().strip()
+
+def fetch_reddit_sentiment(symbol: str, limit: int = 100) -> dict:
+    """Aggregate sentiment score from recent Reddit posts."""
+    scores = []
+    for sub in CRYPTO_SUBREDDITS:
+        subreddit = reddit.subreddit(sub)
+        for post in subreddit.hot(limit=limit // len(CRYPTO_SUBREDDITS)):
+            if symbol.lower() in post.title.lower():
+                clean = clean_text(post.title + " " + (post.selftext or ""))
+                if len(clean) > 20:
+                    scores.append(TextBlob(clean).sentiment.polarity)
+    if not scores:
+        return {"symbol": symbol, "score": 0.0, "n": 0}
+    return {
+        "symbol": symbol,
+        "score": sum(scores) / len(scores),
+        "n": len(scores),
+        "bullish_pct": sum(1 for s in scores if s > 0.1) / len(scores),
+        "bearish_pct": sum(1 for s in scores if s < -0.1) / len(scores),
+    }</code></pre>
+
+      <!-- SECTION 5 -->
+      <h2 id="earnings-calls">Earnings Call Transcription Analysis</h2>
+      <p>Earnings calls are among the highest-alpha NLP events. Management tone, word choice, and hedging language are predictive of near-term price movements. Studies show that "uncertainty language" (words like "challenging," "headwinds," "visibility") correlates with post-call price drops even when reported numbers beat consensus.</p>
+
+      <h3>Transcription with OpenAI Whisper</h3>
+
+      <pre><code>import whisper
+import httpx
+import re
+
+model = whisper.load_model("base")  # or "medium" for better accuracy
+
+def transcribe_earnings_audio(audio_path: str) -> str:
+    """Transcribe earnings call audio to text."""
+    result = model.transcribe(audio_path, language="en")
+    return result["text"]
+
+UNCERTAINTY_PHRASES = [
+    "challenging environment", "headwinds", "limited visibility",
+    "difficult to predict", "uncertainty", "macro pressures",
+    "supply chain", "inflationary", "cautious outlook",
+]
+
+CONFIDENCE_PHRASES = [
+    "strong pipeline", "record revenue", "exceeding expectations",
+    "accelerating growth", "confident", "optimistic", "robust demand",
+    "margin expansion", "share buyback",
+]
+
+def analyze_earnings_tone(transcript: str) -> dict:
+    """Score an earnings call transcript for management tone."""
+    text_lower = transcript.lower()
+    uncertainty_hits = sum(
+        1 for phrase in UNCERTAINTY_PHRASES if phrase in text_lower
+    )
+    confidence_hits = sum(
+        1 for phrase in CONFIDENCE_PHRASES if phrase in text_lower
+    )
+    total = uncertainty_hits + confidence_hits
+    tone_score = (confidence_hits - uncertainty_hits) / max(total, 1)
+    return {
+        "tone_score": tone_score,          # -1 (bearish) to +1 (bullish)
+        "uncertainty_count": uncertainty_hits,
+        "confidence_count": confidence_hits,
+        "signal": "bullish" if tone_score > 0.2 else "bearish" if tone_score < -0.2 else "neutral",
+    }</code></pre>
+
+      <!-- SECTION 6 -->
+      <h2 id="fear-greed">Constructing a Fear/Greed Index</h2>
+      <p>The classic CNN Fear and Greed Index uses seven sub-components. Agents can construct their own version from raw data sources — this has the advantage of being real-time (CNN's index updates once per day) and customizable to specific asset classes.</p>
+
+      <h3>Fear/Greed sub-components</h3>
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Proxy Metric</th><th>Weight</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Market momentum</td><td>Price vs. 125-day MA</td><td>25%</td></tr>
+          <tr><td>News sentiment</td><td>FinBERT aggregate (rolling 24h)</td><td>25%</td></tr>
+          <tr><td>Social volume</td><td>Reddit/Twitter mention velocity</td><td>15%</td></tr>
+          <tr><td>Safe haven demand</td><td>BTC dominance delta</td><td>15%</td></tr>
+          <tr><td>Volatility</td><td>30d realized vol vs. 90d avg</td><td>10%</td></tr>
+          <tr><td>Options skew</td><td>Put/call ratio (Deribit)</td><td>10%</td></tr>
+        </tbody>
+      </table>
+
+      <pre><code>import numpy as np
+
+def compute_fear_greed(components: dict) -> dict:
+    """
+    Aggregate sub-signals into a 0-100 Fear/Greed index.
+    Each component should already be normalized to [0, 1].
+    0 = extreme fear, 100 = extreme greed.
+    """
+    weights = {
+        "momentum":      0.25,
+        "news_sentiment": 0.25,
+        "social_volume": 0.15,
+        "safe_haven":    0.15,
+        "volatility":    0.10,  # inverted: low vol = greed
+        "options_skew":  0.10,
+    }
+    score = sum(
+        components.get(k, 0.5) * w
+        for k, w in weights.items()
+    ) * 100
+
+    if score >= 75:   label = "Extreme Greed"
+    elif score >= 55: label = "Greed"
+    elif score >= 45: label = "Neutral"
+    elif score >= 25: label = "Fear"
+    else:             label = "Extreme Fear"
+
+    return {"score": round(score, 1), "label": label}</code></pre>
+
+      <!-- SECTION 7 -->
+      <h2 id="full-pipeline">The Full Python Pipeline</h2>
+      <p>The complete pipeline connects ingestion, entity filtering, FinBERT scoring, LLM enrichment (for high-confidence signals), fear/greed aggregation, and trade execution into a single async loop running as a persistent process.</p>
+
+      <div class="pipeline-step">
+        <div class="step-num">1</div>
+        <div class="step-body"><h4>Ingest</h4><p>RSS feeds + Reddit + news API, deduplicated, polled every 30 seconds</p></div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">2</div>
+        <div class="step-body"><h4>Filter</h4><p>Entity extraction with spaCy — only pass sentences mentioning tracked symbols</p></div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">3</div>
+        <div class="step-body"><h4>Score</h4><p>FinBERT on all articles; LLM scoring on articles exceeding confidence threshold</p></div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">4</div>
+        <div class="step-body"><h4>Aggregate</h4><p>Rolling 1h / 4h / 24h exponentially-weighted sentiment averages per symbol</p></div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">5</div>
+        <div class="step-body"><h4>Signal</h4><p>Threshold-based signal generation with minimum conviction requirements</p></div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">6</div>
+        <div class="step-body"><h4>Execute</h4><p>Purple Flea trading API — send buy/sell order with NLP-derived size confidence</p></div>
+      </div>
+
+      <pre><code># pipeline.py — full async NLP trading loop
+import asyncio
+import httpx
+from collections import deque, defaultdict
+from datetime import datetime, timezone
+
+PURPLE_FLEA_API = "https://api.purpleflea.com"
+API_KEY = "pf_live_&lt;your_key&gt;"
+
+# Rolling sentiment windows (stores compound scores)
+sentiment_windows: dict[str, deque] = defaultdict(lambda: deque(maxlen=200))
+
+SIGNAL_THRESHOLDS = {
+    "strong_bull": 0.45,
+    "bull":        0.25,
+    "bear":       -0.25,
+    "strong_bear": -0.45,
+}
+
+async def execute_trade(symbol: str, side: str, confidence: float):
+    """Fire a trade via Purple Flea trading API."""
+    # Scale position size by confidence (0.1x to 1.0x of base size)
+    base_usdc = 50.0
+    size = base_usdc * confidence
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{PURPLE_FLEA_API}/v1/trade/order",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+            json={
+                "symbol": symbol,
+                "side": side,           # "buy" or "sell"
+                "amount_usdc": size,
+                "order_type": "market",
+                "source": "nlp_pipeline",
+                "metadata": {"confidence": confidence}
+            },
+            timeout=10.0
+        )
+        result = resp.json()
+        print(f"[TRADE] {side} {symbol} | size={size:.2f} USDC | confidence={confidence:.2f} | id={result.get('order_id')}")
+
+def compute_rolling_sentiment(symbol: str) -> float:
+    """Exponentially-weighted average of recent scores for a symbol."""
+    window = sentiment_windows[symbol]
+    if not window:
+        return 0.0
+    weights = [0.95 ** i for i in range(len(window))]
+    total_weight = sum(weights)
+    weighted_sum = sum(s * w for s, w in zip(reversed(window), weights))
+    return weighted_sum / total_weight
+
+async def run_pipeline():
+    print("[NLP Pipeline] Starting...")
+    async for article in stream_rss_headlines(RSS_FEEDS):
+        # Entity filtering
+        entity_sentences = extract_entity_sentences(
+            article["title"] + " " + article.get("summary", "")
+        )
+        for symbol, sentences in entity_sentences.items():
+            text = " ".join(sentences)
+            if len(text) < 30:
+                continue
+            # Fast FinBERT score
+            scores = score_finbert(text)
+            compound = scores["compound"]
+            sentiment_windows[symbol].append(compound)
+            # Check rolling average for signal
+            rolling = compute_rolling_sentiment(symbol)
+            if rolling >= SIGNAL_THRESHOLDS["strong_bull"]:
+                await execute_trade(symbol, "buy", confidence=min(rolling, 1.0))
+            elif rolling <= SIGNAL_THRESHOLDS["strong_bear"]:
+                await execute_trade(symbol, "sell", confidence=min(abs(rolling), 1.0))
+
+if __name__ == "__main__":
+    asyncio.run(run_pipeline())</code></pre>
+
+      <!-- SECTION 8 -->
+      <h2 id="purple-flea-integration">Purple Flea Trading API Integration</h2>
+      <p>Purple Flea's trading API accepts standard REST orders with optional metadata fields for attaching signal provenance. This enables post-hoc analysis of which signal sources contributed to profitable vs. unprofitable trades.</p>
+
+      <pre><code># trade_client.py
+import httpx
+from dataclasses import dataclass
+
+@dataclass
+class TradeResult:
+    order_id: str
+    symbol: str
+    side: str
+    filled_amount: float
+    price: float
+    fee: float
+    status: str
+
+class PurpleFleatradingClient:
+    BASE = "https://api.purpleflea.com/v1"
+
+    def __init__(self, api_key: str):
+        self.headers = {"Authorization": f"Bearer {api_key}"}
+
+    async def place_nlp_order(
+        self,
+        symbol: str,
+        side: str,
+        amount_usdc: float,
+        nlp_signal: dict,
+    ) -> TradeResult:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.BASE}/trade/order",
+                headers=self.headers,
+                json={
+                    "symbol": symbol,
+                    "side": side,
+                    "amount_usdc": amount_usdc,
+                    "order_type": "market",
+                    "source": "nlp",
+                    "metadata": nlp_signal,
+                },
+                timeout=15.0
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return TradeResult(
+                order_id=data["order_id"],
+                symbol=data["symbol"],
+                side=data["side"],
+                filled_amount=data["filled_amount"],
+                price=data["avg_price"],
+                fee=data["fee"],
+                status=data["status"],
+            )
+
+    async def get_positions(self) -> list[dict]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{self.BASE}/trade/positions",
+                headers=self.headers
+            )
+            return resp.json()["positions"]
+
+# Usage
+client = PurpleFleatradingClient("pf_live_&lt;your_key&gt;")
+result = await client.place_nlp_order(
+    symbol="BTC",
+    side="buy",
+    amount_usdc=75.0,
+    nlp_signal={
+        "finbert_compound": 0.52,
+        "source_count": 8,
+        "top_headline": "Bitcoin surges as institutional inflows accelerate",
+        "fear_greed_score": 71,
+    }
+)</code></pre>
+
+      <!-- SECTION 9 -->
+      <h2 id="backtesting">Backtesting NLP Signals</h2>
+      <p>Before deploying NLP signals live, backtest them against historical data. The key challenge is avoiding look-ahead bias: news must be matched to the price <em>after</em> publication, not before. A 15-minute delay is a safe minimum for most news sources.</p>
+
+      <pre><code>import pandas as pd
+import numpy as np
+
+def backtest_nlp_signals(
+    signals_df: pd.DataFrame,  # cols: timestamp, symbol, compound_score
+    prices_df: pd.DataFrame,   # cols: timestamp, symbol, close
+    holding_period_hours: int = 4,
+    entry_threshold: float = 0.3,
+) -> dict:
+    """
+    Simple backtest: enter on |compound_score| > threshold,
+    exit after holding_period_hours.
+    Returns performance metrics.
+    """
+    results = []
+    for _, row in signals_df.iterrows():
+        if abs(row["compound_score"]) < entry_threshold:
+            continue
+        entry_time = row["timestamp"]
+        exit_time = entry_time + pd.Timedelta(hours=holding_period_hours)
+        sym_prices = prices_df[prices_df["symbol"] == row["symbol"]]
+        entry_price_rows = sym_prices[sym_prices["timestamp"] >= entry_time]
+        exit_price_rows = sym_prices[sym_prices["timestamp"] >= exit_time]
+        if entry_price_rows.empty or exit_price_rows.empty:
+            continue
+        entry_price = entry_price_rows.iloc[0]["close"]
+        exit_price = exit_price_rows.iloc[0]["close"]
+        direction = 1 if row["compound_score"] > 0 else -1
+        pnl_pct = direction * (exit_price - entry_price) / entry_price
+        results.append({"pnl_pct": pnl_pct, "direction": direction})
+
+    if not results:
+        return {}
+    df = pd.DataFrame(results)
+    return {
+        "n_trades": len(df),
+        "win_rate": (df["pnl_pct"] > 0).mean(),
+        "avg_pnl_pct": df["pnl_pct"].mean(),
+        "sharpe": df["pnl_pct"].mean() / df["pnl_pct"].std() * np.sqrt(252 * 24 / holding_period_hours),
+        "max_drawdown": (df["pnl_pct"].cumsum() - df["pnl_pct"].cumsum().cummax()).min(),
+    }</code></pre>
+
+      <div class="callout warn">
+        <div class="callout-title">Backtest pitfalls</div>
+        <p>NLP signals are especially prone to survivorship bias (only articles that reached your feed survived) and publication-time errors (article timestamps vs. market-impact timestamps differ). Always validate with out-of-sample data before going live.</p>
+      </div>
+
+      <!-- SECTION 10 -->
+      <h2 id="live-dashboard">Live Signal Dashboard</h2>
+      <p>A minimal Flask dashboard lets you monitor the NLP pipeline state in real time. It surfaces current rolling sentiment per symbol, recent signal events, and fear/greed index.</p>
+
+      <pre><code>from flask import Flask, jsonify
+import threading
+
+app = Flask(__name__)
+dashboard_state = {
+    "signals": {},
+    "fear_greed": 50,
+    "last_articles": [],
+}
+
+@app.route("/state")
+def get_state():
+    return jsonify({
+        "signals": {
+            symbol: {
+                "rolling_sentiment": compute_rolling_sentiment(symbol),
+                "label": (
+                    "bullish" if compute_rolling_sentiment(symbol) > 0.25
+                    else "bearish" if compute_rolling_sentiment(symbol) < -0.25
+                    else "neutral"
+                ),
+            }
+            for symbol in sentiment_windows
+        },
+        "fear_greed": dashboard_state["fear_greed"],
+        "recent_articles": dashboard_state["last_articles"][-10:],
+    })
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+# Run in background thread alongside the main pipeline
+def run_dashboard():
+    app.run(host="0.0.0.0", port=5100, debug=False)
+
+threading.Thread(target=run_dashboard, daemon=True).start()</code></pre>
+
+      <!-- SECTION 11 -->
+      <h2 id="deployment">Deploying with PM2</h2>
+      <p>Run the NLP pipeline as a persistent PM2 process alongside other Purple Flea agent services. Use the <code>.cjs</code> ecosystem format since the pipeline project may use ES modules.</p>
+
+      <pre><code>// ecosystem.nlp.cjs
+module.exports = {
+  apps: [{
+    name: "nlp-pipeline",
+    script: "pipeline.py",
+    interpreter: "python3",
+    watch: false,
+    autorestart: true,
+    max_restarts: 10,
+    restart_delay: 5000,
+    env: {
+      PURPLE_FLEA_API_KEY: "pf_live_&lt;your_key&gt;",
+      PYTHONUNBUFFERED: "1",
+    },
+    log_date_format: "YYYY-MM-DD HH:mm:ss",
+  }]
+};</code></pre>
+
+      <pre><code>pm2 start ecosystem.nlp.cjs
+pm2 save
+pm2 logs nlp-pipeline --lines 50</code></pre>
+
+      <!-- SECTION 12 -->
+      <h2 id="risk">Risk Management for NLP Signals</h2>
+      <p>NLP signals carry unique risks that OHLCV strategies do not. Coordinated manipulation (pump-and-dump social campaigns), satire misclassified as news, and model hallucinations in LLM-scored signals can all generate false positives.</p>
+
+      <h3>Guardrails to implement</h3>
+      <ul>
+        <li><strong>Source diversity requirement:</strong> only fire a signal if it appears across at least 3 independent sources</li>
+        <li><strong>Price-sentiment divergence cap:</strong> if price is already up 10% and sentiment is bullish, reduce position size by 50% — the signal may already be priced in</li>
+        <li><strong>Cooldown timer:</strong> minimum 15-minute gap between consecutive NLP-driven orders per symbol</li>
+        <li><strong>Stale signal decay:</strong> sentiment scores older than 2 hours receive a 0.5x weight multiplier</li>
+        <li><strong>Manual override endpoint:</strong> a simple HTTP endpoint to pause signal generation during known high-noise events (FOMC, geopolitical crises)</li>
+      </ul>
+
+      <pre><code>class NLPRiskManager:
+    def __init__(self):
+        self.last_trade_time: dict[str, float] = {}
+        self.cooldown_seconds = 900  # 15 minutes
+        self.paused = False
+
+    def check_trade_allowed(
+        self,
+        symbol: str,
+        signal_score: float,
+        source_count: int,
+        price_change_24h: float,
+    ) -> tuple[bool, str]:
+        if self.paused:
+            return False, "pipeline paused"
+        if source_count < 3:
+            return False, f"insufficient sources ({source_count} &lt; 3)"
+        import time
+        last = self.last_trade_time.get(symbol, 0)
+        if time.time() - last < self.cooldown_seconds:
+            return False, "cooldown active"
+        # Price already moved in signal direction?
+        if signal_score > 0 and price_change_24h > 10:
+            return False, "signal likely priced in"
+        if signal_score < 0 and price_change_24h < -10:
+            return False, "signal likely priced in"
+        return True, "ok"</code></pre>
+
+      <!-- CONCLUSION -->
+      <h2 id="conclusion">Conclusion</h2>
+      <p>NLP trading signals give AI agents access to a dimension of market information that purely quantitative approaches miss. The pipeline described here — RSS ingestion, entity-level FinBERT scoring, LLM enrichment, fear/greed aggregation, and Purple Flea API execution — can be deployed in under an hour and extended incrementally as you validate which signal sources contribute the most alpha.</p>
+
+      <div class="callout success">
+        <div class="callout-title">Get started</div>
+        <p>Register your agent at <a href="https://purpleflea.com/register">purpleflea.com/register</a> to get your API key. New agents can claim free testnet funds from the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to paper-trade the NLP pipeline before committing real capital.</p>
+      </div>
+
+      <p>Next steps: connect the NLP pipeline output to the <a href="/blog/multi-model-agent-systems/">Multi-Model Agent Systems</a> pattern to route high-conviction signals to more capable (and expensive) decision-making models while keeping routine sentiment scoring cheap.</p>
+    </article>
+
+    <!-- TOC -->
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <div class="toc-title">Contents</div>
+        <ul class="toc-list">
+          <li><a href="#why-nlp">Why NLP Gives Agents an Edge</a></li>
+          <li><a href="#news-sentiment">News Sentiment Analysis</a></li>
+          <li><a href="#finbert">FinBERT &amp; LLM Scoring</a></li>
+          <li><a href="#social-media">Social Media Signals</a></li>
+          <li><a href="#earnings-calls">Earnings Call Analysis</a></li>
+          <li><a href="#fear-greed">Fear/Greed Index</a></li>
+          <li><a href="#full-pipeline">Full Python Pipeline</a></li>
+          <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+          <li><a href="#backtesting">Backtesting</a></li>
+          <li><a href="#live-dashboard">Live Dashboard</a></li>
+          <li><a href="#deployment">PM2 Deployment</a></li>
+          <li><a href="#risk">Risk Management</a></li>
+          <li><a href="#conclusion">Conclusion</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Progress bar
+    window.addEventListener("scroll", () => {
+      const el = document.getElementById("progress-bar");
+      const doc = document.documentElement;
+      const pct = (doc.scrollTop) / (doc.scrollHeight - doc.clientHeight) * 100;
+      el.style.width = pct + "%";
+    });
+
+    // TOC active state via IntersectionObserver
+    const headings = document.querySelectorAll("h2[id], h3[id]");
+    const tocLinks = document.querySelectorAll(".toc-list a");
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove("active"));
+          const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add("active");
+        }
+      });
+    }, { rootMargin: "-60px 0px -80% 0px" });
+    headings.forEach(h => obs.observe(h));
+  </script>
+</body>
+</html>
