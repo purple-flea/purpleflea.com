@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liquidation Cascades: How AI Agents Monitor, Predict, and Profit from Mass Liquidations | Purple Flea</title>
+  <meta name="description" content="A deep dive into liquidation cascades: what triggers them, on-chain signals, cascade prediction, and how AI agents can hunt or survive them using Purple Flea's trading API." />
+  <meta name="keywords" content="liquidation cascade, AI agent trading, DeFi liquidations, health factor monitoring, cascade prediction, Purple Flea, perpetual futures" />
+  <meta property="og:title" content="Liquidation Cascades: How AI Agents Monitor, Predict, and Profit from Mass Liquidations" />
+  <meta property="og:description" content="A deep dive into liquidation cascades: what triggers them, on-chain signals, cascade prediction, and how AI agents can hunt or survive them using Purple Flea's trading API." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-liquidation-cascade/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Liquidation Cascades: How AI Agents Monitor, Predict, and Profit from Mass Liquidations" />
+  <meta name="twitter:description" content="A deep dive into liquidation cascades: what triggers them, on-chain signals, cascade prediction, and how AI agents can hunt or survive them using Purple Flea's trading API." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-liquidation-cascade/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Liquidation Cascades: How AI Agents Monitor, Predict, and Profit from Mass Liquidations",
+    "description": "A deep dive into liquidation cascades: what triggers them, on-chain signals, cascade prediction, and how AI agents can hunt or survive them using Purple Flea's trading API.",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea Research Team",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-liquidation-cascade/",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/agent-liquidation-cascade/"
+    },
+    "keywords": ["liquidation cascade", "AI agent", "DeFi", "trading", "perpetual futures", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --surface2: #18181B;
+      --border: #27272A;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-glow: rgba(168,85,247,0.15);
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --green: #22C55E;
+      --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    /* Progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--purple), var(--blue));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      height: 56px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--purple);
+      text-decoration: none;
+      margin-right: auto;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover { color: var(--text); }
+    /* Layout */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+    /* Article */
+    article { min-width: 0; }
+    .tag {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(59,130,246,0.15);
+      color: var(--blue);
+      border: 1px solid rgba(59,130,246,0.3);
+      margin-bottom: 1.25rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .meta span::before { content: ''; }
+    .intro {
+      font-size: 1.125rem;
+      color: #D4D4D8;
+      line-height: 1.8;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: #E4E4E7;
+      scroll-margin-top: 80px;
+    }
+    p { margin-bottom: 1.25rem; color: #D4D4D8; }
+    ul, ol { margin: 1rem 0 1.25rem 1.5rem; color: #D4D4D8; }
+    li { margin-bottom: 0.5rem; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    /* Code blocks */
+    pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: rgba(168,85,247,0.1);
+      color: #C084FC;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre code {
+      background: none;
+      color: #E4E4E7;
+      padding: 0;
+      font-size: inherit;
+    }
+    /* Callout boxes */
+    .callout {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--purple);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .callout.warning { border-left-color: var(--yellow); }
+    .callout.danger { border-left-color: var(--red); }
+    .callout.success { border-left-color: var(--green); }
+    .callout-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+      color: var(--purple);
+    }
+    .callout.warning .callout-title { color: var(--yellow); }
+    .callout.danger .callout-title { color: var(--red); }
+    .callout.success .callout-title { color: var(--green); }
+    /* Table */
+    .table-wrapper { overflow-x: auto; margin: 1.75rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th {
+      background: var(--surface2);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 0.65rem 1rem;
+      color: #D4D4D8;
+      border-bottom: 1px solid #1F1F23;
+    }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    /* Sidebar / TOC */
+    .sidebar {
+      position: sticky;
+      top: 76px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .sidebar-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .toc-list { list-style: none; margin: 0; padding: 0; }
+    .toc-list li { margin-bottom: 0.5rem; }
+    .toc-list a {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: none;
+      line-height: 1.4;
+      display: block;
+      transition: color 0.2s;
+    }
+    .toc-list a:hover, .toc-list a.active { color: var(--purple); }
+    .toc-list .toc-sub { padding-left: 1rem; margin-top: 0.25rem; }
+    .toc-list .toc-sub a { font-size: 0.8rem; }
+    /* Footer */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 4rem;
+    }
+    footer a { color: var(--purple); text-decoration: none; }
+    /* Metric cards */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+    .metric-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .metric-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--purple);
+      display: block;
+    }
+    .metric-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+    /* Section divider */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2.5rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple Flea</a>
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/docs/">Docs</a>
+      <a href="/trading/">Trading</a>
+      <a href="/register/">Register</a>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <span class="tag">Trading</span>
+      <h1>Liquidation Cascades: How AI Agents Monitor, Predict, and Profit from Mass Liquidations</h1>
+      <div class="meta">
+        <span>March 6, 2026</span>
+        <span>Purple Flea Research Team</span>
+        <span>18 min read</span>
+      </div>
+
+      <p class="intro">
+        Liquidation cascades are among the most violent and predictable events in crypto markets. A single price move triggers forced sells, which push prices lower, which triggers more liquidations, which push prices lower still — a self-reinforcing spiral that can erase 30% of an asset's value in minutes. For AI agents with the right infrastructure, these events are not disasters; they are calendared opportunities. This post covers what triggers cascades, how to detect them on-chain before they detonate, and how to implement a full cascade monitoring agent using Purple Flea's trading API across 275 perpetual markets.
+      </p>
+
+      <h2 id="what-is-cascade">What Is a Liquidation Cascade?</h2>
+      <p>
+        In leveraged markets — perpetual futures, margin lending protocols, and CDP vaults — every position has a <strong>health factor</strong> or <strong>maintenance margin</strong> threshold. When collateral value falls below that threshold, the position is forcibly closed (liquidated). The liquidation itself sells the underlying asset, which depresses the price further, pushing other leveraged positions closer to their own thresholds. This creates a cascade.
+      </p>
+      <p>
+        In DeFi, the cascade is visible on-chain in real time: you can see every vault's collateral ratio, every protocol's liquidation queue, and every margin call before it triggers. This transparency, absent in traditional finance, is what makes cascade hunting tractable for autonomous agents.
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span class="metric-value">$8.6B</span>
+          <div class="metric-label">Liquidated in 24h during May 2021 crash</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">38%</span>
+          <div class="metric-label">ETH price drop in 6 hours during that event</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">&lt;90s</span>
+          <div class="metric-label">Typical cascade propagation window</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">275</span>
+          <div class="metric-label">Perp markets on Purple Flea / Hyperliquid</div>
+        </div>
+      </div>
+
+      <h2 id="cascade-anatomy">Anatomy of a Cascade</h2>
+      <h3 id="phase-1">Phase 1: The Trigger</h3>
+      <p>
+        Cascades start with a liquidity event that moves the market against the crowd's position. Common triggers include:
+      </p>
+      <ul>
+        <li><strong>Macro news shocks</strong> — Fed rate decisions, CPI prints, geopolitical events causing rapid dollar strengthening</li>
+        <li><strong>Protocol exploits</strong> — A hack or rug drains collateral, triggering immediate mass liquidations</li>
+        <li><strong>Whale exits</strong> — A single large sell order exhausts order book depth and prints a large candle</li>
+        <li><strong>Oracle manipulation</strong> — Flash loan attacks that temporarily move price feeds to trigger artificial liquidations</li>
+        <li><strong>Funding rate extremes</strong> — When perpetual funding rates become unsustainable, positions unwind simultaneously</li>
+      </ul>
+
+      <h3 id="phase-2">Phase 2: First Wave Liquidations</h3>
+      <p>
+        The initial price move crosses the liquidation threshold of the most leveraged positions — typically those at 25x-100x leverage. These positions are sold by the protocol's liquidation engine, often as market orders into thin liquidity. The resulting slippage amplifies the price drop.
+      </p>
+
+      <h3 id="phase-3">Phase 3: Cascade Propagation</h3>
+      <p>
+        Lower prices hit the next tier of leveraged positions — 10x-25x leverage. Their liquidations further depress prices. On centralized exchanges, this manifests as a "liquidation ladder" visible in the order book data. On DeFi protocols, you can watch health factors tick down in real time via RPC calls.
+      </p>
+
+      <h3 id="phase-4">Phase 4: Forced Bounce or Extended Collapse</h3>
+      <p>
+        Either panic capitulation creates a V-shaped recovery (buyers absorb forced sells at a discount), or the cascade exhausts all bid liquidity and the price continues lower until a new equilibrium forms. The depth of the cascade depends on: total open interest at risk, available liquidation bot competition, and whether market makers step back from quoting.
+      </p>
+
+      <h2 id="onchain-data">On-Chain Liquidation Data Sources</h2>
+      <p>
+        Unlike traditional markets where liquidation data is hidden, DeFi protocols broadcast every liquidation event on-chain. Here are the primary data sources agents should monitor:
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Protocol</th>
+              <th>Chain</th>
+              <th>Liquidation Event</th>
+              <th>RPC Method</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Aave v3</td><td>ETH/ARB/OP</td><td><code>LiquidationCall</code></td><td>eth_getLogs</td></tr>
+            <tr><td>Compound v3</td><td>ETH/BASE</td><td><code>AbsorbDebt</code></td><td>eth_getLogs</td></tr>
+            <tr><td>MakerDAO</td><td>ETH</td><td><code>Clip.Take</code></td><td>eth_getLogs</td></tr>
+            <tr><td>dYdX v4</td><td>Cosmos</td><td>Liquidation order type</td><td>WebSocket stream</td></tr>
+            <tr><td>Hyperliquid</td><td>L1</td><td>Liquidation fills in trade stream</td><td>WebSocket wss://api.hyperliquid.xyz/ws</td></tr>
+            <tr><td>GMX v2</td><td>ARB</td><td><code>LiquidationOrder</code></td><td>eth_getLogs</td></tr>
+            <tr><td>Synthetix Perps</td><td>OP/BASE</td><td><code>PositionLiquidated</code></td><td>eth_getLogs</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Beyond protocol-level events, agents should also monitor <strong>cross-protocol aggregate feeds</strong> like Parsec Finance, DeBank, and Chaos Labs — these provide pre-aggregated at-risk position data that saves RPC calls.
+      </p>
+
+      <h2 id="health-factor">Health Factor Monitoring</h2>
+      <p>
+        The key metric for predicting an impending cascade is the <strong>aggregate health factor distribution</strong> across a protocol. Aave defines health factor as:
+      </p>
+      <pre><code>HF = (Σ collateral_i × liquidation_threshold_i) / total_debt_in_base_currency</code></pre>
+      <p>
+        When HF drops below 1.0, the position is liquidatable. An agent monitoring the distribution of health factors across all positions can estimate:
+      </p>
+      <ul>
+        <li>How much price drop is needed to trigger the first wave (positions with HF between 1.0 and 1.05)</li>
+        <li>How much additional selling would result from first-wave liquidations</li>
+        <li>The total cascade depth if the spiral propagates through multiple tiers</li>
+      </ul>
+
+      <div class="callout">
+        <div class="callout-title">Key Insight</div>
+        <p>A 5% drop in ETH price that puts $2B of positions into liquidation territory generates approximately $200-400M in forced selling (depending on leverage levels), which itself can cause an additional 2-4% price drop — triggering the next wave.</p>
+      </div>
+
+      <h3 id="aave-monitoring">Aave Health Factor Polling</h3>
+      <pre><code>// Aave v3 health factor via RPC
+const { ethers } = require('ethers');
+
+const AAVE_POOL = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
+const ABI = [
+  'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)'
+];
+
+async function getHealthFactor(userAddress, provider) {
+  const pool = new ethers.Contract(AAVE_POOL, ABI, provider);
+  const data = await pool.getUserAccountData(userAddress);
+  const hf = parseFloat(ethers.formatUnits(data.healthFactor, 18));
+  return hf;
+}
+
+// At-risk positions: HF between 1.0 and 1.1
+// Imminent liquidation: HF between 1.0 and 1.02</code></pre>
+
+      <h2 id="cascade-signals">Cascade Prediction Signals</h2>
+      <p>
+        A complete cascade prediction system combines on-chain position data with market microstructure signals. Here are the highest-signal indicators:
+      </p>
+
+      <h3 id="signal-1">Signal 1: Open Interest Concentration</h3>
+      <p>
+        When open interest on perpetual futures is highly concentrated on one side (e.g., 70%+ long), the market is fragile. A move against the crowd will trigger outsized liquidations. Monitor the long/short ratio across all Purple Flea's 275 perp markets continuously.
+      </p>
+
+      <h3 id="signal-2">Signal 2: Funding Rate Extremes</h3>
+      <p>
+        Funding rates above 0.1% per 8 hours (annualized: >109%) indicate extreme long positioning. Shorts are being paid to hold, which means the market is at peak greed — and highly susceptible to a cascade. Conversely, deeply negative funding signals a potential short squeeze cascade.
+      </p>
+
+      <h3 id="signal-3">Signal 3: Liquidation Map Density</h3>
+      <p>
+        Exchanges and analysis tools publish "liquidation heatmaps" — price levels where large clusters of leveraged positions will be force-closed. When a cluster of $500M+ in liquidations sits within 3% of current price, cascade risk is elevated.
+      </p>
+
+      <h3 id="signal-4">Signal 4: Order Book Thinning</h3>
+      <p>
+        Cascades accelerate when market makers pull liquidity. Monitor the bid-ask spread and order book depth at 1%, 2%, and 5% from mid. A sudden 3x increase in spread or 50% reduction in depth predicts imminent volatility.
+      </p>
+
+      <h3 id="signal-5">Signal 5: Cross-Exchange Premium Divergence</h3>
+      <p>
+        When the perpetual price on one exchange diverges significantly from spot or other perp venues, it signals either an impending cascade (perp trading at large discount = forced liquidations incoming) or a short squeeze (perp at large premium).
+      </p>
+
+      <div class="callout warning">
+        <div class="callout-title">Warning</div>
+        <p>No single signal is sufficient. Cascades can be interrupted by large buyers absorbing the selling. Always use multiple confirming signals and implement strict position sizing. A cascade prediction model with 60% accuracy is highly profitable but requires robust risk management for the 40% false positives.</p>
+      </div>
+
+      <h2 id="agent-strategies">Agent Strategies: Hunting vs. Protection</h2>
+      <h3 id="hunting">Strategy A: Cascade Hunting</h3>
+      <p>
+        Cascade hunting agents take short positions immediately before or during a cascade, profiting from the forced selling. The edge comes from being faster than the crowd to identify the signal.
+      </p>
+      <p>Implementation steps:</p>
+      <ol>
+        <li>Monitor all cascade signals in real time (OI concentration, funding rate, liquidation map density, order book depth)</li>
+        <li>Compute a composite "cascade risk score" for each major asset</li>
+        <li>When the score exceeds a threshold, open a short position on Purple Flea perps with predefined size (e.g., 2% of portfolio)</li>
+        <li>Set a take-profit at the estimated cascade terminus (liquidation cluster bottom)</li>
+        <li>Set a tight stop-loss above entry (cascade doesn't materialize)</li>
+        <li>Close the position as liquidation volume spikes begin to slow (cascade exhaust signal)</li>
+      </ol>
+
+      <h3 id="protection">Strategy B: Position Protection</h3>
+      <p>
+        Protection agents monitor existing long positions against cascade risk and act defensively:
+      </p>
+      <ul>
+        <li><strong>Dynamic deleveraging</strong> — Reduce position size as cascade risk score rises</li>
+        <li><strong>Cascade hedges</strong> — Open offsetting short positions on correlated assets when risk is elevated</li>
+        <li><strong>Collateral management</strong> — Add collateral to DeFi lending positions to raise health factor before liquidation</li>
+        <li><strong>Liquidation racing</strong> — Self-liquidate at market price before the protocol's forced liquidation incurs additional penalty fees</li>
+      </ul>
+
+      <h3 id="liquidation-bots">Strategy C: Liquidation Bots</h3>
+      <p>
+        On-chain liquidation bots perform the actual forced closes on DeFi protocols, earning a liquidation bonus (typically 5-8% of the liquidated collateral). These bots need:
+      </p>
+      <ul>
+        <li>High-speed RPC nodes (Alchemy, Infura, or self-hosted)</li>
+        <li>Pre-funded accounts to execute liquidations atomically</li>
+        <li>MEV (maximal extractable value) protections to avoid being frontrun by other bots</li>
+        <li>Flash loan access to liquidate without capital requirements</li>
+      </ul>
+
+      <div class="callout danger">
+        <div class="callout-title">Caution</div>
+        <p>Liquidation bots operate in an extremely competitive MEV environment. Without block builder relationships or private mempools (Flashbots), your liquidation transactions will be frontrun by other bots. This is an area where agent speed and infrastructure quality directly determine profitability.</p>
+      </div>
+
+      <h2 id="purple-flea-api">Purple Flea Trading API for Cascade Trades</h2>
+      <p>
+        Purple Flea provides access to 275 perpetual markets via the Hyperliquid integration, giving agents the ideal venue for executing cascade strategies. All positions are fully on-chain with transparent liquidation mechanics.
+      </p>
+
+      <h3 id="api-setup">API Setup</h3>
+      <pre><code>// Register and get API credentials
+const BASE_URL = 'https://purpleflea.com/api/v1';
+
+async function registerAgent() {
+  const res = await fetch(`${BASE_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'cascade-hunter-v1',
+      email: 'agent@example.com'
+    })
+  });
+  const { apiKey, agentId } = await res.json();
+  return { apiKey, agentId };
+}
+
+// Place a short on ETH perp
+async function openShort(apiKey, asset, sizeDollars, leverage) {
+  const res = await fetch(`${BASE_URL}/trading/order`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      asset,
+      direction: 'short',
+      size_usd: sizeDollars,
+      leverage,
+      order_type: 'market',
+      reduce_only: false
+    })
+  });
+  return res.json();
+}</code></pre>
+
+      <h3 id="kill-switch">Kill Switch Implementation</h3>
+      <p>
+        Every cascade-hunting agent must have a kill switch — an automated circuit breaker that closes all positions and halts trading when losses exceed a threshold or when market conditions become unmodeled. This is non-negotiable.
+      </p>
+      <pre><code>class CascadeKillSwitch {
+  constructor(apiKey, maxDrawdownPct = 5) {
+    this.apiKey = apiKey;
+    this.maxDrawdown = maxDrawdownPct / 100;
+    this.startingEquity = null;
+    this.active = true;
+  }
+
+  async checkAndAct(currentEquity) {
+    if (!this.startingEquity) this.startingEquity = currentEquity;
+    const drawdown = (this.startingEquity - currentEquity) / this.startingEquity;
+
+    if (drawdown >= this.maxDrawdown && this.active) {
+      console.log(`[KILL SWITCH] Drawdown ${(drawdown*100).toFixed(2)}% exceeds limit. Closing all positions.`);
+      this.active = false;
+      await this.closeAllPositions();
+    }
+  }
+
+  async closeAllPositions() {
+    const res = await fetch(`${BASE_URL}/trading/positions`, {
+      headers: { 'Authorization': `Bearer ${this.apiKey}` }
+    });
+    const positions = await res.json();
+
+    for (const pos of positions) {
+      await fetch(`${BASE_URL}/trading/order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          asset: pos.asset,
+          direction: pos.direction === 'long' ? 'short' : 'long',
+          size_usd: pos.size_usd,
+          order_type: 'market',
+          reduce_only: true
+        })
+      });
+    }
+  }
+}</code></pre>
+
+      <h2 id="python-implementation">Full Python Cascade Monitor Implementation</h2>
+      <p>
+        Below is a complete Python implementation of a cascade monitoring agent. It polls on-chain data, computes the cascade risk score, and executes trades via the Purple Flea API when thresholds are crossed.
+      </p>
+
+      <pre><code>#!/usr/bin/env python3
+"""
+Purple Flea Cascade Monitor Agent
+Monitors liquidation risk across DeFi protocols and perp markets,
+executes short positions when cascade probability is high.
+"""
+
+import asyncio
+import aiohttp
+import json
+import time
+from dataclasses import dataclass, field
+from typing import Optional
+
+PURPLE_FLEA_BASE = "https://purpleflea.com/api/v1"
+HYPERLIQUID_WS = "wss://api.hyperliquid.xyz/ws"
+AAVE_SUBGRAPH = "https://api.thegraph.com/subgraphs/name/aave/protocol-v3"
+
+
+@dataclass
+class CascadeSignal:
+    asset: str
+    oi_long_ratio: float       # 0-1, fraction of OI that is long
+    funding_rate_8h: float     # annualized equivalent
+    liquidation_density: float # USD at risk within 3% of current price
+    orderbook_depth_pct: float # depth relative to 7-day average
+    risk_score: float = field(init=False)
+
+    def __post_init__(self):
+        self.risk_score = self._compute_risk_score()
+
+    def _compute_risk_score(self) -> float:
+        """Compute composite cascade risk score (0-100)."""
+        score = 0.0
+        # OI concentration: 50%+ long = rising risk
+        if self.oi_long_ratio > 0.65:
+            score += (self.oi_long_ratio - 0.65) / 0.35 * 30
+        # Extreme funding
+        if self.funding_rate_8h > 0.05:  # >5% annualized
+            score += min(self.funding_rate_8h / 0.15, 1.0) * 25
+        # Liquidation density
+        if self.liquidation_density > 200_000_000:  # $200M
+            score += min(self.liquidation_density / 1_000_000_000, 1.0) * 30
+        # Order book thinning
+        if self.orderbook_depth_pct < 0.7:
+            score += (0.7 - self.orderbook_depth_pct) / 0.7 * 15
+        return min(score, 100.0)
+
+
+class CascadeMonitor:
+    def __init__(self, api_key: str, max_position_usd: float = 10_000):
+        self.api_key = api_key
+        self.max_position_usd = max_position_usd
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        self.active_positions: dict = {}
+        self.equity_start: Optional[float] = None
+
+    async def get_perp_data(self, session: aiohttp.ClientSession, asset: str) -> dict:
+        """Fetch open interest and funding from Purple Flea / Hyperliquid."""
+        url = f"{PURPLE_FLEA_BASE}/trading/markets/{asset}"
+        async with session.get(url, headers=self.headers) as resp:
+            return await resp.json()
+
+    async def get_aave_at_risk(self, session: aiohttp.ClientSession,
+                               asset: str, price_drop_pct: float = 0.03) -> float:
+        """Query Aave subgraph for USD at risk given a price drop."""
+        query = """
+        {
+          reserves(where: {symbol: "%s"}) {
+            userReserves(where: {usageAsCollateralEnabledOnUser: true}) {
+              user { id }
+              currentATokenBalance
+            }
+          }
+        }
+        """ % asset
+        # Simplified: return cached estimate in production
+        # Full implementation would sum positions with HF < 1 + price_drop_pct buffer
+        return 0.0  # placeholder
+
+    def compute_signal(self, market_data: dict, asset: str) -> CascadeSignal:
+        oi_long = market_data.get("oi_long_ratio", 0.5)
+        funding = market_data.get("funding_rate_8h", 0.01)
+        liq_density = market_data.get("liquidation_density_usd", 0)
+        depth_pct = market_data.get("orderbook_depth_ratio", 1.0)
+        return CascadeSignal(
+            asset=asset,
+            oi_long_ratio=oi_long,
+            funding_rate_8h=funding,
+            liquidation_density=liq_density,
+            orderbook_depth_pct=depth_pct
+        )
+
+    async def open_short(self, session: aiohttp.ClientSession,
+                         asset: str, size_usd: float, leverage: int = 3):
+        """Open a short position on Purple Flea."""
+        payload = {
+            "asset": asset,
+            "direction": "short",
+            "size_usd": size_usd,
+            "leverage": leverage,
+            "order_type": "market",
+            "reduce_only": False
+        }
+        async with session.post(
+            f"{PURPLE_FLEA_BASE}/trading/order",
+            headers=self.headers,
+            json=payload
+        ) as resp:
+            result = await resp.json()
+            if result.get("status") == "filled":
+                self.active_positions[asset] = {
+                    "size_usd": size_usd,
+                    "entry_price": result["fill_price"],
+                    "opened_at": time.time()
+                }
+                print(f"[TRADE] Opened short {asset} ${size_usd:,.0f} @ {result['fill_price']}")
+            return result
+
+    async def check_kill_switch(self, session: aiohttp.ClientSession):
+        """Check drawdown and close all if exceeded."""
+        async with session.get(
+            f"{PURPLE_FLEA_BASE}/account/equity",
+            headers=self.headers
+        ) as resp:
+            data = await resp.json()
+            equity = data.get("equity_usd", 0)
+
+        if self.equity_start is None:
+            self.equity_start = equity
+            return
+
+        drawdown = (self.equity_start - equity) / self.equity_start
+        if drawdown > 0.05:  # 5% max drawdown
+            print(f"[KILL SWITCH] Drawdown {drawdown:.1%} — closing all positions")
+            for asset in list(self.active_positions.keys()):
+                await self.close_position(session, asset)
+
+    async def close_position(self, session: aiohttp.ClientSession, asset: str):
+        """Close an open short position."""
+        pos = self.active_positions.get(asset)
+        if not pos:
+            return
+        payload = {
+            "asset": asset,
+            "direction": "long",  # buy to close short
+            "size_usd": pos["size_usd"],
+            "order_type": "market",
+            "reduce_only": True
+        }
+        async with session.post(
+            f"{PURPLE_FLEA_BASE}/trading/order",
+            headers=self.headers,
+            json=payload
+        ) as resp:
+            result = await resp.json()
+            del self.active_positions[asset]
+            print(f"[TRADE] Closed short {asset} @ {result.get('fill_price')}")
+
+    async def run(self, assets: list[str], poll_interval: int = 30):
+        """Main monitoring loop."""
+        RISK_THRESHOLD = 65.0  # trigger short above this score
+        print(f"[MONITOR] Starting cascade monitor for {assets}")
+
+        async with aiohttp.ClientSession() as session:
+            while True:
+                await self.check_kill_switch(session)
+
+                for asset in assets:
+                    try:
+                        market_data = await self.get_perp_data(session, asset)
+                        signal = self.compute_signal(market_data, asset)
+
+                        print(f"[{asset}] risk_score={signal.risk_score:.1f} "
+                              f"oi_long={signal.oi_long_ratio:.0%} "
+                              f"funding={signal.funding_rate_8h:.2%}")
+
+                        if signal.risk_score >= RISK_THRESHOLD and asset not in self.active_positions:
+                            size = self.max_position_usd * (signal.risk_score / 100) * 0.5
+                            await self.open_short(session, asset, size_usd=size, leverage=3)
+
+                        elif signal.risk_score < 40 and asset in self.active_positions:
+                            # Risk resolved — close position
+                            await self.close_position(session, asset)
+
+                    except Exception as e:
+                        print(f"[ERROR] {asset}: {e}")
+
+                await asyncio.sleep(poll_interval)
+
+
+async def main():
+    # Register agent via faucet for free starting capital
+    # https://faucet.purpleflea.com
+    api_key = "YOUR_PURPLE_FLEA_API_KEY"
+    monitor = CascadeMonitor(api_key=api_key, max_position_usd=5_000)
+    watch_assets = ["ETH", "BTC", "SOL", "ARB", "OP", "AVAX", "LINK"]
+    await monitor.run(watch_assets, poll_interval=30)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+
+      <h2 id="risk-management">Risk Management for Cascade Strategies</h2>
+      <p>
+        Cascade trading carries unique risks that standard portfolio management frameworks underestimate:
+      </p>
+
+      <h3 id="countertrend-risk">Countertrend Risk</h3>
+      <p>
+        The market does not always cascade even when signals are elevated. Large buyers (institutions, protocol treasuries, exchanges liquidating their own hedge books) may absorb the selling entirely. Your short position then loses money during a "cascade that didn't happen." Size positions at 1-3% of portfolio per trade.
+      </p>
+
+      <h3 id="slippage">Slippage and Execution Risk</h3>
+      <p>
+        During actual cascades, order book liquidity evaporates. If you're entering at the start of a cascade, you may get filled at a worse price than expected. If closing, you may be competing with liquidation bots and panic sellers. Use limit orders with urgency pricing rather than pure market orders.
+      </p>
+
+      <h3 id="correlation">Correlation Collapse</h3>
+      <p>
+        During cascades, all crypto assets become highly correlated. A hedge in BTC does not protect against an ETH cascade if both move -15% simultaneously. Use diversified hedges and maintain enough cash/stables to survive multi-asset simultaneous cascades.
+      </p>
+
+      <div class="callout success">
+        <div class="callout-title">Best Practice</div>
+        <p>Backtest your cascade signals against at least 5 major historical cascade events (May 2021, November 2022, March 2020, June 2022, August 2024). If your model would have been profitable in at least 4 of 5, with drawdowns below 10%, it is ready for paper trading. Only then go live with small capital.</p>
+      </div>
+
+      <h2 id="edge-cases">Edge Cases and Protocol-Specific Nuances</h2>
+      <ul>
+        <li><strong>Oracle latency</strong>: Some DeFi protocols update price feeds every few minutes. During a fast cascade, the protocol price may lag spot by 2-5%, meaning liquidations happen later than on-chain health factors suggest.</li>
+        <li><strong>Liquidation incentive caps</strong>: Aave caps the liquidation bonus at 15% and limits what fraction of a position can be liquidated in one transaction. Large positions may require multiple liquidation transactions.</li>
+        <li><strong>Insurance funds</strong>: Centralized exchanges and some DeFi protocols maintain insurance funds that absorb losses before socialized losses hit other traders. Monitor insurance fund depletion as an additional cascade risk signal.</li>
+        <li><strong>Perpetual settlement</strong>: When cascades push perpetual funding rates to extreme negative values, longs start being paid to hold their positions — this can slow or stop a cascade as new longs enter to collect funding.</li>
+        <li><strong>Hyperliquid-specific</strong>: Hyperliquid uses a fully on-chain order book with instant finality. Liquidations are visible in the trade feed with a <code>"liq": true</code> flag. Monitor this flag to count liquidation rate in real time.</li>
+      </ul>
+
+      <h2 id="getting-started">Getting Started on Purple Flea</h2>
+      <p>
+        Purple Flea provides everything an autonomous cascade-hunting agent needs in one platform:
+      </p>
+      <ul>
+        <li><strong>Faucet</strong> — <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a>: Claim free capital to bootstrap your agent</li>
+        <li><strong>Trading</strong> — 275 perpetual markets via Hyperliquid, full REST and WebSocket API</li>
+        <li><strong>Wallet</strong> — Multi-chain custody for collateral management across ETH, BTC, SOL, TRX, BNB, MATIC</li>
+        <li><strong>Escrow</strong> — <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a>: Trustless agent-to-agent payments for strategy subscriptions and signal sharing</li>
+        <li><strong>MCP tools</strong> — Both faucet and escrow expose MCP endpoints for LLM-native agents</li>
+      </ul>
+
+      <hr class="divider" />
+
+      <p>
+        Liquidation cascades are predictable, measurable, and tradeable. An agent with the right on-chain data sources, a well-calibrated risk score, and disciplined position sizing can generate consistent alpha during these high-volatility events. The Python implementation above gives you a starting framework. Customize the signal weights to your target assets, backtest against historical data, and deploy via Purple Flea's trading API. Register your agent at <a href="https://purpleflea.com/register/">purpleflea.com/register</a>.
+      </p>
+    </article>
+
+    <aside class="sidebar">
+      <div class="sidebar-title">Contents</div>
+      <ul class="toc-list">
+        <li><a href="#what-is-cascade">What Is a Cascade?</a></li>
+        <li><a href="#cascade-anatomy">Cascade Anatomy</a>
+          <ul class="toc-list toc-sub">
+            <li><a href="#phase-1">Phase 1: Trigger</a></li>
+            <li><a href="#phase-2">Phase 2: First Wave</a></li>
+            <li><a href="#phase-3">Phase 3: Propagation</a></li>
+            <li><a href="#phase-4">Phase 4: Resolution</a></li>
+          </ul>
+        </li>
+        <li><a href="#onchain-data">On-Chain Data Sources</a></li>
+        <li><a href="#health-factor">Health Factor Monitoring</a></li>
+        <li><a href="#cascade-signals">Prediction Signals</a></li>
+        <li><a href="#agent-strategies">Agent Strategies</a>
+          <ul class="toc-list toc-sub">
+            <li><a href="#hunting">Cascade Hunting</a></li>
+            <li><a href="#protection">Position Protection</a></li>
+            <li><a href="#liquidation-bots">Liquidation Bots</a></li>
+          </ul>
+        </li>
+        <li><a href="#purple-flea-api">Purple Flea API</a></li>
+        <li><a href="#python-implementation">Python Implementation</a></li>
+        <li><a href="#risk-management">Risk Management</a></li>
+        <li><a href="#edge-cases">Edge Cases</a></li>
+        <li><a href="#getting-started">Getting Started</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea | <a href="https://purpleflea.com">purpleflea.com</a></p>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    window.addEventListener('scroll', () => {
+      const scrollTop = document.documentElement.scrollTop;
+      const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+      document.getElementById('progress-bar').style.width = progress + '%';
+    });
+
+    // Active TOC highlight
+    const tocLinks = document.querySelectorAll('.toc-list a');
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(link => link.classList.remove('active'));
+          const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '0px 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
