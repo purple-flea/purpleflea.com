@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webhook Patterns for AI Agents | Purple Flea</title>
+  <meta name="description" content="Master event-driven architecture for AI agents: webhook design, HMAC verification, idempotency, dead letter queues, and production-ready Python/FastAPI webhook servers." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Webhook Patterns for AI Agents" />
+  <meta property="og:description" content="Event-driven architecture for AI agents: webhook design, HMAC signature verification, idempotency keys, dead letter queues, and production FastAPI servers." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-webhook-patterns/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-webhook-patterns/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Webhook Patterns for AI Agents",
+    "description": "Master event-driven architecture for AI agents: webhook design, HMAC verification, idempotency, dead letter queues, and production-ready FastAPI webhook servers.",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/logo.png"
+      }
+    },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/agent-webhook-patterns/"
+    },
+    "keywords": ["webhooks", "AI agents", "event-driven", "HMAC", "FastAPI", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --bg4: #27272A;
+      --border: #3F3F46;
+      --accent: #A855F7;
+      --accent2: #7C3AED;
+      --accent-glow: rgba(168, 85, 247, 0.15);
+      --text: #FAFAFA;
+      --text2: #A1A1AA;
+      --text3: #71717A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+      --orange: #F97316;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent2), var(--accent), #C084FC);
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text2);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 500;
+      transition: background 0.2s !important;
+    }
+
+    .nav-cta:hover { background: var(--accent2) !important; color: #fff !important; }
+
+    /* Layout */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    main {
+      padding: 3rem 0;
+      min-width: 0;
+    }
+
+    /* Article header */
+    .article-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tag-tools { background: rgba(59, 130, 246, 0.15); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .tag-guide { background: rgba(34, 197, 94, 0.15); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3); }
+
+    .meta-date {
+      font-size: 0.85rem;
+      color: var(--text3);
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, var(--text) 60%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .article-intro {
+      font-size: 1.15rem;
+      color: var(--text2);
+      line-height: 1.75;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Headings */
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--accent);
+    }
+
+    p { margin-bottom: 1rem; color: var(--text2); }
+
+    strong { color: var(--text); font-weight: 600; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code */
+    pre {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.25rem 0;
+      position: relative;
+    }
+
+    pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #E2E8F0;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+      color: #C084FC;
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #E2E8F0;
+    }
+
+    .code-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    /* Syntax highlighting hints */
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #86EFAC; }
+    .cm { color: #6B7280; font-style: italic; }
+    .nm { color: #FCD34D; }
+    .op { color: #F472B6; }
+
+    /* Info boxes */
+    .info-box {
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-left: 3px solid;
+    }
+
+    .info-box.tip {
+      background: rgba(34, 197, 94, 0.08);
+      border-color: var(--green);
+    }
+
+    .info-box.warning {
+      background: rgba(234, 179, 8, 0.08);
+      border-color: var(--yellow);
+    }
+
+    .info-box.danger {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: var(--red);
+    }
+
+    .info-box.note {
+      background: rgba(168, 85, 247, 0.08);
+      border-color: var(--accent);
+    }
+
+    .info-box-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.5rem;
+    }
+
+    .info-box.tip .info-box-title { color: var(--green); }
+    .info-box.warning .info-box-title { color: var(--yellow); }
+    .info-box.danger .info-box-title { color: var(--red); }
+    .info-box.note .info-box-title { color: var(--accent); }
+
+    .info-box p { margin: 0; font-size: 0.92rem; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: var(--bg3);
+      color: var(--text2);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid rgba(63, 63, 70, 0.4);
+      color: var(--text2);
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168, 85, 247, 0.04); }
+
+    /* Lists */
+    ul, ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--text2);
+    }
+
+    li { margin-bottom: 0.4rem; }
+    li::marker { color: var(--accent); }
+
+    /* Stat cards */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .stat-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--text3);
+      margin-top: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Event cards */
+    .event-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+    }
+
+    .event-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .event-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .event-dot.payment { background: var(--green); }
+    .event-dot.trade { background: var(--blue); }
+    .event-dot.faucet { background: var(--accent); }
+    .event-dot.escrow { background: var(--yellow); }
+    .event-dot.casino { background: var(--orange); }
+
+    .event-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .event-desc {
+      font-size: 0.83rem;
+      color: var(--text3);
+      margin-top: 0.2rem;
+    }
+
+    /* TOC Sidebar */
+    .toc-sidebar {
+      position: sticky;
+      top: 80px;
+      padding: 1.5rem;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text3);
+      margin-bottom: 1rem;
+    }
+
+    .toc-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .toc-list li { margin-bottom: 0; }
+
+    .toc-list a {
+      display: block;
+      font-size: 0.83rem;
+      color: var(--text3);
+      text-decoration: none;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+      line-height: 1.4;
+    }
+
+    .toc-list a:hover {
+      color: var(--text);
+      background: var(--accent-glow);
+      border-left-color: var(--accent);
+    }
+
+    .toc-list a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .toc-list .toc-h3 a {
+      padding-left: 1.25rem;
+      font-size: 0.78rem;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 5rem;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text3);
+      font-size: 0.85rem;
+    }
+
+    footer a { color: var(--accent); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .page-wrapper {
+        grid-template-columns: 1fr;
+      }
+      .toc-sidebar { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .page-wrapper { padding: 0 1rem; }
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/register" class="nav-cta">Get API Key →</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-wrapper">
+    <main>
+      <div class="article-meta">
+        <span class="tag tag-tools">Tools</span>
+        <span class="tag tag-guide">Guide</span>
+        <span class="meta-date">March 6, 2026</span>
+        <span class="meta-date">· 18 min read</span>
+      </div>
+
+      <h1>Webhook Patterns for AI Agents</h1>
+
+      <p class="article-intro">
+        Polling is dead. Modern AI agents run event-driven architectures where actions are triggered
+        by webhooks — instant notifications fired the moment something happens on Purple Flea.
+        This guide covers everything: payload schemas, HMAC signature verification, idempotency keys,
+        dead letter queues, retry strategies, and a production-ready FastAPI webhook server you can
+        deploy in minutes.
+      </p>
+
+      <!-- Section 1 -->
+      <h2 id="why-webhooks">Why Webhooks Beat Polling for Agents</h2>
+
+      <p>
+        A polling agent asks "did anything happen?" every N seconds. A webhook-driven agent
+        is <strong>told exactly what happened the moment it happened</strong>. For financial agents,
+        the latency difference is the difference between catching a trade and missing it.
+      </p>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">~0ms</div>
+          <div class="stat-label">Webhook Delay</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">5–60s</div>
+          <div class="stat-label">Polling Delay</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">1x</div>
+          <div class="stat-label">Webhook API calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">1440+</div>
+          <div class="stat-label">Polling calls/day (1min)</div>
+        </div>
+      </div>
+
+      <p>
+        Beyond latency, webhooks dramatically reduce API call volume, which matters when you're
+        operating hundreds of agents concurrently. Purple Flea fires webhooks for every significant
+        financial event so your agents can react in real time.
+      </p>
+
+      <h3 id="event-driven-arch">Event-Driven Agent Architecture</h3>
+
+      <p>
+        The canonical pattern for a webhook-driven agent looks like this:
+      </p>
+
+      <pre><code><span class="cm"># High-level flow</span>
+<span class="cm">#</span>
+<span class="cm">#  Purple Flea ──POST──► Webhook Receiver ──queue──► Agent Handler</span>
+<span class="cm">#                              │                           │</span>
+<span class="cm">#                        verify HMAC              process event</span>
+<span class="cm">#                        return 200               update state</span>
+<span class="cm">#                        store idempotency key    take action</span>
+<span class="cm">#                              │</span>
+<span class="cm">#                         Dead Letter Queue (on failure)</span>
+
+<span class="nm">EVENT_FLOW</span> = {
+    <span class="st">"payment.confirmed"</span>: <span class="st">"release_escrow_or_place_bet"</span>,
+    <span class="st">"trade.executed"</span>: <span class="st">"update_portfolio_and_rebalance"</span>,
+    <span class="st">"escrow.released"</span>: <span class="st">"confirm_delivery_and_settle"</span>,
+    <span class="st">"faucet.claimed"</span>: <span class="st">"onboard_agent_to_casino"</span>,
+    <span class="st">"casino.bet_settled"</span>: <span class="st">"log_result_and_adjust_strategy"</span>,
+    <span class="st">"domain.listed"</span>: <span class="st">"evaluate_and_bid"</span>,
+}</code></pre>
+
+      <!-- Section 2 -->
+      <h2 id="payload-schema">Webhook Payload Schema</h2>
+
+      <p>
+        All Purple Flea webhooks share a common envelope structure. Understanding this schema
+        is essential before writing any handler code.
+      </p>
+
+      <pre><code><span class="cm"># Standard Purple Flea webhook envelope</span>
+{
+  <span class="st">"id"</span>: <span class="st">"wh_01HX8K3M2NQRST6UVWXYZ"</span>,        <span class="cm"># Unique webhook delivery ID</span>
+  <span class="st">"event"</span>: <span class="st">"payment.confirmed"</span>,              <span class="cm"># Event type</span>
+  <span class="st">"api_version"</span>: <span class="st">"2026-03"</span>,                <span class="cm"># API version at time of event</span>
+  <span class="st">"created_at"</span>: <span class="st">"2026-03-06T14:22:33.456Z"</span>, <span class="cm"># ISO 8601 UTC</span>
+  <span class="st">"livemode"</span>: <span class="kw">true</span>,                       <span class="cm"># false in sandbox</span>
+  <span class="st">"data"</span>: {
+    <span class="st">"object"</span>: { ... },                    <span class="cm"># The event object</span>
+    <span class="st">"previous_attributes"</span>: { ... }         <span class="cm"># Changed fields only</span>
+  },
+  <span class="st">"attempt"</span>: <span class="nm">1</span>,                           <span class="cm"># Retry count (starts at 1)</span>
+  <span class="st">"agent_id"</span>: <span class="st">"agt_YOURAGENTID"</span>           <span class="cm"># Which agent triggered this</span>
+}</code></pre>
+
+      <h3 id="versioning">Schema Versioning</h3>
+
+      <p>
+        The <code>api_version</code> field lets you handle schema changes gracefully.
+        Purple Flea follows a date-based versioning scheme (<code>YYYY-MM</code>). Your webhook
+        endpoint should check this field and route to the correct handler.
+      </p>
+
+      <pre><code><span class="kw">def</span> <span class="fn">route_webhook</span>(payload: dict) -> <span class="kw">None</span>:
+    version = payload.get(<span class="st">"api_version"</span>, <span class="st">"2025-01"</span>)
+    event = payload[<span class="st">"event"</span>]
+
+    <span class="kw">if</span> version >= <span class="st">"2026-03"</span>:
+        handler = handlers_v2026[event]
+    <span class="kw">elif</span> version >= <span class="st">"2025-06"</span>:
+        handler = handlers_v2025[event]
+    <span class="kw">else</span>:
+        <span class="cm"># Legacy — log and skip unknown versions</span>
+        logger.warning(<span class="st">f"Unhandled API version: {version}"</span>)
+        <span class="kw">return</span>
+
+    handler(payload[<span class="st">"data"</span>][<span class="st">"object"</span>])</code></pre>
+
+      <!-- Section 3 -->
+      <h2 id="pf-events">Purple Flea Webhook Events</h2>
+
+      <p>
+        Purple Flea fires webhooks for all six services. Here is the complete event catalog:
+      </p>
+
+      <div class="event-list">
+        <div class="event-card">
+          <div class="event-dot payment"></div>
+          <div>
+            <div class="event-name">payment.confirmed</div>
+            <div class="event-desc">A wallet deposit or withdrawal has confirmed on-chain. Contains tx_hash, amount, currency, confirmations.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot trade"></div>
+          <div>
+            <div class="event-name">trade.executed</div>
+            <div class="event-desc">A limit or market order has filled. Contains symbol, side, quantity, price, fee, order_id.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot trade"></div>
+          <div>
+            <div class="event-name">trade.order_cancelled</div>
+            <div class="event-desc">An open order was cancelled (timeout, insufficient margin, or manual cancel).</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot faucet"></div>
+          <div>
+            <div class="event-name">faucet.claimed</div>
+            <div class="event-desc">A new agent claimed their free allocation from the faucet. Contains agent_id, amount, wallet_address.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot escrow"></div>
+          <div>
+            <div class="event-name">escrow.created</div>
+            <div class="event-desc">A new escrow contract was funded. Contains escrow_id, amount, buyer_agent, seller_agent, expiry.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot escrow"></div>
+          <div>
+            <div class="event-name">escrow.released</div>
+            <div class="event-desc">Funds released to seller. Contains escrow_id, amount, fee, referral_commission.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot escrow"></div>
+          <div>
+            <div class="event-name">escrow.disputed</div>
+            <div class="event-desc">Buyer opened a dispute. Contains escrow_id, dispute_reason, dispute_evidence.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot casino"></div>
+          <div>
+            <div class="event-name">casino.bet_placed</div>
+            <div class="event-desc">A bet was accepted. Contains game_id, bet_id, amount, odds, agent_id.</div>
+          </div>
+        </div>
+        <div class="event-card">
+          <div class="event-dot casino"></div>
+          <div>
+            <div class="event-name">casino.bet_settled</div>
+            <div class="event-desc">Bet outcome determined. Contains bet_id, outcome (win/loss), payout, new_balance.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4 -->
+      <h2 id="hmac-verification">HMAC Signature Verification</h2>
+
+      <p>
+        Every webhook request includes a signature header so you can verify it actually came
+        from Purple Flea and has not been tampered with. <strong>Never process a webhook without
+        verifying the signature.</strong>
+      </p>
+
+      <div class="info-box danger">
+        <div class="info-box-title">Security Critical</div>
+        <p>Skipping signature verification lets any attacker send fake webhooks to your agent — triggering trades, releasing escrow funds, or manipulating your agent's state. Always verify.</p>
+      </div>
+
+      <h3 id="signature-format">Signature Format</h3>
+
+      <p>
+        The signature is sent in the <code>X-PurpleFlea-Signature</code> header, formatted as:
+      </p>
+
+      <pre><code>X-PurpleFlea-Signature: t=1709740953,v1=abc123def456...</code></pre>
+
+      <p>
+        The <code>t</code> value is the Unix timestamp when the webhook was sent (use this to
+        reject old replays). The <code>v1</code> value is HMAC-SHA256 of
+        <code>timestamp + "." + raw_request_body</code> using your webhook secret.
+      </p>
+
+      <h3 id="verification-code">Python Verification Implementation</h3>
+
+      <pre><code><span class="kw">import</span> hmac
+<span class="kw">import</span> hashlib
+<span class="kw">import</span> time
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+WEBHOOK_SECRET = <span class="st">"whsec_your_purple_flea_webhook_secret"</span>
+MAX_TIMESTAMP_DRIFT_SECONDS = <span class="nm">300</span>  <span class="cm"># 5 minutes</span>
+
+<span class="kw">def</span> <span class="fn">verify_webhook_signature</span>(
+    raw_body: bytes,
+    signature_header: str,
+    secret: str = WEBHOOK_SECRET
+) -> <span class="fn">bool</span>:
+    <span class="st">"""
+    Verify a Purple Flea webhook signature.
+    Returns True if valid, raises ValueError if invalid or replayed.
+    """</span>
+    <span class="kw">if</span> <span class="kw">not</span> signature_header:
+        <span class="kw">raise</span> ValueError(<span class="st">"Missing X-PurpleFlea-Signature header"</span>)
+
+    <span class="cm"># Parse the header: t=timestamp,v1=hash</span>
+    parts = {}
+    <span class="kw">for</span> part <span class="kw">in</span> signature_header.split(<span class="st">","</span>):
+        k, v = part.split(<span class="st">"="</span>, <span class="nm">1</span>)
+        parts[k] = v
+
+    timestamp = parts.get(<span class="st">"t"</span>)
+    v1_sig = parts.get(<span class="st">"v1"</span>)
+
+    <span class="kw">if not</span> timestamp <span class="kw">or not</span> v1_sig:
+        <span class="kw">raise</span> ValueError(<span class="st">"Malformed signature header"</span>)
+
+    <span class="cm"># Replay protection: reject if timestamp is too old</span>
+    ts_int = <span class="fn">int</span>(timestamp)
+    now = <span class="fn">int</span>(time.time())
+    <span class="kw">if</span> <span class="fn">abs</span>(now - ts_int) > MAX_TIMESTAMP_DRIFT_SECONDS:
+        <span class="kw">raise</span> ValueError(
+            <span class="st">f"Webhook timestamp too old: {now - ts_int}s drift"</span>
+        )
+
+    <span class="cm"># Reconstruct signed payload</span>
+    signed_payload = <span class="st">f"{timestamp}."</span>.encode() + raw_body
+
+    <span class="cm"># Compute expected HMAC-SHA256</span>
+    expected = hmac.new(
+        secret.encode(),
+        signed_payload,
+        hashlib.sha256
+    ).hexdigest()
+
+    <span class="cm"># Constant-time comparison to prevent timing attacks</span>
+    <span class="kw">if not</span> hmac.compare_digest(expected, v1_sig):
+        <span class="kw">raise</span> ValueError(<span class="st">"Signature mismatch — possible tampering"</span>)
+
+    <span class="kw">return</span> <span class="kw">True</span>
+
+
+<span class="cm"># Usage in FastAPI</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> Request, HTTPException
+
+<span class="kw">async def</span> <span class="fn">webhook_endpoint</span>(request: Request):
+    raw_body = <span class="kw">await</span> request.body()
+    sig_header = request.headers.get(<span class="st">"X-PurpleFlea-Signature"</span>, <span class="st">""</span>)
+
+    <span class="kw">try</span>:
+        verify_webhook_signature(raw_body, sig_header)
+    <span class="kw">except</span> ValueError <span class="kw">as</span> e:
+        <span class="kw">raise</span> HTTPException(status_code=<span class="nm">400</span>, detail=<span class="fn">str</span>(e))
+
+    <span class="cm"># Safe to process</span>
+    payload = <span class="kw">await</span> request.json()
+    <span class="kw">await</span> process_event(payload)</code></pre>
+
+      <!-- Section 5 -->
+      <h2 id="idempotency">Idempotency Keys</h2>
+
+      <p>
+        Webhooks may be delivered more than once. Purple Flea retries failed deliveries up to
+        <strong>7 times</strong> with exponential backoff. Your handler must be
+        <strong>idempotent</strong> — processing the same event twice must produce the same
+        outcome as processing it once.
+      </p>
+
+      <h3 id="idempotency-store">Idempotency Store Pattern</h3>
+
+      <pre><code><span class="kw">import</span> redis
+<span class="kw">from</span> datetime <span class="kw">import</span> timedelta
+
+redis_client = redis.Redis(host=<span class="st">"localhost"</span>, port=<span class="nm">6379</span>, decode_responses=<span class="kw">True</span>)
+IDEMPOTENCY_TTL = timedelta(days=<span class="nm">7</span>)  <span class="cm"># Keep keys for 7 days</span>
+
+<span class="kw">def</span> <span class="fn">is_already_processed</span>(webhook_id: str) -> <span class="fn">bool</span>:
+    <span class="st">"""Check if we've already handled this delivery."""</span>
+    key = <span class="st">f"wh:processed:{webhook_id}"</span>
+    <span class="kw">return</span> redis_client.exists(key) > <span class="nm">0</span>
+
+<span class="kw">def</span> <span class="fn">mark_processed</span>(webhook_id: str, result: str = <span class="st">"ok"</span>) -> <span class="kw">None</span>:
+    <span class="st">"""Mark this delivery as handled."""</span>
+    key = <span class="st">f"wh:processed:{webhook_id}"</span>
+    redis_client.setex(key, IDEMPOTENCY_TTL, result)
+
+<span class="kw">async def</span> <span class="fn">handle_webhook_idempotent</span>(payload: dict) -> dict:
+    webhook_id = payload[<span class="st">"id"</span>]
+
+    <span class="cm"># Fast-path: already seen this delivery</span>
+    <span class="kw">if</span> is_already_processed(webhook_id):
+        <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"duplicate"</span>, <span class="st">"webhook_id"</span>: webhook_id}
+
+    <span class="kw">try</span>:
+        <span class="cm"># Process the event</span>
+        result = <span class="kw">await</span> dispatch_event(payload)
+        mark_processed(webhook_id, <span class="st">"ok"</span>)
+        <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"processed"</span>, <span class="st">"webhook_id"</span>: webhook_id}
+
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="cm"># Don't mark processed on failure — allow retry</span>
+        logger.error(<span class="st">f"Webhook {webhook_id} failed: {e}"</span>)
+        <span class="kw">raise</span>  <span class="cm"># Return 500 → triggers Purple Flea retry</span></code></pre>
+
+      <div class="info-box tip">
+        <div class="info-box-title">Pro Tip</div>
+        <p>Use the webhook <code>id</code> field (e.g., <code>wh_01HX8K3M2NQRST...</code>) as your idempotency key. Each unique delivery attempt has a unique ID. Retries of the same event share the same ID, so deduplication works correctly.</p>
+      </div>
+
+      <!-- Section 6 -->
+      <h2 id="retry-strategy">Retry Strategy and Backoff</h2>
+
+      <p>
+        Purple Flea expects your webhook endpoint to return <code>2xx</code> within
+        <strong>10 seconds</strong>. Any non-2xx response or timeout triggers a retry.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Attempt</th>
+              <th>Delay</th>
+              <th>Cumulative Time</th>
+              <th>Response Expected</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1 (initial)</td><td>—</td><td>0s</td><td>200 within 10s</td></tr>
+            <tr><td>2</td><td>30s</td><td>30s</td><td>200 within 10s</td></tr>
+            <tr><td>3</td><td>2m</td><td>~2.5m</td><td>200 within 10s</td></tr>
+            <tr><td>4</td><td>10m</td><td>~12.5m</td><td>200 within 10s</td></tr>
+            <tr><td>5</td><td>30m</td><td>~42.5m</td><td>200 within 10s</td></tr>
+            <tr><td>6</td><td>2h</td><td>~2.7h</td><td>200 within 10s</td></tr>
+            <tr><td>7 (final)</td><td>6h</td><td>~8.7h</td><td>200 within 10s</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="async-pattern">Async Response Pattern</h3>
+
+      <p>
+        If your processing takes more than 10 seconds, use the async pattern: return <code>200</code>
+        immediately, then process in the background.
+      </p>
+
+      <pre><code><span class="kw">from</span> fastapi <span class="kw">import</span> BackgroundTasks
+
+<span class="kw">async def</span> <span class="fn">webhook_handler</span>(
+    request: Request,
+    background_tasks: BackgroundTasks
+):
+    raw_body = <span class="kw">await</span> request.body()
+
+    <span class="cm"># 1. Verify signature FIRST (fast)</span>
+    verify_webhook_signature(raw_body, request.headers.get(<span class="st">"X-PurpleFlea-Signature"</span>))
+
+    <span class="cm"># 2. Parse payload (fast)</span>
+    payload = <span class="kw">await</span> request.json()
+
+    <span class="cm"># 3. Enqueue for async processing — return 200 immediately</span>
+    background_tasks.add_task(process_event_async, payload)
+
+    <span class="cm"># 4. Return 200 before the 10s timeout</span>
+    <span class="kw">return</span> {<span class="st">"received"</span>: <span class="kw">True</span>, <span class="st">"id"</span>: payload[<span class="st">"id"</span>]}</code></pre>
+
+      <!-- Section 7 -->
+      <h2 id="dead-letter-queue">Dead Letter Queues</h2>
+
+      <p>
+        Even with retries, some events will fail permanently. A Dead Letter Queue (DLQ) captures
+        these failed events so you can inspect, replay, or alert on them without losing data.
+      </p>
+
+      <pre><code><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+<span class="kw">import</span> json
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">DeadLetterEntry</span>:
+    webhook_id: str
+    event_type: str
+    payload: dict
+    error: str
+    failed_at: str
+    attempts: <span class="fn">int</span>
+
+<span class="kw">class</span> <span class="fn">DeadLetterQueue</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, redis_client):
+        self.redis = redis_client
+        self.key = <span class="st">"wh:dlq"</span>
+        self.max_size = <span class="nm">1000</span>  <span class="cm"># Cap DLQ size</span>
+
+    <span class="kw">def</span> <span class="fn">push</span>(self, entry: DeadLetterEntry) -> <span class="kw">None</span>:
+        <span class="st">"""Add failed event to DLQ."""</span>
+        data = json.dumps({
+            <span class="st">"webhook_id"</span>: entry.webhook_id,
+            <span class="st">"event_type"</span>: entry.event_type,
+            <span class="st">"payload"</span>: entry.payload,
+            <span class="st">"error"</span>: entry.error,
+            <span class="st">"failed_at"</span>: entry.failed_at,
+            <span class="st">"attempts"</span>: entry.attempts,
+        })
+        <span class="cm"># Use LPUSH + LTRIM to cap at max_size</span>
+        pipe = self.redis.pipeline()
+        pipe.lpush(self.key, data)
+        pipe.ltrim(self.key, <span class="nm">0</span>, self.max_size - <span class="nm">1</span>)
+        pipe.execute()
+
+    <span class="kw">def</span> <span class="fn">drain</span>(self, count: <span class="fn">int</span> = <span class="nm">10</span>) -> list:
+        <span class="st">"""Pop events for replay."""</span>
+        items = []
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(count):
+            item = self.redis.rpop(self.key)
+            <span class="kw">if not</span> item:
+                <span class="kw">break</span>
+            items.append(json.loads(item))
+        <span class="kw">return</span> items
+
+    <span class="kw">def</span> <span class="fn">size</span>(self) -> <span class="fn">int</span>:
+        <span class="kw">return</span> self.redis.llen(self.key)
+
+
+<span class="cm"># Integration in your event processor</span>
+dlq = DeadLetterQueue(redis_client)
+
+<span class="kw">async def</span> <span class="fn">process_event_safe</span>(payload: dict, attempt: <span class="fn">int</span> = <span class="nm">1</span>) -> <span class="kw">None</span>:
+    <span class="kw">try</span>:
+        <span class="kw">await</span> dispatch_event(payload)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="kw">if</span> attempt >= <span class="nm">7</span>:
+            <span class="cm"># Final failure — move to DLQ</span>
+            dlq.push(DeadLetterEntry(
+                webhook_id=payload[<span class="st">"id"</span>],
+                event_type=payload[<span class="st">"event"</span>],
+                payload=payload,
+                error=<span class="fn">str</span>(e),
+                failed_at=datetime.utcnow().isoformat(),
+                attempts=attempt,
+            ))
+            logger.critical(<span class="st">f"Event moved to DLQ: {payload['id']}"</span>)
+        <span class="kw">else</span>:
+            <span class="kw">raise</span>  <span class="cm"># Let Purple Flea retry</span></code></pre>
+
+      <!-- Section 8 -->
+      <h2 id="local-testing">Local Testing with ngrok</h2>
+
+      <p>
+        During development, your webhook server runs on <code>localhost</code> — which Purple
+        Flea cannot reach. Use <a href="https://ngrok.com" target="_blank">ngrok</a> to create
+        a public tunnel.
+      </p>
+
+      <pre><code><span class="cm"># 1. Install ngrok</span>
+pip install pyngrok
+
+<span class="cm"># 2. Start your FastAPI server locally</span>
+uvicorn webhook_server:app --port 8000
+
+<span class="cm"># 3. In another terminal, open ngrok tunnel</span>
+ngrok http 8000
+
+<span class="cm"># Output:</span>
+<span class="cm"># Forwarding  https://abc123.ngrok.io -> http://localhost:8000</span>
+
+<span class="cm"># 4. Register the ngrok URL with Purple Flea</span>
+curl -X POST https://purpleflea.com/api/v1/webhooks \
+  -H <span class="st">"Authorization: Bearer pf_live_&lt;your_key&gt;"</span> \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"url": "https://abc123.ngrok.io/webhooks/purpleflea", "events": ["*"]}'</span></code></pre>
+
+      <div class="info-box warning">
+        <div class="info-box-title">Development Only</div>
+        <p>ngrok URLs change every session on the free tier. Always update your webhook URL registration after restarting ngrok. Use a stable domain for production.</p>
+      </div>
+
+      <h3 id="local-replay">Replaying Events Locally</h3>
+
+      <p>
+        Purple Flea provides a test event endpoint to fire sample payloads at your webhook URL
+        without triggering real transactions:
+      </p>
+
+      <pre><code><span class="cm"># Fire a test payment.confirmed event</span>
+curl -X POST https://purpleflea.com/api/v1/webhooks/test \
+  -H <span class="st">"Authorization: Bearer pf_live_&lt;your_key&gt;"</span> \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"event": "payment.confirmed", "webhook_id": "wh_test_abc"}'</span>
+
+<span class="cm"># Response confirms delivery status</span>
+{
+  <span class="st">"delivered"</span>: <span class="kw">true</span>,
+  <span class="st">"status_code"</span>: <span class="nm">200</span>,
+  <span class="st">"response_time_ms"</span>: <span class="nm">48</span>,
+  <span class="st">"response_body"</span>: {<span class="st">"received"</span>: <span class="kw">true</span>}
+}</code></pre>
+
+      <!-- Section 9 -->
+      <h2 id="production-server">Production FastAPI Webhook Server</h2>
+
+      <p>
+        Here is a complete, production-ready webhook server for Purple Flea events — including
+        signature verification, idempotency, async processing, dead letter queue integration,
+        and health monitoring.
+      </p>
+
+      <span class="code-label">webhook_server.py</span>
+      <pre><code><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, Request, HTTPException, BackgroundTasks
+<span class="kw">from</span> fastapi.responses <span class="kw">import</span> JSONResponse
+<span class="kw">import</span> hmac, hashlib, time, json, logging, asyncio
+<span class="kw">from</span> typing <span class="kw">import</span> Callable, Dict, Any
+<span class="kw">import</span> redis.asyncio <span class="kw">as</span> aioredis
+<span class="kw">from</span> contextlib <span class="kw">import</span> asynccontextmanager
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(<span class="st">"pf_webhooks"</span>)
+
+<span class="cm"># ─── Config ───────────────────────────────────────────────────────────</span>
+WEBHOOK_SECRET = <span class="st">"whsec_your_purple_flea_webhook_secret"</span>
+REDIS_URL = <span class="st">"redis://localhost:6379"</span>
+MAX_TIMESTAMP_DRIFT = <span class="nm">300</span>
+IDEMPOTENCY_TTL = <span class="nm">604800</span>  <span class="cm"># 7 days in seconds</span>
+
+<span class="cm"># ─── Application State ────────────────────────────────────────────────</span>
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">AppState</span>:
+    redis: Any = <span class="kw">None</span>
+    handlers: Dict[str, Callable] = field(default_factory=dict)
+    event_count: <span class="fn">int</span> = <span class="nm">0</span>
+    error_count: <span class="fn">int</span> = <span class="nm">0</span>
+
+state = AppState()
+
+<span class="cm"># ─── Lifespan ─────────────────────────────────────────────────────────</span>
+<span class="kw">@asynccontextmanager</span>
+<span class="kw">async def</span> <span class="fn">lifespan</span>(app: FastAPI):
+    state.redis = <span class="kw">await</span> aioredis.from_url(REDIS_URL, decode_responses=<span class="kw">True</span>)
+    logger.info(<span class="st">"Redis connected"</span>)
+    <span class="kw">yield</span>
+    <span class="kw">await</span> state.redis.close()
+
+app = FastAPI(title=<span class="st">"Purple Flea Webhook Server"</span>, lifespan=lifespan)
+
+<span class="cm"># ─── Signature Verification ───────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">verify_signature</span>(raw_body: bytes, sig_header: str) -> <span class="kw">None</span>:
+    parts = dict(p.split(<span class="st">"="</span>, <span class="nm">1</span>) <span class="kw">for</span> p <span class="kw">in</span> sig_header.split(<span class="st">","</span>))
+    ts = parts.get(<span class="st">"t"</span>)
+    v1 = parts.get(<span class="st">"v1"</span>)
+    <span class="kw">if not</span> ts <span class="kw">or not</span> v1:
+        <span class="kw">raise</span> ValueError(<span class="st">"Malformed signature"</span>)
+    <span class="kw">if</span> <span class="fn">abs</span>(<span class="fn">int</span>(time.time()) - <span class="fn">int</span>(ts)) > MAX_TIMESTAMP_DRIFT:
+        <span class="kw">raise</span> ValueError(<span class="st">"Timestamp expired"</span>)
+    signed = ts.encode() + <span class="st">b"."</span> + raw_body
+    expected = hmac.new(WEBHOOK_SECRET.encode(), signed, hashlib.sha256).hexdigest()
+    <span class="kw">if not</span> hmac.compare_digest(expected, v1):
+        <span class="kw">raise</span> ValueError(<span class="st">"Signature mismatch"</span>)
+
+<span class="cm"># ─── Idempotency ──────────────────────────────────────────────────────</span>
+<span class="kw">async def</span> <span class="fn">check_and_mark</span>(webhook_id: str) -> <span class="fn">bool</span>:
+    <span class="st">"""Returns True if already processed (duplicate)."""</span>
+    key = <span class="st">f"wh:seen:{webhook_id}"</span>
+    <span class="cm"># SET key 1 EX ttl NX — atomic set-if-not-exists</span>
+    result = <span class="kw">await</span> state.redis.set(key, <span class="st">"1"</span>, ex=IDEMPOTENCY_TTL, nx=<span class="kw">True</span>)
+    <span class="kw">return</span> result <span class="kw">is None</span>  <span class="cm"># None means key already existed</span>
+
+<span class="cm"># ─── Event Dispatcher ─────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">on</span>(event_type: str):
+    <span class="st">"""Decorator to register event handlers."""</span>
+    <span class="kw">def</span> <span class="fn">decorator</span>(fn: Callable):
+        state.handlers[event_type] = fn
+        <span class="kw">return</span> fn
+    <span class="kw">return</span> decorator
+
+<span class="kw">async def</span> <span class="fn">dispatch</span>(payload: dict) -> <span class="kw">None</span>:
+    event = payload[<span class="st">"event"</span>]
+    obj = payload.get(<span class="st">"data"</span>, {}).get(<span class="st">"object"</span>, {})
+
+    handler = (
+        state.handlers.get(event) <span class="kw">or</span>
+        state.handlers.get(event.split(<span class="st">"."</span>)[<span class="nm">0</span>] + <span class="st">".*"</span>) <span class="kw">or</span>
+        state.handlers.get(<span class="st">"*"</span>)
+    )
+
+    <span class="kw">if</span> handler:
+        logger.info(<span class="st">f"Dispatching {event} → {handler.__name__}"</span>)
+        <span class="kw">if</span> asyncio.iscoroutinefunction(handler):
+            <span class="kw">await</span> handler(obj, payload)
+        <span class="kw">else</span>:
+            handler(obj, payload)
+    <span class="kw">else</span>:
+        logger.warning(<span class="st">f"No handler for event: {event}"</span>)
+
+<span class="cm"># ─── Webhook Endpoint ─────────────────────────────────────────────────</span>
+<span class="kw">@app.post</span>(<span class="st">"/webhooks/purpleflea"</span>)
+<span class="kw">async def</span> <span class="fn">receive_webhook</span>(request: Request, background_tasks: BackgroundTasks):
+    raw_body = <span class="kw">await</span> request.body()
+    sig = request.headers.get(<span class="st">"X-PurpleFlea-Signature"</span>, <span class="st">""</span>)
+
+    <span class="kw">try</span>:
+        verify_signature(raw_body, sig)
+    <span class="kw">except</span> ValueError <span class="kw">as</span> e:
+        state.error_count += <span class="nm">1</span>
+        <span class="kw">raise</span> HTTPException(status_code=<span class="nm">400</span>, detail=<span class="fn">str</span>(e))
+
+    payload = json.loads(raw_body)
+    wh_id = payload.get(<span class="st">"id"</span>, <span class="st">"unknown"</span>)
+
+    <span class="cm"># Idempotency check</span>
+    is_dup = <span class="kw">await</span> check_and_mark(wh_id)
+    <span class="kw">if</span> is_dup:
+        logger.info(<span class="st">f"Duplicate delivery ignored: {wh_id}"</span>)
+        <span class="kw">return</span> JSONResponse({<span class="st">"status"</span>: <span class="st">"duplicate"</span>}, status_code=<span class="nm">200</span>)
+
+    <span class="cm"># Process async — return 200 immediately</span>
+    background_tasks.add_task(dispatch, payload)
+    state.event_count += <span class="nm">1</span>
+
+    <span class="kw">return</span> JSONResponse({
+        <span class="st">"status"</span>: <span class="st">"accepted"</span>,
+        <span class="st">"webhook_id"</span>: wh_id,
+    })
+
+<span class="cm"># ─── Health Endpoint ──────────────────────────────────────────────────</span>
+<span class="kw">@app.get</span>(<span class="st">"/health"</span>)
+<span class="kw">async def</span> <span class="fn">health</span>():
+    redis_ok = <span class="kw">await</span> state.redis.ping()
+    <span class="kw">return</span> {
+        <span class="st">"status"</span>: <span class="st">"ok"</span>,
+        <span class="st">"redis"</span>: <span class="st">"connected"</span> <span class="kw">if</span> redis_ok <span class="kw">else</span> <span class="st">"error"</span>,
+        <span class="st">"events_processed"</span>: state.event_count,
+        <span class="st">"errors"</span>: state.error_count,
+    }
+
+<span class="cm"># ─── Event Handlers ───────────────────────────────────────────────────</span>
+<span class="kw">@on</span>(<span class="st">"payment.confirmed"</span>)
+<span class="kw">async def</span> <span class="fn">handle_payment</span>(obj: dict, raw: dict) -> <span class="kw">None</span>:
+    logger.info(<span class="st">f"Payment confirmed: {obj['amount']} {obj['currency']}"</span>)
+    <span class="cm"># Your logic: release escrow, place bet, rebalance, etc.</span>
+
+<span class="kw">@on</span>(<span class="st">"trade.executed"</span>)
+<span class="kw">async def</span> <span class="fn">handle_trade</span>(obj: dict, raw: dict) -> <span class="kw">None</span>:
+    logger.info(<span class="st">f"Trade: {obj['side']} {obj['quantity']} {obj['symbol']} @ {obj['price']}"</span>)
+    <span class="cm"># Update portfolio state, trigger rebalancing if needed</span>
+
+<span class="kw">@on</span>(<span class="st">"escrow.released"</span>)
+<span class="kw">async def</span> <span class="fn">handle_escrow_released</span>(obj: dict, raw: dict) -> <span class="kw">None</span>:
+    logger.info(<span class="st">f"Escrow released: {obj['escrow_id']} → {obj['amount']}"</span>)
+    <span class="cm"># Confirm delivery, record revenue</span>
+
+<span class="kw">@on</span>(<span class="st">"faucet.claimed"</span>)
+<span class="kw">async def</span> <span class="fn">handle_faucet</span>(obj: dict, raw: dict) -> <span class="kw">None</span>:
+    logger.info(<span class="st">f"New agent onboarded via faucet: {obj['agent_id']}"</span>)
+    <span class="cm"># Trigger onboarding sequence, send to casino</span>
+
+<span class="kw">@on</span>(<span class="st">"casino.bet_settled"</span>)
+<span class="kw">async def</span> <span class="fn">handle_bet</span>(obj: dict, raw: dict) -> <span class="kw">None</span>:
+    outcome = obj[<span class="st">"outcome"</span>]
+    logger.info(<span class="st">f"Bet settled: {outcome} | payout: {obj.get('payout', 0)}"</span>)
+    <span class="cm"># Update win/loss stats, adjust strategy</span>
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    <span class="kw">import</span> uvicorn
+    uvicorn.run(<span class="st">"webhook_server:app"</span>, host=<span class="st">"0.0.0.0"</span>, port=<span class="nm">8000</span>, reload=<span class="kw">False</span>)</code></pre>
+
+      <!-- Section 10 -->
+      <h2 id="python-dispatcher">Python Webhook Dispatcher</h2>
+
+      <p>
+        For agents that need to <em>send</em> webhooks to downstream services (e.g., notifying
+        a monitoring dashboard when your agent completes a trade), here is a robust dispatcher
+        with retry logic and circuit breaking.
+      </p>
+
+      <pre><code><span class="kw">import</span> httpx
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> hmac, hashlib, time, json
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">WebhookTarget</span>:
+    url: str
+    secret: str
+    max_retries: <span class="fn">int</span> = <span class="nm">3</span>
+    timeout: <span class="fn">float</span> = <span class="nm">10.0</span>
+
+<span class="kw">class</span> <span class="fn">WebhookDispatcher</span>:
+    <span class="st">"""Send webhooks to downstream agents or services."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._client = httpx.AsyncClient()
+        self._failure_counts: Dict[str, <span class="fn">int</span>] = {}
+        self.CIRCUIT_BREAK_THRESHOLD = <span class="nm">5</span>
+
+    <span class="kw">def</span> <span class="fn">_sign</span>(self, payload: bytes, secret: str) -> str:
+        ts = <span class="fn">str</span>(<span class="fn">int</span>(time.time()))
+        signed = ts.encode() + <span class="st">b"."</span> + payload
+        sig = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+        <span class="kw">return</span> <span class="st">f"t={ts},v1={sig}"</span>
+
+    <span class="kw">def</span> <span class="fn">_is_circuit_open</span>(self, url: str) -> <span class="fn">bool</span>:
+        <span class="kw">return</span> self._failure_counts.get(url, <span class="nm">0</span>) >= self.CIRCUIT_BREAK_THRESHOLD
+
+    <span class="kw">async def</span> <span class="fn">send</span>(
+        self,
+        target: WebhookTarget,
+        event: str,
+        data: dict
+    ) -> <span class="fn">bool</span>:
+        <span class="st">"""Send webhook with retries. Returns True on success."""</span>
+
+        <span class="kw">if</span> self._is_circuit_open(target.url):
+            logger.warning(<span class="st">f"Circuit open for {target.url}, skipping"</span>)
+            <span class="kw">return</span> <span class="kw">False</span>
+
+        payload = {
+            <span class="st">"id"</span>: <span class="st">f"wh_{int(time.time() * 1000)}"</span>,
+            <span class="st">"event"</span>: event,
+            <span class="st">"created_at"</span>: datetime.utcnow().isoformat() + <span class="st">"Z"</span>,
+            <span class="st">"data"</span>: {<span class="st">"object"</span>: data},
+        }
+        raw = json.dumps(payload).encode()
+        signature = self._sign(raw, target.secret)
+
+        <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">1</span>, target.max_retries + <span class="nm">1</span>):
+            <span class="kw">try</span>:
+                resp = <span class="kw">await</span> self._client.post(
+                    target.url,
+                    content=raw,
+                    headers={
+                        <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>,
+                        <span class="st">"X-Webhook-Signature"</span>: signature,
+                        <span class="st">"User-Agent"</span>: <span class="st">"PurpleFlea-Agent/1.0"</span>,
+                    },
+                    timeout=target.timeout,
+                )
+                <span class="kw">if</span> resp.status_code < <span class="nm">300</span>:
+                    self._failure_counts[target.url] = <span class="nm">0</span>  <span class="cm"># Reset circuit</span>
+                    <span class="kw">return</span> <span class="kw">True</span>
+
+                logger.warning(<span class="st">f"HTTP {resp.status_code} from {target.url}"</span>)
+
+            <span class="kw">except</span> (httpx.TimeoutException, httpx.ConnectError) <span class="kw">as</span> e:
+                logger.error(<span class="st">f"Attempt {attempt} failed: {e}"</span>)
+
+            <span class="cm"># Exponential backoff</span>
+            <span class="kw">if</span> attempt < target.max_retries:
+                backoff = <span class="nm">2</span> ** (attempt - <span class="nm">1</span>)  <span class="cm"># 1s, 2s, 4s...</span>
+                <span class="kw">await</span> asyncio.sleep(backoff)
+
+        <span class="cm"># All attempts failed</span>
+        self._failure_counts[target.url] = \
+            self._failure_counts.get(target.url, <span class="nm">0</span>) + <span class="nm">1</span>
+        <span class="kw">return</span> <span class="kw">False</span>
+
+    <span class="kw">async def</span> <span class="fn">close</span>(self):
+        <span class="kw">await</span> self._client.aclose()</code></pre>
+
+      <!-- Section 11 -->
+      <h2 id="monitoring">Monitoring Webhook Health</h2>
+
+      <p>
+        Production webhook infrastructure needs observability. Track these metrics to catch
+        problems before they cascade:
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Warning Threshold</th>
+              <th>Critical Threshold</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Delivery success rate</td><td>&lt; 99%</td><td>&lt; 95%</td><td>Alert on-call</td></tr>
+            <tr><td>P99 response time</td><td>&gt; 3s</td><td>&gt; 8s</td><td>Scale server</td></tr>
+            <tr><td>DLQ depth</td><td>&gt; 10</td><td>&gt; 100</td><td>Investigate failures</td></tr>
+            <tr><td>Signature failures</td><td>Any</td><td>&gt; 5/min</td><td>Possible attack</td></tr>
+            <tr><td>Duplicate rate</td><td>&gt; 5%</td><td>&gt; 20%</td><td>Upstream retry storm</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre><code><span class="cm"># Minimal Prometheus metrics for your webhook server</span>
+<span class="kw">from</span> prometheus_client <span class="kw">import</span> Counter, Histogram, Gauge
+
+wh_received = Counter(<span class="st">"webhooks_received_total"</span>, <span class="st">"Total webhooks received"</span>, [<span class="st">"event"</span>])
+wh_processed = Counter(<span class="st">"webhooks_processed_total"</span>, <span class="st">"Total successfully processed"</span>, [<span class="st">"event"</span>])
+wh_failed = Counter(<span class="st">"webhooks_failed_total"</span>, <span class="st">"Total processing failures"</span>, [<span class="st">"event"</span>, <span class="st">"reason"</span>])
+wh_duration = Histogram(<span class="st">"webhook_processing_seconds"</span>, <span class="st">"Processing time"</span>, [<span class="st">"event"</span>])
+wh_dlq_depth = Gauge(<span class="st">"webhook_dlq_depth"</span>, <span class="st">"Current dead letter queue depth"</span>)
+wh_sig_failures = Counter(<span class="st">"webhook_signature_failures_total"</span>, <span class="st">"HMAC verification failures"</span>)</code></pre>
+
+      <!-- Section 12 -->
+      <h2 id="registering-webhooks">Registering Webhooks via API</h2>
+
+      <p>
+        Register your webhook endpoint with Purple Flea to start receiving events:
+      </p>
+
+      <pre><code><span class="kw">import</span> httpx
+
+<span class="kw">async def</span> <span class="fn">register_webhook</span>(
+    endpoint_url: str,
+    events: list,
+    api_key: str
+) -> dict:
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        resp = <span class="kw">await</span> client.post(
+            <span class="st">"https://purpleflea.com/api/v1/webhooks"</span>,
+            headers={
+                <span class="st">"Authorization"</span>: <span class="st">f"Bearer {api_key}"</span>,
+                <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>,
+            },
+            json={
+                <span class="st">"url"</span>: endpoint_url,
+                <span class="st">"events"</span>: events,  <span class="cm"># e.g. ["payment.*", "trade.*"]</span>
+                <span class="st">"description"</span>: <span class="st">"My trading agent webhook"</span>,
+                <span class="st">"active"</span>: <span class="kw">True</span>,
+            }
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        <span class="cm"># Save the webhook secret from the response!</span>
+        print(<span class="st">f"Webhook ID: {data['id']}"</span>)
+        print(<span class="st">f"Webhook Secret: {data['secret']}"</span>)  <span class="cm"># Only shown once</span>
+        <span class="kw">return</span> data
+
+<span class="cm"># Register for all events using wildcard</span>
+<span class="kw">await</span> register_webhook(
+    endpoint_url=<span class="st">"https://myagent.example.com/webhooks/purpleflea"</span>,
+    events=[<span class="st">"*"</span>],
+    api_key=<span class="st">"pf_live_&lt;your_key&gt;"</span>
+)</code></pre>
+
+      <div class="info-box note">
+        <div class="info-box-title">Security Note</div>
+        <p>The webhook secret is only shown <strong>once</strong> at registration time. Store it securely in your environment variables or secrets manager immediately. If you lose it, you must rotate and re-register.</p>
+      </div>
+
+      <!-- Summary -->
+      <h2 id="summary">Summary</h2>
+
+      <p>
+        Building a robust webhook architecture for your Purple Flea agent comes down to
+        five core practices:
+      </p>
+
+      <ul>
+        <li><strong>Always verify HMAC signatures</strong> using constant-time comparison and timestamp drift checks.</li>
+        <li><strong>Implement idempotency</strong> using the webhook <code>id</code> as a Redis key — process each delivery exactly once.</li>
+        <li><strong>Return 200 immediately</strong> and process asynchronously to avoid timeout-triggered retries.</li>
+        <li><strong>Route failures to a DLQ</strong> so no event is silently lost after max retries.</li>
+        <li><strong>Monitor signature failures</strong> and DLQ depth — spikes indicate either bugs or attacks.</li>
+      </ul>
+
+      <p>
+        With this stack in place, your agent reacts to every Purple Flea event — payments,
+        trades, faucet claims, escrow releases — in near real time, with full reliability
+        guarantees.
+      </p>
+
+      <p>
+        Ready to register your first webhook? Head to <a href="/register">purpleflea.com/register</a>
+        to get your API key, then point Purple Flea at your endpoint.
+      </p>
+    </main>
+
+    <aside>
+      <nav class="toc-sidebar" id="toc">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#why-webhooks">Why Webhooks Beat Polling</a></li>
+          <li class="toc-h3"><a href="#event-driven-arch">Event-Driven Architecture</a></li>
+          <li><a href="#payload-schema">Webhook Payload Schema</a></li>
+          <li class="toc-h3"><a href="#versioning">Schema Versioning</a></li>
+          <li><a href="#pf-events">Purple Flea Events</a></li>
+          <li><a href="#hmac-verification">HMAC Signature Verification</a></li>
+          <li class="toc-h3"><a href="#signature-format">Signature Format</a></li>
+          <li class="toc-h3"><a href="#verification-code">Python Verification</a></li>
+          <li><a href="#idempotency">Idempotency Keys</a></li>
+          <li class="toc-h3"><a href="#idempotency-store">Idempotency Store</a></li>
+          <li><a href="#retry-strategy">Retry Strategy</a></li>
+          <li class="toc-h3"><a href="#async-pattern">Async Response Pattern</a></li>
+          <li><a href="#dead-letter-queue">Dead Letter Queues</a></li>
+          <li><a href="#local-testing">Local Testing (ngrok)</a></li>
+          <li><a href="#production-server">Production FastAPI Server</a></li>
+          <li><a href="#python-dispatcher">Webhook Dispatcher</a></li>
+          <li><a href="#monitoring">Monitoring Health</a></li>
+          <li><a href="#registering-webhooks">Registering Webhooks</a></li>
+          <li><a href="#summary">Summary</a></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <footer>
+    <p>
+      &copy; 2026 <a href="/">Purple Flea</a> — Blue chip financial infrastructure for AI agents.
+      <br />
+      <a href="/docs">Docs</a> · <a href="/blog">Blog</a> · <a href="/for-agents">For Agents</a> ·
+      <a href="https://faucet.purpleflea.com">Faucet</a> · <a href="https://escrow.purpleflea.com">Escrow</a>
+    </p>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = total > 0 ? (window.scrollY / total) * 100 : 0;
+      bar.style.width = pct + '%';
+    }, { passive: true });
+
+    // TOC active link via IntersectionObserver
+    const tocLinks = document.querySelectorAll('.toc-list a');
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          tocLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+          });
+        }
+      });
+    }, { rootMargin: '-60px 0px -70% 0px', threshold: 0 });
+
+    headings.forEach(h => obs.observe(h));
+  </script>
+</body>
+</html>
