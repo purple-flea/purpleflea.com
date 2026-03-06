@@ -767,6 +767,119 @@ class SwapMonitor:
 
           <p>Cache aggregator quotes for up to 30 seconds if re-using them for multiple decisions in the same cycle. Prices move slowly enough that a 30-second-old quote is usually still valid for non-time-critical swaps, saving API call overhead.</p>
 
+          <h2 id="long-tail-tokens">Long-Tail Token Routing</h2>
+
+          <p>The aggregator comparison tables above focus on major tokens (ETH, WBTC, USDC). For long-tail tokens with limited liquidity, aggregator routing becomes even more critical—and more complex.</p>
+
+          <p>Long-tail token characteristics that affect routing:</p>
+
+          <ul>
+            <li><strong>Limited pool count:</strong> Many long-tail tokens exist in only one or two pools, making split routing impossible or ineffective</li>
+            <li><strong>High bid-ask spread:</strong> Thin liquidity creates wide spreads; a 2-3% slippage is common even for modest order sizes</li>
+            <li><strong>Single hop vs. multi-hop:</strong> Most aggregators route long-tail tokens through an intermediate (ETH or USDC) to reach the destination token</li>
+            <li><strong>Curve pools:</strong> For stablecoin-pegged assets (LSTs, yield tokens), Curve often has the best pricing even for tokens not listed on major DEXes</li>
+          </ul>
+
+          <p>Agents should apply stricter slippage limits when routing long-tail tokens and always verify that the output amount is within a reasonable range of the mid-market price before execution:</p>
+
+          <pre><code class="language-python">async def sanity_check_quote(
+    quote: QuoteResult,
+    src_amount_usd: float,
+    mid_market_price_usd: float,  # external oracle price
+    max_deviation_pct: float = 0.05,  # reject if >5% below mid-market
+) -> bool:
+    """
+    Sanity check: reject quotes that are too far from mid-market price.
+    Protects against stale aggregator quotes and oracle manipulation.
+    """
+    quoted_output_usd = quote.dst_amount / 1e6  # assuming USDC 6 decimals
+    if mid_market_price_usd <= 0:
+        return True  # no oracle available, skip check
+
+    expected_usd = src_amount_usd  # for token->USDC swaps
+    deviation = (expected_usd - quoted_output_usd) / expected_usd
+
+    if deviation > max_deviation_pct:
+        print(
+            f"SANITY CHECK FAILED: quoted output {quoted_output_usd:.2f} USDC "
+            f"is {deviation:.1%} below expected {expected_usd:.2f} USDC "
+            f"(max allowed: {max_deviation_pct:.1%})"
+        )
+        return False
+    return True
+</code></pre>
+
+          <h2 id="advanced-routing-patterns">Advanced Routing Patterns</h2>
+
+          <h3 id="price-impact-aware">Price-Impact Aware Order Sizing</h3>
+
+          <p>Before sending a large order, query the aggregator's price impact estimate for multiple order sizes and identify the "break point" where price impact starts accelerating. Split the order into tranches timed apart to give the pool time to rebalance from arbitrageurs:</p>
+
+          <pre><code class="language-python">async def find_optimal_tranche_size(
+    session: aiohttp.ClientSession,
+    src_token: str,
+    dst_token: str,
+    total_amount_wei: int,
+    test_sizes: List[float] = [0.1, 0.2, 0.3, 0.5, 0.75, 1.0],
+) -> float:
+    """
+    Find the tranche size (as fraction of total) that minimizes price impact.
+    Returns optimal fraction for a single tranche.
+    """
+    results = []
+    for frac in test_sizes:
+        tranche_wei = int(total_amount_wei * frac)
+        # Extrapolate: total cost if we send 1/frac tranches of this size
+        quote = await get_1inch_quote(session, src_token, dst_token, tranche_wei)
+        if quote is None:
+            continue
+        # Rate: dst per src wei
+        rate = quote.dst_amount / tranche_wei
+        # Extrapolated total output if all tranches at this rate
+        extrapolated_total = rate * total_amount_wei
+        results.append((frac, extrapolated_total))
+
+    if not results:
+        return 1.0  # fallback: send all at once
+
+    # Pick fraction that maximizes extrapolated total output
+    best = max(results, key=lambda r: r[1])
+    print(f"Optimal tranche size: {best[0]*100:.0f}% of total")
+    return best[0]
+</code></pre>
+
+          <h3 id="time-weighted-execution">Time-Weighted Execution (TWAP)</h3>
+
+          <p>For very large orders, TWAP (Time-Weighted Average Price) execution spreads a large order over time to achieve the average market price rather than a single snapshot price. TWAP is commonly used in TradFi for institutional equity orders and is increasingly adopted in DeFi via protocols like TWAMM (Time-Weighted AMM).</p>
+
+          <p>A simple agent-level TWAP implementation:</p>
+
+          <pre><code class="language-python">async def execute_twap(
+    src_token: str,
+    dst_token: str,
+    total_amount_wei: int,
+    duration_minutes: int = 60,
+    num_tranches: int = 12,
+    execute_fn = None,  # async function(src, dst, amount_wei) -> bool
+):
+    """Execute a TWAP order: split total into equal tranches, spaced evenly."""
+    tranche_size = total_amount_wei // num_tranches
+    interval_sec = (duration_minutes * 60) / num_tranches
+    print(
+        f"TWAP: {num_tranches} tranches of {tranche_size/1e18:.4f} ETH "
+        f"every {interval_sec:.0f}s over {duration_minutes}min"
+    )
+    for i in range(num_tranches):
+        print(f"Tranche {i+1}/{num_tranches}")
+        if execute_fn:
+            await execute_fn(src_token, dst_token, tranche_size)
+        if i < num_tranches - 1:
+            await asyncio.sleep(interval_sec)
+    print("TWAP complete.")
+</code></pre>
+
+          <p>TWAP is most effective for orders above $100,000 where single-shot execution would move the market by more than 0.5%. For AI agents making routine portfolio rebalancing trades, TWAP with Purple Flea's wallet API provides institutional-grade execution without requiring a dedicated prime brokerage relationship.</p>
+
         </div>
       </article>
     </main>
@@ -791,6 +904,8 @@ class SwapMonitor:
           <li><a href="#aggregator-risk">Aggregator Risk Management</a></li>
           <li><a href="#multi-chain-aggregators">Multi-Chain Aggregators</a></li>
           <li><a href="#performance-benchmarks">Performance Benchmarks</a></li>
+          <li><a href="#long-tail-tokens">Long-Tail Token Routing</a></li>
+          <li><a href="#advanced-routing-patterns">Advanced Routing Patterns</a></li>
           <li><a href="#summary">Summary</a></li>
         </ul>
       </div>
