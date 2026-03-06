@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Upgrade Patterns: Deploying New Agent Versions Without Losing Money | Purple Flea Blog</title>
+<meta name="description" content="How to safely upgrade AI agents actively managing money: blue-green deployment, canary releases, shadow mode, state migration, rollback strategy, feature flags, A/B testing, and deployment checklists.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/blog/agent-upgrade-patterns/">
+<meta property="og:title" content="Agent Upgrade Patterns: Deploying New Agent Versions Without Losing Money">
+<meta property="og:description" content="Safe upgrade strategies for production agents managing live funds: blue-green, canary, shadow mode, state migration, and rollback.">
+<meta property="og:url" content="https://purpleflea.com/blog/agent-upgrade-patterns/">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Agent Upgrade Patterns: Deploying New Agent Versions Without Losing Money",
+  "description": "Safe deployment strategies for AI agents managing live money: blue-green, canary releases, shadow mode, state migration, and rollback patterns.",
+  "url": "https://purpleflea.com/blog/agent-upgrade-patterns/",
+  "datePublished": "2026-03-06",
+  "author": {"@type": "Organization", "name": "Purple Flea"},
+  "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+  "keywords": ["agent deployment", "blue-green", "canary release", "AI agents", "production deployment", "rollback"]
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090B; --bg-card: #111118; --border: rgba(255,255,255,0.06);
+  --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #5a5a72;
+  --purple: #A855F7; --purple-dim: rgba(168,85,247,0.12);
+  --green: #22c55e; --amber: #f59e0b; --red: #ef4444; --blue: #3b82f6;
+  --mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+
+#progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--purple); z-index: 100; width: 0%; transition: width 0.1s linear; }
+
+nav { border-bottom: 1px solid var(--border); padding: 14px 0; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.nav-inner { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { text-decoration: none; color: var(--text); font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.nav-logo-icon { color: var(--purple); }
+.nav-links { display: flex; gap: 20px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.825rem; }
+.nav-links a:hover { color: var(--text); }
+
+.layout { max-width: 1060px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 220px; gap: 40px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+
+.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); }
+.tag { display: inline-flex; align-items: center; gap: 6px; background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); color: var(--purple); font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 18px; }
+.tag-blue { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.25); color: var(--blue); }
+.hero h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 16px; }
+.hero-meta { color: var(--text-muted); font-size: 0.8rem; display: flex; gap: 16px; flex-wrap: wrap; }
+
+.content { padding: 48px 0 80px; }
+.content h2 { font-size: 1.25rem; font-weight: 600; margin: 44px 0 14px; color: var(--text); scroll-margin-top: 80px; }
+.content h3 { font-size: 1rem; font-weight: 600; margin: 24px 0 10px; color: var(--text); }
+.content p { color: var(--text-secondary); margin-bottom: 16px; font-size: 0.95rem; }
+.content ul, .content ol { color: var(--text-secondary); margin: 0 0 16px 1.2rem; font-size: 0.95rem; }
+.content li { margin-bottom: 6px; }
+.content a { color: var(--purple); text-decoration: none; }
+.content a:hover { text-decoration: underline; }
+
+.code-block { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 20px 0; overflow-x: auto; }
+.code-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+pre { font-family: var(--mono); font-size: 0.82rem; line-height: 1.75; color: #c9c9e0; }
+.kw { color: #c792ea; } .fn { color: #82aaff; } .st { color: #c3e88d; }
+.cm { color: #546e7a; font-style: italic; } .nm { color: #f78c6c; }
+.tp { color: #ffcb6b; } .op { color: #89ddff; }
+
+.callout { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-title { font-size: 0.8rem; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.callout p { margin: 0; font-size: 0.9rem; }
+.callout-red { background: rgba(239,68,68,0.07); border-color: rgba(239,68,68,0.2); }
+.callout-red .callout-title { color: var(--red); }
+.callout-green { background: rgba(34,197,94,0.07); border-color: rgba(34,197,94,0.2); }
+.callout-green .callout-title { color: var(--green); }
+.callout-amber { background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.2); }
+.callout-amber .callout-title { color: var(--amber); }
+.callout-blue { background: rgba(59,130,246,0.07); border-color: rgba(59,130,246,0.2); }
+.callout-blue .callout-title { color: var(--blue); }
+
+.ascii-diagram { background: #0d0d14; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 20px 0; font-family: var(--mono); font-size: 0.78rem; line-height: 1.8; color: #8888aa; overflow-x: auto; white-space: pre; }
+
+.flow { display: flex; align-items: stretch; gap: 8px; margin: 24px 0; flex-wrap: wrap; }
+.flow-step { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; color: var(--text-secondary); text-align: center; flex: 1; min-width: 100px; }
+.flow-step strong { display: block; color: var(--text); margin-bottom: 2px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.flow-step.blue { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.05); }
+.flow-step.green { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.05); }
+.flow-step.amber { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); }
+.flow-arrow { color: var(--text-muted); font-size: 1rem; display: flex; align-items: center; flex-shrink: 0; }
+
+.checklist { list-style: none; margin: 0 0 20px; }
+.checklist li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-secondary); font-size: 0.9rem; display: flex; align-items: flex-start; gap: 10px; }
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before { content: ""; width: 16px; height: 16px; border: 2px solid rgba(168,85,247,0.4); border-radius: 4px; flex-shrink: 0; margin-top: 3px; }
+.checklist li strong { color: var(--text); }
+
+.divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+.risk-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.875rem; }
+.risk-table th { text-align: left; padding: 10px 14px; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
+.risk-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-secondary); font-size: 0.85rem; }
+.risk-table td:first-child { color: var(--text); font-weight: 500; }
+.risk-table td.low { color: var(--green); font-weight: 600; }
+.risk-table td.med { color: var(--amber); font-weight: 600; }
+.risk-table td.high { color: var(--red); font-weight: 600; }
+.risk-table tr:last-child td { border-bottom: none; }
+
+.toc-sidebar { position: sticky; top: 80px; padding: 20px 0; }
+.toc-sidebar h4 { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+.toc-sidebar nav { border: none; padding: 0; position: static; background: transparent; }
+.toc-sidebar ul { list-style: none; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.toc-sidebar ul li a { font-size: 0.78rem; color: var(--text-muted); text-decoration: none; padding: 4px 8px; border-radius: 5px; display: block; line-height: 1.4; transition: color 0.15s, background 0.15s; }
+.toc-sidebar ul li a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.toc-sidebar ul li a.active { color: var(--purple); background: var(--purple-dim); }
+
+footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; }
+footer p { color: var(--text-muted); font-size: 0.8rem; }
+footer a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span class="nav-logo-icon">&#9679;</span> Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div style="max-width:1060px;margin:0 auto;padding:0 24px;">
+  <div class="hero" style="max-width:760px;">
+    <div class="tag tag-blue">Infrastructure</div>
+    <h1>Agent Upgrade Patterns:<br>Deploying New Agent Versions<br>Without Losing Money</h1>
+    <div class="hero-meta">
+      <span>March 6, 2026</span>
+      <span>Purple Flea Team</span>
+      <span>15 min read</span>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="content">
+
+    <p>Upgrading a software service is a well-understood engineering problem. Upgrading an AI agent that is actively managing money — open positions, pending escrows, live casino sessions, domain registrations — is a different problem entirely. The cost of downtime isn't measured in user experience; it's measured in missed opportunities, stale state, and in the worst case, double-spending or abandoned funds.</p>
+
+    <p>This post covers the deployment patterns that production agent teams have converged on: blue-green, canary, shadow mode, state migration, and rollback. Each pattern trades complexity for risk reduction differently. Choose based on your agent's risk profile.</p>
+
+    <div class="callout callout-red">
+      <div class="callout-title">The Upgrade Risk Triangle</div>
+      <p>Three risks compound during agent upgrades: (1) <strong>Downtime risk</strong> — funds stagnate or miss time-sensitive operations. (2) <strong>Bug risk</strong> — new version has a defect that loses money. (3) <strong>State risk</strong> — position or balance state is corrupted during transition. Good upgrade patterns minimize all three simultaneously.</p>
+    </div>
+
+    <!-- SECTION 1 -->
+    <h2 id="problem">1. The Upgrade Problem</h2>
+
+    <p>A typical software deployment has one constraint: don't serve errors during the transition. An agent deployment managing financial infrastructure has additional constraints that most DevOps literature ignores entirely:</p>
+
+    <ul>
+      <li><strong>Idempotency</strong>: if the agent crashes mid-operation, restarting must not re-execute a transaction that already executed.</li>
+      <li><strong>State continuity</strong>: the new version must have access to all open positions, pending decisions, and cached state from the old version.</li>
+      <li><strong>API key handoff</strong>: Purple Flea API keys, casino session state, and escrow IDs must transfer cleanly — not be regenerated.</li>
+      <li><strong>Decision continuity</strong>: if the old version had decided to exit a position at 2x, the new version should honor that decision or explicitly override it with a logged reason.</li>
+    </ul>
+
+    <div class="ascii-diagram">Traditional Service Upgrade:
+  v1 running → deploy v2 → v2 running   (2 min downtime, usually acceptable)
+
+Agent Upgrade with Live Funds:
+  v1 managing $500 in positions
+       │
+       ├── Has open dice game in progress
+       ├── Has 3 pending escrows it is monitoring
+       ├── Has a crash game it needs to cash out in 30s
+       └── Is mid-way through a momentum trading decision
+
+  Naive restart loses all of this context.</div>
+
+    <p>The solution is never to "restart" — it's to <em>transition</em>. The patterns below are all variations on the same theme: keep v1 running in a safe state while v2 proves itself, then transfer control gracefully.</p>
+
+    <!-- SECTION 2 -->
+    <h2 id="blue-green">2. Blue-Green Deployment</h2>
+
+    <p>Blue-green runs two identical environments — blue (current) and green (new). At any given time, only one is active (receiving real decisions and executing transactions). The other is warm and ready. Switching from blue to green is instantaneous: a single environment variable or config flag change directs the agent's decision loop to the green instance.</p>
+
+    <div class="ascii-diagram">   BLUE (v1, active)          GREEN (v2, standby)
+   ┌─────────────────┐         ┌─────────────────┐
+   │ Running         │         │ Running          │
+   │ Connected to PF │         │ Connected to PF  │
+   │ Watching state  │         │ Reading state     │
+   │ EXECUTING bets  │         │ NOT executing    │
+   └────────┬────────┘         └────────┬─────────┘
+            │                           │
+            └──────── shared state ─────┘
+                   (Redis / DB / file)
+                           │
+                   SWITCH: set ACTIVE=green
+                           │
+   ┌─────────────────┐         ┌─────────────────┐
+   │ Now standby     │         │ Now ACTIVE       │
+   │ Still running   │         │ EXECUTING bets   │
+   │ Ready to revert │         │ Full control     │
+   └─────────────────┘         └──────────────────┘</div>
+
+    <div class="code-block">
+      <div class="code-label">Python — Blue-green controller</div>
+      <pre><span class="kw">import</span> os, redis
+
+<span class="kw">class</span> <span class="tp">AgentController</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, version: <span class="tp">str</span>):
+        <span class="kw">self</span>.version = version
+        <span class="kw">self</span>.r = redis.<span class="fn">Redis</span>(host=<span class="st">"localhost"</span>)
+        <span class="kw">self</span>.active_key = <span class="st">"agent:active_version"</span>
+
+    <span class="kw">def</span> <span class="fn">is_active</span>(<span class="kw">self</span>) -> <span class="tp">bool</span>:
+        active = <span class="kw">self</span>.r.<span class="fn">get</span>(<span class="kw">self</span>.active_key)
+        <span class="kw">return</span> active <span class="kw">is not None</span> <span class="kw">and</span> active.<span class="fn">decode</span>() == <span class="kw">self</span>.version
+
+    <span class="kw">def</span> <span class="fn">run_loop</span>(<span class="kw">self</span>):
+        <span class="kw">while True</span>:
+            <span class="kw">if</span> <span class="kw">not</span> <span class="kw">self</span>.<span class="fn">is_active</span>():
+                <span class="cm"># Standby: read state, do not execute</span>
+                <span class="kw">self</span>.<span class="fn">sync_state</span>()
+                time.<span class="fn">sleep</span>(<span class="nm">1</span>)
+                <span class="kw">continue</span>
+            <span class="cm"># Active: read state AND execute decisions</span>
+            state = <span class="kw">self</span>.<span class="fn">read_state</span>()
+            decisions = <span class="kw">self</span>.<span class="fn">decide</span>(state)
+            <span class="kw">self</span>.<span class="fn">execute</span>(decisions)
+            <span class="kw">self</span>.<span class="fn">write_state</span>(state)
+
+<span class="cm"># Switch from blue to green (run on operator machine)</span>
+<span class="kw">def</span> <span class="fn">switch_to_green</span>():
+    r = redis.<span class="fn">Redis</span>(host=<span class="st">"localhost"</span>)
+    r.<span class="fn">set</span>(<span class="st">"agent:active_version"</span>, <span class="st">"green"</span>)
+    <span class="fn">print</span>(<span class="st">"Switched active to green"</span>)</pre>
+    </div>
+
+    <div class="callout callout-green">
+      <div class="callout-title">Blue-Green Advantage</div>
+      <p>Rollback is instant — just set ACTIVE=blue again. No restart needed. Both versions are warm so the switch is millisecond-level. The main cost: you're running two instances, using 2x compute. Acceptable for any financial agent where the cost of a bug exceeds the cost of extra compute.</p>
+    </div>
+
+    <!-- SECTION 3 -->
+    <h2 id="canary">3. Canary Releases: 5% of Capital First</h2>
+
+    <p>Canary releases split traffic (or in agent terms, <em>capital allocation</em>) between old and new versions. Rather than switching 100% of activity to v2, you route a small fraction — say, 5% of your betting budget or escrow volume — to v2 while v1 handles the rest. If v2 performs as expected for N rounds without errors, you incrementally increase its allocation.</p>
+
+    <div class="ascii-diagram">    Week 0: v1 = 100% of capital, v2 = 0%
+    Week 1: v1 = 95%, v2 = 5%  (canary phase)
+    Week 2: v1 = 80%, v2 = 20% (expanding)
+    Week 3: v1 = 50%, v2 = 50% (equal split)
+    Week 4: v1 = 0%,  v2 = 100% (complete)
+
+    Abort at any phase if v2 performance diverges from v1.</div>
+
+    <div class="code-block">
+      <div class="code-label">Python — Canary allocation router</div>
+      <pre><span class="kw">import</span> random
+
+<span class="kw">class</span> <span class="tp">CanaryRouter</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, v2_fraction: <span class="tp">float</span> = <span class="nm">0.05</span>):
+        <span class="kw">self</span>.v2_fraction = v2_fraction  <span class="cm"># 0.0 to 1.0</span>
+        <span class="kw">self</span>.v1_metrics = []
+        <span class="kw">self</span>.v2_metrics = []
+
+    <span class="kw">def</span> <span class="fn">route</span>(<span class="kw">self</span>, bet_amount: <span class="tp">float</span>) -> <span class="tp">tuple</span>[<span class="tp">str</span>, <span class="tp">float</span>]:
+        <span class="cm"># Returns (version, adjusted_bet)</span>
+        <span class="kw">if</span> random.<span class="fn">random</span>() < <span class="kw">self</span>.v2_fraction:
+            <span class="kw">return</span> <span class="st">"v2"</span>, bet_amount * <span class="kw">self</span>.v2_fraction
+        <span class="kw">return</span> <span class="st">"v1"</span>, bet_amount * (<span class="nm">1</span> - <span class="kw">self</span>.v2_fraction)
+
+    <span class="kw">def</span> <span class="fn">record</span>(<span class="kw">self</span>, version: <span class="tp">str</span>, outcome: <span class="tp">float</span>):
+        (<span class="kw">self</span>.v2_metrics <span class="kw">if</span> version == <span class="st">"v2"</span> <span class="kw">else</span> <span class="kw">self</span>.v1_metrics).<span class="fn">append</span>(outcome)
+
+    <span class="kw">def</span> <span class="fn">should_promote</span>(<span class="kw">self</span>, min_samples: <span class="tp">int</span> = <span class="nm">100</span>, tolerance: <span class="tp">float</span> = <span class="nm">0.05</span>) -> <span class="tp">bool</span>:
+        <span class="kw">if</span> <span class="fn">len</span>(<span class="kw">self</span>.v2_metrics) < min_samples: <span class="kw">return</span> <span class="kw">False</span>
+        v1_mean = <span class="fn">sum</span>(<span class="kw">self</span>.v1_metrics) / <span class="fn">len</span>(<span class="kw">self</span>.v1_metrics)
+        v2_mean = <span class="fn">sum</span>(<span class="kw">self</span>.v2_metrics) / <span class="fn">len</span>(<span class="kw">self</span>.v2_metrics)
+        <span class="cm"># Promote if v2 within tolerance of v1 or better</span>
+        <span class="kw">return</span> v2_mean >= v1_mean * (<span class="nm">1</span> - tolerance)
+
+router = <span class="tp">CanaryRouter</span>(v2_fraction=<span class="nm">0.05</span>)
+version, bet = router.<span class="fn">route</span>(bet_amount=<span class="nm">10.0</span>)
+<span class="fn">print</span>(f<span class="st">"Route to {version}, bet ${bet:.2f}"</span>)</pre>
+    </div>
+
+    <!-- SECTION 4 -->
+    <h2 id="shadow">4. Shadow Mode: Watch Before You Act</h2>
+
+    <p>Shadow mode is the safest testing pattern: the new agent version runs alongside the old, receives the same inputs, computes decisions — but never executes them. All v2 actions are logged as "shadow actions." You can compare what v2 <em>would have done</em> to what v1 actually did, without any real-money risk.</p>
+
+    <div class="flow">
+      <div class="flow-step blue"><strong>Live Input</strong>Market data, casino odds, escrow events</div>
+      <span class="flow-arrow">&#8594;</span>
+      <div class="flow-step green"><strong>v1 (Active)</strong>Decides and executes</div>
+      <span class="flow-arrow">+</span>
+      <div class="flow-step amber"><strong>v2 (Shadow)</strong>Decides but does NOT execute</div>
+      <span class="flow-arrow">&#8594;</span>
+      <div class="flow-step"><strong>Compare</strong>Log divergences for review</div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-label">Python — Shadow mode wrapper</div>
+      <pre><span class="kw">class</span> <span class="tp">ShadowAgent</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, live_agent, shadow_agent):
+        <span class="kw">self</span>.live = live_agent
+        <span class="kw">self</span>.shadow = shadow_agent
+        <span class="kw">self</span>.divergences = []
+
+    <span class="kw">def</span> <span class="fn">decide_and_execute</span>(<span class="kw">self</span>, market_state: <span class="tp">dict</span>):
+        <span class="cm"># Live agent: decide and execute</span>
+        live_decision = <span class="kw">self</span>.live.<span class="fn">decide</span>(market_state)
+        <span class="kw">self</span>.live.<span class="fn">execute</span>(live_decision)
+
+        <span class="cm"># Shadow agent: decide only — NO execute</span>
+        shadow_decision = <span class="kw">self</span>.shadow.<span class="fn">decide</span>(market_state)
+
+        <span class="cm"># Log if shadow disagrees with live</span>
+        <span class="kw">if</span> shadow_decision != live_decision:
+            <span class="kw">self</span>.divergences.<span class="fn">append</span>({
+                <span class="st">"state"</span>: market_state,
+                <span class="st">"live"</span>: live_decision,
+                <span class="st">"shadow"</span>: shadow_decision,
+                <span class="st">"timestamp"</span>: time.<span class="fn">time</span>(),
+            })
+            <span class="fn">print</span>(f<span class="st">"Divergence: live={live_decision} shadow={shadow_decision}"</span>)
+
+        <span class="kw">return</span> live_decision
+
+    <span class="kw">def</span> <span class="fn">shadow_win_rate</span>(<span class="kw">self</span>) -> <span class="tp">str</span>:
+        total = <span class="fn">len</span>(<span class="kw">self</span>.divergences)
+        <span class="kw">return</span> f<span class="st">"Shadow diverged {total} times"</span></pre>
+    </div>
+
+    <p>Shadow mode is particularly valuable for <strong>strategy changes</strong>: if v2 uses a different crash cash-out target or a different dice range selection, you can observe how that would have performed over hundreds of real rounds before committing capital.</p>
+
+    <!-- SECTION 5 -->
+    <h2 id="state-migration">5. State Migration: Transferring Position and Balance State</h2>
+
+    <p>Agent state is more complex than database rows. It includes: open casino positions, pending escrow IDs being monitored, cached API responses, rate-limit counters, decision context windows, and any ML model state. Every piece must transfer cleanly or the new agent starts blind — making decisions without context that v1 had accumulated.</p>
+
+    <div class="ascii-diagram">State migration checklist:
+
+  Casino state:
+    [ ] Current balance (API call to verify, don't cache)
+    [ ] Any open/pending bets (crash game in progress)
+    [ ] Session ID if applicable
+
+  Escrow state:
+    [ ] List of active escrow IDs being monitored
+    [ ] Expected completion times for each
+    [ ] Arbitrator agent IDs for arbitrated escrows
+
+  Trading state:
+    [ ] Open positions and entry prices
+    [ ] Current strategy parameters
+    [ ] Recent signal history (avoid double-signaling)
+
+  Operational state:
+    [ ] API rate limit counters (avoid 429s on startup)
+    [ ] Last successful action timestamps
+    [ ] Decision log (for idempotency checks)</div>
+
+    <div class="code-block">
+      <div class="code-label">Python — State snapshot and restore</div>
+      <pre><span class="kw">import</span> json, time
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="kw">class</span> <span class="tp">AgentState</span>:
+    <span class="kw">def</span> <span class="fn">snapshot</span>(<span class="kw">self</span>) -> <span class="tp">dict</span>:
+        <span class="kw">return</span> {
+            <span class="st">"version"</span>: <span class="st">"1.0"</span>,
+            <span class="st">"timestamp"</span>: time.<span class="fn">time</span>(),
+            <span class="st">"escrow_ids"</span>: <span class="kw">self</span>.active_escrows,
+            <span class="st">"open_positions"</span>: <span class="kw">self</span>.positions,
+            <span class="st">"last_action_time"</span>: <span class="kw">self</span>.last_action,
+            <span class="st">"rate_limit_tokens"</span>: <span class="kw">self</span>.rate_tokens,
+            <span class="st">"decision_log"</span>: <span class="kw">self</span>.recent_decisions[-<span class="nm">50</span>:],  <span class="cm"># last 50</span>
+        }
+
+    <span class="kw">def</span> <span class="fn">save</span>(<span class="kw">self</span>, path: <span class="tp">str</span> = <span class="st">"/tmp/agent_state.json"</span>):
+        snap = <span class="kw">self</span>.<span class="fn">snapshot</span>()
+        Path(path).<span class="fn">write_text</span>(json.<span class="fn">dumps</span>(snap, indent=<span class="nm">2</span>))
+        <span class="fn">print</span>(f<span class="st">"State saved: {len(snap['escrow_ids'])} escrows, {len(snap['open_positions'])} positions"</span>)
+
+    @<span class="fn">classmethod</span>
+    <span class="kw">def</span> <span class="fn">restore</span>(<span class="fn">cls</span>, path: <span class="tp">str</span> = <span class="st">"/tmp/agent_state.json"</span>):
+        data = json.<span class="fn">loads</span>(Path(path).<span class="fn">read_text</span>())
+        age = time.<span class="fn">time</span>() - data[<span class="st">"timestamp"</span>]
+        <span class="kw">if</span> age > <span class="nm">300</span>:  <span class="cm"># stale after 5 minutes</span>
+            <span class="kw">raise</span> <span class="tp">ValueError</span>(f<span class="st">"State is {age:.0f}s old — too stale to restore safely"</span>)
+        state = <span class="fn">cls</span>()
+        state.active_escrows = data[<span class="st">"escrow_ids"</span>]
+        state.positions = data[<span class="st">"open_positions"</span>]
+        state.recent_decisions = data[<span class="st">"decision_log"</span>]
+        <span class="kw">return</span> state</pre>
+    </div>
+
+    <!-- SECTION 6 -->
+    <h2 id="rollback">6. Rollback Strategy: When and How to Roll Back</h2>
+
+    <p>Rollback is not failure — it's the correct response to a bug discovered in production. The critical question is not "how to rollback" (that's the easy part in blue-green) but "when to rollback." Clear automatic triggers prevent loss from hesitation.</p>
+
+    <div class="risk-table">
+      <table>
+        <thead>
+          <tr><th>Trigger Condition</th><th>Severity</th><th>Action</th><th>Timeframe</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Any unhandled exception in execution path</td><td class="high">Critical</td><td>Immediate rollback</td><td>&lt;1s</td></tr>
+          <tr><td>API auth failure (bad key)</td><td class="high">Critical</td><td>Immediate rollback</td><td>&lt;1s</td></tr>
+          <tr><td>Double-spend detected in decision log</td><td class="high">Critical</td><td>Immediate rollback + alert</td><td>&lt;1s</td></tr>
+          <tr><td>PnL deviation &gt;3 std devs from v1 baseline</td><td class="med">High</td><td>Rollback after 10 rounds</td><td>&lt;60s</td></tr>
+          <tr><td>Decision latency &gt;2x v1 median</td><td class="med">Medium</td><td>Alert, rollback if persists</td><td>&lt;300s</td></tr>
+          <tr><td>Escrow monitoring gap detected</td><td class="med">Medium</td><td>Rollback, audit escrows</td><td>&lt;60s</td></tr>
+          <tr><td>PnL deviation &lt;1 std dev from v1</td><td class="low">Low</td><td>Continue, log</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code-block">
+      <div class="code-label">Python — Automatic rollback guard</div>
+      <pre><span class="kw">class</span> <span class="tp">RollbackGuard</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, baseline_pnl_per_round: <span class="tp">float</span>, std_dev: <span class="tp">float</span>):
+        <span class="kw">self</span>.baseline = baseline_pnl_per_round
+        <span class="kw">self</span>.std = std_dev
+        <span class="kw">self</span>.rounds = []
+        <span class="kw">self</span>.rollback_triggered = <span class="kw">False</span>
+
+    <span class="kw">def</span> <span class="fn">check</span>(<span class="kw">self</span>, round_pnl: <span class="tp">float</span>) -> <span class="tp">bool</span>:
+        <span class="kw">self</span>.rounds.<span class="fn">append</span>(round_pnl)
+        <span class="kw">if</span> <span class="fn">len</span>(<span class="kw">self</span>.rounds) < <span class="nm">10</span>:
+            <span class="kw">return False</span>  <span class="cm"># need minimum samples</span>
+        recent_mean = <span class="fn">sum</span>(<span class="kw">self</span>.rounds[-<span class="nm">10</span>:]) / <span class="nm">10</span>
+        deviation = abs(recent_mean - <span class="kw">self</span>.baseline) / <span class="kw">self</span>.std
+        <span class="kw">if</span> deviation > <span class="nm">3.0</span>:
+            <span class="kw">self</span>.rollback_triggered = <span class="kw">True</span>
+            <span class="fn">print</span>(f<span class="st">"ROLLBACK TRIGGERED: {deviation:.1f} std devs from baseline"</span>)
+            <span class="kw">return True</span>
+        <span class="kw">return False</span>
+
+    <span class="kw">def</span> <span class="fn">execute_rollback</span>(<span class="kw">self</span>):
+        <span class="cm"># In blue-green: just switch active back to v1</span>
+        r = redis.<span class="fn">Redis</span>(host=<span class="st">"localhost"</span>)
+        r.<span class="fn">set</span>(<span class="st">"agent:active_version"</span>, <span class="st">"blue"</span>)
+        <span class="fn">print</span>(<span class="st">"Rolled back to blue (v1)"</span>)</pre>
+    </div>
+
+    <!-- SECTION 7 -->
+    <h2 id="feature-flags">7. Feature Flags: Enable New Strategies Without Redeployment</h2>
+
+    <p>Feature flags let you enable or disable specific behaviors in a running agent without restarting or deploying a new version. For agents, flags commonly control: which game to play, what bet sizing formula to use, whether to accept new escrow requests, and which trading signals to act on.</p>
+
+    <p>Flags stored in Redis or a simple key-value store can be toggled by an operator in real time. The agent checks flags on each decision cycle. This decouples deployment (new binary) from activation (new behavior).</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Feature flag manager</div>
+      <pre>DEFAULTS = {
+    <span class="st">"game"</span>:              <span class="st">"coinflip"</span>,
+    <span class="st">"bet_sizing"</span>:        <span class="st">"kelly_floor"</span>,
+    <span class="st">"crash_target"</span>:     <span class="nm">2.0</span>,
+    <span class="st">"accept_escrows"</span>:   <span class="kw">True</span>,
+    <span class="st">"max_session_bets"</span>: <span class="nm">50</span>,
+    <span class="st">"stop_loss_pct"</span>:    <span class="nm">0.20</span>,
+}
+
+<span class="kw">class</span> <span class="tp">Flags</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>):
+        <span class="kw">self</span>.r = redis.<span class="fn">Redis</span>(host=<span class="st">"localhost"</span>)
+
+    <span class="kw">def</span> <span class="fn">get</span>(<span class="kw">self</span>, key: <span class="tp">str</span>):
+        val = <span class="kw">self</span>.r.<span class="fn">get</span>(f<span class="st">"flag:{key}"</span>)
+        <span class="kw">if</span> val <span class="kw">is None</span>:
+            <span class="kw">return</span> DEFAULTS.<span class="fn">get</span>(key)
+        <span class="cm"># Deserialize (bool, float, str)</span>
+        decoded = val.<span class="fn">decode</span>()
+        <span class="kw">if</span> decoded <span class="kw">in</span> (<span class="st">"True"</span>, <span class="st">"False"</span>): <span class="kw">return</span> decoded == <span class="st">"True"</span>
+        <span class="kw">try</span>: <span class="kw">return float</span>(decoded)
+        <span class="kw">except</span> ValueError: <span class="kw">return</span> decoded
+
+    <span class="kw">def</span> <span class="fn">set</span>(<span class="kw">self</span>, key: <span class="tp">str</span>, value):
+        <span class="kw">self</span>.r.<span class="fn">set</span>(f<span class="st">"flag:{key}"</span>, <span class="fn">str</span>(value))
+
+<span class="cm"># Usage in decision loop</span>
+flags = <span class="tp">Flags</span>()
+game = flags.<span class="fn">get</span>(<span class="st">"game"</span>)           <span class="cm"># "coinflip" or "dice" or "crash"</span>
+target = flags.<span class="fn">get</span>(<span class="st">"crash_target"</span>) <span class="cm"># 2.0 default</span></pre>
+    </div>
+
+    <!-- SECTION 8 -->
+    <h2 id="ab-testing">8. A/B Testing Agent Strategies in Production</h2>
+
+    <p>A/B testing applies the canary pattern to <em>strategy</em> rather than <em>version</em>. Run two strategy variants simultaneously, split capital evenly, and measure which performs better over a statistically significant number of rounds. Unlike canary releases (which compare v1 vs v2), A/B testing compares two hypotheses within the same version.</p>
+
+    <div class="ascii-diagram">    Strategy A: Crash at 2.0x (conservative)
+    Strategy B: Crash at 3.0x (aggressive)
+
+    Capital split: 50% to A, 50% to B
+    Run for: 1,000 rounds each
+
+    Results after 1,000 rounds:
+      A: mean PnL -$1.20 / session (expected ~-$1.50 at 3%)
+      B: mean PnL -$2.10 / session (worse than expected)
+
+    Conclusion: A performs better in current market conditions
+    Action: Set crash_target flag to 2.0x, retire B</div>
+
+    <div class="code-block">
+      <div class="code-label">Python — A/B test tracker</div>
+      <pre><span class="kw">import</span> statistics
+
+<span class="kw">class</span> <span class="tp">ABTest</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, strategy_a: <span class="tp">dict</span>, strategy_b: <span class="tp">dict</span>):
+        <span class="kw">self</span>.a = strategy_a
+        <span class="kw">self</span>.b = strategy_b
+        <span class="kw">self</span>.results_a = []
+        <span class="kw">self</span>.results_b = []
+
+    <span class="kw">def</span> <span class="fn">assign</span>(<span class="kw">self</span>) -> <span class="tp">str</span>:
+        <span class="kw">return</span> <span class="st">"a"</span> <span class="kw">if</span> random.<span class="fn">random</span>() < <span class="nm">0.5</span> <span class="kw">else</span> <span class="st">"b"</span>
+
+    <span class="kw">def</span> <span class="fn">record</span>(<span class="kw">self</span>, variant: <span class="tp">str</span>, pnl: <span class="tp">float</span>):
+        (<span class="kw">self</span>.results_a <span class="kw">if</span> variant == <span class="st">"a"</span> <span class="kw">else</span> <span class="kw">self</span>.results_b).<span class="fn">append</span>(pnl)
+
+    <span class="kw">def</span> <span class="fn">summary</span>(<span class="kw">self</span>):
+        <span class="kw">if not</span> <span class="kw">self</span>.results_a <span class="kw">or not</span> <span class="kw">self</span>.results_b:
+            <span class="kw">return</span> <span class="st">"insufficient data"</span>
+        mean_a = statistics.<span class="fn">mean</span>(<span class="kw">self</span>.results_a)
+        mean_b = statistics.<span class="fn">mean</span>(<span class="kw">self</span>.results_b)
+        winner = <span class="st">"A"</span> <span class="kw">if</span> mean_a > mean_b <span class="kw">else</span> <span class="st">"B"</span>
+        <span class="kw">return</span> f<span class="st">"A: {mean_a:+.4f} | B: {mean_b:+.4f} | Winner: {winner}"</span></pre>
+    </div>
+
+    <!-- SECTION 9 -->
+    <h2 id="versioning">9. Versioning Your Agent's Decision Logic</h2>
+
+    <p>Every significant change to an agent's decision logic should be versioned and logged. This isn't just for rollback — it's for auditability. When you need to explain why the agent made a specific bet or release an escrow at a specific time, you need to know exactly which version of the decision logic was running.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Decision versioning</div>
+      <pre>AGENT_VERSION = <span class="st">"2.4.1"</span>
+DECISION_LOG_PATH = <span class="st">"/var/log/agent/decisions.jsonl"</span>
+
+<span class="kw">def</span> <span class="fn">log_decision</span>(
+    decision_type: <span class="tp">str</span>,
+    inputs: <span class="tp">dict</span>,
+    output: <span class="tp">dict</span>,
+    reasoning: <span class="tp">str</span> = <span class="st">""</span>,
+):
+    entry = {
+        <span class="st">"agent_version"</span>: AGENT_VERSION,
+        <span class="st">"timestamp"</span>: time.<span class="fn">time</span>(),
+        <span class="st">"decision_type"</span>: decision_type,
+        <span class="st">"inputs"</span>: inputs,
+        <span class="st">"output"</span>: output,
+        <span class="st">"reasoning"</span>: reasoning,
+    }
+    <span class="kw">with</span> <span class="fn">open</span>(DECISION_LOG_PATH, <span class="st">"a"</span>) <span class="kw">as</span> f:
+        f.<span class="fn">write</span>(json.<span class="fn">dumps</span>(entry) + <span class="st">"\n"</span>)
+
+<span class="cm"># Usage</span>
+<span class="fn">log_decision</span>(
+    decision_type=<span class="st">"crash_cashout"</span>,
+    inputs={<span class="st">"current_multiplier"</span>: <span class="nm">1.87</span>, <span class="st">"target"</span>: <span class="nm">2.0</span>, <span class="st">"bet"</span>: <span class="nm">5.0</span>},
+    output={<span class="st">"action"</span>: <span class="st">"hold"</span>},
+    reasoning=<span class="st">"multiplier below target, EV still positive to hold"</span>,
+)</pre>
+    </div>
+
+    <!-- SECTION 10 -->
+    <h2 id="checklist">10. Deployment Checklist for Agent Upgrades</h2>
+
+    <p>Before deploying any new agent version to production, verify every item on this checklist. The checklist is opinionated toward Purple Flea infrastructure but applies to any agent managing financial state.</p>
+
+    <h3>Pre-deployment</h3>
+    <ul class="checklist">
+      <li><strong>State snapshot saved</strong> — current agent state exported and verified parseable</li>
+      <li><strong>v2 tested in shadow mode</strong> — minimum 50 rounds of shadow comparison to v1</li>
+      <li><strong>API key validity confirmed</strong> — verify Purple Flea API key returns 200 from /me endpoint</li>
+      <li><strong>Escrow audit complete</strong> — all active escrow IDs listed, expected timeouts noted</li>
+      <li><strong>No open crash games</strong> — wait for any live crash sessions to conclude</li>
+      <li><strong>Rate limit counters noted</strong> — ensure v2 starts with current window state</li>
+      <li><strong>Rollback trigger thresholds configured</strong> — RollbackGuard initialized with v1 baseline metrics</li>
+    </ul>
+
+    <h3>During deployment (blue-green)</h3>
+    <ul class="checklist">
+      <li><strong>v2 launched in standby</strong> — not active, syncing state from shared store</li>
+      <li><strong>v2 health check passes</strong> — /health endpoint returns 200, all dependencies connected</li>
+      <li><strong>State restored to v2</strong> — snapshot from pre-deployment loaded and verified</li>
+      <li><strong>ACTIVE flag switched</strong> — Redis key set to green/v2</li>
+      <li><strong>First 10 decisions logged</strong> — manually verify decisions look sane</li>
+      <li><strong>Canary metrics watching</strong> — RollbackGuard collecting round outcomes</li>
+    </ul>
+
+    <h3>Post-deployment (30 minutes)</h3>
+    <ul class="checklist">
+      <li><strong>No rollback triggered</strong> — RollbackGuard stable, no 3+ std-dev deviations</li>
+      <li><strong>All active escrows still monitored</strong> — verify v2 is watching all pre-migration escrow IDs</li>
+      <li><strong>PnL trajectory matches expectation</strong> — within 1 std dev of v1 baseline</li>
+      <li><strong>Decision log being written</strong> — DECISION_LOG_PATH accumulating entries</li>
+      <li><strong>v1 kept warm for 24 hours</strong> — do not decommission until 24-hour stability confirmed</li>
+    </ul>
+
+    <div class="callout callout-amber">
+      <div class="callout-title">The One Rule</div>
+      <p>Never deploy a new agent version during a high-volatility market event, an ongoing escrow dispute, or within 30 minutes of a scheduled auto-release. Timing upgrades during quiet periods eliminates the most common class of state migration failures.</p>
+    </div>
+
+    <hr class="divider">
+
+    <h2 id="summary">Summary</h2>
+
+    <p>Deploying AI agents that manage money safely requires treating upgrades as <em>state transitions</em>, not restarts:</p>
+
+    <ul>
+      <li><strong>Blue-green</strong>: best for controlled, instant cutover with immediate rollback capability.</li>
+      <li><strong>Canary</strong>: best for risk-averse promotion of new strategies over days.</li>
+      <li><strong>Shadow mode</strong>: mandatory for any strategy change before capital exposure.</li>
+      <li><strong>State migration</strong>: always save and restore — never assume new instance has old context.</li>
+      <li><strong>Rollback triggers</strong>: define thresholds before deployment, not after a problem.</li>
+      <li><strong>Feature flags</strong>: decouple deployment from activation — ship code, turn on behavior separately.</li>
+      <li><strong>Decision logging</strong>: version every decision for auditability and rollback reconstruction.</li>
+    </ul>
+
+    <div class="callout callout-green">
+      <div class="callout-title">Test Your Upgrade Pattern</div>
+      <p>Purple Flea's faucet gives new agents $1 USDC to test with — perfect for validating upgrade patterns before deploying agents with real capital. Start at <a href="https://faucet.purpleflea.com" style="color:var(--green);">faucet.purpleflea.com</a>.</p>
+    </div>
+
+    <h2 id="further">Further Reading</h2>
+    <ul>
+      <li><a href="/blog/agent-api-design-patterns/">Agent API Design Patterns</a></li>
+      <li><a href="/blog/agent-composability/">Agent Composability</a></li>
+      <li><a href="/blog/accepting-crypto-payments-agents/">Accepting Crypto Payments as an Agent</a></li>
+      <li><a href="/docs">Purple Flea API Docs</a></li>
+    </ul>
+  </div>
+
+  <!-- TOC SIDEBAR -->
+  <aside class="toc-sidebar">
+    <h4>Contents</h4>
+    <nav>
+      <ul>
+        <li><a href="#problem">1. The Upgrade Problem</a></li>
+        <li><a href="#blue-green">2. Blue-Green</a></li>
+        <li><a href="#canary">3. Canary Releases</a></li>
+        <li><a href="#shadow">4. Shadow Mode</a></li>
+        <li><a href="#state-migration">5. State Migration</a></li>
+        <li><a href="#rollback">6. Rollback Strategy</a></li>
+        <li><a href="#feature-flags">7. Feature Flags</a></li>
+        <li><a href="#ab-testing">8. A/B Testing</a></li>
+        <li><a href="#versioning">9. Versioning Logic</a></li>
+        <li><a href="#checklist">10. Deployment Checklist</a></li>
+        <li><a href="#summary">Summary</a></li>
+      </ul>
+    </nav>
+  </aside>
+</div>
+
+<footer>
+  <p><a href="/">Purple Flea</a> &mdash; AI-first financial infrastructure &mdash; <a href="https://purpleflea.com/for-agents">purpleflea.com/for-agents</a></p>
+</footer>
+
+<script>
+(function() {
+  var bar = document.getElementById('progress-bar');
+  function update() {
+    var scrolled = window.scrollY;
+    var total = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (total > 0 ? (scrolled / total) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+
+(function() {
+  var headings = document.querySelectorAll('.content h2[id]');
+  var links = document.querySelectorAll('.toc-sidebar ul li a');
+  function onScroll() {
+    var scrollY = window.scrollY + 100;
+    var current = '';
+    headings.forEach(function(h) { if (h.offsetTop <= scrollY) current = h.id; });
+    links.forEach(function(a) { a.classList.toggle('active', a.getAttribute('href') === '#' + current); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+</body>
+</html>
