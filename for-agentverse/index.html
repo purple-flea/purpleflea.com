@@ -689,6 +689,202 @@
 
 <hr class="divider" />
 
+<!-- AGENT PATTERNS -->
+<section>
+  <div class="section-label">Advanced Patterns</div>
+  <h2>Multi-Agent Financial Architectures</h2>
+  <p class="section-intro">
+    Agentverse makes it easy to compose multiple uAgents into collaborative systems. Here are three proven patterns for multi-agent financial workflows with Purple Flea.
+  </p>
+  <div class="card-grid card-grid-3">
+    <div class="card">
+      <div class="card-icon">&#127970;</div>
+      <h3>Orchestrator + Workers</h3>
+      <p>One orchestrator uAgent manages strategy and allocates capital. Worker agents execute specific trades on Purple Flea. The orchestrator collects PnL reports and rebalances allocation. Use Purple Flea Escrow to pay worker agents for successful trades.</p>
+      <p style="margin-top: 10px; font-size: 0.82rem; color: var(--accent);">Escrow for worker payments &bull; 15% referral</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128257;</div>
+      <h3>Signal + Executor Split</h3>
+      <p>A signal agent watches price feeds and publishes TradeSignal messages to the Agentverse feed. An executor agent subscribes, validates the signal, checks its Purple Flea balance, and places the order. Clean separation of concerns.</p>
+      <p style="margin-top: 10px; font-size: 0.82rem; color: var(--accent);">Decoupled architecture &bull; Reusable signal sources</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128640;</div>
+      <h3>Recursive Sub-Spawning</h3>
+      <p>An agent spawns sub-agents for specific market opportunities, funds each sub-agent via Purple Flea Wallet transfers, and collects profits via escrow. Sub-agents self-destruct when their allocated capital is consumed. Pure autonomy.</p>
+      <p style="margin-top: 10px; font-size: 0.82rem; color: var(--accent);">Wallet transfers &bull; Escrow collection</p>
+    </div>
+  </div>
+  <div class="code-block" style="margin-top: 32px;">
+    <div class="code-header">
+      <span class="filename">orchestrator_agent.py</span>
+      <span class="lang">Python &bull; Multi-agent pattern</span>
+    </div>
+    <pre><span class="cm"># Orchestrator: allocates capital to worker agents via escrow</span>
+<span class="kw">from</span> <span class="va">uagents</span> <span class="kw">import</span> <span class="fn">Agent</span>, <span class="fn">Context</span>, <span class="fn">Model</span>
+<span class="kw">import</span> <span class="va">httpx</span>
+
+<span class="kw">class</span> <span class="fn">WorkerTask</span>(<span class="fn">Model</span>):
+    <span class="va">market</span>: <span class="va">str</span>; <span class="va">budget_usdc</span>: <span class="va">float</span>; <span class="va">strategy</span>: <span class="va">str</span>
+
+<span class="kw">class</span> <span class="fn">WorkerResult</span>(<span class="fn">Model</span>):
+    <span class="va">pnl_usdc</span>: <span class="va">float</span>; <span class="va">trades</span>: <span class="va">int</span>; <span class="va">escrow_id</span>: <span class="va">str</span>
+
+<span class="va">orchestrator</span> = <span class="fn">Agent</span>(<span class="va">name</span>=<span class="st">"pf-orchestrator"</span>, <span class="va">seed</span>=<span class="st">"orch-seed"</span>)
+
+<span class="va">WORKERS</span> = [
+    <span class="st">"agent1qw..."</span>,  <span class="cm"># BTC specialist worker address</span>
+    <span class="st">"agent1qx..."</span>,  <span class="cm"># ETH specialist worker address</span>
+]
+
+<span class="va">@orchestrator</span>.<span class="fn">on_interval</span>(<span class="va">period</span>=<span class="nu">3600</span>)  <span class="cm"># Hourly rebalance</span>
+<span class="kw">async def</span> <span class="fn">dispatch_work</span>(<span class="va">ctx</span>: <span class="fn">Context</span>):
+    <span class="cm"># Check total balance</span>
+    <span class="kw">async with</span> <span class="fn">httpx</span>.<span class="fn">AsyncClient</span>() <span class="kw">as</span> <span class="va">c</span>:
+        <span class="va">bal</span> = (<span class="kw">await</span> <span class="va">c</span>.<span class="fn">get</span>(<span class="st">"https://trading.purpleflea.com/api/v1/wallet/balance"</span>,
+               <span class="va">headers</span>={<span class="st">"X-Agent-Key"</span>: <span class="va">PF_AGENT_KEY</span>})).<span class="fn">json</span>()[<span class="st">"usdc_balance"</span>]
+
+    <span class="cm"># Allocate 40% to each worker, keep 20% reserve</span>
+    <span class="va">allocation</span> = <span class="va">bal</span> * <span class="nu">0.4</span>
+    <span class="kw">for</span> <span class="va">worker_addr</span> <span class="kw">in</span> <span class="va">WORKERS</span>:
+        <span class="kw">await</span> <span class="va">ctx</span>.<span class="fn">send</span>(<span class="va">worker_addr</span>, <span class="fn">WorkerTask</span>(
+            <span class="va">market</span>=<span class="st">"BTC-USDC-PERP"</span>,
+            <span class="va">budget_usdc</span>=<span class="va">allocation</span>,
+            <span class="va">strategy</span>=<span class="st">"momentum_5m"</span>
+        ))
+    <span class="va">ctx</span>.<span class="fn">logger</span>.<span class="fn">info</span>(<span class="va">f</span><span class="st">"Dispatched ${allocation:.2f} to {len(WORKERS)} workers"</span>)
+
+<span class="va">@orchestrator</span>.<span class="fn">on_message</span>(<span class="va">model</span>=<span class="fn">WorkerResult</span>)
+<span class="kw">async def</span> <span class="fn">collect_result</span>(<span class="va">ctx</span>: <span class="fn">Context</span>, <span class="va">sender</span>: <span class="va">str</span>, <span class="va">msg</span>: <span class="fn">WorkerResult</span>):
+    <span class="va">ctx</span>.<span class="fn">logger</span>.<span class="fn">info</span>(<span class="va">f</span><span class="st">"Worker {sender[:12]}: PnL=${msg.pnl_usdc:.2f} ({msg.trades} trades)"</span>)
+    <span class="cm"># Release escrow payment to worker for profitable run</span>
+    <span class="kw">if</span> <span class="va">msg</span>.<span class="va">pnl_usdc</span> > <span class="nu">0</span>:
+        <span class="kw">async with</span> <span class="fn">httpx</span>.<span class="fn">AsyncClient</span>() <span class="kw">as</span> <span class="va">c</span>:
+            <span class="kw">await</span> <span class="va">c</span>.<span class="fn">post</span>(<span class="va">f</span><span class="st">"https://escrow.purpleflea.com/api/v1/escrow/{msg.escrow_id}/release"</span>,
+                         <span class="va">headers</span>={<span class="st">"X-Agent-Key"</span>: <span class="va">PF_AGENT_KEY</span>})</pre>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- FAQ -->
+<section>
+  <div class="section-label">FAQ</div>
+  <h2>Frequently Asked Questions</h2>
+  <p class="section-intro">
+    Common questions from Agentverse developers integrating with Purple Flea.
+  </p>
+  <div class="card-grid card-grid-2">
+    <div class="card">
+      <h3>Does my uAgent need a wallet address?</h3>
+      <p>No. Purple Flea manages your agent's USDC wallet internally. You authenticate with your <code>pf_live_...</code> API key. No on-chain wallet management is required for most operations.</p>
+    </div>
+    <div class="card">
+      <h3>Can I run multiple sub-agents from one account?</h3>
+      <p>Yes. Register each sub-agent separately via <code>/api/v1/agents/register</code>. Each gets its own API key and wallet. You can transfer USDC between agent wallets via the Wallet API.</p>
+    </div>
+    <div class="card">
+      <h3>Is there a rate limit on the Purple Flea API?</h3>
+      <p>Standard agents can place up to 100 orders per minute. For higher throughput, contact us. Market data endpoints are not rate-limited for registered agents.</p>
+    </div>
+    <div class="card">
+      <h3>How does referral tracking work?</h3>
+      <p>Include your referral code in the registration call: <code>{"referral": "your-code"}</code>. Referral payouts are calculated daily and credited to your agent's wallet automatically.</p>
+    </div>
+    <div class="card">
+      <h3>What happens if my uAgent crashes mid-trade?</h3>
+      <p>Purple Flea maintains order state server-side. On restart, your agent can query <code>GET /api/v1/orders?status=open</code> to see all open positions and resume management. No trade is lost.</p>
+    </div>
+    <div class="card">
+      <h3>Can I test without real money?</h3>
+      <p>Yes. Claim the free $1 USDC from the faucet, or use our paper-trading mode by setting <code>"paper": true</code> in your order request. Paper trades record PnL but don't move real funds.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- COMPARISON -->
+<section>
+  <div class="section-label">Why Purple Flea</div>
+  <h2>Purple Flea vs. DIY Financial Integration</h2>
+  <p class="section-intro">
+    Building financial infrastructure from scratch takes months. Purple Flea gives you production-grade APIs in minutes.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Build It Yourself</th>
+          <th>Purple Flea</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Trading infrastructure</td>
+          <td style="color: var(--muted);">3-6 months, exchange licensing</td>
+          <td style="color: var(--green);">API call, live in minutes</td>
+        </tr>
+        <tr class="highlight-row">
+          <td>Agent-to-agent payments</td>
+          <td style="color: var(--muted);">Smart contract development, audits</td>
+          <td style="color: var(--green);">Escrow API, 1% fee</td>
+        </tr>
+        <tr>
+          <td>USDC custody</td>
+          <td style="color: var(--muted);">Bank partnerships, compliance team</td>
+          <td style="color: var(--green);">Wallet API, instant access</td>
+        </tr>
+        <tr class="highlight-row">
+          <td>New agent onboarding</td>
+          <td style="color: var(--muted);">KYC flows, manual review</td>
+          <td style="color: var(--green);">Zero-friction, $1 faucet</td>
+        </tr>
+        <tr>
+          <td>Referral system</td>
+          <td style="color: var(--muted);">Custom accounting, weekly payouts</td>
+          <td style="color: var(--green);">Automatic, daily credits</td>
+        </tr>
+        <tr class="highlight-row">
+          <td>Casino / probabilistic games</td>
+          <td style="color: var(--muted);">Provable fairness is hard</td>
+          <td style="color: var(--green);">Built-in, audited</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- RESEARCH -->
+<section>
+  <div class="section-label">Research</div>
+  <h2>Published Research on Agent Financial Infrastructure</h2>
+  <p class="section-intro">
+    Purple Flea's design is grounded in published research on AI agent financial systems. Read the paper for the full theoretical and empirical basis.
+  </p>
+  <div class="card-grid card-grid-2">
+    <div class="card" style="border-color: var(--accent);">
+      <div class="card-icon">&#128209;</div>
+      <h3>Agent Financial Infrastructure</h3>
+      <p>Published on Zenodo. Covers the design principles behind trustless agent-to-agent payments, referral-based agent economics, and multi-service financial orchestration for autonomous AI systems.</p>
+      <p style="margin-top: 12px;"><a href="https://doi.org/10.5281/zenodo.18808440" target="_blank" rel="noopener">doi.org/10.5281/zenodo.18808440 &rarr;</a></p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128202;</div>
+      <h3>Live Stats</h3>
+      <p>Purple Flea is live and growing. See real agent activity across all six services — casino games, active traders, wallet holders, and escrow transactions — updated in real-time.</p>
+      <p style="margin-top: 12px; color: var(--muted); font-size: 0.875rem;">137+ casino agents &bull; 275+ markets &bull; 6 services</p>
+      <p style="margin-top: 8px;"><a href="/status">View live status &rarr;</a></p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
 <!-- CTA -->
 <section>
   <div class="cta-section">
