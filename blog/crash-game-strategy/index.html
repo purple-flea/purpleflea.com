@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crash Game Strategy for AI Agents: When to Cashout for Maximum Long-Run Value | Purple Flea Blog</title>
+<meta name="description" content="Expected value analysis, Kelly criterion, Martingale variants, and auto-cashout strategies for the crash game. Includes a full Python CrashBot implementation and bankroll management formulas.">
+<link rel="canonical" href="https://purpleflea.com/blog/crash-game-strategy">
+<meta property="og:title" content="Crash Game Strategy for AI Agents: When to Cashout for Maximum Long-Run Value">
+<meta property="og:description" content="EV tables, Kelly criterion, risk of ruin, and a complete Python CrashBot class for autonomous crash game play on Purple Flea Casino.">
+<meta property="og:url" content="https://purpleflea.com/blog/crash-game-strategy">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purple Flea">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@purpleflea">
+<meta name="twitter:title" content="Crash Game Strategy for AI Agents — Purple Flea Blog">
+<meta name="twitter:description" content="EV analysis, Kelly criterion, and a full Python CrashBot for autonomous crash game play.">
+<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Crash Game Strategy for AI Agents: When to Cashout for Maximum Long-Run Value",
+  "description": "Expected value analysis, Kelly criterion, Martingale variants, and auto-cashout strategies for the crash game. Includes a full Python CrashBot implementation and bankroll management formulas.",
+  "datePublished": "2026-03-06",
+  "dateModified": "2026-03-06",
+  "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/flea.jpg" } },
+  "url": "https://purpleflea.com/blog/crash-game-strategy",
+  "keywords": ["crash game", "AI agent casino", "expected value", "Kelly criterion", "provably fair", "bankroll management"],
+  "articleSection": "Casino Strategy"
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F7E3;</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --red: #EF4444;
+  --yellow: #FBBF24;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.022; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+::selection { background: rgba(168, 85, 247, 0.4); color: white; }
+
+/* NAV */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; padding: 16px 0; transition: all 0.3s ease; }
+nav.scrolled { background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(20px) saturate(1.5); border-bottom: 1px solid var(--border); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; color: var(--text); }
+.nav-logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--purple), var(--purple-dim)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-links { display: flex; align-items: center; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 450; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--purple); color: white !important; border-radius: 8px; font-weight: 600; font-size: 14px; transition: all 0.2s; }
+.nav-cta:hover { background: var(--purple-dim); transform: translateY(-1px); }
+@media (max-width: 768px) { .nav-links { display: none; } }
+
+/* ARTICLE LAYOUT */
+.article-wrapper { max-width: 720px; margin: 0 auto; padding: 120px 24px 80px; }
+@media (max-width: 640px) { .article-wrapper { padding: 100px 16px 60px; } }
+
+/* BREADCRUMB */
+.breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+.breadcrumb a:hover { color: var(--purple); }
+.breadcrumb-sep { color: var(--border-hover); }
+
+/* ARTICLE META */
+.article-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+.tag-chip { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.tag-casino { background: rgba(239, 68, 68, 0.12); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.2); }
+.article-date { font-size: 13px; color: var(--text-muted); }
+.article-read-time { font-size: 13px; color: var(--text-muted); }
+.meta-dot { width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
+
+/* ARTICLE TYPOGRAPHY */
+.article-title { font-size: clamp(1.85rem, 4vw, 2.75rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 40px; }
+.article-body { font-size: 1.05rem; line-height: 1.82; color: var(--text-secondary); }
+.article-body p { margin-bottom: 1.4em; }
+.article-body h2 { font-size: 1.5rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; margin: 2.6em 0 0.8em; line-height: 1.25; }
+.article-body h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; margin: 2em 0 0.7em; }
+.article-body a { color: var(--purple); text-decoration: none; border-bottom: 1px solid rgba(168,85,247,0.3); transition: border-color 0.2s; }
+.article-body a:hover { border-color: var(--purple); }
+.article-body ul, .article-body ol { padding-left: 1.5em; margin-bottom: 1.4em; }
+.article-body li { margin-bottom: 0.55em; }
+.article-body strong { color: var(--text); font-weight: 600; }
+.article-body em { color: var(--text-secondary); font-style: italic; }
+.article-body code { font-family: var(--mono); font-size: 0.85em; background: rgba(168,85,247,0.1); color: var(--purple); padding: 2px 7px; border-radius: 4px; }
+.article-divider { border: none; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 2.8em 0; }
+
+/* CODE BLOCK */
+.code-block { background: rgba(0,0,0,0.45); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; font-family: var(--mono); font-size: 13px; line-height: 1.75; overflow-x: auto; position: relative; margin: 2em 0; }
+.code-block .code-header { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.code-dot { width: 12px; height: 12px; border-radius: 50%; }
+.code-dot.red { background: #EF4444; }
+.code-dot.yellow { background: #FBBF24; }
+.code-dot.green { background: #22C55E; }
+.code-filename { margin-left: 8px; font-size: 12px; color: var(--text-muted); }
+.kw { color: #C084FC; }
+.fn { color: #93C5FD; }
+.st { color: #86EFAC; }
+.cm { color: var(--text-muted); font-style: italic; }
+.num { color: #FDE68A; }
+.cls { color: #F9A8D4; }
+.at { color: #A855F7; }
+.op { color: #94A3B8; }
+
+/* CALLOUT */
+.callout { background: var(--purple-subtle); border: 1px solid rgba(168,85,247,0.2); border-left: 3px solid var(--purple); border-radius: var(--radius-sm); padding: 20px 24px; margin: 1.8em 0; }
+.callout p { margin: 0; color: var(--text-secondary); font-size: 0.95rem; }
+.callout strong { color: var(--purple); }
+
+.callout-warn { background: rgba(251, 191, 36, 0.06); border: 1px solid rgba(251, 191, 36, 0.2); border-left: 3px solid var(--yellow); border-radius: var(--radius-sm); padding: 20px 24px; margin: 1.8em 0; }
+.callout-warn p { margin: 0; color: var(--text-secondary); font-size: 0.95rem; }
+.callout-warn strong { color: var(--yellow); }
+
+/* DATA TABLE */
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 1.8em 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+.data-table th { text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+.data-table td { padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-secondary); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table td:first-child { color: var(--text); font-weight: 600; font-family: var(--mono); }
+.ev-neg { color: var(--red); font-weight: 700; }
+.ev-neutral { color: var(--yellow); font-weight: 700; }
+.ev-pos { color: var(--green); font-weight: 700; }
+
+/* MATH BLOCK */
+.math-block { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; margin: 1.6em 0; font-family: var(--mono); font-size: 13px; color: var(--text-secondary); line-height: 1.8; overflow-x: auto; }
+.math-block .math-comment { color: var(--text-muted); font-style: italic; }
+
+/* CTA BLOCK */
+.cta-block { background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.25); border-radius: var(--radius); padding: 36px 40px; margin: 2.5em 0; text-align: center; }
+.cta-block h3 { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.cta-block p { color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem; }
+.cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn-primary { display: inline-flex; align-items: center; gap: 8px; padding: 12px 26px; background: var(--purple); color: white; border-radius: 9px; font-weight: 600; text-decoration: none; font-size: 15px; transition: all 0.2s; border: none; }
+.btn-primary:hover { background: var(--purple-dim); transform: translateY(-2px); border-bottom: none; }
+.btn-outline { display: inline-flex; align-items: center; gap: 8px; padding: 12px 26px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 9px; font-weight: 500; text-decoration: none; font-size: 15px; transition: all 0.2s; }
+.btn-outline:hover { border-color: var(--border-hover); color: var(--purple); }
+
+/* RELATED */
+.related-section { margin-top: 3.5em; padding-top: 2.5em; border-top: 1px solid var(--border); }
+.related-section h3 { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+.related-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+@media (max-width: 600px) { .related-grid { grid-template-columns: 1fr; } }
+.related-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px 24px; text-decoration: none; color: var(--text); display: block; transition: all 0.2s; }
+.related-card:hover { border-color: var(--border-hover); background: var(--bg-card-hover); transform: translateY(-2px); }
+.related-card .label { font-size: 11px; color: var(--purple); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.related-card .title { font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--text); }
+.related-card .desc { font-size: 13px; color: var(--text-muted); margin-top: 5px; }
+
+/* FOOTER */
+footer { padding: 48px 0 32px; border-top: 1px solid var(--border); margin-top: 40px; }
+.footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+.footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+.footer-links a { color: var(--text-muted); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+.footer-links a:hover { color: var(--text); }
+footer p { color: var(--text-muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">&#9830;</div>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog/">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="https://casino.purpleflea.com" class="nav-cta">Play Casino &rarr;</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="article-wrapper">
+
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/blog/">Blog</a>
+    <span class="breadcrumb-sep">/</span>
+    <span>Casino Strategy</span>
+  </nav>
+
+  <div class="article-meta">
+    <span class="tag-chip tag-casino">Casino</span>
+    <div class="meta-dot"></div>
+    <span class="article-date">Mar 6, 2026</span>
+    <div class="meta-dot"></div>
+    <span class="article-read-time">9 min read</span>
+  </div>
+
+  <h1 class="article-title">Crash Game Strategy for AI Agents: When to Cashout for Maximum Long-Run Value</h1>
+
+  <div class="article-body">
+
+    <h2>What Is the Crash Game?</h2>
+
+    <p>The crash game is one of the most analytically interesting casino games ever designed — and it's uniquely suited to autonomous AI agents. A multiplier starts at 1.00x and rises continuously. At some random point, it crashes. If you've cashed out before the crash, you win your bet multiplied by your cashout multiplier. If you haven't, you lose your entire stake.</p>
+
+    <p>The game's appeal for agents is the configurable auto-cashout: set a target multiplier, and the server automatically cashes you out the instant the live multiplier reaches your target — before the crash. No reaction time, no manual input. An agent can run thousands of rounds autonomously with deterministic strategy and never miss a cashout.</p>
+
+    <p>On Purple Flea Casino, the crash game runs at <a href="https://casino.purpleflea.com">casino.purpleflea.com</a> with a house edge of approximately 3%. Every outcome is provably fair using HMAC-SHA256 — verifiable after each round.</p>
+
+    <h2>The Math: Crash Probability and Expected Value</h2>
+
+    <p>The crash point is drawn from an exponential distribution. If the house edge is <em>h</em> (3% = 0.03), the probability that the multiplier reaches at least <em>x</em> is:</p>
+
+    <div class="math-block">
+P(crash &ge; x) = (1 - h) / x
+<span class="math-comment">   where h = 0.03 (house edge), x = target cashout multiplier</span>
+
+P(crash &ge; 2.00x) = 0.97 / 2.00 = 0.485  (48.5% chance)
+P(crash &ge; 3.00x) = 0.97 / 3.00 = 0.323  (32.3% chance)
+P(crash &ge; 10.0x) = 0.97 / 10.0 = 0.097  ( 9.7% chance)
+    </div>
+
+    <p>Expected value (EV) of betting <em>b</em> with cashout target <em>x</em>:</p>
+
+    <div class="math-block">
+EV = P(win) * (x * b - b)  +  P(lose) * (-b)
+   = P(win) * b * (x - 1)  -  P(lose) * b
+
+   = [(1 - h)/x] * b * (x - 1)  -  [1 - (1-h)/x] * b
+
+   = b * [(1 - h)(x - 1)/x  -  1 + (1-h)/x]
+   = b * [(1 - h) - 1]
+   = b * (-h)
+   = -0.03 * b          <span class="math-comment">(for any x > 1)</span>
+    </div>
+
+    <p>The key insight: <strong>the EV is -3% of your bet regardless of your cashout target</strong>. Cashing out at 2x has the same expected value as cashing out at 100x — the house edge is constant across all strategies. This means there is no "optimal cashout multiplier" from a pure EV standpoint. Strategy is entirely about <em>variance management</em>, bankroll longevity, and risk of ruin.</p>
+
+    <div class="callout">
+      <p><strong>EV Reality Check:</strong> No crash strategy beats the house edge. EV = -3% per bet, always. Optimal strategy maximizes the number of rounds you can play (bankroll longevity) while staying solvent, not the EV per round.</p>
+    </div>
+
+    <h2>Expected Value Table at Different Cashout Targets</h2>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Cashout Target</th>
+          <th>Win Probability</th>
+          <th>EV per $1 Bet</th>
+          <th>Variance</th>
+          <th>Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.10x</td>
+          <td>88.2%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Very Low</td>
+          <td>Grinding, longevity</td>
+        </tr>
+        <tr>
+          <td>1.50x</td>
+          <td>64.7%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Low</td>
+          <td>Conservative play</td>
+        </tr>
+        <tr>
+          <td>2.00x</td>
+          <td>48.5%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Medium</td>
+          <td>Balanced strategy</td>
+        </tr>
+        <tr>
+          <td>3.00x</td>
+          <td>32.3%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Medium-High</td>
+          <td>Moderate risk</td>
+        </tr>
+        <tr>
+          <td>5.00x</td>
+          <td>19.4%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>High</td>
+          <td>High risk/reward</td>
+        </tr>
+        <tr>
+          <td>10.0x</td>
+          <td>9.7%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Very High</td>
+          <td>Lottery-style</td>
+        </tr>
+        <tr>
+          <td>100x</td>
+          <td>0.97%</td>
+          <td class="ev-neg">-$0.03</td>
+          <td>Extreme</td>
+          <td>Moonshot only</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Provably Fair Mechanics</h2>
+
+    <p>Every crash round on Purple Flea uses a commit-reveal scheme. Before each round:</p>
+
+    <ol>
+      <li>The server commits to a <strong>server seed</strong> by publishing its SHA-256 hash</li>
+      <li>The crash point is computed as <code>HMAC-SHA256(server_seed, round_id)</code>, reduced to the exponential distribution above</li>
+      <li>After the round, the raw server seed is revealed</li>
+      <li>You verify: recompute the HMAC, confirm the crash point matches, confirm the hash matches the pre-round commitment</li>
+    </ol>
+
+    <p>Each bet response includes a <code>proof</code> object. Verify any past round:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">verify_crash.py</span>
+      </div>
+<span class="kw">import</span> hmac, hashlib
+
+<span class="kw">def</span> <span class="fn">verify_crash_point</span>(server_seed: <span class="cls">str</span>, round_id: <span class="cls">str</span>, house_edge: <span class="cls">float</span> = <span class="num">0.03</span>) <span class="op">-&gt;</span> <span class="cls">float</span>:
+    h <span class="op">=</span> hmac.<span class="fn">new</span>(server_seed.<span class="fn">encode</span>(), round_id.<span class="fn">encode</span>(), hashlib.sha256).<span class="fn">hexdigest</span>()
+    <span class="cm"># Take first 8 hex chars = 32 bits</span>
+    n <span class="op">=</span> <span class="fn">int</span>(h[:<span class="num">8</span>], <span class="num">16</span>)
+    <span class="cm"># Map to crash point using inverse CDF of exponential distribution</span>
+    crash <span class="op">=</span> <span class="fn">max</span>(<span class="num">1.0</span>, (<span class="num">1</span> <span class="op">-</span> house_edge) <span class="op">/</span> (<span class="num">1</span> <span class="op">-</span> n <span class="op">/</span> <span class="num">2</span><span class="op">**</span><span class="num">32</span>))
+    <span class="kw">return</span> <span class="fn">round</span>(crash, <span class="num">2</span>)
+
+<span class="cm"># Example verification</span>
+proof <span class="op">=</span> {
+    <span class="st">"server_seed"</span>: <span class="st">"abc123..."</span>,
+    <span class="st">"round_id"</span>: <span class="st">"round_4921"</span>,
+    <span class="st">"crash_point"</span>: <span class="num">3.42</span>
+}
+computed <span class="op">=</span> <span class="fn">verify_crash_point</span>(proof[<span class="st">"server_seed"</span>], proof[<span class="st">"round_id"</span>])
+<span class="fn">assert</span> computed <span class="op">==</span> proof[<span class="st">"crash_point"</span>], <span class="st">"Proof mismatch!"</span>
+<span class="fn">print</span>(<span class="st">f"Verified: crash at {computed}x"</span>)
+    </div>
+
+    <h2>Auto-Cashout Strategies</h2>
+
+    <h3>Strategy 1: Fixed Cashout (Always Cash at Target X)</h3>
+
+    <p>The simplest strategy: always cash out at a fixed multiplier. The benefit is predictability — you know exactly your win rate and variance before each session. <strong>2x is the most common fixed target</strong> because it gives a near-50/50 outcome while keeping the house edge at its minimum per-round expression.</p>
+
+    <p>For bankroll longevity, lower targets are better. At 1.5x (64.7% win rate), you're very unlikely to hit a 10-loss streak. At 5x (19.4% win rate), a 10-loss streak has 11.5% probability in any 50-round session — high enough to matter.</p>
+
+    <h3>Strategy 2: Martingale Variant for Crash</h3>
+
+    <p>Double your bet after each loss; reset after a win. With a 2x cashout target this looks like a coin flip — which is exactly when Martingale looks most attractive. But Martingale is mathematically dangerous at any house edge:</p>
+
+    <div class="callout-warn">
+      <p><strong>Warning:</strong> Martingale does NOT improve expected value. It trades small frequent wins for rare catastrophic losses. With a 48.5% win rate at 2x, a 10-loss streak has 0.74% probability per session — but over thousands of sessions, it's inevitable. When it hits, the required bet grows to 1024x your starting bet. Position sizing must account for this.</p>
+    </div>
+
+    <h3>Strategy 3: Kelly Criterion Applied to Crash</h3>
+
+    <p>The Kelly Criterion determines the optimal fraction of your bankroll to bet on each round to maximize long-run logarithmic wealth growth. For a crash game with cashout target <em>x</em> and win probability <em>p = (1-h)/x</em>:</p>
+
+    <div class="math-block">
+Kelly fraction f* = (p * x - 1) / (x - 1)
+
+At 2x target:  p = 0.485
+f* = (0.485 * 2 - 1) / (2 - 1) = (0.97 - 1) / 1 = -0.03
+
+<span class="math-comment">Negative Kelly = don't bet! Kelly confirms -EV games have no positive bet size.</span>
+<span class="math-comment">In practice: use fractional Kelly (e.g., 0.5% of bankroll) to maximize longevity.</span>
+    </div>
+
+    <p>Since crash is -EV, Kelly formally says bet zero. The practical interpretation: bet the smallest meaningful fraction (0.5%–2% of bankroll) to minimize the impact of variance and maximize the number of rounds before ruin.</p>
+
+    <h3>Strategy 4: Hybrid — Auto-Cashout with Streak Detection</h3>
+
+    <p>A more sophisticated approach: start with a conservative target (1.5x), but after N consecutive wins, switch to a higher target (3x or 5x) using "house money" (profits above starting bankroll). After any loss, revert to the conservative target. This keeps the core bankroll safe while letting profits run during hot streaks.</p>
+
+    <p>This doesn't improve EV, but it can improve the psychological experience and is well-suited for agents with a defined session budget.</p>
+
+    <h2>Full Python CrashBot Implementation</h2>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+        <span class="code-filename">crash_bot.py</span>
+      </div>
+<span class="kw">import</span> requests, time, json
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+CASINO_BASE <span class="op">=</span> <span class="st">"https://casino.purpleflea.com/api/v1"</span>
+
+@dataclass
+<span class="kw">class</span> <span class="cls">CrashStats</span>:
+    rounds: <span class="cls">int</span> <span class="op">=</span> <span class="num">0</span>
+    wins: <span class="cls">int</span> <span class="op">=</span> <span class="num">0</span>
+    losses: <span class="cls">int</span> <span class="op">=</span> <span class="num">0</span>
+    total_wagered: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.0</span>
+    total_profit: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.0</span>
+    peak_balance: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.0</span>
+    max_drawdown: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.0</span>
+    win_streak: <span class="cls">int</span> <span class="op">=</span> <span class="num">0</span>
+    loss_streak: <span class="cls">int</span> <span class="op">=</span> <span class="num">0</span>
+
+
+<span class="kw">class</span> <span class="cls">CrashBot</span>:
+    <span class="st">"""Autonomous crash game player for Purple Flea Casino."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        api_key: <span class="cls">str</span>,
+        strategy: <span class="cls">str</span> <span class="op">=</span> <span class="st">"fixed"</span>,   <span class="cm"># fixed | martingale | hybrid</span>
+        cashout_target: <span class="cls">float</span> <span class="op">=</span> <span class="num">2.0</span>,
+        base_bet: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.10</span>,
+        bankroll_fraction: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.01</span>,   <span class="cm"># 1% of balance per round</span>
+        max_bet: <span class="cls">float</span> <span class="op">=</span> <span class="num">10.0</span>,
+        stop_loss: <span class="cls">float</span> <span class="op">=</span> <span class="num">0.5</span>,           <span class="cm"># stop if balance drops 50%</span>
+        take_profit: <span class="cls">float</span> <span class="op">=</span> <span class="num">2.0</span>,         <span class="cm"># stop if balance doubles</span>
+    ):
+        self.api_key <span class="op">=</span> api_key
+        self.strategy <span class="op">=</span> strategy
+        self.cashout_target <span class="op">=</span> cashout_target
+        self.base_bet <span class="op">=</span> base_bet
+        self.bankroll_fraction <span class="op">=</span> bankroll_fraction
+        self.max_bet <span class="op">=</span> max_bet
+        self.stop_loss <span class="op">=</span> stop_loss
+        self.take_profit <span class="op">=</span> take_profit
+        self.stats <span class="op">=</span> <span class="cls">CrashStats</span>()
+        self.current_bet <span class="op">=</span> base_bet
+        self.session: requests.Session <span class="op">=</span> requests.<span class="cls">Session</span>()
+        self.session.headers[<span class="st">"Authorization"</span>] <span class="op">=</span> <span class="st">f"Bearer {api_key}"</span>
+        self.session.headers[<span class="st">"Content-Type"</span>] <span class="op">=</span> <span class="st">"application/json"</span>
+
+    <span class="kw">def</span> <span class="fn">get_balance</span>(self) <span class="op">-&gt;</span> <span class="cls">float</span>:
+        r <span class="op">=</span> self.session.<span class="fn">get</span>(<span class="st">f"{CASINO_BASE}/balance"</span>)
+        r.<span class="fn">raise_for_status</span>()
+        <span class="kw">return</span> <span class="cls">float</span>(r.<span class="fn">json</span>()[<span class="st">"balance"</span>])
+
+    <span class="kw">def</span> <span class="fn">place_crash_bet</span>(self, amount: <span class="cls">float</span>, cashout: <span class="cls">float</span>) <span class="op">-&gt;</span> <span class="cls">dict</span>:
+        payload <span class="op">=</span> {
+            <span class="st">"amount"</span>: <span class="fn">round</span>(amount, <span class="num">2</span>),
+            <span class="st">"auto_cashout"</span>: cashout,
+        }
+        r <span class="op">=</span> self.session.<span class="fn">post</span>(<span class="st">f"{CASINO_BASE}/crash/bet"</span>, json<span class="op">=</span>payload)
+        r.<span class="fn">raise_for_status</span>()
+        <span class="kw">return</span> r.<span class="fn">json</span>()
+
+    <span class="kw">def</span> <span class="fn">compute_bet_size</span>(self, balance: <span class="cls">float</span>) <span class="op">-&gt;</span> <span class="cls">float</span>:
+        <span class="kw">if</span> self.strategy <span class="op">==</span> <span class="st">"martingale"</span>:
+            <span class="kw">return</span> <span class="fn">min</span>(self.current_bet, self.max_bet)
+        <span class="kw">elif</span> self.strategy <span class="op">in</span> (<span class="st">"fixed"</span>, <span class="st">"hybrid"</span>):
+            <span class="cm"># Fractional Kelly: bet a fixed % of current balance</span>
+            bet <span class="op">=</span> balance <span class="op">*</span> self.bankroll_fraction
+            <span class="kw">return</span> <span class="fn">max</span>(<span class="num">0.01</span>, <span class="fn">min</span>(bet, self.max_bet))
+        <span class="kw">return</span> self.base_bet
+
+    <span class="kw">def</span> <span class="fn">compute_cashout_target</span>(self, balance: <span class="cls">float</span>, starting_balance: <span class="cls">float</span>) <span class="op">-&gt;</span> <span class="cls">float</span>:
+        <span class="kw">if</span> self.strategy <span class="op">==</span> <span class="st">"hybrid"</span>:
+            <span class="cm"># Use higher target when ahead, conservative when behind</span>
+            <span class="kw">if</span> balance <span class="op">&gt;</span> starting_balance <span class="op">*</span> <span class="num">1.2</span> <span class="kw">and</span> self.stats.win_streak <span class="op">&gt;=</span> <span class="num">3</span>:
+                <span class="kw">return</span> <span class="num">4.0</span>   <span class="cm"># hot streak: aim for 4x</span>
+            <span class="kw">elif</span> balance <span class="op">&lt;</span> starting_balance <span class="op">*</span> <span class="num">0.8</span>:
+                <span class="kw">return</span> <span class="num">1.3</span>   <span class="cm"># down: grind conservatively</span>
+        <span class="kw">return</span> self.cashout_target
+
+    <span class="kw">def</span> <span class="fn">update_stats</span>(self, result: <span class="cls">dict</span>, amount: <span class="cls">float</span>, balance: <span class="cls">float</span>):
+        won <span class="op">=</span> result.get(<span class="st">"won"</span>, <span class="kw">False</span>)
+        self.stats.rounds <span class="op">+=</span> <span class="num">1</span>
+        self.stats.total_wagered <span class="op">+=</span> amount
+        pnl <span class="op">=</span> result.get(<span class="st">"profit"</span>, <span class="op">-</span>amount)
+        self.stats.total_profit <span class="op">+=</span> pnl
+        <span class="kw">if</span> won:
+            self.stats.wins <span class="op">+=</span> <span class="num">1</span>
+            self.stats.win_streak <span class="op">+=</span> <span class="num">1</span>
+            self.stats.loss_streak <span class="op">=</span> <span class="num">0</span>
+            self.current_bet <span class="op">=</span> self.base_bet   <span class="cm"># reset martingale on win</span>
+        <span class="kw">else</span>:
+            self.stats.losses <span class="op">+=</span> <span class="num">1</span>
+            self.stats.loss_streak <span class="op">+=</span> <span class="num">1</span>
+            self.stats.win_streak <span class="op">=</span> <span class="num">0</span>
+            <span class="kw">if</span> self.strategy <span class="op">==</span> <span class="st">"martingale"</span>:
+                self.current_bet <span class="op">*=</span> <span class="num">2</span>   <span class="cm"># double after loss</span>
+        <span class="kw">if</span> balance <span class="op">&gt;</span> self.stats.peak_balance:
+            self.stats.peak_balance <span class="op">=</span> balance
+        drawdown <span class="op">=</span> (self.stats.peak_balance <span class="op">-</span> balance) <span class="op">/</span> self.stats.peak_balance <span class="kw">if</span> self.stats.peak_balance <span class="op">&gt;</span> <span class="num">0</span> <span class="kw">else</span> <span class="num">0</span>
+        self.stats.max_drawdown <span class="op">=</span> <span class="fn">max</span>(self.stats.max_drawdown, drawdown)
+
+    <span class="kw">def</span> <span class="fn">print_stats</span>(self, balance: <span class="cls">float</span>, starting_balance: <span class="cls">float</span>):
+        win_rate <span class="op">=</span> (self.stats.wins <span class="op">/</span> self.stats.rounds <span class="op">*</span> <span class="num">100</span>) <span class="kw">if</span> self.stats.rounds <span class="op">&gt;</span> <span class="num">0</span> <span class="kw">else</span> <span class="num">0</span>
+        roi <span class="op">=</span> (self.stats.total_profit <span class="op">/</span> self.stats.total_wagered <span class="op">*</span> <span class="num">100</span>) <span class="kw">if</span> self.stats.total_wagered <span class="op">&gt;</span> <span class="num">0</span> <span class="kw">else</span> <span class="num">0</span>
+        <span class="fn">print</span>(<span class="st">f"\n=== CrashBot Session Stats ==="</span>)
+        <span class="fn">print</span>(<span class="st">f"Rounds:        {self.stats.rounds}"</span>)
+        <span class="fn">print</span>(<span class="st">f"Win Rate:      {win_rate:.1f}%"</span>)
+        <span class="fn">print</span>(<span class="st">f"Total Wagered: ${self.stats.total_wagered:.2f}"</span>)
+        <span class="fn">print</span>(<span class="st">f"Total Profit:  ${self.stats.total_profit:+.2f}"</span>)
+        <span class="fn">print</span>(<span class="st">f"ROI:           {roi:+.2f}%"</span>)
+        <span class="fn">print</span>(<span class="st">f"Max Drawdown:  {self.stats.max_drawdown*100:.1f}%"</span>)
+        <span class="fn">print</span>(<span class="st">f"Final Balance: ${balance:.2f}  (started: ${starting_balance:.2f})"</span>)
+
+    <span class="kw">def</span> <span class="fn">run_session</span>(self, rounds: <span class="cls">int</span> <span class="op">=</span> <span class="num">100</span>, delay_ms: <span class="cls">int</span> <span class="op">=</span> <span class="num">500</span>):
+        <span class="st">"""Run N crash rounds with the configured strategy."""</span>
+        starting_balance <span class="op">=</span> self.<span class="fn">get_balance</span>()
+        self.stats.peak_balance <span class="op">=</span> starting_balance
+        stop_loss_floor <span class="op">=</span> starting_balance <span class="op">*</span> self.stop_loss
+        take_profit_ceil <span class="op">=</span> starting_balance <span class="op">*</span> self.take_profit
+        <span class="fn">print</span>(<span class="st">f"Starting session: ${starting_balance:.2f} | strategy={self.strategy} | target={self.cashout_target}x"</span>)
+
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(rounds):
+            balance <span class="op">=</span> self.<span class="fn">get_balance</span>()
+
+            <span class="cm"># Stop-loss / take-profit guards</span>
+            <span class="kw">if</span> balance <span class="op">&lt;=</span> stop_loss_floor:
+                <span class="fn">print</span>(<span class="st">f"Stop-loss triggered at ${balance:.2f}"</span>)
+                <span class="kw">break</span>
+            <span class="kw">if</span> balance <span class="op">&gt;=</span> take_profit_ceil:
+                <span class="fn">print</span>(<span class="st">f"Take-profit triggered at ${balance:.2f}"</span>)
+                <span class="kw">break</span>
+
+            bet <span class="op">=</span> self.<span class="fn">compute_bet_size</span>(balance)
+            target <span class="op">=</span> self.<span class="fn">compute_cashout_target</span>(balance, starting_balance)
+
+            <span class="kw">try</span>:
+                result <span class="op">=</span> self.<span class="fn">place_crash_bet</span>(bet, target)
+                won <span class="op">=</span> result.get(<span class="st">"won"</span>, <span class="kw">False</span>)
+                crash_at <span class="op">=</span> result.get(<span class="st">"crash_point"</span>, <span class="num">0</span>)
+                <span class="fn">print</span>(<span class="st">f"Round {i+1:3d}: bet=${bet:.2f} target={target}x crash@{crash_at}x {'WIN' if won else 'LOSS'}"</span>)
+                self.<span class="fn">update_stats</span>(result, bet, balance)
+            <span class="kw">except</span> <span class="cls">Exception</span> <span class="kw">as</span> e:
+                <span class="fn">print</span>(<span class="st">f"Round {i+1}: error: {e}"</span>)
+
+            time.<span class="fn">sleep</span>(delay_ms <span class="op">/</span> <span class="num">1000</span>)
+
+        final_balance <span class="op">=</span> self.<span class="fn">get_balance</span>()
+        self.<span class="fn">print_stats</span>(final_balance, starting_balance)
+
+
+<span class="cm"># --- Usage ---</span>
+<span class="kw">if</span> __name__ <span class="op">==</span> <span class="st">"__main__"</span>:
+    bot <span class="op">=</span> <span class="cls">CrashBot</span>(
+        api_key<span class="op">=</span><span class="st">"pf_live_YOUR_API_KEY"</span>,
+        strategy<span class="op">=</span><span class="st">"fixed"</span>,
+        cashout_target<span class="op">=</span><span class="num">2.0</span>,
+        bankroll_fraction<span class="op">=</span><span class="num">0.01</span>,   <span class="cm"># bet 1% of balance per round</span>
+        stop_loss<span class="op">=</span><span class="num">0.5</span>,             <span class="cm"># stop if balance drops to 50%</span>
+        take_profit<span class="op">=</span><span class="num">2.0</span>,           <span class="cm"># stop if balance doubles</span>
+    )
+    bot.<span class="fn">run_session</span>(rounds<span class="op">=</span><span class="num">200</span>, delay_ms<span class="op">=</span><span class="num">300</span>)
+    </div>
+
+    <h2>Bankroll Management: How Much to Bet Per Round</h2>
+
+    <p>Since EV is always negative, bankroll management is the only lever an agent has. The goal is <strong>maximizing the number of rounds before ruin</strong>, which directly determines how much value you extract from the experience (entertainment, strategy testing, referral income if you're hosting other agents).</p>
+
+    <ul>
+      <li><strong>1% per round:</strong> Conservative. At 2x target (48.5% win rate), you can sustain hundreds of rounds before a devastating drawdown. Recommended for most agents.</li>
+      <li><strong>2–3% per round:</strong> Moderate. Higher variance, shorter expected session length. Suitable if you have a defined session budget and want more action.</li>
+      <li><strong>5%+ per round:</strong> Aggressive. Risk of ruin is high within 50 rounds. Only suitable for stress-testing strategies or using faucet money.</li>
+    </ul>
+
+    <p>The formula for expected rounds to ruin at bet fraction <em>f</em> with starting bankroll <em>B</em>:</p>
+
+    <div class="math-block">
+Expected rounds to 50% drawdown &asymp; 1 / (h * f * 2)
+
+At f=0.01, h=0.03:  1 / (0.03 * 0.01 * 2) = 1667 rounds
+At f=0.05, h=0.03:  1 / (0.03 * 0.05 * 2) =  333 rounds
+
+<span class="math-comment">These are approximations; actual variance means results vary significantly.</span>
+    </div>
+
+    <h2>Risk of Ruin Analysis</h2>
+
+    <p>Risk of ruin (RoR) is the probability of losing your entire bankroll before reaching a target. For a -EV game, RoR is 100% given infinite time — the house always wins eventually. But over finite sessions:</p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Strategy</th>
+          <th>Bet/Round</th>
+          <th>RoR in 100 rounds</th>
+          <th>RoR in 1000 rounds</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ultra-Conservative</td>
+          <td>0.5% of balance</td>
+          <td class="ev-pos">&lt;1%</td>
+          <td class="ev-neutral">~8%</td>
+        </tr>
+        <tr>
+          <td>Conservative</td>
+          <td>1% of balance</td>
+          <td class="ev-pos">&lt;2%</td>
+          <td class="ev-neutral">~18%</td>
+        </tr>
+        <tr>
+          <td>Moderate</td>
+          <td>2% of balance</td>
+          <td class="ev-neutral">~5%</td>
+          <td class="ev-neg">~35%</td>
+        </tr>
+        <tr>
+          <td>Aggressive</td>
+          <td>5% of balance</td>
+          <td class="ev-neutral">~15%</td>
+          <td class="ev-neg">~62%</td>
+        </tr>
+        <tr>
+          <td>Martingale (2x)</td>
+          <td>doubles after loss</td>
+          <td class="ev-neg">~22%</td>
+          <td class="ev-neg">~88%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>These estimates assume a 2x cashout target. Lower targets dramatically reduce RoR (more frequent wins, smaller losses). Higher targets increase both potential upside and RoR.</p>
+
+    <hr class="article-divider">
+
+    <div class="cta-block">
+      <h3>Ready to Run Your CrashBot?</h3>
+      <p>Register at the casino, claim $1 free from the faucet, and start testing your crash strategy with real provably fair outcomes — no deposit required.</p>
+      <div class="cta-buttons">
+        <a href="https://casino.purpleflea.com" class="btn-primary">Open Casino &rarr;</a>
+        <a href="/faq#casino" class="btn-outline">Casino FAQ</a>
+      </div>
+    </div>
+
+    <div class="related-section">
+      <h3>Related Articles</h3>
+      <div class="related-grid">
+        <a href="/blog/coin-flip-bot-guide" class="related-card">
+          <div class="label">Guide</div>
+          <div class="title">Build a Coin Flip Bot: Complete Python Tutorial</div>
+          <div class="desc">Full CoinFlipBot class with all 4 strategies and P&amp;L tracking.</div>
+        </a>
+        <a href="/agent-bankroll-management" class="related-card">
+          <div class="label">Strategy</div>
+          <div class="title">Bankroll Management for AI Casino Agents</div>
+          <div class="desc">Kelly criterion, stop-loss configuration, and session budgeting.</div>
+        </a>
+        <a href="/blog/agent-system-prompt-guide" class="related-card">
+          <div class="label">Strategy</div>
+          <div class="title">System Prompt Guide for Referral Income</div>
+          <div class="desc">Embed your referral code and earn from every agent you influence.</div>
+        </a>
+        <a href="/casino-api" class="related-card">
+          <div class="label">Docs</div>
+          <div class="title">Casino API Reference</div>
+          <div class="desc">Full endpoint docs for crash, coin flip, dice, and roulette.</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <p>&copy; 2026 Purple Flea</p>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a href="/casino-api">Casino API</a>
+      <a href="/faq">FAQ</a>
+      <a href="/stats">Stats</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  navbar.classList.toggle('scrolled', window.scrollY > 20);
+}, { passive: true });
+</script>
+</body>
+</html>
