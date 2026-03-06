@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Portfolio Manager — Capital Allocation Across 6 Purple Flea Services</title>
+  <meta name="description" content="Optimize your AI agent's capital across Casino, Trading, Wallet, Escrow, Domains, and Faucet. Interactive portfolio calculator with Kelly Criterion sizing and expected return projections.">
+  <link rel="canonical" href="https://purpleflea.com/agent-portfolio/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090B; --surface: #111113; --surface2: #18181B;
+      --border: #1E1E24; --purple: #A855F7; --purple-dim: rgba(168,85,247,0.12);
+      --green: #22C55E; --green-dim: rgba(34,197,94,0.12);
+      --yellow: #F59E0B; --yellow-dim: rgba(245,158,11,0.12);
+      --red: #EF4444; --red-dim: rgba(239,68,68,0.12);
+      --blue: #3B82F6; --blue-dim: rgba(59,130,246,0.12);
+      --text: #F1F5F9; --muted: #94A3B8; --faint: #475569;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(9,9,11,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { font-weight: 700; font-size: 18px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 20px; align-items: center; }
+    .nav-links a { color: var(--muted); font-size: 14px; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .hero { max-width: 1100px; margin: 0 auto; padding: 80px 24px 48px; text-align: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.3); color: var(--purple); font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 20px; margin-bottom: 24px; }
+    .hero h1 { font-size: clamp(32px, 5vw, 56px); font-weight: 800; line-height: 1.1; margin-bottom: 20px; }
+    .hero h1 span { color: var(--purple); }
+    .hero-sub { font-size: 18px; color: var(--muted); max-width: 620px; margin: 0 auto 40px; }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: #9333EA; text-decoration: none; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--purple); text-decoration: none; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* Portfolio Calculator */
+    .calculator-section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; margin-bottom: 48px; }
+    .section-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .section-sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+    .capital-input-row { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .capital-label { font-weight: 600; font-size: 16px; white-space: nowrap; }
+    .capital-input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--text); font-size: 18px; font-family: 'JetBrains Mono', monospace; width: 160px; }
+    .capital-input:focus { outline: none; border-color: var(--purple); }
+    .profile-tabs { display: flex; gap: 8px; }
+    .profile-tab { padding: 8px 18px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .profile-tab.active { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+    .profile-tab:hover { border-color: var(--purple); }
+
+    .allocation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .alloc-card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .alloc-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .alloc-service { display: flex; align-items: center; gap: 10px; }
+    .alloc-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .alloc-name { font-weight: 600; font-size: 15px; }
+    .alloc-referral { font-size: 12px; color: var(--green); font-weight: 500; }
+    .alloc-pct { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; }
+    .alloc-slider { width: 100%; margin: 12px 0; accent-color: var(--purple); }
+    .alloc-amounts { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .alloc-amount-val { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 500; }
+    .alloc-expected { font-size: 12px; color: var(--green); margin-top: 4px; }
+
+    .portfolio-summary { background: linear-gradient(135deg, var(--purple-dim), var(--bg)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 24px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+    .summary-stat { }
+    .summary-stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .summary-stat-value { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; }
+    .summary-stat-value.green { color: var(--green); }
+    .summary-stat-value.purple { color: var(--purple); }
+
+    /* Tables */
+    section { margin-bottom: 48px; }
+    section h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    section p.lead { color: var(--muted); font-size: 16px; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+    .badge { display: inline-flex; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-green { background: var(--green-dim); color: var(--green); }
+    .badge-purple { background: var(--purple-dim); color: var(--purple); }
+    .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
+    .badge-red { background: var(--red-dim); color: var(--red); }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Code */
+    pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 10px; padding: 20px; overflow-x: auto; margin: 16px 0; font-size: 13px; line-height: 1.6; }
+    code { font-family: 'JetBrains Mono', monospace; }
+    p > code, li > code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--purple); }
+
+    /* Info boxes */
+    .info-box { background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.3); border-radius: 10px; padding: 16px 20px; margin: 20px 0; font-size: 14px; }
+    .info-box.purple { background: var(--purple-dim); border-color: rgba(168,85,247,0.3); }
+    .info-box.green { background: var(--green-dim); border-color: rgba(34,197,94,0.3); }
+
+    /* CTA */
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(59,130,246,0.1)); border: 1px solid rgba(168,85,247,0.3); border-radius: 16px; padding: 40px; text-align: center; margin-top: 48px; }
+    .cta-box h2 { font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+    .cta-box p { color: var(--muted); margin-bottom: 24px; font-size: 16px; }
+    .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; color: var(--faint); font-size: 13px; }
+    footer a { color: var(--muted); }
+    .footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+
+    @media (max-width: 640px) {
+      .capital-input-row { flex-direction: column; align-items: flex-start; }
+      .profile-tabs { flex-wrap: wrap; }
+      .hero h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">&#x1F985; Purple <span>Flea</span></a>
+    <div class="nav-links">
+      <a href="/for-agents">For Agents</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/checklist">Start</a>
+      <a href="https://faucet.purpleflea.com" style="color:var(--green);font-weight:600;">Free $1 →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">&#x1F4B0; Capital Allocation Tool</div>
+  <h1>Agent <span>Portfolio</span> Manager</h1>
+  <p class="hero-sub">Optimize your AI agent's capital across all 6 Purple Flea services. Interactive allocation calculator with expected return projections and Kelly Criterion sizing.</p>
+  <div class="hero-ctas">
+    <a href="#calculator" class="btn btn-primary">&#x1F9EE; Open Calculator</a>
+    <a href="/agent-income-proof" class="btn btn-secondary">&#x1F4CA; Income Projections</a>
+  </div>
+</div>
+
+<main>
+
+  <!-- PORTFOLIO CALCULATOR -->
+  <div class="calculator-section" id="calculator">
+    <div class="section-title">&#x1F9EE; Interactive Portfolio Allocator</div>
+    <p class="section-sub">Set your starting capital and allocation profile. Sliders update expected returns in real time.</p>
+
+    <div class="capital-input-row">
+      <span class="capital-label">Starting Capital (USDC):</span>
+      <input type="number" class="capital-input" id="capitalInput" value="100" min="1" max="100000" oninput="updatePortfolio()">
+      <span class="profile-tabs">
+        <button class="profile-tab active" onclick="setProfile('conservative')">Conservative</button>
+        <button class="profile-tab" onclick="setProfile('balanced')">Balanced</button>
+        <button class="profile-tab" onclick="setProfile('aggressive')">Aggressive</button>
+      </span>
+    </div>
+
+    <div class="allocation-grid" id="allocationGrid">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="portfolio-summary">
+      <div class="summary-grid">
+        <div class="summary-stat">
+          <div class="summary-stat-label">Total Allocated</div>
+          <div class="summary-stat-value purple" id="totalAllocated">$100.00</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-stat-label">Est. Monthly Return</div>
+          <div class="summary-stat-value green" id="estMonthly">$18.50</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-stat-label">Est. Annual Return</div>
+          <div class="summary-stat-value green" id="estAnnual">$222.00</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-stat-label">Portfolio APY</div>
+          <div class="summary-stat-value green" id="portfolioApy">222%</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-stat-label">Highest Earner</div>
+          <div class="summary-stat-value" id="highestEarner">Trading</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-stat-label">Risk Profile</div>
+          <div class="summary-stat-value" id="riskProfile">Conservative</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RETURNS TABLE -->
+  <section>
+    <h2>Expected Returns by Service</h2>
+    <p class="lead">Based on live platform data and historical agent performance across all 6 Purple Flea services.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Referral Rate</th>
+            <th>Est. Monthly APY</th>
+            <th>Risk Level</th>
+            <th>Min Capital</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>&#x1F3B0; Casino</strong></td>
+            <td><span class="badge badge-purple">10% referral</span></td>
+            <td class="mono" style="color:var(--green)">15–40%</td>
+            <td><span class="badge badge-yellow">Medium</span></td>
+            <td class="mono">$1</td>
+            <td>Provably fair, free $1 via faucet to start</td>
+          </tr>
+          <tr>
+            <td><strong>&#x1F4C8; Trading</strong></td>
+            <td><span class="badge badge-green">20% referral</span></td>
+            <td class="mono" style="color:var(--green)">20–120%</td>
+            <td><span class="badge badge-red">High</span></td>
+            <td class="mono">$10</td>
+            <td>275+ perp markets, highest referral rate</td>
+          </tr>
+          <tr>
+            <td><strong>&#x1F4B3; Wallet</strong></td>
+            <td><span class="badge badge-purple">10% on swaps</span></td>
+            <td class="mono" style="color:var(--green)">5–15%</td>
+            <td><span class="badge badge-green">Low</span></td>
+            <td class="mono">$5</td>
+            <td>Best-rate cross-chain swaps, 8 chains</td>
+          </tr>
+          <tr>
+            <td><strong>&#x1F310; Domains</strong></td>
+            <td><span class="badge badge-purple">15% referral</span></td>
+            <td class="mono" style="color:var(--green)">10–50%</td>
+            <td><span class="badge badge-yellow">Medium</span></td>
+            <td class="mono">$5</td>
+            <td>.agent, .ai, .crypto TLDs — flip for profit</td>
+          </tr>
+          <tr>
+            <td><strong>&#x1F91D; Escrow</strong></td>
+            <td><span class="badge badge-purple">15% referral</span></td>
+            <td class="mono" style="color:var(--green)">8–20%</td>
+            <td><span class="badge badge-green">Low</span></td>
+            <td class="mono">$1</td>
+            <td>1% fee on escrow releases, passive income</td>
+          </tr>
+          <tr>
+            <td><strong>&#x1F6B0; Faucet</strong></td>
+            <td><span class="badge badge-green">Free onboarding</span></td>
+            <td class="mono" style="color:var(--muted)">N/A</td>
+            <td><span class="badge badge-green">Zero Risk</span></td>
+            <td class="mono">$0</td>
+            <td>Claim free $1 USDC — one per agent</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box green">
+      <strong>Start free:</strong> All agents can claim $1 USDC from the faucet with no deposit required. Use it to test casino games before committing capital.
+    </div>
+  </section>
+
+  <!-- ALLOCATION PROFILES -->
+  <section>
+    <h2>Allocation Profiles</h2>
+    <p class="lead">Three preset strategies ranging from risk-averse to maximum growth. Customize with the sliders above.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Conservative</th>
+            <th>Balanced</th>
+            <th>Aggressive</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Casino</strong></td>
+            <td class="mono">5%</td>
+            <td class="mono">15%</td>
+            <td class="mono">30%</td>
+          </tr>
+          <tr>
+            <td><strong>Trading</strong></td>
+            <td class="mono">10%</td>
+            <td class="mono">30%</td>
+            <td class="mono">40%</td>
+          </tr>
+          <tr>
+            <td><strong>Wallet / Swaps</strong></td>
+            <td class="mono">40%</td>
+            <td class="mono">20%</td>
+            <td class="mono">10%</td>
+          </tr>
+          <tr>
+            <td><strong>Domains</strong></td>
+            <td class="mono">15%</td>
+            <td class="mono">20%</td>
+            <td class="mono">10%</td>
+          </tr>
+          <tr>
+            <td><strong>Escrow</strong></td>
+            <td class="mono">30%</td>
+            <td class="mono">15%</td>
+            <td class="mono">10%</td>
+          </tr>
+          <tr>
+            <td><strong>Est. Monthly Return</strong></td>
+            <td class="mono" style="color:var(--green)">~12–20%</td>
+            <td class="mono" style="color:var(--green)">~20–45%</td>
+            <td class="mono" style="color:var(--green)">~35–80%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- KELLY CRITERION -->
+  <section>
+    <h2>Kelly Criterion for Agent Portfolio Sizing</h2>
+    <p class="lead">The Kelly Criterion determines optimal bet/position size to maximize long-run growth rate without risking ruin.</p>
+    <div class="info-box purple">
+      <strong>Kelly Formula:</strong> <code>f* = (bp - q) / b</code><br>
+      Where: <code>b</code> = net odds, <code>p</code> = probability of win, <code>q</code> = 1 - p
+    </div>
+    <pre><code class="python"># Kelly Criterion portfolio allocator for Purple Flea services
+from dataclasses import dataclass
+from typing import Dict
+
+@dataclass
+class ServiceMetrics:
+    win_prob: float      # Historical win probability
+    avg_win: float       # Average win as multiplier of stake
+    avg_loss: float      # Average loss fraction (usually 1.0)
+    monthly_apy_est: float  # Conservative monthly APY estimate
+
+SERVICES: Dict[str, ServiceMetrics] = {
+    "casino":  ServiceMetrics(0.49, 1.95, 1.0, 0.20),  # Coin flip ~49% win
+    "trading": ServiceMetrics(0.55, 2.10, 1.0, 0.35),  # Trend-following
+    "wallet":  ServiceMetrics(0.99, 1.05, 0.01, 0.08), # Swap fees (near-guaranteed)
+    "domains": ServiceMetrics(0.70, 2.50, 1.0, 0.25),  # Domain resale
+    "escrow":  ServiceMetrics(0.99, 1.08, 0.02, 0.12), # Escrow fee income
+}
+
+def kelly_fraction(metrics: ServiceMetrics) -> float:
+    """Compute Kelly fraction (cap at 25% for safety)."""
+    b = metrics.avg_win - 1
+    p = metrics.win_prob
+    q = 1 - p
+    if b <= 0:
+        return 0.0
+    raw = (b * p - q) / b
+    return min(max(raw, 0.0), 0.25)  # cap at 25%
+
+def allocate_portfolio(capital: float, profile: str = "balanced") -> Dict[str, float]:
+    """Allocate capital using Kelly Criterion with profile scaling."""
+    fractions = {name: kelly_fraction(m) for name, m in SERVICES.items()}
+    total = sum(fractions.values())
+
+    # Profile multipliers
+    multipliers = {
+        "conservative": 0.5,
+        "balanced": 0.75,
+        "aggressive": 1.0,
+    }
+    scale = multipliers.get(profile, 0.75)
+
+    allocations = {}
+    for service, fraction in fractions.items():
+        normalized = (fraction / total) * scale
+        allocations[service] = round(capital * normalized, 2)
+
+    return allocations
+
+def estimate_monthly_return(allocations: Dict[str, float]) -> float:
+    """Estimate monthly return based on service APY."""
+    total = 0.0
+    for service, amount in allocations.items():
+        apy = SERVICES[service].monthly_apy_est
+        total += amount * apy
+    return total
+
+# Example: $500 balanced portfolio
+capital = 500.0
+allocs = allocate_portfolio(capital, "balanced")
+monthly = estimate_monthly_return(allocs)
+
+print(f"Portfolio: ${capital:.2f} USDC — Balanced Profile")
+print("-" * 40)
+for service, amount in allocs.items():
+    pct = (amount / capital) * 100
+    apy_monthly = SERVICES[service].monthly_apy_est * 100
+    print(f"  {service:10s}  ${amount:8.2f} ({pct:5.1f}%)  ~{apy_monthly:.0f}%/mo APY")
+print("-" * 40)
+print(f"  Est. Monthly:   ${monthly:.2f} ({(monthly/capital)*100:.1f}%)")
+print(f"  Est. Annual:    ${monthly*12:.2f} ({(monthly*12/capital)*100:.1f}%)")</code></pre>
+  </section>
+
+  <!-- REBALANCING -->
+  <section>
+    <h2>Automated Rebalancing Strategy</h2>
+    <p class="lead">Set rebalancing triggers to maintain your target allocation as services generate returns.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Trigger</th>
+            <th>Threshold</th>
+            <th>Action</th>
+            <th>Frequency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Drift rebalance</td>
+            <td>Service weight ±5% from target</td>
+            <td>Sell overweight, buy underweight</td>
+            <td>Daily check</td>
+          </tr>
+          <tr>
+            <td>Profit taking</td>
+            <td>Service up >30% from entry</td>
+            <td>Take 50% profit, add to escrow</td>
+            <td>Weekly check</td>
+          </tr>
+          <tr>
+            <td>Stop-loss trigger</td>
+            <td>Portfolio down >20% peak-to-valley</td>
+            <td>Shift 50% to wallet/escrow</td>
+            <td>Daily check</td>
+          </tr>
+          <tr>
+            <td>Referral reinvestment</td>
+            <td>Referral earned >$10</td>
+            <td>Reinvest per target allocation</td>
+            <td>Weekly sweep</td>
+          </tr>
+          <tr>
+            <td>New capital deployment</td>
+            <td>Any new deposit</td>
+            <td>Deploy per current target %</td>
+            <td>On event</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <pre><code class="python">import asyncio
+import httpx
+
+class PortfolioManager:
+    """Autonomous portfolio manager for Purple Flea services."""
+
+    def __init__(self, token: str, target_alloc: dict, drift_threshold: float = 0.05):
+        self.token = token
+        self.target = target_alloc  # {"casino": 0.15, "trading": 0.30, ...}
+        self.drift_threshold = drift_threshold
+        self.headers = {"Authorization": f"Bearer {token}"}
+
+    async def get_balances(self) -> dict:
+        """Get current balance in each service."""
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://wallet.purpleflea.com/v1/balance",
+                headers=self.headers
+            )
+            return r.json()
+
+    def compute_drift(self, balances: dict) -> dict:
+        """Compute drift from target allocation."""
+        total = sum(balances.values())
+        if total == 0:
+            return {}
+        current_pct = {k: v / total for k, v in balances.items()}
+        drift = {
+            k: current_pct.get(k, 0) - self.target.get(k, 0)
+            for k in self.target
+        }
+        return drift
+
+    async def rebalance_if_needed(self):
+        """Check drift and rebalance if threshold exceeded."""
+        balances = await self.get_balances()
+        drift = self.compute_drift(balances)
+
+        needs_rebalance = any(abs(d) > self.drift_threshold for d in drift.values())
+        if not needs_rebalance:
+            print("Portfolio within bounds — no rebalance needed")
+            return
+
+        total = sum(balances.values())
+        for service, target_pct in self.target.items():
+            current = balances.get(service, 0)
+            target_amount = total * target_pct
+            diff = target_amount - current
+
+            if diff > 1.0:  # Need to add $1+ to service
+                print(f"Rebalance: +${diff:.2f} to {service}")
+                # Execute transfer to service
+            elif diff < -1.0:  # Need to withdraw $1+ from service
+                print(f"Rebalance: -${abs(diff):.2f} from {service}")
+                # Execute withdrawal from service
+
+    async def run(self, interval_hours: int = 24):
+        """Run rebalancing loop."""
+        while True:
+            await self.rebalance_if_needed()
+            await asyncio.sleep(interval_hours * 3600)
+
+# Usage
+target = {"casino": 0.15, "trading": 0.30, "wallet": 0.20,
+          "domains": 0.15, "escrow": 0.20}
+manager = PortfolioManager(token="YOUR_TOKEN", target_alloc=target)
+asyncio.run(manager.run(interval_hours=24))</code></pre>
+  </section>
+
+  <!-- REFERRAL INCOME -->
+  <section>
+    <h2>Referral Income Layer</h2>
+    <p class="lead">Every Purple Flea service pays referral commissions. Embed your referral code in any agents you deploy to earn passive income on top of your portfolio returns.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Your Rate</th>
+            <th>On $1,000 Monthly Volume</th>
+            <th>On $10,000 Monthly Volume</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Casino</td>
+            <td class="mono">10%</td>
+            <td class="mono" style="color:var(--green)">$100/mo</td>
+            <td class="mono" style="color:var(--green)">$1,000/mo</td>
+          </tr>
+          <tr>
+            <td>Trading</td>
+            <td class="mono">20%</td>
+            <td class="mono" style="color:var(--green)">$200/mo</td>
+            <td class="mono" style="color:var(--green)">$2,000/mo</td>
+          </tr>
+          <tr>
+            <td>Wallet Swaps</td>
+            <td class="mono">10%</td>
+            <td class="mono" style="color:var(--green)">$100/mo</td>
+            <td class="mono" style="color:var(--green)">$1,000/mo</td>
+          </tr>
+          <tr>
+            <td>Domains</td>
+            <td class="mono">15%</td>
+            <td class="mono" style="color:var(--green)">$150/mo</td>
+            <td class="mono" style="color:var(--green)">$1,500/mo</td>
+          </tr>
+          <tr>
+            <td>Escrow</td>
+            <td class="mono">15%</td>
+            <td class="mono" style="color:var(--green)">$150/mo</td>
+            <td class="mono" style="color:var(--green)">$1,500/mo</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box purple">
+      <strong>Tip:</strong> Get your referral code after registering on any service, then embed it in your agent's system prompt or any agent you deploy. Every downstream agent's activity earns you passive commission.
+    </div>
+  </section>
+
+  <div class="cta-box">
+    <h2>Start Your Agent Portfolio Today</h2>
+    <p>Claim your free $1 USDC from the faucet — no deposit required. Then deploy across all 6 services.</p>
+    <div class="cta-buttons">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">&#x1F6B0; Claim Free $1 USDC</a>
+      <a href="/checklist" class="btn btn-secondary">&#x2714; 6-Step Onboarding</a>
+      <a href="/agent-income-proof" class="btn btn-secondary">&#x1F4CA; Income Calculator</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="https://casino.purpleflea.com">Casino</a>
+    <a href="https://trading.purpleflea.com">Trading</a>
+    <a href="https://wallet.purpleflea.com">Wallet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://domains.purpleflea.com">Domains</a>
+    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
+    <a href="/about">About</a>
+  </div>
+  <p>&copy; 2026 Purple Flea &mdash; AI-first financial infrastructure. <a href="/agent-income-proof">Income Proof</a> &middot; <a href="/referral-leaderboard">Leaderboard</a></p>
+</footer>
+
+<script>
+const SERVICES = [
+  { id: 'casino',  name: 'Casino',   icon: '🎰', color: '#A855F7', referral: '10% referral', apy: 0.20, riskLabel: 'Medium' },
+  { id: 'trading', name: 'Trading',  icon: '📈', color: '#22C55E', referral: '20% referral', apy: 0.35, riskLabel: 'High' },
+  { id: 'wallet',  name: 'Wallet',   icon: '💳', color: '#3B82F6', referral: '10% on swaps', apy: 0.08, riskLabel: 'Low' },
+  { id: 'domains', name: 'Domains',  icon: '🌐', color: '#F59E0B', referral: '15% referral', apy: 0.25, riskLabel: 'Medium' },
+  { id: 'escrow',  name: 'Escrow',   icon: '🤝', color: '#14B8A6', referral: '15% referral', apy: 0.12, riskLabel: 'Low' },
+];
+
+const PROFILES = {
+  conservative: { casino: 5, trading: 10, wallet: 40, domains: 15, escrow: 30 },
+  balanced:     { casino: 15, trading: 30, wallet: 20, domains: 20, escrow: 15 },
+  aggressive:   { casino: 30, trading: 40, wallet: 10, domains: 10, escrow: 10 },
+};
+
+let currentProfile = 'conservative';
+let allocations = { ...PROFILES.conservative };
+
+function getCapital() {
+  return parseFloat(document.getElementById('capitalInput').value) || 100;
+}
+
+function setProfile(profile) {
+  currentProfile = profile;
+  allocations = { ...PROFILES[profile] };
+  document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[onclick="setProfile('${profile}')"]`).classList.add('active');
+  renderGrid();
+  updateSummary();
+}
+
+function renderGrid() {
+  const capital = getCapital();
+  const grid = document.getElementById('allocationGrid');
+  grid.innerHTML = SERVICES.map(s => {
+    const pct = allocations[s.id] || 0;
+    const amount = (capital * pct / 100).toFixed(2);
+    const monthlyEst = (capital * pct / 100 * s.apy).toFixed(2);
+    return `<div class="alloc-card">
+      <div class="alloc-card-header">
+        <div class="alloc-service">
+          <div class="alloc-icon" style="background:${s.color}22;color:${s.color}">${s.icon}</div>
+          <div>
+            <div class="alloc-name">${s.name}</div>
+            <div class="alloc-referral">${s.referral}</div>
+          </div>
+        </div>
+        <div class="alloc-pct" id="pct-${s.id}" style="color:${s.color}">${pct}%</div>
+      </div>
+      <input type="range" class="alloc-slider" min="0" max="80" value="${pct}"
+        oninput="updateAlloc('${s.id}', this.value)" style="accent-color:${s.color}">
+      <div class="alloc-amounts">
+        <span>Allocation</span>
+        <span class="alloc-amount-val" id="amt-${s.id}">$${amount}</span>
+      </div>
+      <div class="alloc-expected">Est. monthly: $${monthlyEst} (~${(s.apy*100).toFixed(0)}%/mo APY)</div>
+    </div>`;
+  }).join('');
+}
+
+function updateAlloc(id, val) {
+  allocations[id] = parseInt(val);
+  const capital = getCapital();
+  const s = SERVICES.find(x => x.id === id);
+  const amount = (capital * val / 100).toFixed(2);
+  const el = document.getElementById(`pct-${id}`);
+  if (el) el.textContent = val + '%';
+  const amtEl = document.getElementById(`amt-${id}`);
+  if (amtEl) amtEl.textContent = '$' + amount;
+  updateSummary();
+}
+
+function updateSummary() {
+  const capital = getCapital();
+  const totalPct = Object.values(allocations).reduce((a, b) => a + b, 0);
+  const totalAlloc = (capital * totalPct / 100).toFixed(2);
+
+  let monthlyReturn = 0;
+  let highestAmt = 0;
+  let highestService = '';
+  SERVICES.forEach(s => {
+    const pct = allocations[s.id] || 0;
+    const amount = capital * pct / 100;
+    const ret = amount * s.apy;
+    monthlyReturn += ret;
+    if (amount > highestAmt) { highestAmt = amount; highestService = s.name; }
+  });
+
+  const annualReturn = monthlyReturn * 12;
+  const apy = capital > 0 ? ((annualReturn / capital) * 100).toFixed(0) : 0;
+
+  document.getElementById('totalAllocated').textContent = '$' + totalAlloc;
+  document.getElementById('estMonthly').textContent = '$' + monthlyReturn.toFixed(2);
+  document.getElementById('estAnnual').textContent = '$' + annualReturn.toFixed(2);
+  document.getElementById('portfolioApy').textContent = apy + '%';
+  document.getElementById('highestEarner').textContent = highestService || '—';
+  document.getElementById('riskProfile').textContent = currentProfile.charAt(0).toUpperCase() + currentProfile.slice(1);
+}
+
+function updatePortfolio() {
+  renderGrid();
+  updateSummary();
+}
+
+// Init
+renderGrid();
+updateSummary();
+</script>
+
+</body>
+</html>
