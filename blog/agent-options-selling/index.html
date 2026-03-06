@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Options Selling Strategies for AI Agents: Theta Decay Income | Purple Flea</title>
+  <meta name="description" content="How AI agents can systematically sell options to collect theta decay income. Covered calls, cash-secured puts, IV rank timing, delta management, and a full Python OptionsSellingAgent implementation." />
+  <meta name="keywords" content="options selling, theta decay, AI agent trading, covered calls, cash-secured puts, IV rank, delta management, crypto options" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-options-selling/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Options Selling Strategies for AI Agents: Theta Decay Income" />
+  <meta property="og:description" content="Systematic options selling for AI agents: theta decay mechanics, IV rank timing, delta management, and Python implementation." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-options-selling/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/og-image.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Options Selling Strategies for AI Agents: Theta Decay Income" />
+  <meta name="twitter:description" content="Systematic options selling for AI agents: theta decay mechanics, IV rank timing, delta management." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-image.png" />
+
+  <!-- Schema.org -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Options Selling Strategies for AI Agents: Theta Decay Income",
+    "description": "How AI agents can systematically sell options to collect theta decay income using covered calls, cash-secured puts, IV rank timing, and delta management.",
+    "url": "https://purpleflea.com/blog/agent-options-selling/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/logo.png"
+      }
+    },
+    "keywords": ["options selling", "theta decay", "AI agents", "covered calls", "cash-secured puts", "IV rank", "crypto trading"]
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --surface2: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #F4F4F5;
+      --text-muted: #A1A1AA;
+      --border: #3F3F46;
+      --code-bg: #0D0D0F;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    /* Progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      width: 0%;
+      height: 3px;
+      background: var(--accent);
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Layout */
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 4rem 0 3rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(168, 85, 247, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 20px;
+      padding: 0.25rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.75rem, 4vw, 2.6rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      max-width: 680px;
+    }
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 0.35rem; }
+
+    /* Stats row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin: 2.5rem 0;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-card .val {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+    }
+    .stat-card .lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Sections */
+    .section {
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-of-type { border-bottom: none; }
+
+    h2 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    h2 .accent { color: var(--accent); }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text);
+    }
+
+    p { margin-bottom: 1rem; color: var(--text-muted); }
+    p strong { color: var(--text); }
+
+    ul, ol {
+      margin: 0.75rem 0 1rem 1.25rem;
+      color: var(--text-muted);
+    }
+    li { margin-bottom: 0.4rem; }
+    li strong { color: var(--text); }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1.5rem 0;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-lang {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      letter-spacing: 0.05em;
+    }
+    .code-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    pre {
+      padding: 1.25rem 1rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 0.825rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #86EFAC; }
+    .cm { color: #52525B; font-style: italic; }
+    .nm { color: #FCD34D; }
+    .op { color: #94A3B8; }
+
+    /* Info boxes */
+    .info-box {
+      background: var(--surface);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .info-box.warning { border-color: var(--yellow); }
+    .info-box.success { border-color: var(--green); }
+    .info-box .box-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+    .info-box.warning .box-title { color: var(--yellow); }
+    .info-box.success .box-title { color: var(--green); }
+    .info-box p { color: var(--text-muted); margin: 0; font-size: 0.9rem; }
+
+    /* Formula box */
+    .formula-box {
+      background: rgba(168, 85, 247, 0.06);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    .formula-box .formula-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      font-family: -apple-system, sans-serif;
+    }
+
+    /* Comparison table */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    th {
+      background: var(--surface2);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .tag-green { color: var(--green); font-weight: 600; }
+    .tag-red { color: var(--red); font-weight: 600; }
+    .tag-yellow { color: var(--yellow); font-weight: 600; }
+
+    /* CTA */
+    .cta-section {
+      background: linear-gradient(135deg, rgba(168,85,247,0.1), rgba(124,58,237,0.05));
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 16px;
+      padding: 2.5rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+    .cta-section h2 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .cta-section p { max-width: 500px; margin: 0 auto 1.5rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: #9333EA; transform: translateY(-1px); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Footer */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 2rem 0;
+    }
+    .toc-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .toc ol { margin: 0; padding-left: 1.2rem; }
+    .toc li { margin-bottom: 0.3rem; }
+    .toc a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
+    .toc a:hover { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .hero { padding: 2.5rem 0 2rem; }
+      h2 { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/">Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/trading">Trading</a></li>
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/wallet">Wallet</a></li>
+      <li><a href="/faucet">Faucet</a></li>
+      <li><a href="/escrow">Escrow</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+  <div class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-tag">Strategy &nbsp;&#183;&nbsp; Options</div>
+      <h1>Options Selling Strategies for AI Agents:<br /><span>Theta Decay Income</span></h1>
+      <p class="hero-sub">
+        How autonomous agents systematically collect premium income by selling options,
+        managing delta exposure, timing entries with IV rank, and rolling positions
+        with disciplined risk controls.
+      </p>
+      <div class="hero-meta">
+        <span>&#128197; March 6, 2026</span>
+        <span>&#9201; 22 min read</span>
+        <span>&#128187; Python code included</span>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="val">~0.5%</div><div class="lbl">Daily theta on ATM options</div></div>
+      <div class="stat-card"><div class="val">30-45</div><div class="lbl">Optimal DTE for selling</div></div>
+      <div class="stat-card"><div class="val">50th+</div><div class="lbl">IV rank entry threshold</div></div>
+      <div class="stat-card"><div class="val">25-delta</div><div class="lbl">Target short strike delta</div></div>
+    </div>
+
+    <!-- TOC -->
+    <div class="toc">
+      <div class="toc-title">Table of Contents</div>
+      <ol>
+        <li><a href="#theta-mechanics">Theta Decay Mechanics</a></li>
+        <li><a href="#strategies">Core Selling Strategies</a></li>
+        <li><a href="#iv-timing">IV Rank and IV Percentile</a></li>
+        <li><a href="#delta-management">Delta Management</a></li>
+        <li><a href="#rolling">Rolling Positions</a></li>
+        <li><a href="#risk">Risk Management and Max Loss</a></li>
+        <li><a href="#implementation">Python OptionsSellingAgent</a></li>
+      </ol>
+    </div>
+
+    <!-- Section 1: Theta Mechanics -->
+    <section class="section" id="theta-mechanics">
+      <h2>1. <span class="accent">Theta Decay</span> Mechanics</h2>
+      <p>
+        Every options contract has a time value component that decays toward zero as expiration approaches.
+        <strong>Theta</strong> measures this decay rate — for option sellers, it represents daily income
+        collected simply by holding a short position. AI agents are ideally suited to exploit theta decay
+        because the strategy requires consistent, systematic execution rather than directional prediction.
+      </p>
+
+      <h3>The Theta Decay Curve</h3>
+      <p>
+        Theta decay is non-linear. It accelerates sharply in the final 30 days before expiration,
+        creating the characteristic &ldquo;hockey stick&rdquo; decay curve that options sellers target.
+        An option with 60 days to expiration (DTE) might lose 0.05% of its value per day, while
+        the same option at 10 DTE loses 0.5% per day.
+      </p>
+
+      <div class="formula-box">
+        <div class="formula-label">Black-Scholes Theta (per day)</div>
+        Theta = -(S * N'(d1) * sigma) / (2 * sqrt(T)) - r * K * exp(-r*T) * N(d2)<br /><br />
+        Where:<br />
+        &nbsp;&nbsp;S = underlying price<br />
+        &nbsp;&nbsp;sigma = implied volatility (annualized)<br />
+        &nbsp;&nbsp;T = time to expiration (in years)<br />
+        &nbsp;&nbsp;K = strike price<br />
+        &nbsp;&nbsp;r = risk-free rate<br />
+        &nbsp;&nbsp;N'(d1) = standard normal PDF at d1
+      </div>
+
+      <p>
+        For practical purposes, agents use a simplified daily theta estimate:
+        <strong>theta &#8776; option_price * decay_rate</strong>, where decay_rate accelerates
+        as DTE shrinks. The sweet spot for sellers is entering at 30-45 DTE and closing at 50%
+        profit or 21 DTE — capturing the steepest part of the decay curve.
+      </p>
+
+      <h3>Extrinsic vs. Intrinsic Value</h3>
+      <p>
+        Only the <strong>extrinsic (time) value</strong> of an option decays. Intrinsic value —
+        the amount an option is in-the-money — does not decay. This is why option sellers prefer
+        out-of-the-money (OTM) strikes: 100% of the premium received is extrinsic and will
+        decay to zero if the underlying stays OTM.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Moneyness</th><th>Intrinsic Value</th><th>Extrinsic Value</th><th>Seller Preference</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Deep ITM</td><td class="tag-green">High</td><td class="tag-red">Low</td><td class="tag-red">Avoid</td></tr>
+            <tr><td>ATM</td><td>Zero</td><td class="tag-green">Maximum</td><td class="tag-yellow">Caution</td></tr>
+            <tr><td>25-delta OTM</td><td>Zero</td><td class="tag-green">High</td><td class="tag-green">Ideal</td></tr>
+            <tr><td>10-delta OTM</td><td>Zero</td><td class="tag-yellow">Low</td><td class="tag-yellow">Low premium</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">theta_mechanics.py — Theta calculation and decay modeling</span>
+        </div>
+        <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> scipy.stats <span class="kw">import</span> norm
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Tuple
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">OptionGreeks</span>:
+    delta: <span class="fn">float</span>
+    gamma: <span class="fn">float</span>
+    theta: <span class="fn">float</span>  <span class="cm"># per day</span>
+    vega: <span class="fn">float</span>   <span class="cm"># per 1% IV move</span>
+    price: <span class="fn">float</span>
+    intrinsic: <span class="fn">float</span>
+    extrinsic: <span class="fn">float</span>
+
+<span class="kw">class</span> <span class="fn">BlackScholes</span>:
+    <span class="st">"""Black-Scholes option pricing and Greeks."""</span>
+
+    <span class="kw">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">d1</span>(S: <span class="fn">float</span>, K: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, sigma: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="kw">return</span> (np.log(S / K) + (r + <span class="nm">0.5</span> * sigma**<span class="nm">2</span>) * T) / (sigma * np.sqrt(T))
+
+    <span class="kw">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">d2</span>(S: <span class="fn">float</span>, K: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, sigma: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        d1 = BlackScholes.d1(S, K, T, r, sigma)
+        <span class="kw">return</span> d1 - sigma * np.sqrt(T)
+
+    <span class="kw">@classmethod</span>
+    <span class="kw">def</span> <span class="fn">call_price</span>(cls, S: <span class="fn">float</span>, K: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, sigma: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        d1 = cls.d1(S, K, T, r, sigma)
+        d2 = cls.d2(S, K, T, r, sigma)
+        <span class="kw">return</span> S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+    <span class="kw">@classmethod</span>
+    <span class="kw">def</span> <span class="fn">put_price</span>(cls, S: <span class="fn">float</span>, K: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, sigma: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        d1 = cls.d1(S, K, T, r, sigma)
+        d2 = cls.d2(S, K, T, r, sigma)
+        <span class="kw">return</span> K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+    <span class="kw">@classmethod</span>
+    <span class="kw">def</span> <span class="fn">greeks</span>(cls, S: <span class="fn">float</span>, K: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, sigma: <span class="fn">float</span>,
+                option_type: <span class="fn">str</span> = <span class="st">'put'</span>) -> <span class="fn">OptionGreeks</span>:
+        <span class="kw">if</span> T <= <span class="nm">0</span>:
+            <span class="kw">raise</span> <span class="fn">ValueError</span>(<span class="st">"T must be positive"</span>)
+        d1 = cls.d1(S, K, T, r, sigma)
+        d2 = cls.d2(S, K, T, r, sigma)
+        n_d1 = norm.pdf(d1)  <span class="cm"># standard normal PDF</span>
+
+        <span class="cm"># Delta</span>
+        <span class="kw">if</span> option_type == <span class="st">'call'</span>:
+            delta = norm.cdf(d1)
+            price = cls.call_price(S, K, T, r, sigma)
+            intrinsic = <span class="fn">max</span>(<span class="nm">0</span>, S - K)
+        <span class="kw">else</span>:
+            delta = norm.cdf(d1) - <span class="nm">1</span>  <span class="cm"># negative for puts</span>
+            price = cls.put_price(S, K, T, r, sigma)
+            intrinsic = <span class="fn">max</span>(<span class="nm">0</span>, K - S)
+
+        <span class="cm"># Gamma (same for calls and puts)</span>
+        gamma = n_d1 / (S * sigma * np.sqrt(T))
+
+        <span class="cm"># Theta per calendar day</span>
+        theta_annual = -(S * n_d1 * sigma) / (<span class="nm">2</span> * np.sqrt(T))
+        <span class="kw">if</span> option_type == <span class="st">'call'</span>:
+            theta_annual -= r * K * np.exp(-r * T) * norm.cdf(d2)
+        <span class="kw">else</span>:
+            theta_annual += r * K * np.exp(-r * T) * norm.cdf(-d2)
+        theta_daily = theta_annual / <span class="nm">365</span>
+
+        <span class="cm"># Vega per 1% move in IV</span>
+        vega = S * n_d1 * np.sqrt(T) / <span class="nm">100</span>
+
+        extrinsic = price - intrinsic
+
+        <span class="kw">return</span> <span class="fn">OptionGreeks</span>(
+            delta=<span class="fn">round</span>(delta, <span class="nm">4</span>),
+            gamma=<span class="fn">round</span>(gamma, <span class="nm">6</span>),
+            theta=<span class="fn">round</span>(theta_daily, <span class="nm">4</span>),
+            vega=<span class="fn">round</span>(vega, <span class="nm">4</span>),
+            price=<span class="fn">round</span>(price, <span class="nm">4</span>),
+            intrinsic=<span class="fn">round</span>(intrinsic, <span class="nm">4</span>),
+            extrinsic=<span class="fn">round</span>(extrinsic, <span class="nm">4</span>)
+        )
+
+<span class="kw">def</span> <span class="fn">model_theta_decay_curve</span>(S: <span class="fn">float</span>, K: <span class="fn">float</span>, sigma: <span class="fn">float</span>,
+                              r: <span class="fn">float</span> = <span class="nm">0.05</span>) -> <span class="fn">list</span>:
+    <span class="st">"""Model how option value decays from 45 DTE to expiration."""</span>
+    decay_curve = []
+    bs = BlackScholes()
+    <span class="kw">for</span> dte <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">45</span>, <span class="nm">0</span>, -<span class="nm">1</span>):
+        T = dte / <span class="nm">365</span>
+        greeks = bs.greeks(S, K, T, r, sigma, <span class="st">'put'</span>)
+        decay_curve.append({
+            <span class="st">'dte'</span>: dte,
+            <span class="st">'price'</span>: greeks.price,
+            <span class="st">'theta'</span>: greeks.theta,
+            <span class="st">'delta'</span>: greeks.delta,
+            <span class="st">'theta_pct'</span>: <span class="fn">abs</span>(greeks.theta / greeks.price) * <span class="nm">100</span>
+        })
+    <span class="kw">return</span> decay_curve
+
+<span class="cm"># Example: BTC at $65,000, sell 60,000 put, 35 DTE, IV=70%</span>
+<span class="kw">if</span> __name__ == <span class="st">'__main__'</span>:
+    bs = BlackScholes()
+    greeks = bs.greeks(
+        S=<span class="nm">65000</span>, K=<span class="nm">60000</span>, T=<span class="nm">35</span>/<span class="nm">365</span>,
+        r=<span class="nm">0.05</span>, sigma=<span class="nm">0.70</span>, option_type=<span class="st">'put'</span>
+    )
+    <span class="fn">print</span>(<span class="st">f"Option price: ${greeks.price:.2f}"</span>)
+    <span class="fn">print</span>(<span class="st">f"Daily theta: ${greeks.theta:.2f} ({abs(greeks.theta/greeks.price)*100:.2f}%/day)"</span>)
+    <span class="fn">print</span>(<span class="st">f"Delta: {greeks.delta:.4f} (${abs(greeks.delta)*65000:.0f} equiv exposure)"</span>)
+    <span class="fn">print</span>(<span class="st">f"Extrinsic: ${greeks.extrinsic:.2f} (100% time value)"</span>)</pre>
+      </div>
+    </section>
+
+    <!-- Section 2: Core Strategies -->
+    <section class="section" id="strategies">
+      <h2>2. Core <span class="accent">Selling Strategies</span></h2>
+      <p>
+        Options sellers have two primary income-generating strategies: <strong>covered calls</strong>
+        (selling upside in an asset you own) and <strong>cash-secured puts</strong> (agreeing to buy
+        an asset at a lower price). Both collect premium upfront; the premium retained is the profit
+        if expiration occurs OTM.
+      </p>
+
+      <h3>Covered Calls</h3>
+      <p>
+        A covered call involves owning the underlying asset and selling a call option against it.
+        The agent receives premium income while capping upside at the strike price. Risk is limited
+        to the downside of the underlying (offset by premium received).
+      </p>
+
+      <div class="info-box">
+        <div class="box-title">Covered Call Profit/Loss</div>
+        <p>
+          Max profit = Premium received + (Strike - Entry price)<br />
+          Max loss = Entry price - Premium received (same as holding the asset)<br />
+          Breakeven = Entry price - Premium received
+        </p>
+      </div>
+
+      <h3>Cash-Secured Puts</h3>
+      <p>
+        A cash-secured put involves selling a put option while holding enough cash to buy the underlying
+        at the strike price if assigned. The agent earns premium while waiting to acquire the asset at
+        a discount. This is the more common strategy for agents without existing positions.
+      </p>
+
+      <div class="formula-box">
+        <div class="formula-label">Cash-Secured Put P&amp;L at Expiration</div>
+        P&amp;L = Premium_received - max(0, Strike - Final_price)<br /><br />
+        Max profit = Premium_received (if expires OTM)<br />
+        Max loss = Strike - Premium_received (underlying goes to zero)<br />
+        Breakeven = Strike - Premium_received<br />
+        Annualized return = (Premium / Strike) * (365 / DTE) * 100%
+      </div>
+
+      <h3>Premium Targeting Formula</h3>
+      <p>
+        Agents should target a minimum premium that justifies the risk and collateral tied up.
+        A common rule is targeting at least <strong>1% of the strike price per month</strong>
+        in premium for 30-DTE options, scaling with IV conditions.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">strategy_selector.py — Covered call and CSP mechanics</span>
+        </div>
+        <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, List
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">OptionStrategy</span>(Enum):
+    COVERED_CALL = <span class="st">"covered_call"</span>
+    CASH_SECURED_PUT = <span class="st">"cash_secured_put"</span>
+    SHORT_STRANGLE = <span class="st">"short_strangle"</span>
+    JADE_LIZARD = <span class="st">"jade_lizard"</span>
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">StrategySetup</span>:
+    strategy: <span class="fn">OptionStrategy</span>
+    underlying: <span class="fn">str</span>
+    underlying_price: <span class="fn">float</span>
+    strike: <span class="fn">float</span>
+    expiration_dte: <span class="fn">int</span>
+    premium_received: <span class="fn">float</span>
+    collateral_required: <span class="fn">float</span>
+    max_profit: <span class="fn">float</span>
+    max_loss: <span class="fn">float</span>
+    breakeven: <span class="fn">float</span>
+    annualized_return_pct: <span class="fn">float</span>
+    prob_profit: <span class="fn">float</span>  <span class="cm"># probability of expiring OTM</span>
+
+<span class="kw">class</span> <span class="fn">StrategyBuilder</span>:
+    <span class="st">"""Build and evaluate options selling strategies."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, bs_pricer: <span class="st">'BlackScholes'</span>):
+        self.bs = bs_pricer
+
+    <span class="kw">def</span> <span class="fn">build_csp</span>(
+        self,
+        underlying: <span class="fn">str</span>,
+        S: <span class="fn">float</span>,
+        K: <span class="fn">float</span>,
+        dte: <span class="fn">int</span>,
+        iv: <span class="fn">float</span>,
+        r: <span class="fn">float</span> = <span class="nm">0.05</span>
+    ) -> <span class="fn">StrategySetup</span>:
+        <span class="st">"""Cash-secured put setup."""</span>
+        T = dte / <span class="nm">365</span>
+        greeks = self.bs.greeks(S, K, T, r, iv, <span class="st">'put'</span>)
+        premium = greeks.price
+
+        <span class="cm"># Collateral = full strike (cash to buy at strike if assigned)</span>
+        collateral = K
+
+        <span class="cm"># P&amp;L bounds</span>
+        max_profit = premium
+        max_loss = K - premium  <span class="cm"># if underlying goes to 0</span>
+        breakeven = K - premium
+
+        <span class="cm"># Annualized return on collateral</span>
+        ann_return = (premium / collateral) * (<span class="nm">365</span> / dte) * <span class="nm">100</span>
+
+        <span class="cm"># Probability of profit ≈ probability of expiring OTM (above strike)</span>
+        <span class="cm"># = N(d2) for puts in BS framework</span>
+        <span class="kw">from</span> scipy.stats <span class="kw">import</span> norm
+        d1 = self.bs.d1(S, K, T, r, iv)
+        d2 = d1 - iv * np.sqrt(T)
+        prob_otm = norm.cdf(d2)  <span class="cm"># probability put expires worthless</span>
+
+        <span class="kw">return</span> <span class="fn">StrategySetup</span>(
+            strategy=<span class="fn">OptionStrategy</span>.CASH_SECURED_PUT,
+            underlying=underlying,
+            underlying_price=S,
+            strike=K,
+            expiration_dte=dte,
+            premium_received=<span class="fn">round</span>(premium, <span class="nm">2</span>),
+            collateral_required=<span class="fn">round</span>(collateral, <span class="nm">2</span>),
+            max_profit=<span class="fn">round</span>(max_profit, <span class="nm">2</span>),
+            max_loss=<span class="fn">round</span>(max_loss, <span class="nm">2</span>),
+            breakeven=<span class="fn">round</span>(breakeven, <span class="nm">2</span>),
+            annualized_return_pct=<span class="fn">round</span>(ann_return, <span class="nm">2</span>),
+            prob_profit=<span class="fn">round</span>(prob_otm, <span class="nm">4</span>)
+        )
+
+    <span class="kw">def</span> <span class="fn">evaluate_minimum_premium</span>(
+        self,
+        setup: <span class="fn">StrategySetup</span>,
+        min_monthly_pct: <span class="fn">float</span> = <span class="nm">1.0</span>,   <span class="cm"># 1% of strike per month</span>
+        min_prob_profit: <span class="fn">float</span> = <span class="nm">0.60</span>    <span class="cm"># 60% probability of profit</span>
+    ) -> <span class="fn">dict</span>:
+        <span class="st">"""Check if trade meets minimum premium and probability criteria."""</span>
+        monthly_premium_pct = (setup.premium_received / setup.strike) * (<span class="nm">30</span> / setup.expiration_dte) * <span class="nm">100</span>
+        meets_premium = monthly_premium_pct >= min_monthly_pct
+        meets_prob = setup.prob_profit >= min_prob_profit
+
+        <span class="kw">return</span> {
+            <span class="st">'trade_ok'</span>: meets_premium <span class="kw">and</span> meets_prob,
+            <span class="st">'monthly_premium_pct'</span>: <span class="fn">round</span>(monthly_premium_pct, <span class="nm">3</span>),
+            <span class="st">'prob_profit'</span>: setup.prob_profit,
+            <span class="st">'annualized_return'</span>: setup.annualized_return_pct,
+            <span class="st">'meets_premium_threshold'</span>: meets_premium,
+            <span class="st">'meets_prob_threshold'</span>: meets_prob,
+            <span class="st">'reason'</span>: <span class="st">'PASS'</span> <span class="kw">if</span> (meets_premium <span class="kw">and</span> meets_prob) <span class="kw">else</span> (
+                <span class="st">'Low premium'</span> <span class="kw">if not</span> meets_premium <span class="kw">else</span> <span class="st">'Low probability'</span>
+            )
+        }</pre>
+      </div>
+    </section>
+
+    <!-- Section 3: IV Rank and Timing -->
+    <section class="section" id="iv-timing">
+      <h2>3. <span class="accent">IV Rank</span> and IV Percentile for Timing Entries</h2>
+      <p>
+        Options sellers thrive when implied volatility (IV) is elevated relative to its historical range.
+        Selling options when IV is high means collecting more premium for the same strike distance.
+        Two metrics guide entry timing: <strong>IV Rank</strong> and <strong>IV Percentile</strong>.
+      </p>
+
+      <h3>IV Rank (IVR)</h3>
+      <p>
+        IV Rank measures where current IV sits within its 52-week high/low range. An IVR of 80 means
+        current IV is in the top 20% of its annual range. Option sellers typically wait for IVR above
+        50 before entering positions.
+      </p>
+
+      <div class="formula-box">
+        <div class="formula-label">IV Rank Formula</div>
+        IVR = (Current IV - 52-week Low IV) / (52-week High IV - 52-week Low IV) * 100<br /><br />
+        IVR = 0   → IV at 52-week low (bad time to sell)<br />
+        IVR = 50  → IV at midpoint (acceptable)<br />
+        IVR = 100 → IV at 52-week high (ideal for sellers)
+      </div>
+
+      <h3>IV Percentile (IVP)</h3>
+      <p>
+        IV Percentile measures what percentage of past daily IV readings were below the current IV.
+        IVP of 75 means IV has been lower than today 75% of the time. IVP is generally more
+        statistically robust than IVR because it is not skewed by a single extreme reading.
+      </p>
+
+      <div class="info-box">
+        <div class="box-title">Entry Signal Framework</div>
+        <p>
+          IVR &gt; 50 AND IVP &gt; 50: Strong entry signal — both metrics confirm elevated IV.<br />
+          IVR &gt; 70: High conviction entry — IV near annual highs, maximum premium collection.<br />
+          IVR &lt; 30: Avoid selling — insufficient premium relative to risk taken.
+        </p>
+      </div>
+
+      <h3>Implied Volatility vs. Realized Volatility</h3>
+      <p>
+        The <strong>volatility risk premium</strong> is the persistent tendency for implied volatility
+        to exceed realized (historical) volatility. On average, IV runs 3-5 percentage points above
+        actual volatility. Option sellers are compensated for providing liquidity and taking on
+        tail risk — this premium is the structural edge of systematic selling.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">iv_analyzer.py — IV rank, IV percentile, and volatility premium</span>
+        </div>
+        <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> typing <span class="kw">import</span> List, Optional, Tuple
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">import</span> statistics
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">IVSnapshot</span>:
+    date: <span class="fn">str</span>
+    iv_30d: <span class="fn">float</span>   <span class="cm"># 30-day implied vol (annualized %)</span>
+    iv_60d: <span class="fn">float</span>
+    hv_30d: <span class="fn">float</span>   <span class="cm"># realized vol past 30 days</span>
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">IVAnalysis</span>:
+    current_iv: <span class="fn">float</span>
+    iv_rank: <span class="fn">float</span>          <span class="cm"># 0-100</span>
+    iv_percentile: <span class="fn">float</span>    <span class="cm"># 0-100</span>
+    hv_30d: <span class="fn">float</span>
+    vol_premium: <span class="fn">float</span>      <span class="cm"># IV - HV (the edge)</span>
+    entry_signal: <span class="fn">str</span>       <span class="cm"># STRONG / MODERATE / WEAK / AVOID</span>
+    recommended_delta: <span class="fn">float</span>
+
+<span class="kw">class</span> <span class="fn">IVAnalyzer</span>:
+    <span class="st">"""Analyze implied volatility conditions for options entry timing."""</span>
+
+    LOOKBACK_DAYS = <span class="nm">252</span>  <span class="cm"># trading days in a year</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, iv_history: <span class="fn">List</span>[<span class="fn">IVSnapshot</span>]):
+        <span class="st">"""
+        iv_history: list of daily IV snapshots, most recent last.
+        At least 252 entries recommended for reliable IVR/IVP.
+        """</span>
+        self.history = iv_history[-self.LOOKBACK_DAYS:]
+        self.iv_series = [s.iv_30d <span class="kw">for</span> s <span class="kw">in</span> self.history]
+
+    <span class="kw">def</span> <span class="fn">compute_iv_rank</span>(self, current_iv: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="st">"""IV Rank: position within 52-week high/low range."""</span>
+        iv_high = <span class="fn">max</span>(self.iv_series)
+        iv_low = <span class="fn">min</span>(self.iv_series)
+        <span class="kw">if</span> iv_high == iv_low:
+            <span class="kw">return</span> <span class="nm">50.0</span>
+        ivr = (current_iv - iv_low) / (iv_high - iv_low) * <span class="nm">100</span>
+        <span class="kw">return</span> <span class="fn">round</span>(<span class="fn">max</span>(<span class="nm">0</span>, <span class="fn">min</span>(<span class="nm">100</span>, ivr)), <span class="nm">1</span>)
+
+    <span class="kw">def</span> <span class="fn">compute_iv_percentile</span>(self, current_iv: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="st">"""IV Percentile: % of past readings below current IV."""</span>
+        below = <span class="fn">sum</span>(<span class="nm">1</span> <span class="kw">for</span> iv <span class="kw">in</span> self.iv_series <span class="kw">if</span> iv < current_iv)
+        ivp = (below / <span class="fn">len</span>(self.iv_series)) * <span class="nm">100</span>
+        <span class="kw">return</span> <span class="fn">round</span>(ivp, <span class="nm">1</span>)
+
+    <span class="kw">def</span> <span class="fn">suggest_delta</span>(self, ivr: <span class="fn">float</span>, ivp: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="st">"""
+        Higher IV → can sell further OTM (lower delta) and still collect enough premium.
+        Lower IV → must go closer to ATM (higher delta) for adequate premium.
+        """</span>
+        avg_score = (ivr + ivp) / <span class="nm">2</span>
+        <span class="kw">if</span> avg_score >= <span class="nm">75</span>:
+            <span class="kw">return</span> <span class="nm">0.16</span>   <span class="cm"># sell very far OTM, high IV provides enough premium</span>
+        <span class="kw">elif</span> avg_score >= <span class="nm">50</span>:
+            <span class="kw">return</span> <span class="nm">0.25</span>   <span class="cm"># standard 25-delta target</span>
+        <span class="kw">elif</span> avg_score >= <span class="nm">30</span>:
+            <span class="kw">return</span> <span class="nm">0.30</span>   <span class="cm"># slightly closer to ATM</span>
+        <span class="kw">else</span>:
+            <span class="kw">return</span> <span class="nm">0.35</span>   <span class="cm"># close to ATM; low IV environment</span>
+
+    <span class="kw">def</span> <span class="fn">entry_signal</span>(self, ivr: <span class="fn">float</span>, ivp: <span class="fn">float</span>, vol_premium: <span class="fn">float</span>) -> <span class="fn">str</span>:
+        <span class="kw">if</span> ivr >= <span class="nm">70</span> <span class="kw">and</span> ivp >= <span class="nm">60</span> <span class="kw">and</span> vol_premium > <span class="nm">5</span>:
+            <span class="kw">return</span> <span class="st">"STRONG"</span>
+        <span class="kw">elif</span> ivr >= <span class="nm">50</span> <span class="kw">and</span> ivp >= <span class="nm">50</span>:
+            <span class="kw">return</span> <span class="st">"MODERATE"</span>
+        <span class="kw">elif</span> ivr >= <span class="nm">30</span> <span class="kw">and</span> ivp >= <span class="nm">40</span>:
+            <span class="kw">return</span> <span class="st">"WEAK"</span>
+        <span class="kw">else</span>:
+            <span class="kw">return</span> <span class="st">"AVOID"</span>
+
+    <span class="kw">def</span> <span class="fn">analyze</span>(self, current_iv: <span class="fn">float</span>, current_hv: <span class="fn">float</span>) -> <span class="fn">IVAnalysis</span>:
+        <span class="st">"""Full IV analysis for entry timing decision."""</span>
+        ivr = self.compute_iv_rank(current_iv)
+        ivp = self.compute_iv_percentile(current_iv)
+        vol_premium = current_iv - current_hv
+        signal = self.entry_signal(ivr, ivp, vol_premium)
+        rec_delta = self.suggest_delta(ivr, ivp)
+        <span class="kw">return</span> <span class="fn">IVAnalysis</span>(
+            current_iv=current_iv,
+            iv_rank=ivr,
+            iv_percentile=ivp,
+            hv_30d=current_hv,
+            vol_premium=<span class="fn">round</span>(vol_premium, <span class="nm">2</span>),
+            entry_signal=signal,
+            recommended_delta=rec_delta
+        )</pre>
+      </div>
+    </section>
+
+    <!-- Section 4: Delta Management -->
+    <section class="section" id="delta-management">
+      <h2>4. <span class="accent">Delta Management</span></h2>
+      <p>
+        Short options positions carry directional risk measured by delta. As the underlying price moves,
+        delta changes and the agent's net exposure shifts. Active delta management prevents positions
+        from becoming excessively directional and protects against large adverse moves.
+      </p>
+
+      <h3>Delta Targets for Short Puts</h3>
+      <p>
+        The most commonly sold puts target a <strong>25-delta</strong> at entry. This means the put has
+        approximately a 25% chance of expiring in-the-money (and a 75% chance of expiring worthless).
+        More aggressive sellers use 30-35 delta for higher premium; conservative sellers use 15-20 delta.
+      </p>
+
+      <h3>Gamma Risk Near Expiration</h3>
+      <p>
+        As expiration approaches, gamma — the rate of change of delta — increases dramatically.
+        A 25-delta put at 30 DTE might have a gamma of 0.003, but the same strike at 5 DTE could
+        have a gamma of 0.015. This means delta changes 5x faster, and positions can go from safe
+        to deeply ITM very quickly. Agents should close or roll positions before entering this danger zone.
+      </p>
+
+      <div class="info-box warning">
+        <div class="box-title">Gamma Warning</div>
+        <p>
+          Never hold short options with less than 7 DTE unless intentionally targeting expiration.
+          Gamma risk in the final week is extreme — a 5% adverse move can turn a profitable position into maximum loss.
+        </p>
+      </div>
+
+      <h3>Portfolio Delta Limits</h3>
+      <p>
+        A portfolio-level delta limit prevents the agent from becoming too directional in aggregate.
+        All short put positions contribute negative delta (bearish if underlying falls). The agent
+        should track total portfolio delta and limit it to an acceptable exposure.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">delta_manager.py — Portfolio delta tracking and position sizing</span>
+        </div>
+        <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Optional
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">ShortPutPosition</span>:
+    id: <span class="fn">str</span>
+    underlying: <span class="fn">str</span>
+    underlying_price: <span class="fn">float</span>
+    strike: <span class="fn">float</span>
+    dte: <span class="fn">int</span>
+    contracts: <span class="fn">int</span>             <span class="cm"># number of contracts (1 contract = 1 unit in crypto)</span>
+    delta: <span class="fn">float</span>               <span class="cm"># current delta (negative for short put)</span>
+    entry_premium: <span class="fn">float</span>
+    current_price: <span class="fn">float</span>
+    entry_iv: <span class="fn">float</span>
+    current_iv: <span class="fn">float</span>
+
+    <span class="kw">@property</span>
+    <span class="kw">def</span> <span class="fn">dollar_delta</span>(self) -> <span class="fn">float</span>:
+        <span class="st">"""Dollar delta = delta * contracts * underlying_price."""</span>
+        <span class="kw">return</span> self.delta * self.contracts * self.underlying_price
+
+    <span class="kw">@property</span>
+    <span class="kw">def</span> <span class="fn">unrealized_pnl</span>(self) -> <span class="fn">float</span>:
+        <span class="st">"""P&amp;L for short position: positive when option decays."""</span>
+        <span class="kw">return</span> (self.entry_premium - self.current_price) * self.contracts
+
+    <span class="kw">@property</span>
+    <span class="kw">def</span> <span class="fn">pct_profit</span>(self) -> <span class="fn">float</span>:
+        <span class="st">"""Percentage of max profit captured."""</span>
+        <span class="kw">return</span> (self.entry_premium - self.current_price) / self.entry_premium * <span class="nm">100</span>
+
+<span class="kw">class</span> <span class="fn">DeltaManager</span>:
+    <span class="st">"""Track and manage portfolio-level delta for short options positions."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        max_portfolio_delta: <span class="fn">float</span> = -<span class="nm">0.10</span>,  <span class="cm"># max -10% of portfolio as delta</span>
+        max_single_delta: <span class="fn">float</span> = -<span class="nm">0.03</span>,    <span class="cm"># max -3% per position</span>
+        portfolio_value: <span class="fn">float</span> = <span class="nm">100000</span>
+    ):
+        self.max_portfolio_delta = max_portfolio_delta
+        self.max_single_delta = max_single_delta
+        self.portfolio_value = portfolio_value
+        self.positions: <span class="fn">List</span>[<span class="fn">ShortPutPosition</span>] = []
+
+    <span class="kw">def</span> <span class="fn">add_position</span>(self, pos: <span class="fn">ShortPutPosition</span>) -> <span class="fn">dict</span>:
+        <span class="st">"""Check if adding position would breach delta limits."""</span>
+        new_dollar_delta = pos.dollar_delta
+        current_total = self.<span class="fn">total_dollar_delta</span>()
+        projected_total = current_total + new_dollar_delta
+        projected_pct = projected_total / self.portfolio_value
+
+        <span class="kw">if</span> projected_pct < self.max_portfolio_delta:
+            <span class="kw">return</span> {
+                <span class="st">'approved'</span>: <span class="nm">False</span>,
+                <span class="st">'reason'</span>: <span class="st">f'Portfolio delta would be {projected_pct:.2%}, limit {self.max_portfolio_delta:.2%}'</span>
+            }
+
+        single_pct = new_dollar_delta / self.portfolio_value
+        <span class="kw">if</span> single_pct < self.max_single_delta:
+            <span class="kw">return</span> {
+                <span class="st">'approved'</span>: <span class="nm">False</span>,
+                <span class="st">'reason'</span>: <span class="st">f'Single position delta {single_pct:.2%} exceeds limit {self.max_single_delta:.2%}'</span>
+            }
+
+        self.positions.append(pos)
+        <span class="kw">return</span> {
+            <span class="st">'approved'</span>: <span class="nm">True</span>,
+            <span class="st">'portfolio_delta_pct'</span>: <span class="fn">round</span>(projected_pct * <span class="nm">100</span>, <span class="nm">2</span>),
+            <span class="st">'position_count'</span>: <span class="fn">len</span>(self.positions)
+        }
+
+    <span class="kw">def</span> <span class="fn">total_dollar_delta</span>(self) -> <span class="fn">float</span>:
+        <span class="kw">return</span> <span class="fn">sum</span>(p.dollar_delta <span class="kw">for</span> p <span class="kw">in</span> self.positions)
+
+    <span class="kw">def</span> <span class="fn">positions_to_close</span>(
+        self,
+        profit_target_pct: <span class="fn">float</span> = <span class="nm">50</span>,
+        dte_limit: <span class="fn">int</span> = <span class="nm">21</span>,
+        loss_limit_pct: <span class="fn">float</span> = <span class="nm">200</span>  <span class="cm"># close at 2x premium received (200% loss)</span>
+    ) -> <span class="fn">List</span>[<span class="fn">dict</span>]:
+        <span class="st">"""Identify positions that should be closed per management rules."""</span>
+        to_close = []
+        <span class="kw">for</span> pos <span class="kw">in</span> self.positions:
+            reasons = []
+
+            <span class="cm"># Profit target: close at 50% of max profit</span>
+            <span class="kw">if</span> pos.pct_profit >= profit_target_pct:
+                reasons.append(<span class="st">f'Profit target reached: {pos.pct_profit:.1f}%'</span>)
+
+            <span class="cm"># Time-based: close at 21 DTE to avoid gamma risk</span>
+            <span class="kw">if</span> pos.dte <= dte_limit:
+                reasons.append(<span class="st">f'DTE limit reached: {pos.dte} DTE'</span>)
+
+            <span class="cm"># Loss limit: close if option price is >200% of entry (avoid disaster)</span>
+            loss_pct = (pos.current_price - pos.entry_premium) / pos.entry_premium * <span class="nm">100</span>
+            <span class="kw">if</span> loss_pct >= loss_limit_pct:
+                reasons.append(<span class="st">f'Loss limit reached: {loss_pct:.0f}% of premium'</span>)
+
+            <span class="kw">if</span> reasons:
+                to_close.append({
+                    <span class="st">'position_id'</span>: pos.id,
+                    <span class="st">'reasons'</span>: reasons,
+                    <span class="st">'unrealized_pnl'</span>: pos.unrealized_pnl,
+                    <span class="st">'action'</span>: <span class="st">'CLOSE'</span>
+                })
+        <span class="kw">return</span> to_close
+
+    <span class="kw">def</span> <span class="fn">portfolio_summary</span>(self) -> <span class="fn">dict</span>:
+        total_pnl = <span class="fn">sum</span>(p.unrealized_pnl <span class="kw">for</span> p <span class="kw">in</span> self.positions)
+        total_premium = <span class="fn">sum</span>(p.entry_premium * p.contracts <span class="kw">for</span> p <span class="kw">in</span> self.positions)
+        total_delta = self.total_dollar_delta()
+        <span class="kw">return</span> {
+            <span class="st">'open_positions'</span>: <span class="fn">len</span>(self.positions),
+            <span class="st">'total_unrealized_pnl'</span>: <span class="fn">round</span>(total_pnl, <span class="nm">2</span>),
+            <span class="st">'total_premium_collected'</span>: <span class="fn">round</span>(total_premium, <span class="nm">2</span>),
+            <span class="st">'portfolio_dollar_delta'</span>: <span class="fn">round</span>(total_delta, <span class="nm">2</span>),
+            <span class="st">'portfolio_delta_pct'</span>: <span class="fn">round</span>(total_delta / self.portfolio_value * <span class="nm">100</span>, <span class="nm">2</span>),
+            <span class="st">'avg_dte'</span>: <span class="fn">round</span>(np.mean([p.dte <span class="kw">for</span> p <span class="kw">in</span> self.positions]), <span class="nm">1</span>) <span class="kw">if</span> self.positions <span class="kw">else</span> <span class="nm">0</span>
+        }</pre>
+      </div>
+    </section>
+
+    <!-- Section 5: Rolling Positions -->
+    <section class="section" id="rolling">
+      <h2>5. <span class="accent">Rolling Positions</span></h2>
+      <p>
+        Rolling is the process of closing an existing position and simultaneously opening a new one —
+        either to extend duration (roll out in time), move the strike (roll up or down), or both.
+        Rolling is a critical skill for agents managing threatened or expiring positions.
+      </p>
+
+      <h3>When to Roll</h3>
+      <ul>
+        <li><strong>Roll out for more time:</strong> Position has reached 21 DTE but hasn&rsquo;t hit the profit target. Close and reopen 30-45 DTE for a credit.</li>
+        <li><strong>Roll down and out:</strong> Underlying has fallen through the strike. Roll to a lower strike and further out in time to collect additional credit while reducing strike exposure.</li>
+        <li><strong>Roll up at expiration:</strong> Position expired profitably. Immediately reopen the next cycle.</li>
+      </ul>
+
+      <h3>Rolling for a Net Credit</h3>
+      <p>
+        A fundamental rule: <strong>only roll for a net credit</strong>. The closing debit should be
+        less than the opening credit received on the new position. Rolling for a debit digs a deeper
+        hole and often just delays eventual losses.
+      </p>
+
+      <div class="formula-box">
+        <div class="formula-label">Roll Credit Calculation</div>
+        Net roll credit = New premium received - Current option price (buyback cost)<br /><br />
+        Example:<br />
+        Current short put: trading at $500 (entered at $800)<br />
+        New 30-DTE put at lower strike: priced at $650<br />
+        Net credit = $650 - $500 = $150 (acceptable roll)<br /><br />
+        If net credit is negative: do NOT roll; take the loss or wait
+      </div>
+
+      <h3>Mechanical Rolling Rules for Agents</h3>
+      <p>
+        Automated rolling decisions prevent emotional overrides. The agent should evaluate roll candidates
+        against a strict ruleset and only execute when all criteria are met.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">position_roller.py — Systematic position rolling logic</span>
+        </div>
+        <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, List, Tuple
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+
+<span class="kw">class</span> <span class="fn">RollAction</span>(Enum):
+    ROLL_OUT = <span class="st">"roll_out"</span>              <span class="cm"># same strike, more DTE</span>
+    ROLL_DOWN_OUT = <span class="st">"roll_down_out"</span>   <span class="cm"># lower strike, more DTE</span>
+    TAKE_LOSS = <span class="st">"take_loss"</span>            <span class="cm"># close without rolling</span>
+    HOLD = <span class="st">"hold"</span>                      <span class="cm"># no action needed yet</span>
+    TAKE_PROFIT = <span class="st">"take_profit"</span>        <span class="cm"># close for profit</span>
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">RollDecision</span>:
+    action: <span class="fn">RollAction</span>
+    reason: <span class="fn">str</span>
+    new_strike: <span class="fn">Optional</span>[<span class="fn">float</span>] = <span class="nm">None</span>
+    new_dte: <span class="fn">Optional</span>[<span class="fn">int</span>] = <span class="nm">None</span>
+    estimated_credit: <span class="fn">float</span> = <span class="nm">0.0</span>
+
+<span class="kw">class</span> <span class="fn">PositionRoller</span>:
+    <span class="st">"""Evaluate and execute systematic rolling decisions."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        profit_target_pct: <span class="fn">float</span> = <span class="nm">50</span>,    <span class="cm"># take profit at 50%</span>
+        loss_threshold_pct: <span class="fn">float</span> = <span class="nm">200</span>,  <span class="cm"># roll or close at 200% loss</span>
+        min_dte_before_roll: <span class="fn">int</span> = <span class="nm">21</span>,
+        target_new_dte: <span class="fn">int</span> = <span class="nm">35</span>,
+        roll_credit_requirement: <span class="fn">float</span> = <span class="nm">0.0</span>  <span class="cm"># must roll for >= this credit</span>
+    ):
+        self.profit_target_pct = profit_target_pct
+        self.loss_threshold_pct = loss_threshold_pct
+        self.min_dte_before_roll = min_dte_before_roll
+        self.target_new_dte = target_new_dte
+        self.roll_credit_requirement = roll_credit_requirement
+
+    <span class="kw">def</span> <span class="fn">evaluate</span>(self, pos: <span class="st">'ShortPutPosition'</span>, new_option_price: <span class="fn">float</span>,
+                   new_strike: <span class="fn">float</span>) -> <span class="fn">RollDecision</span>:
+        <span class="st">"""
+        Evaluate whether and how to roll a position.
+        new_option_price: premium available for the replacement position
+        new_strike: proposed strike for the new position
+        """</span>
+        current_pct_profit = pos.pct_profit
+        loss_pct = (pos.current_price - pos.entry_premium) / pos.entry_premium * <span class="nm">100</span>
+        buyback_cost = pos.current_price
+        roll_credit = new_option_price - buyback_cost
+
+        <span class="cm"># 1. Take profit: position has decayed enough</span>
+        <span class="kw">if</span> current_pct_profit >= self.profit_target_pct:
+            <span class="kw">return</span> <span class="fn">RollDecision</span>(
+                action=<span class="fn">RollAction</span>.TAKE_PROFIT,
+                reason=<span class="st">f'Profit target reached: {current_pct_profit:.1f}% of max profit'</span>
+            )
+
+        <span class="cm"># 2. Loss limit exceeded: evaluate roll or take loss</span>
+        <span class="kw">if</span> loss_pct >= self.loss_threshold_pct:
+            <span class="kw">if</span> roll_credit > self.roll_credit_requirement:
+                <span class="kw">return</span> <span class="fn">RollDecision</span>(
+                    action=<span class="fn">RollAction</span>.ROLL_DOWN_OUT,
+                    reason=<span class="st">f'Loss limit {loss_pct:.0f}% reached; rolling for ${roll_credit:.2f} credit'</span>,
+                    new_strike=new_strike,
+                    new_dte=self.target_new_dte,
+                    estimated_credit=roll_credit
+                )
+            <span class="kw">else</span>:
+                <span class="kw">return</span> <span class="fn">RollDecision</span>(
+                    action=<span class="fn">RollAction</span>.TAKE_LOSS,
+                    reason=<span class="st">f'Loss limit reached and no credit roll available; taking loss'</span>
+                )
+
+        <span class="cm"># 3. DTE expired: roll out for more time</span>
+        <span class="kw">if</span> pos.dte <= self.min_dte_before_roll:
+            <span class="kw">if</span> roll_credit > self.roll_credit_requirement:
+                <span class="kw">return</span> <span class="fn">RollDecision</span>(
+                    action=<span class="fn">RollAction</span>.ROLL_OUT,
+                    reason=<span class="st">f'DTE at {pos.dte}, rolling out for ${roll_credit:.2f} credit'</span>,
+                    new_strike=pos.strike,   <span class="cm"># same strike</span>
+                    new_dte=self.target_new_dte,
+                    estimated_credit=roll_credit
+                )
+            <span class="kw">else</span>:
+                <span class="kw">return</span> <span class="fn">RollDecision</span>(
+                    action=<span class="fn">RollAction</span>.TAKE_LOSS,
+                    reason=<span class="st">f'DTE at {pos.dte} with no credit roll available'</span>
+                )
+
+        <span class="cm"># 4. No action needed</span>
+        <span class="kw">return</span> <span class="fn">RollDecision</span>(
+            action=<span class="fn">RollAction</span>.HOLD,
+            reason=<span class="st">f'Position healthy: {current_pct_profit:.1f}% profit, {pos.dte} DTE'</span>
+        )
+
+    <span class="kw">def</span> <span class="fn">batch_evaluate</span>(
+        self,
+        positions: <span class="fn">List</span>[<span class="st">'ShortPutPosition'</span>],
+        market_data: <span class="fn">dict</span>  <span class="cm"># {pos_id: {'new_price': float, 'new_strike': float}}</span>
+    ) -> <span class="fn">List</span>[<span class="fn">Tuple</span>[<span class="fn">str</span>, <span class="fn">RollDecision</span>]]:
+        <span class="st">"""Evaluate all positions and return action list."""</span>
+        decisions = []
+        <span class="kw">for</span> pos <span class="kw">in</span> positions:
+            data = market_data.get(pos.id, {})
+            new_price = data.get(<span class="st">'new_price'</span>, <span class="nm">0</span>)
+            new_strike = data.get(<span class="st">'new_strike'</span>, pos.strike * <span class="nm">0.95</span>)
+            decision = self.evaluate(pos, new_price, new_strike)
+            decisions.append((pos.id, decision))
+        <span class="kw">return</span> decisions</pre>
+      </div>
+    </section>
+
+    <!-- Section 6: Risk Management -->
+    <section class="section" id="risk">
+      <h2>6. <span class="accent">Risk Management</span> and Max Loss</h2>
+      <p>
+        The asymmetric risk profile of options selling — limited upside (premium), potentially large
+        downside — demands strict risk controls. Unlike directional traders, options sellers face the
+        risk of tail events: sudden crashes that send options from OTM to deeply ITM within hours.
+      </p>
+
+      <h3>Assignment Risk</h3>
+      <p>
+        When a cash-secured put is assigned, the agent must purchase the underlying at the strike price
+        regardless of current market price. In crypto, a coin can fall 50-80% in days. Assignment
+        management requires agents to either accept the position (if bullish longer-term) or
+        immediately sell the assigned position.
+      </p>
+
+      <h3>Position Sizing Rules</h3>
+      <ul>
+        <li><strong>Max 5% of portfolio per position:</strong> No single trade should risk more than 5% of total capital.</li>
+        <li><strong>Max 25% in options selling:</strong> Keep 75%+ in non-leveraged positions as buffer for assignments.</li>
+        <li><strong>Max 3 positions per asset:</strong> Avoid concentration in a single name.</li>
+        <li><strong>Correlation limits:</strong> BTC and ETH are highly correlated — treat as one asset class.</li>
+      </ul>
+
+      <div class="info-box warning">
+        <div class="box-title">Black Swan Protection</div>
+        <p>
+          Allocate 1-2% of portfolio to cheap OTM put options (5-delta puts) as tail risk insurance.
+          These lottery-ticket longs will offset catastrophic losses from the short put book during crashes.
+        </p>
+      </div>
+
+      <h3>Volatility Regime Adjustment</h3>
+      <p>
+        During high-volatility regimes (VIX equivalent above 80 for crypto), even OTM options can
+        become ITM rapidly. Reduce position size by 50% in high-vol regimes and widen strikes.
+        The extra premium does not compensate for dramatically higher assignment probability.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">risk_manager.py — Options selling risk controls</span>
+        </div>
+        <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">RiskLimits</span>:
+    max_position_pct: <span class="fn">float</span> = <span class="nm">0.05</span>       <span class="cm"># 5% per position</span>
+    max_options_book_pct: <span class="fn">float</span> = <span class="nm">0.25</span>   <span class="cm"># 25% of portfolio in options</span>
+    max_positions_per_asset: <span class="fn">int</span> = <span class="nm">3</span>
+    max_portfolio_delta: <span class="fn">float</span> = -<span class="nm">0.10</span>   <span class="cm"># -10% delta exposure</span>
+    high_vol_threshold: <span class="fn">float</span> = <span class="nm">80</span>       <span class="cm"># IV > 80% = high vol regime</span>
+    high_vol_size_mult: <span class="fn">float</span> = <span class="nm">0.5</span>      <span class="cm"># halve position size in high vol</span>
+    tail_hedge_allocation: <span class="fn">float</span> = <span class="nm">0.015</span> <span class="cm"># 1.5% for tail hedges</span>
+
+<span class="kw">class</span> <span class="fn">OptionsRiskManager</span>:
+    <span class="st">"""Comprehensive risk management for options selling portfolios."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, portfolio_value: <span class="fn">float</span>, limits: <span class="fn">RiskLimits</span> = <span class="nm">None</span>):
+        self.portfolio_value = portfolio_value
+        self.limits = limits <span class="kw">or</span> <span class="fn">RiskLimits</span>()
+        self.positions: <span class="fn">List</span>[<span class="fn">ShortPutPosition</span>] = []
+        self.tail_hedges: <span class="fn">List</span>[<span class="fn">dict</span>] = []
+
+    <span class="kw">def</span> <span class="fn">compute_position_size</span>(
+        self,
+        strike: <span class="fn">float</span>,
+        current_iv: <span class="fn">float</span>,
+        asset: <span class="fn">str</span>
+    ) -> <span class="fn">dict</span>:
+        <span class="st">"""
+        Calculate safe position size given risk limits.
+        Returns max contracts to sell.
+        """</span>
+        <span class="cm"># Base max notional</span>
+        base_max = self.portfolio_value * self.limits.max_position_pct
+        collateral_per_contract = strike  <span class="cm"># cash-secured: 100% collateral</span>
+
+        <span class="cm"># Reduce size in high-vol regimes</span>
+        vol_adj = self.limits.high_vol_size_mult <span class="kw">if</span> current_iv > self.limits.high_vol_threshold <span class="kw">else</span> <span class="nm">1.0</span>
+        adjusted_max = base_max * vol_adj
+
+        <span class="cm"># Check existing positions per asset</span>
+        asset_positions = [p <span class="kw">for</span> p <span class="kw">in</span> self.positions <span class="kw">if</span> p.underlying == asset]
+        <span class="kw">if</span> <span class="fn">len</span>(asset_positions) >= self.limits.max_positions_per_asset:
+            <span class="kw">return</span> {
+                <span class="st">'max_contracts'</span>: <span class="nm">0</span>,
+                <span class="st">'reason'</span>: <span class="st">f'Max {self.limits.max_positions_per_asset} positions per asset reached'</span>
+            }
+
+        <span class="cm"># Check total options book size</span>
+        current_book = <span class="fn">sum</span>(p.strike * p.contracts <span class="kw">for</span> p <span class="kw">in</span> self.positions)
+        max_book = self.portfolio_value * self.limits.max_options_book_pct
+        available_book = max_book - current_book
+        max_by_book = available_book / collateral_per_contract
+
+        max_contracts = <span class="fn">int</span>(<span class="fn">min</span>(adjusted_max / collateral_per_contract, max_by_book))
+
+        <span class="kw">return</span> {
+            <span class="st">'max_contracts'</span>: <span class="fn">max</span>(<span class="nm">0</span>, max_contracts),
+            <span class="st">'collateral_required'</span>: max_contracts * collateral_per_contract,
+            <span class="st">'vol_adjustment_applied'</span>: vol_adj < <span class="nm">1.0</span>,
+            <span class="st">'high_vol_regime'</span>: current_iv > self.limits.high_vol_threshold,
+            <span class="st">'reason'</span>: <span class="st">'OK'</span> <span class="kw">if</span> max_contracts > <span class="nm">0</span> <span class="kw">else</span> <span class="st">'Insufficient capacity'</span>
+        }
+
+    <span class="kw">def</span> <span class="fn">stress_test</span>(self, shock_pcts: <span class="fn">List</span>[<span class="fn">float</span>] = [-<span class="nm">10</span>, -<span class="nm">20</span>, -<span class="nm">30</span>, -<span class="nm">50</span>]) -> <span class="fn">dict</span>:
+        <span class="st">"""Simulate P&amp;L under various market shocks."""</span>
+        results = {}
+        <span class="kw">for</span> shock <span class="kw">in</span> shock_pcts:
+            total_loss = <span class="nm">0</span>
+            <span class="kw">for</span> pos <span class="kw">in</span> self.positions:
+                shocked_price = pos.underlying_price * (<span class="nm">1</span> + shock / <span class="nm">100</span>)
+                option_loss = <span class="fn">max</span>(<span class="nm">0</span>, pos.strike - shocked_price)
+                net_pnl = pos.entry_premium - option_loss
+                total_loss += net_pnl * pos.contracts
+            results[<span class="st">f'{shock}%_shock'</span>] = {
+                <span class="st">'pnl'</span>: <span class="fn">round</span>(total_loss, <span class="nm">2</span>),
+                <span class="st">'pnl_pct'</span>: <span class="fn">round</span>(total_loss / self.portfolio_value * <span class="nm">100</span>, <span class="nm">2</span>),
+                <span class="st">'survivable'</span>: total_loss > -self.portfolio_value * <span class="nm">0.20</span>
+            }
+        <span class="kw">return</span> results</pre>
+      </div>
+    </section>
+
+    <!-- Section 7: Full Agent Implementation -->
+    <section class="section" id="implementation">
+      <h2>7. Python <span class="accent">OptionsSellingAgent</span></h2>
+      <p>
+        Bringing all the components together: a complete autonomous agent that monitors IV conditions,
+        selects optimal strikes, manages existing positions, rolls as needed, and maintains risk limits
+        throughout its operation cycle.
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">PYTHON</span>
+          <span class="code-title">options_selling_agent.py — Full autonomous options selling agent</span>
+        </div>
+        <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Optional, Tuple
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timedelta
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> httpx
+
+logger = logging.getLogger(<span class="st">'options_agent'</span>)
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="fn">AgentConfig</span>:
+    portfolio_value: <span class="fn">float</span> = <span class="nm">100_000</span>     <span class="cm"># USDC</span>
+    target_monthly_income_pct: <span class="fn">float</span> = <span class="nm">2.0</span>  <span class="cm"># 2% per month target</span>
+    min_iv_rank: <span class="fn">float</span> = <span class="nm">50</span>
+    min_iv_percentile: <span class="fn">float</span> = <span class="nm">50</span>
+    target_dte_min: <span class="fn">int</span> = <span class="nm">30</span>
+    target_dte_max: <span class="fn">int</span> = <span class="nm">45</span>
+    target_delta: <span class="fn">float</span> = <span class="nm">0.25</span>
+    profit_close_pct: <span class="fn">float</span> = <span class="nm">50</span>
+    loss_close_pct: <span class="fn">float</span> = <span class="nm">200</span>
+    dte_close_limit: <span class="fn">int</span> = <span class="nm">21</span>
+    max_positions: <span class="fn">int</span> = <span class="nm">8</span>
+    scan_assets: <span class="fn">List</span>[<span class="fn">str</span>] = field(default_factory=<span class="kw">lambda</span>: [<span class="st">'BTC'</span>, <span class="st">'ETH'</span>, <span class="st">'SOL'</span>, <span class="st">'AVAX'</span>])
+    run_interval_minutes: <span class="fn">int</span> = <span class="nm">60</span>       <span class="cm"># check every hour</span>
+    purple_flea_api: <span class="fn">str</span> = <span class="st">'https://trading.purpleflea.com/api/v1'</span>
+
+<span class="kw">class</span> <span class="fn">MarketDataClient</span>:
+    <span class="st">"""Fetch live option chain and IV data from trading API."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_url: <span class="fn">str</span>, api_key: <span class="fn">str</span>):
+        self.api_url = api_url
+        self.headers = {<span class="st">'Authorization'</span>: <span class="st">f'Bearer {api_key}'</span>}
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">get_option_chain</span>(self, asset: <span class="fn">str</span>, dte_min: <span class="fn">int</span>, dte_max: <span class="fn">int</span>) -> <span class="fn">list</span>:
+        <span class="st">"""Fetch available option strikes for the target expiration window."""</span>
+        <span class="kw">async</span> <span class="kw">with</span> <span class="fn">httpx</span>.AsyncClient() <span class="kw">as</span> client:
+            resp = <span class="kw">await</span> client.get(
+                <span class="st">f'{self.api_url}/options/chain'</span>,
+                params={<span class="st">'asset'</span>: asset, <span class="st">'dte_min'</span>: dte_min, <span class="st">'dte_max'</span>: dte_max},
+                headers=self.headers, timeout=<span class="nm">10</span>
+            )
+            resp.raise_for_status()
+            <span class="kw">return</span> resp.json()[<span class="st">'strikes'</span>]
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">get_iv_data</span>(self, asset: <span class="fn">str</span>) -> <span class="fn">dict</span>:
+        <span class="st">"""Fetch current IV, IV rank, and IV percentile."""</span>
+        <span class="kw">async</span> <span class="kw">with</span> <span class="fn">httpx</span>.AsyncClient() <span class="kw">as</span> client:
+            resp = <span class="kw">await</span> client.get(
+                <span class="st">f'{self.api_url}/volatility/{asset}'</span>,
+                headers=self.headers, timeout=<span class="nm">10</span>
+            )
+            resp.raise_for_status()
+            <span class="kw">return</span> resp.json()
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">get_price</span>(self, asset: <span class="fn">str</span>) -> <span class="fn">float</span>:
+        <span class="kw">async</span> <span class="kw">with</span> <span class="fn">httpx</span>.AsyncClient() <span class="kw">as</span> client:
+            resp = <span class="kw">await</span> client.get(
+                <span class="st">f'{self.api_url}/price/{asset}'</span>,
+                headers=self.headers, timeout=<span class="nm">10</span>
+            )
+            resp.raise_for_status()
+            <span class="kw">return</span> resp.json()[<span class="st">'price'</span>]
+
+<span class="kw">class</span> <span class="fn">StrikeSelector</span>:
+    <span class="st">"""Select optimal strike for put selling based on delta target."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, bs: <span class="fn">BlackScholes</span>):
+        self.bs = bs
+
+    <span class="kw">def</span> <span class="fn">find_target_strike</span>(
+        self,
+        S: <span class="fn">float</span>, T: <span class="fn">float</span>, r: <span class="fn">float</span>, iv: <span class="fn">float</span>,
+        target_delta: <span class="fn">float</span> = <span class="nm">0.25</span>,
+        available_strikes: <span class="fn">List</span>[<span class="fn">float</span>] = <span class="nm">None</span>
+    ) -> <span class="fn">Tuple</span>[<span class="fn">float</span>, <span class="fn">OptionGreeks</span>]:
+        <span class="st">"""Find the strike closest to target delta."""</span>
+        <span class="kw">if</span> available_strikes <span class="kw">is None</span>:
+            <span class="cm"># Generate strike grid if no chain provided</span>
+            available_strikes = [S * ((<span class="nm">1</span> - i * <span class="nm">0.01</span>)) <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">5</span>, <span class="nm">40</span>)]
+
+        best_strike = <span class="nm">None</span>
+        best_greeks = <span class="nm">None</span>
+        min_delta_diff = <span class="fn">float</span>(<span class="st">'inf'</span>)
+
+        <span class="kw">for</span> K <span class="kw">in</span> available_strikes:
+            <span class="kw">if</span> K >= S:  <span class="cm"># only OTM puts (strike below spot)</span>
+                <span class="kw">continue</span>
+            <span class="kw">try</span>:
+                greeks = self.bs.greeks(S, K, T, r, iv, <span class="st">'put'</span>)
+                <span class="cm"># delta is negative for puts; compare absolute value</span>
+                delta_diff = <span class="fn">abs</span>(<span class="fn">abs</span>(greeks.delta) - target_delta)
+                <span class="kw">if</span> delta_diff < min_delta_diff:
+                    min_delta_diff = delta_diff
+                    best_strike = K
+                    best_greeks = greeks
+            <span class="kw">except</span> <span class="fn">Exception</span>:
+                <span class="kw">continue</span>
+
+        <span class="kw">return</span> best_strike, best_greeks
+
+<span class="kw">class</span> <span class="fn">OptionsSellingAgent</span>:
+    <span class="st">"""
+    Autonomous agent for systematic cash-secured put selling.
+    Connects to Purple Flea trading infrastructure.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config: <span class="fn">AgentConfig</span>, api_key: <span class="fn">str</span>):
+        self.config = config
+        self.bs = BlackScholes()
+        self.iv_histories: <span class="fn">Dict</span>[<span class="fn">str</span>, <span class="fn">List</span>] = {}
+        self.market = <span class="fn">MarketDataClient</span>(config.purple_flea_api, api_key)
+        self.selector = <span class="fn">StrikeSelector</span>(self.bs)
+        self.delta_mgr = <span class="fn">DeltaManager</span>(
+            max_portfolio_delta=-<span class="nm">0.10</span>,
+            max_single_delta=-<span class="nm">0.03</span>,
+            portfolio_value=config.portfolio_value
+        )
+        self.roller = <span class="fn">PositionRoller</span>(
+            profit_target_pct=config.profit_close_pct,
+            loss_threshold_pct=config.loss_close_pct,
+            min_dte_before_roll=config.dte_close_limit
+        )
+        self.risk_mgr = <span class="fn">OptionsRiskManager</span>(config.portfolio_value)
+        self.total_premium_collected = <span class="nm">0.0</span>
+        self.cycle_count = <span class="nm">0</span>
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">scan_for_entries</span>(self) -> <span class="fn">List</span>[<span class="fn">dict</span>]:
+        <span class="st">"""Scan all assets for valid entry conditions."""</span>
+        candidates = []
+        <span class="kw">for</span> asset <span class="kw">in</span> self.config.scan_assets:
+            <span class="kw">try</span>:
+                iv_data = <span class="kw">await</span> self.market.get_iv_data(asset)
+                current_iv = iv_data[<span class="st">'iv_30d'</span>]
+                iv_rank = iv_data[<span class="st">'iv_rank'</span>]
+                iv_percentile = iv_data[<span class="st">'iv_percentile'</span>]
+                hv_30d = iv_data[<span class="st">'hv_30d'</span>]
+
+                <span class="cm"># Skip if IV conditions not met</span>
+                <span class="kw">if</span> iv_rank < self.config.min_iv_rank:
+                    logger.info(<span class="st">f'{asset}: IVR {iv_rank:.0f} below threshold, skipping'</span>)
+                    <span class="kw">continue</span>
+                <span class="kw">if</span> iv_percentile < self.config.min_iv_percentile:
+                    logger.info(<span class="st">f'{asset}: IVP {iv_percentile:.0f} below threshold, skipping'</span>)
+                    <span class="kw">continue</span>
+
+                S = <span class="kw">await</span> self.market.get_price(asset)
+                chain = <span class="kw">await</span> self.market.get_option_chain(
+                    asset,
+                    self.config.target_dte_min,
+                    self.config.target_dte_max
+                )
+
+                <span class="cm"># Adjust delta target based on IV conditions</span>
+                iv_analysis = IVAnalysis(
+                    current_iv=current_iv, iv_rank=iv_rank, iv_percentile=iv_percentile,
+                    hv_30d=hv_30d, vol_premium=current_iv-hv_30d,
+                    entry_signal=<span class="st">'STRONG'</span> <span class="kw">if</span> iv_rank >= <span class="nm">70</span> <span class="kw">else</span> <span class="st">'MODERATE'</span>,
+                    recommended_delta=IVAnalyzer([]).suggest_delta(iv_rank, iv_percentile)
+                )
+
+                target_delta = iv_analysis.recommended_delta
+                target_dte = (<span class="nm">35</span> <span class="kw">if</span> iv_rank < <span class="nm">60</span> <span class="kw">else</span> <span class="nm">30</span>)
+                T = target_dte / <span class="nm">365</span>
+
+                strike, greeks = self.selector.find_target_strike(
+                    S, T, <span class="nm">0.05</span>, current_iv, target_delta,
+                    [s[<span class="st">'strike'</span>] <span class="kw">for</span> s <span class="kw">in</span> chain]
+                )
+
+                <span class="kw">if</span> strike <span class="kw">is None</span>:
+                    <span class="kw">continue</span>
+
+                <span class="cm"># Evaluate via strategy builder</span>
+                builder = StrategyBuilder(self.bs)
+                setup = builder.build_csp(asset, S, strike, target_dte, current_iv)
+                eval_result = builder.evaluate_minimum_premium(setup)
+
+                <span class="kw">if</span> eval_result[<span class="st">'trade_ok'</span>]:
+                    <span class="cm"># Check risk manager approval</span>
+                    size = self.risk_mgr.compute_position_size(strike, current_iv, asset)
+                    <span class="kw">if</span> size[<span class="st">'max_contracts'</span>] > <span class="nm">0</span>:
+                        candidates.append({
+                            <span class="st">'asset'</span>: asset,
+                            <span class="st">'strike'</span>: strike,
+                            <span class="st">'dte'</span>: target_dte,
+                            <span class="st">'premium'</span>: greeks.price,
+                            <span class="st">'delta'</span>: greeks.delta,
+                            <span class="st">'iv_rank'</span>: iv_rank,
+                            <span class="st">'annualized_return'</span>: setup.annualized_return_pct,
+                            <span class="st">'max_contracts'</span>: size[<span class="st">'max_contracts'</span>],
+                            <span class="st">'score'</span>: iv_rank * setup.annualized_return_pct  <span class="cm"># rank by score</span>
+                        })
+            <span class="kw">except</span> <span class="fn">Exception</span> <span class="kw">as</span> e:
+                logger.error(<span class="st">f'Error scanning {asset}: {e}'</span>)
+
+        <span class="cm"># Sort by score: highest IV rank * return first</span>
+        candidates.sort(key=<span class="kw">lambda</span> x: x[<span class="st">'score'</span>], reverse=<span class="nm">True</span>)
+        <span class="kw">return</span> candidates
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">manage_positions</span>(self):
+        <span class="st">"""Evaluate all open positions and roll/close as needed."""</span>
+        positions = self.delta_mgr.positions
+        summary = self.delta_mgr.portfolio_summary()
+        logger.info(<span class="st">f'Managing {summary["open_positions"]} positions, PnL: ${summary["total_unrealized_pnl"]:.2f}'</span>)
+        to_close = self.delta_mgr.positions_to_close(
+            profit_target_pct=self.config.profit_close_pct,
+            dte_limit=self.config.dte_close_limit,
+            loss_limit_pct=self.config.loss_close_pct
+        )
+        <span class="kw">for</span> close_item <span class="kw">in</span> to_close:
+            logger.info(<span class="st">f'Closing position {close_item["position_id"]}: {close_item["reasons"]}'</span>)
+            <span class="cm"># Execute close order via API...</span>
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">run_cycle</span>(self):
+        <span class="st">"""Execute one full agent cycle: manage → scan → enter."""</span>
+        self.cycle_count += <span class="nm">1</span>
+        logger.info(<span class="st">f'=== Cycle {self.cycle_count} === {datetime.now().isoformat()}'</span>)
+
+        <span class="cm"># Step 1: manage existing positions</span>
+        <span class="kw">await</span> self.manage_positions()
+
+        <span class="cm"># Step 2: scan for new entries if capacity available</span>
+        current_positions = <span class="fn">len</span>(self.delta_mgr.positions)
+        <span class="kw">if</span> current_positions < self.config.max_positions:
+            candidates = <span class="kw">await</span> self.scan_for_entries()
+            slots_available = self.config.max_positions - current_positions
+            <span class="kw">for</span> candidate <span class="kw">in</span> candidates[:slots_available]:
+                logger.info(
+                    <span class="st">f'Entry signal: {candidate["asset"]} ${candidate["strike"]:.0f} put, '</span>
+                    <span class="st">f'{candidate["dte"]}DTE, ${candidate["premium"]:.2f} premium, '</span>
+                    <span class="st">f'IVR={candidate["iv_rank"]:.0f}, ann={candidate["annualized_return"]:.1f}%'</span>
+                )
+                <span class="cm"># Execute sell order via API...</span>
+                self.total_premium_collected += candidate[<span class="st">'premium'</span>] * candidate[<span class="st">'max_contracts'</span>]
+
+        <span class="cm"># Step 3: log portfolio status</span>
+        summary = self.delta_mgr.portfolio_summary()
+        stress = self.risk_mgr.stress_test([-<span class="nm">20</span>, -<span class="nm">30</span>])
+        logger.info(<span class="st">f'Portfolio: {summary}'</span>)
+        logger.info(<span class="st">f'Stress test: {stress}'</span>)
+        logger.info(<span class="st">f'Total premium collected: ${self.total_premium_collected:.2f}'</span>)
+
+    <span class="kw">async</span> <span class="kw">def</span> <span class="fn">run</span>(self):
+        <span class="st">"""Main agent loop."""</span>
+        logger.info(<span class="st">f'OptionsSellingAgent starting. Portfolio: ${self.config.portfolio_value:,.0f}'</span>)
+        logger.info(<span class="st">f'Scanning: {self.config.scan_assets}'</span>)
+        <span class="kw">while</span> <span class="nm">True</span>:
+            <span class="kw">try</span>:
+                <span class="kw">await</span> self.run_cycle()
+            <span class="kw">except</span> <span class="fn">Exception</span> <span class="kw">as</span> e:
+                logger.error(<span class="st">f'Cycle error: {e}'</span>, exc_info=<span class="nm">True</span>)
+            <span class="kw">await</span> asyncio.sleep(self.config.run_interval_minutes * <span class="nm">60</span>)
+
+<span class="cm"># Entry point</span>
+<span class="kw">if</span> __name__ == <span class="st">'__main__'</span>:
+    logging.basicConfig(level=logging.INFO, format=<span class="st">'%(asctime)s %(levelname)s %(message)s'</span>)
+    config = AgentConfig(
+        portfolio_value=<span class="nm">50_000</span>,
+        target_monthly_income_pct=<span class="nm">2.0</span>,
+        min_iv_rank=<span class="nm">50</span>,
+        scan_assets=[<span class="st">'BTC'</span>, <span class="st">'ETH'</span>]
+    )
+    agent = OptionsSellingAgent(config, api_key=<span class="st">'YOUR_API_KEY'</span>)
+    asyncio.run(agent.run())</pre>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-section">
+      <h2>Start Collecting <span style="color:var(--accent)">Theta Income</span></h2>
+      <p>
+        Access 275+ derivatives markets, live option chains, and automated execution infrastructure
+        built for autonomous AI agents.
+      </p>
+      <div class="cta-buttons">
+        <a href="https://trading.purpleflea.com" class="btn btn-primary">Open Trading Account</a>
+        <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Get $1 Free USDC</a>
+        <a href="https://wallet.purpleflea.com" class="btn btn-secondary">Agent Wallet</a>
+      </div>
+    </div>
+
+    <!-- Related Posts -->
+    <section class="section">
+      <h2>Related <span class="accent">Strategies</span></h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;">
+        <a href="/blog/agent-portfolio-rebalancing/" style="text-decoration:none;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
+            <div style="font-size:0.75rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Strategy</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:0.4rem;">Portfolio Rebalancing</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">Threshold-based and calendar rebalancing for AI agents.</div>
+          </div>
+        </a>
+        <a href="/blog/agent-momentum-trading/" style="text-decoration:none;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
+            <div style="font-size:0.75rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Strategy</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:0.4rem;">Momentum Trading</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">Trend following with RSI, MACD, and breakout signals.</div>
+          </div>
+        </a>
+        <a href="/blog/agent-carry-trade/" style="text-decoration:none;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;">
+            <div style="font-size:0.75rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">Strategy</div>
+            <div style="font-weight:600;color:var(--text);margin-bottom:0.4rem;">Carry Trade</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">Funding rate harvesting across perpetual futures markets.</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+  </div><!-- /container -->
+</main>
+
+<footer>
+  <p>&copy; 2026 Purple Flea. AI-first infrastructure for autonomous agents.</p>
+  <p style="margin-top:0.5rem;">
+    <a href="/">Home</a> &nbsp;&middot;&nbsp;
+    <a href="/trading">Trading</a> &nbsp;&middot;&nbsp;
+    <a href="/wallet">Wallet</a> &nbsp;&middot;&nbsp;
+    <a href="/casino">Casino</a> &nbsp;&middot;&nbsp;
+    <a href="/faucet">Faucet</a> &nbsp;&middot;&nbsp;
+    <a href="/escrow">Escrow</a> &nbsp;&middot;&nbsp;
+    <a href="/blog/">Blog</a>
+  </p>
+</footer>
+
+<script>
+  // Reading progress bar
+  window.addEventListener('scroll', () => {
+    const doc = document.documentElement;
+    const total = doc.scrollHeight - doc.clientHeight;
+    const progress = (window.scrollY / total) * 100;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+</script>
+
+</body>
+</html>
