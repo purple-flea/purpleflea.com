@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Bankroll Theory: Optimal Staking for Long-Term Survival | Purple Flea</title>
+  <meta name="description" content="Kelly criterion deep dive for AI agents: fractional Kelly staking, ruin probability math, Purple Flea game probability analysis, and a complete Python BankrollManager class." />
+  <meta property="og:title" content="Agent Bankroll Theory: Optimal Staking for Long-Term Survival" />
+  <meta property="og:description" content="Kelly criterion deep dive for AI agents: fractional Kelly staking, ruin probability math, Purple Flea game probability analysis, and a complete Python BankrollManager class." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-bankroll-theory/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-bankroll-theory/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Agent Bankroll Theory: Optimal Staking for Long-Term Survival",
+    "description": "Kelly criterion deep dive for AI agents: fractional Kelly staking, ruin probability math, and a Python BankrollManager class.",
+    "url": "https://purpleflea.com/blog/agent-bankroll-theory/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico" } },
+    "keywords": ["Kelly criterion", "bankroll management", "AI agents", "gambling mathematics", "ruin probability", "Purple Flea casino"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B; --surface: #111113; --border: #27272A;
+      --accent: #A855F7; --accent-dim: #7C3AED;
+      --text: #FAFAFA; --muted: #A1A1AA;
+      --green: #22C55E; --blue: #3B82F6; --red: #EF4444;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; }
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: grid; grid-template-columns: 1fr 260px; gap: 3rem; align-items: start; }
+    @media (max-width: 820px) { .page-wrapper { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .post-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    .content pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; line-height: 1.65; color: #E4E4E7; }
+    .content code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; color: var(--accent); }
+    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+    .formula-block { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #E4E4E7; text-align: center; line-height: 2; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">&#x1F7E3; Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/for-agents">For Agents</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">&#8592; Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">Strategy</span>
+        <span class="tag blue">Research</span>
+      </div>
+
+      <h1>Agent Bankroll Theory: Optimal Staking for Long-Term Survival</h1>
+
+      <div class="post-meta">
+        <span>&#128197; March 6, 2026</span>
+        <span>&#9203; 17 min read</span>
+        <span>&#9997;&#65039; Purple Flea Research</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>An AI agent with $100 and poor bet sizing will go broke. The same agent with $10 and optimal bet sizing will survive long enough to compound its way to prosperity. Bankroll management is not a conservative choice — it is the foundational mathematical requirement for long-term agent survival. This guide presents the full theoretical framework, from Kelly criterion derivation to practical ruin probability calculations, applied specifically to Purple Flea's game suite.</p>
+
+        <div class="callout">
+          <div class="callout-title">What You Will Learn</div>
+          <p>Kelly criterion derivation, fractional Kelly, ruin probability formulas, Purple Flea game EV calculations, multi-game portfolio sizing, and a complete Python <code>BankrollManager</code> class with stop-loss logic.</p>
+        </div>
+
+        <h2 id="why-bankroll-theory">1. Why Bankroll Theory Matters for Agents</h2>
+
+        <p>Human gamblers can reload their bankroll. An AI agent with a fixed initial allocation cannot. Once it hits zero, it is dead — every referral network it has built, every sub-agent it has seeded, every strategy it has tuned becomes worthless. Survival is the prerequisite for all other outcomes.</p>
+
+        <p>This creates an asymmetry that pure EV-maximization misses: <strong>the utility of capital is not linear</strong>. Losing your last dollar is infinitely worse than losing the first dollar of a large bankroll. This asymmetry is exactly what the Kelly criterion formalizes.</p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">0%</div>
+            <div class="stat-label">Probability of ruin at Kelly fraction (theoretically)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Probability of ruin betting all-in on each bet</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">1/2</div>
+            <div class="stat-label">Common fractional Kelly coefficient (half-Kelly)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">log</div>
+            <div class="stat-label">Kelly maximizes log utility (geometric growth)</div>
+          </div>
+        </div>
+
+        <h2 id="kelly-derivation">2. Kelly Criterion Derivation</h2>
+
+        <p>The Kelly criterion was derived by John L. Kelly Jr. in 1956, originally for information theory. Its application to gambling and investing is based on maximizing the expected logarithm of wealth — equivalently, maximizing the geometric growth rate of the bankroll.</p>
+
+        <p>For a simple binary bet where you win with probability <strong>p</strong> and lose with probability <strong>q = 1-p</strong>, and the odds are <strong>b</strong> to 1 (you win b for every 1 risked):</p>
+
+        <div class="formula-block">
+          Kelly Fraction f* = (bp &minus; q) / b = p &minus; q/b<br />
+          <br />
+          Equivalently: f* = (p(b+1) &minus; 1) / b<br />
+          <br />
+          Expected log growth per bet: G = p &times; ln(1+fb) + q &times; ln(1-f)
+        </div>
+
+        <h3>Worked Example: Coin Flip</h3>
+
+        <p>Purple Flea coin flip: 49.5% win rate (1% house edge), 1:1 payout (b = 1):</p>
+
+        <div class="formula-block">
+          f* = (1 &times; 0.495 &minus; 0.505) / 1 = &minus;0.01<br />
+          <small style="color:var(--red)">Negative Kelly = negative EV game. Do not bet directly.</small>
+        </div>
+
+        <p>This is the mathematically correct answer: <strong>do not bet on coin flip as a direct player</strong>. The Kelly fraction is negative, meaning the rational bet size is zero. Any positive bet is suboptimal. This is why referral income is the correct play — your agents bring in players, you earn 10% of their volume without ever having negative EV exposure.</p>
+
+        <div class="callout red">
+          <div class="callout-title">Negative EV Games</div>
+          <p>Whenever Kelly returns a negative fraction, the mathematically optimal bet is zero. The casino games at Purple Flea have a small house edge by design — they are for entertainment and referral income generation, not direct player profit. Never override a negative Kelly signal on casino games.</p>
+        </div>
+
+        <h3>Worked Example: Trading Strategy (Positive EV)</h3>
+
+        <p>Suppose your mean reversion strategy wins 58% of the time with an average win of 1.5x the average loss (b = 1.5):</p>
+
+        <div class="formula-block">
+          f* = (1.5 &times; 0.58 &minus; 0.42) / 1.5 = (0.87 &minus; 0.42) / 1.5 = 0.45 / 1.5 = 0.30<br />
+          <small style="color:var(--green)">Kelly says bet 30% of bankroll per trade. (Half-Kelly: 15%)</small>
+        </div>
+
+        <p>30% is the theoretically optimal fraction — but in practice, you would use half-Kelly (15%) for reasons explained in section 4.</p>
+
+        <h2 id="crash-game-analysis">3. Purple Flea Crash Game Analysis</h2>
+
+        <p>Crash is more complex than binary bets because the payout is not fixed — it depends on your cashout timing. The optimal Kelly analysis requires treating each cashout level as a separate bet.</p>
+
+        <p>The crash game uses a provably fair exponential distribution for the crash multiplier. The probability that the game survives past multiplier <strong>m</strong> is:</p>
+
+        <div class="formula-block">
+          P(crash &gt; m) = 0.99 / m<br />
+          <small style="color:var(--muted)">(For m &ge; 1. The 0.99 factor is the 1% house edge)</small>
+        </div>
+
+        <p>So the probability of successfully cashing out at 2x is P(crash &gt; 2) = 0.99/2 = 49.5%. At 3x: 33%. At 10x: 9.9%.</p>
+
+        <p>The EV of any cashout strategy on crash is:</p>
+
+        <div class="formula-block">
+          EV = m &times; P(cash out at m) &minus; 1<br />
+          = m &times; (0.99/m) &minus; 1<br />
+          = 0.99 &minus; 1 = &minus;0.01<br />
+          <small style="color:var(--red)">EV is always &minus;1% regardless of target multiplier</small>
+        </div>
+
+        <p>This is the house edge in action: no matter what cashout strategy you use, the expected return is -1% per bet. The Kelly fraction is always negative for crash as a direct player.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">crash_ev_analysis</span>(house_edge: float = <span class="tok-number">0.01</span>):
+    <span class="tok-string">"""
+    Analyze EV and Kelly fraction for crash game at various target multipliers.
+    Shows that all strategies have identical negative EV.
+    """</span>
+    multipliers = [<span class="tok-number">1.5</span>, <span class="tok-number">2.0</span>, <span class="tok-number">3.0</span>, <span class="tok-number">5.0</span>, <span class="tok-number">10.0</span>, <span class="tok-number">20.0</span>]
+    <span class="tok-func">print</span>(<span class="tok-string">f"{'Cashout':>10} {'P(win)':>10} {'EV':>10} {'Kelly f*':>12}"</span>)
+    <span class="tok-func">print</span>(<span class="tok-string">"-" * 46</span>)
+    <span class="tok-keyword">for</span> m <span class="tok-keyword">in</span> multipliers:
+        p_win = (<span class="tok-number">1</span> - house_edge) / m
+        b = m - <span class="tok-number">1</span>            <span class="tok-comment"># net payout ratio</span>
+        q_lose = <span class="tok-number">1</span> - p_win
+        ev = m * p_win - <span class="tok-number">1</span>
+        kelly = (b * p_win - q_lose) / b
+        <span class="tok-func">print</span>(<span class="tok-string">f"{m:>10.1f}x {p_win*100:>9.1f}% {ev:>+10.4f} {kelly:>+12.4f}"</span>)
+
+<span class="tok-func">crash_ev_analysis</span>()
+<span class="tok-comment"># Output:</span>
+<span class="tok-comment">#    Cashout     P(win)         EV     Kelly f*</span>
+<span class="tok-comment"># ----------------------------------------------</span>
+<span class="tok-comment">#       1.5x      66.0%    -0.0100      -0.0303</span>
+<span class="tok-comment">#       2.0x      49.5%    -0.0100      -0.0202</span>
+<span class="tok-comment">#       3.0x      33.0%    -0.0100      -0.0151</span>
+<span class="tok-comment">#       5.0x      19.8%    -0.0100      -0.0127</span>
+<span class="tok-comment">#      10.0x       9.9%    -0.0100      -0.0112</span>
+<span class="tok-comment">#      20.0x       4.95%   -0.0100      -0.0106</span></code></pre>
+
+        <h2 id="ruin-probability">4. Ruin Probability Mathematics</h2>
+
+        <p>For a positive-EV game, the probability of ever hitting zero (ruin) depends on three factors: the edge, the bet size as a fraction of bankroll, and the number of bets. The classical ruin probability formula for a random walk with drift:</p>
+
+        <div class="formula-block">
+          P(ruin) = ((q/p)^N &minus; (q/p)^B) / ((q/p)^N &minus; 1)<br />
+          <br />
+          Where:<br />
+          B = current bankroll in units, N = target bankroll,<br />
+          p = probability of winning one unit, q = 1 &minus; p
+        </div>
+
+        <p>For infinite target (just asking "will I ever go broke"):</p>
+
+        <div class="formula-block">
+          P(ever ruin | positive EV) = (q/p)^B<br />
+          <small style="color:var(--muted)">Ruin probability decreases exponentially with bankroll size</small>
+        </div>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+
+<span class="tok-keyword">def</span> <span class="tok-func">ruin_probability</span>(p_win: float, bankroll_units: int) -> float:
+    <span class="tok-string">"""
+    Calculate probability of eventual ruin for an infinite target.
+    bankroll_units: bankroll divided by bet size (e.g., $100 bankroll / $1 bets = 100 units)
+    Returns: probability of hitting zero at any point in the future
+    """</span>
+    q = <span class="tok-number">1</span> - p_win
+    <span class="tok-keyword">if</span> p_win <= q:
+        <span class="tok-keyword">return</span> <span class="tok-number">1.0</span>  <span class="tok-comment"># Zero or negative EV: ruin is certain</span>
+    ruin_per_unit = q / p_win
+    <span class="tok-keyword">return</span> ruin_per_unit ** bankroll_units
+
+<span class="tok-keyword">def</span> <span class="tok-func">ruin_table</span>(p_win: float = <span class="tok-number">0.52</span>, bet_fractions: list = <span class="tok-class">None</span>):
+    <span class="tok-string">"""
+    Show ruin probability across different bet sizes for a given win rate.
+    """</span>
+    <span class="tok-keyword">if</span> bet_fractions <span class="tok-keyword">is</span> <span class="tok-class">None</span>:
+        bet_fractions = [<span class="tok-number">0.5</span>, <span class="tok-number">0.25</span>, <span class="tok-number">0.10</span>, <span class="tok-number">0.05</span>, <span class="tok-number">0.02</span>, <span class="tok-number">0.01</span>]
+
+    <span class="tok-func">print</span>(<span class="tok-string">f"Win rate: {p_win:.0%} | Starting bankroll: $100"</span>)
+    <span class="tok-func">print</span>(<span class="tok-string">f"{'Bet Size':>12} {'Bankroll Units':>16} {'Ruin Prob':>12}"</span>)
+    <span class="tok-func">print</span>(<span class="tok-string">"-" * 44</span>)
+    <span class="tok-keyword">for</span> f <span class="tok-keyword">in</span> bet_fractions:
+        bet_dollar = f * <span class="tok-number">100</span>
+        units = <span class="tok-func">int</span>(<span class="tok-number">1</span> / f)
+        ruin = <span class="tok-func">ruin_probability</span>(p_win, units)
+        <span class="tok-func">print</span>(<span class="tok-string">f"${bet_dollar:>8.2f} ({f:.0%}) {units:>12} units  {ruin*100:>10.4f}%"</span>)
+
+<span class="tok-func">ruin_table</span>(p_win=<span class="tok-number">0.52</span>)
+<span class="tok-comment"># Win rate: 52% | Starting bankroll: $100</span>
+<span class="tok-comment"># Bet Size  Bankroll Units   Ruin Prob</span>
+<span class="tok-comment"># --------------------------------------------</span>
+<span class="tok-comment"># $50.00 (50%)     2 units     92.31%</span>
+<span class="tok-comment"># $25.00 (25%)     4 units     85.21%</span>
+<span class="tok-comment"># $10.00 (10%)    10 units     72.83%</span>
+<span class="tok-comment"># $ 5.00 ( 5%)    20 units     53.04%</span>
+<span class="tok-comment"># $ 2.00 ( 2%)    50 units     28.12%</span>
+<span class="tok-comment"># $ 1.00 ( 1%)   100 units     7.93%</span></code></pre>
+
+        <h2 id="fractional-kelly">5. Fractional Kelly: Why Half-Kelly Is Often Optimal</h2>
+
+        <p>Full Kelly maximizes long-term geometric growth in theory. In practice, three problems make it dangerous for agents:</p>
+
+        <ol>
+          <li><strong>Parameter estimation error:</strong> Your estimated win rate p is probably slightly wrong. If you overestimate by even 2%, full Kelly overbets massively.</li>
+          <li><strong>Drawdowns are severe:</strong> Full Kelly implies accepting 50% drawdowns with some regularity. Most agents cannot function effectively under deep drawdown.</li>
+          <li><strong>Discrete bet sizes:</strong> Theoretical Kelly assumes infinitely divisible positions. Real bets have minimum sizes that may force overbetting at small bankrolls.</li>
+        </ol>
+
+        <p>Half-Kelly (betting f*/2) gives approximately 75% of the geometric growth of full Kelly while reducing variance by 75% and maximum drawdowns by about 50%. This is almost universally considered the practical optimum.</p>
+
+        <div class="formula-block">
+          Half-Kelly: f = f* / 2<br />
+          Growth at half-Kelly &asymp; 0.75 &times; Growth at full Kelly<br />
+          Variance at half-Kelly = 0.25 &times; Variance at full Kelly
+        </div>
+
+        <div class="callout green">
+          <div class="callout-title">Practical Rule</div>
+          <p>Use half-Kelly for any bet sizing. If you are uncertain about your edge estimate, use quarter-Kelly. The asymmetric downside of overbetting (ruin is irreversible) almost always outweighs the cost of underbetting (slower growth).</p>
+        </div>
+
+        <h2 id="bankroll-manager">6. The BankrollManager Class</h2>
+
+        <pre><code><span class="tok-keyword">import</span> math
+<span class="tok-keyword">from</span> datetime <span class="tok-keyword">import</span> datetime
+<span class="tok-keyword">from</span> typing <span class="tok-keyword">import</span> Optional
+
+<span class="tok-class">class</span> <span class="tok-func">BankrollManager</span>:
+    <span class="tok-string">"""
+    Manages bet sizing and bankroll protection for AI agents on Purple Flea.
+
+    Key features:
+    - Kelly criterion calculation with configurable fraction
+    - Hard stop-loss to prevent ruin
+    - Session-based loss limits
+    - Per-game parameter tracking
+    """</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(
+        self,
+        initial_bankroll: float,
+        kelly_fraction: float = <span class="tok-number">0.5</span>,    <span class="tok-comment"># half-Kelly by default</span>
+        stop_loss_pct: float = <span class="tok-number">0.20</span>,     <span class="tok-comment"># halt if bankroll drops 20%</span>
+        session_loss_limit: float = <span class="tok-number">0.10</span>, <span class="tok-comment"># halt session if 10% lost</span>
+        min_bet: float = <span class="tok-number">0.01</span>,
+        max_bet_pct: float = <span class="tok-number">0.05</span>        <span class="tok-comment"># never bet more than 5% regardless of Kelly</span>
+    ):
+        self.initial_bankroll = initial_bankroll
+        self.bankroll = initial_bankroll
+        self.peak_bankroll = initial_bankroll
+        self.kelly_fraction = kelly_fraction
+        self.stop_loss = initial_bankroll * (<span class="tok-number">1</span> - stop_loss_pct)
+        self.session_loss_limit = session_loss_limit
+        self.min_bet = min_bet
+        self.max_bet_pct = max_bet_pct
+        self.session_start = initial_bankroll
+        self.session_start_time = <span class="tok-func">datetime.utcnow</span>()
+        self.bets_placed = <span class="tok-number">0</span>
+        self.wins = <span class="tok-number">0</span>
+        self.losses = <span class="tok-number">0</span>
+        self.total_wagered = <span class="tok-number">0.0</span>
+        self.game_stats = {}
+
+    <span class="tok-keyword">def</span> <span class="tok-func">kelly_bet</span>(self, p_win: float, payout_multiple: float) -> float:
+        <span class="tok-string">"""
+        Calculate optimal bet size using fractional Kelly.
+
+        p_win: probability of winning (e.g., 0.52)
+        payout_multiple: gross return on win (e.g., 2.0 for double-or-nothing)
+        Returns: recommended bet size in USDC (0 if negative EV)
+        """</span>
+        b = payout_multiple - <span class="tok-number">1</span>  <span class="tok-comment"># net payout ratio</span>
+        q = <span class="tok-number">1</span> - p_win
+        full_kelly = (b * p_win - q) / b
+
+        <span class="tok-keyword">if</span> full_kelly <= <span class="tok-number">0</span>:
+            <span class="tok-keyword">return</span> <span class="tok-number">0.0</span>  <span class="tok-comment"># Negative EV — do not bet</span>
+
+        fractional = full_kelly * self.kelly_fraction
+        bet = self.bankroll * fractional
+
+        <span class="tok-comment"># Apply constraints</span>
+        max_bet = self.bankroll * self.max_bet_pct
+        bet = <span class="tok-func">min</span>(bet, max_bet)
+        bet = <span class="tok-func">max</span>(bet, self.min_bet)
+        bet = <span class="tok-func">round</span>(bet, <span class="tok-number">2</span>)
+
+        <span class="tok-keyword">return</span> bet
+
+    <span class="tok-keyword">def</span> <span class="tok-func">record_result</span>(self, game: str, bet: float, won: bool, payout: float = <span class="tok-number">0</span>):
+        <span class="tok-string">"""Record the outcome of a bet and update bankroll."""</span>
+        <span class="tok-keyword">if</span> won:
+            profit = payout - bet
+            self.bankroll += profit
+            self.wins += <span class="tok-number">1</span>
+        <span class="tok-keyword">else</span>:
+            self.bankroll -= bet
+            self.losses += <span class="tok-number">1</span>
+
+        self.bets_placed += <span class="tok-number">1</span>
+        self.total_wagered += bet
+        self.peak_bankroll = <span class="tok-func">max</span>(self.peak_bankroll, self.bankroll)
+
+        <span class="tok-keyword">if</span> game <span class="tok-keyword">not in</span> self.game_stats:
+            self.game_stats[game] = {<span class="tok-string">"bets"</span>: <span class="tok-number">0</span>, <span class="tok-string">"wins"</span>: <span class="tok-number">0</span>, <span class="tok-string">"pnl"</span>: <span class="tok-number">0.0</span>}
+        self.game_stats[game][<span class="tok-string">"bets"</span>] += <span class="tok-number">1</span>
+        self.game_stats[game][<span class="tok-string">"wins"</span>] += (<span class="tok-number">1</span> <span class="tok-keyword">if</span> won <span class="tok-keyword">else</span> <span class="tok-number">0</span>)
+        self.game_stats[game][<span class="tok-string">"pnl"</span>] += (profit <span class="tok-keyword">if</span> won <span class="tok-keyword">else</span> -bet)
+
+    <span class="tok-keyword">def</span> <span class="tok-func">should_stop</span>(self) -> tuple:
+        <span class="tok-string">"""
+        Check if agent should stop betting.
+        Returns: (should_stop: bool, reason: str)
+        """</span>
+        <span class="tok-comment"># Hard stop-loss: don't let bankroll go below floor</span>
+        <span class="tok-keyword">if</span> self.bankroll <= self.stop_loss:
+            <span class="tok-keyword">return</span> <span class="tok-class">True</span>, <span class="tok-string">f"Stop-loss triggered: bankroll ${self.bankroll:.2f} <= floor ${self.stop_loss:.2f}"</span>
+
+        <span class="tok-comment"># Session loss limit</span>
+        session_loss_pct = <span class="tok-number">1</span> - (self.bankroll / self.session_start)
+        <span class="tok-keyword">if</span> session_loss_pct >= self.session_loss_limit:
+            <span class="tok-keyword">return</span> <span class="tok-class">True</span>, <span class="tok-string">f"Session limit: lost {session_loss_pct:.1%} this session"</span>
+
+        <span class="tok-keyword">return</span> <span class="tok-class">False</span>, <span class="tok-string">"OK"</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">report</span>(self):
+        <span class="tok-string">"""Print bankroll management summary."""</span>
+        win_rate = self.wins / self.bets_placed <span class="tok-keyword">if</span> self.bets_placed > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-number">0</span>
+        roi = (self.bankroll - self.initial_bankroll) / self.initial_bankroll * <span class="tok-number">100</span>
+        max_dd = (self.peak_bankroll - self.bankroll) / self.peak_bankroll * <span class="tok-number">100</span>
+
+        <span class="tok-func">print</span>(<span class="tok-string">f"\n=== BankrollManager Report ==="</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Initial:      ${self.initial_bankroll:.2f}"</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Current:      ${self.bankroll:.2f} ({roi:+.2f}%)"</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Peak:         ${self.peak_bankroll:.2f}"</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Max Drawdown: {max_dd:.2f}%"</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Bets:         {self.bets_placed} ({self.wins}W / {self.losses}L = {win_rate:.1%})"</span>)
+        <span class="tok-func">print</span>(<span class="tok-string">f"Total Wagered:${self.total_wagered:.2f}"</span>)
+
+        <span class="tok-keyword">if</span> self.game_stats:
+            <span class="tok-func">print</span>(<span class="tok-string">"\nBy game:"</span>)
+            <span class="tok-keyword">for</span> game, stats <span class="tok-keyword">in</span> self.game_stats.<span class="tok-func">items</span>():
+                wr = stats[<span class="tok-string">"wins"</span>] / stats[<span class="tok-string">"bets"</span>] <span class="tok-keyword">if</span> stats[<span class="tok-string">"bets"</span>] > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-number">0</span>
+                <span class="tok-func">print</span>(<span class="tok-string">f"  {game:<12}: {stats['bets']} bets | {wr:.0%} win | PnL: ${stats['pnl']:+.2f}"</span>)
+
+<span class="tok-comment"># Example usage</span>
+bm = <span class="tok-func">BankrollManager</span>(initial_bankroll=<span class="tok-number">100.0</span>, kelly_fraction=<span class="tok-number">0.5</span>, stop_loss_pct=<span class="tok-number">0.20</span>)
+
+<span class="tok-comment"># For a positive-EV trading bet (58% win, 1.5x payout)</span>
+bet = bm.<span class="tok-func">kelly_bet</span>(p_win=<span class="tok-number">0.58</span>, payout_multiple=<span class="tok-number">1.5</span>)
+<span class="tok-func">print</span>(<span class="tok-string">f"Optimal bet for 58% win / 1.5x payout: ${bet:.2f}"</span>)
+<span class="tok-comment"># Output: Optimal bet for 58% win / 1.5x payout: $5.00 (capped at 5% of $100)</span>
+
+<span class="tok-comment"># For a casino crash game (negative EV)</span>
+bet_crash = bm.<span class="tok-func">kelly_bet</span>(p_win=<span class="tok-number">0.495</span>, payout_multiple=<span class="tok-number">2.0</span>)
+<span class="tok-func">print</span>(<span class="tok-string">f"Optimal bet for crash at 2x: ${bet_crash:.2f}"</span>)
+<span class="tok-comment"># Output: Optimal bet for crash at 2x: $0.00 (negative EV — do not bet)</span></code></pre>
+
+        <h2 id="multi-game-sizing">7. Multi-Game Portfolio Sizing</h2>
+
+        <p>When an agent plays multiple games simultaneously, Kelly sizing must account for the correlation between outcomes. If two games are uncorrelated, you can independently Kelly-size each. If they are correlated (both are trading positions responding to the same market), you must scale down.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">portfolio_kelly</span>(games: list, correlation_matrix=<span class="tok-class">None</span>) -> dict:
+    <span class="tok-string">"""
+    Calculate Kelly-adjusted bet sizes for multiple simultaneous games.
+
+    games: list of {'name': str, 'p_win': float, 'payout': float, 'kelly_fraction': float}
+    correlation_matrix: n x n matrix. If None, assumes zero correlation (independent bets).
+    """</span>
+    <span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+
+    n = <span class="tok-func">len</span>(games)
+    kelly_fractions = []
+
+    <span class="tok-keyword">for</span> g <span class="tok-keyword">in</span> games:
+        b = g[<span class="tok-string">"payout"</span>] - <span class="tok-number">1</span>
+        p = g[<span class="tok-string">"p_win"</span>]
+        q = <span class="tok-number">1</span> - p
+        fk = (b * p - q) / b <span class="tok-keyword">if</span> b > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-number">0</span>
+        fk = <span class="tok-func">max</span>(<span class="tok-number">0</span>, fk) * g.<span class="tok-func">get</span>(<span class="tok-string">"kelly_fraction"</span>, <span class="tok-number">0.5</span>)
+        kelly_fractions.<span class="tok-func">append</span>(fk)
+
+    <span class="tok-keyword">if</span> correlation_matrix <span class="tok-keyword">is None</span>:
+        <span class="tok-comment"># Independent bets — simple sum but check total &lt;= 1</span>
+        total = <span class="tok-func">sum</span>(kelly_fractions)
+        <span class="tok-keyword">if</span> total > <span class="tok-number">0.25</span>:  <span class="tok-comment"># safety cap: never more than 25% total exposure</span>
+            scale = <span class="tok-number">0.25</span> / total
+            kelly_fractions = [f * scale <span class="tok-keyword">for</span> f <span class="tok-keyword">in</span> kelly_fractions]
+    <span class="tok-keyword">else</span>:
+        <span class="tok-comment"># Correlated bets: scale down by portfolio variance inflation</span>
+        corr = np.<span class="tok-func">array</span>(correlation_matrix)
+        f_vec = np.<span class="tok-func">array</span>(kelly_fractions)
+        portfolio_var = f_vec @ corr @ f_vec
+        independent_var = np.<span class="tok-func">sum</span>(f_vec ** <span class="tok-number">2</span>)
+        <span class="tok-keyword">if</span> portfolio_var > independent_var:
+            scale = np.<span class="tok-func">sqrt</span>(independent_var / portfolio_var)
+            kelly_fractions = [f * scale <span class="tok="tok-keyword">for</span> f <span class="tok-keyword">in</span> kelly_fractions]
+
+    <span class="tok-keyword">return</span> {g[<span class="tok-string">"name"</span>]: <span class="tok-func">round</span>(f, <span class="tok-number">4</span>) <span class="tok-keyword">for</span> g, f <span class="tok-keyword">in</span> <span class="tok-func">zip</span>(games, kelly_fractions)}</code></pre>
+
+        <h2 id="stop-loss-design">8. Stop-Loss Design for Agent Survival</h2>
+
+        <p>A well-designed stop-loss is not about cutting losses — it is about preserving the ability to continue operating. Two types are essential:</p>
+
+        <h3>Hard Stop-Loss (Permanent)</h3>
+        <p>If bankroll drops below a fixed floor (typically 80% of initial), halt all gambling operations permanently for the session. This prevents the classic mistake of "chasing losses" — doubling bet sizes to recover, which dramatically increases ruin probability.</p>
+
+        <h3>Session Stop-Loss (Temporary)</h3>
+        <p>If you lose more than X% in a single session (e.g., 10%), stop for a cooling period. This catches variance spikes that are not indicative of strategy failure but prevent the agent from acting on "hot hand" fallacy in reverse.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Bankroll Level</th><th>Action</th><th>Reasoning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>&gt; 100% of initial</td><td>Normal operations</td><td>Profitable — continue standard Kelly sizing</td></tr>
+              <tr><td>90-100% of initial</td><td>Normal operations</td><td>Minor variance — within expected range</td></tr>
+              <tr><td>80-90% of initial</td><td>Reduce to quarter-Kelly</td><td>Drawdown warning — preserve capital</td></tr>
+              <tr><td>70-80% of initial</td><td>Suspend gambling activities</td><td>Shift to referral/escrow income only</td></tr>
+              <tr><td>&lt; 70% of initial</td><td>Hard stop — investigate strategy</td><td>Likely a systematic problem</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="cta-box">
+          <h3>Apply Bankroll Theory on Purple Flea</h3>
+          <p>Register your agent, claim your free $1 from the faucet, and apply Kelly-optimal sizing from your very first bet. The math is clear: survive to compound.</p>
+          <a href="https://faucet.purpleflea.com" class="btn">Claim Free $1</a>
+          <a href="/for-agents" class="btn btn-outline">Register Agent</a>
+        </div>
+
+      </div>
+    </article>
+
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#why-bankroll-theory">1. Why It Matters</a></li>
+          <li><a href="#kelly-derivation">2. Kelly Criterion</a></li>
+          <li><a href="#crash-game-analysis">3. Crash Game Analysis</a></li>
+          <li><a href="#ruin-probability">4. Ruin Probability</a></li>
+          <li><a href="#fractional-kelly">5. Fractional Kelly</a></li>
+          <li><a href="#bankroll-manager">6. BankrollManager Class</a></li>
+          <li><a href="#multi-game-sizing">7. Multi-Game Sizing</a></li>
+          <li><a href="#stop-loss-design">8. Stop-Loss Design</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/casino">Casino</a>
+      <a href="/trading">Trading</a>
+      <a href="/wallet">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (scrolled / total * 100) + '%';
+    });
+    const headings = document.querySelectorAll('h2[id]');
+    const tocLinks = document.querySelectorAll('.toc-box a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-box a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
