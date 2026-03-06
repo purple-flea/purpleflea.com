@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secrets Management for AI Agents: API Keys, Wallets, and Private Keys | Purple Flea</title>
+  <meta name="description" content="How autonomous agents securely store and access sensitive credentials — environment variables, vault systems, key rotation, and hardware security modules." />
+  <meta name="keywords" content="AI agent secrets management, API key security, private key HSM, HashiCorp Vault, AWS Secrets Manager, key rotation agents" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-secrets-management/" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Secrets Management for AI Agents: API Keys, Wallets, and Private Keys" />
+  <meta property="og:description" content="How autonomous agents securely store and access sensitive credentials — environment variables, vault systems, key rotation, and hardware security modules." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-secrets-management/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://purpleflea.com/og-default.png" />
+  <meta property="og:site_name" content="Purple Flea" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Secrets Management for AI Agents: API Keys, Wallets, and Private Keys" />
+  <meta name="twitter:description" content="How autonomous agents securely store and access sensitive credentials — environment variables, vault systems, key rotation, and hardware security modules." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-default.png" />
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Secrets Management for AI Agents: API Keys, Wallets, and Private Keys",
+    "description": "How autonomous agents securely store and access sensitive credentials — environment variables, vault systems, key rotation, and hardware security modules.",
+    "url": "https://purpleflea.com/blog/agent-secrets-management/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "image": "https://purpleflea.com/og-default.png",
+    "keywords": ["secrets management", "API key security", "HSM", "HashiCorp Vault", "AI agents"]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --border: #27272A;
+      --text: #E4E4E7;
+      --muted: #A1A1AA;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --code-bg: #0D0D0F;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 99;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); text-decoration: none; }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    .hero {
+      background: linear-gradient(135deg, #0a0f1a 0%, #09090B 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 4rem 1.5rem 3rem;
+    }
+    .hero-inner { max-width: 860px; margin: 0 auto; }
+    .tag-chip {
+      display: inline-block;
+      padding: 0.2rem 0.75rem;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      background: rgba(34,197,94,0.15);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,0.3);
+    }
+    .hero h1 { font-size: clamp(1.75rem, 4vw, 2.6rem); font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+    .hero-desc { font-size: 1.1rem; color: var(--muted); max-width: 680px; margin-bottom: 1.5rem; }
+    .hero-meta { display: flex; gap: 1.5rem; font-size: 0.85rem; color: var(--muted); margin-bottom: 2.5rem; }
+    .hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .stat-card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+    .layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 72px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .toc-sidebar h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-sidebar ol { list-style: none; counter-reset: toc; }
+    .toc-sidebar li { counter-increment: toc; margin-bottom: 0.4rem; }
+    .toc-sidebar a { font-size: 0.82rem; color: var(--muted); text-decoration: none; display: flex; gap: 0.5rem; transition: color 0.2s; }
+    .toc-sidebar a::before { content: counter(toc) "."; color: var(--accent); }
+    .toc-sidebar a:hover { color: var(--text); }
+
+    article h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      padding-top: 0.5rem;
+      color: var(--text);
+      border-top: 1px solid var(--border);
+    }
+    article h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 0.6rem; color: var(--accent); }
+    article p { margin-bottom: 1rem; color: #D4D4D8; }
+    article ul, article ol { margin: 0.75rem 0 1rem 1.5rem; color: #D4D4D8; }
+    article li { margin-bottom: 0.4rem; }
+    article strong { color: var(--text); }
+    article a { color: var(--accent); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      margin: 1.25rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.83rem;
+      line-height: 1.6;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+    :not(pre) > code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    .code-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111113;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      padding: 0.4rem 1rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .code-label + pre { border-radius: 0 0 8px 8px; margin-top: 0; }
+
+    .info-box {
+      background: rgba(168,85,247,0.08);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+    }
+    .info-box strong { color: var(--accent); }
+
+    .warn-box {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+    }
+    .warn-box strong { color: var(--red); }
+
+    .tip-box {
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+    }
+    .tip-box strong { color: var(--green); }
+
+    table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.875rem; }
+    th { background: var(--surface); border: 1px solid var(--border); padding: 0.6rem 0.9rem; text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { border: 1px solid var(--border); padding: 0.6rem 0.9rem; color: #D4D4D8; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .cta-block {
+      background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0 1rem;
+      text-align: center;
+    }
+    .cta-block h3 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+    .cta-block p { color: var(--muted); margin-bottom: 1.25rem; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+    .cta-btn:hover { background: var(--accent-dim); }
+
+    footer { border-top: 1px solid var(--border); padding: 2rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple Flea</a>
+      <div class="nav-links">
+        <a href="/blog/">Blog</a>
+        <a href="/docs/">Docs</a>
+        <a href="/security">Security</a>
+        <a href="https://purpleflea.com">Casino</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <span class="tag-chip">Guide</span>
+      <h1>Secrets Management for AI Agents: API Keys, Wallets, and Private Keys</h1>
+      <p class="hero-desc">How autonomous agents securely store and access sensitive credentials — environment variables, vault systems (HashiCorp Vault, AWS Secrets Manager), key rotation, and hardware security modules.</p>
+      <div class="hero-meta">
+        <span>Purple Flea</span>
+        <span>March 6, 2026</span>
+        <span>20 min read</span>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <div class="label">Secret Types</div>
+          <div class="value">5+</div>
+          <div class="sub">API, wallet, seed, JWT, DB</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Zero Downtime</div>
+          <div class="value">Rotation</div>
+          <div class="sub">With dual-key pattern</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Vault Options</div>
+          <div class="value">3</div>
+          <div class="sub">Env, HashiCorp, AWS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <article>
+
+      <h2 id="threat">1. Threat Model for Agent Secrets</h2>
+      <p>Before choosing a secrets management approach, you must understand who you are defending against and what an attacker can access. Autonomous agents have a distinct threat surface from traditional applications:</p>
+
+      <ul>
+        <li><strong>Compromised LLM output</strong> — prompt injection could instruct an agent to exfiltrate its own API keys</li>
+        <li><strong>Server breach</strong> — a compromised host exposes all in-memory and on-disk secrets</li>
+        <li><strong>Log leakage</strong> — secrets accidentally logged in error messages or request traces</li>
+        <li><strong>Supply chain attack</strong> — a malicious npm/PyPI package reads environment variables</li>
+        <li><strong>Insider threat</strong> — a developer or CI system with broad secret access</li>
+        <li><strong>MCP tool abuse</strong> — an agent exposed via MCP tools could be tricked into revealing credentials</li>
+      </ul>
+
+      <table>
+        <tr><th>Threat</th><th>Impact</th><th>Mitigation</th><th>Priority</th></tr>
+        <tr><td>Prompt injection exfiltration</td><td>Full key exposure</td><td>Never echo secrets; sanitize LLM outputs</td><td>Critical</td></tr>
+        <tr><td>Environment variable dump</td><td>All env secrets</td><td>Use vault, not env for prod secrets</td><td>High</td></tr>
+        <tr><td>Log leakage</td><td>Partial key exposure</td><td>Scrub logs; structured logging</td><td>High</td></tr>
+        <tr><td>Server breach</td><td>All in-memory secrets</td><td>HSM/MPC for private keys, short TTLs</td><td>High</td></tr>
+        <tr><td>Supply chain</td><td>Env var theft</td><td>Audit dependencies; least privilege</td><td>Medium</td></tr>
+      </table>
+
+      <div class="warn-box"><strong>Critical rule:</strong> Never store secrets in code, git repositories, Docker images, or log files. Even if the repository is private today, it may be public tomorrow, and git history is forever.</div>
+
+      <h2 id="envvars">2. Environment Variable Patterns</h2>
+      <p>Environment variables are the floor, not the ceiling, of secrets management. They are appropriate for development and simple deployments, but must be used carefully even there.</p>
+
+      <h3>The right way to use environment variables</h3>
+      <p>Load secrets from env vars once at startup, validate their presence, and never log them. Provide a clear error if a required secret is missing.</p>
+
+      <div class="code-label"><span>config.py</span><span>Python</span></div>
+      <pre><code>import os
+import re
+from typing import Optional
+
+class SecretsFromEnv:
+    """Load and validate secrets from environment variables at startup."""
+
+    REQUIRED = [
+        "PURPLEFLEA_API_KEY",
+        "WALLET_PRIVATE_KEY",
+    ]
+    OPTIONAL = {
+        "TELEGRAM_TOKEN": None,
+        "DATABASE_URL": "sqlite:///agent.db",
+    }
+
+    def __init__(self):
+        self._secrets: dict = {}
+        self._load()
+
+    def _load(self):
+        missing = []
+        for key in self.REQUIRED:
+            val = os.environ.get(key)
+            if not val:
+                missing.append(key)
+            else:
+                self._secrets[key] = val
+
+        if missing:
+            raise EnvironmentError(
+                f"Missing required environment variables: {', '.join(missing)}\n"
+                f"Set them in your .env file or deployment configuration."
+            )
+
+        for key, default in self.OPTIONAL.items():
+            self._secrets[key] = os.environ.get(key, default)
+
+        # Validate format of known secrets
+        self._validate_api_key(self._secrets["PURPLEFLEA_API_KEY"])
+        self._validate_private_key(self._secrets["WALLET_PRIVATE_KEY"])
+
+    def _validate_api_key(self, key: str):
+        # Expect format: pf_live_<32 hex chars>
+        if not re.match(r'^pf_live_[a-f0-9]{32}$', key):
+            raise ValueError("PURPLEFLEA_API_KEY has invalid format")
+
+    def _validate_private_key(self, key: str):
+        # Expect 64-char hex or 0x-prefixed 64-char hex
+        k = key.lstrip("0x")
+        if not re.match(r'^[a-fA-F0-9]{64}$', k):
+            raise ValueError("WALLET_PRIVATE_KEY must be 32-byte hex")
+
+    def get(self, key: str) -> Optional[str]:
+        return self._secrets.get(key)
+
+    def __repr__(self) -> str:
+        # Safe repr: mask all values
+        masked = {k: "***" for k in self._secrets}
+        return f"SecretsFromEnv({masked})"</code></pre>
+
+      <div class="tip-box"><strong>Tip:</strong> Use a <code>.env.example</code> file committed to git with placeholder values to document required variables, and a <code>.env</code> file in <code>.gitignore</code> for actual values. Never commit <code>.env</code>.</div>
+
+      <h2 id="vault">3. HashiCorp Vault Integration</h2>
+      <p>HashiCorp Vault provides a production-grade secrets store with dynamic secrets, lease management, audit logging, and fine-grained access control. It is ideal for multi-agent deployments where different agents need different permission scopes.</p>
+
+      <p>Key Vault concepts for agents:</p>
+      <ul>
+        <li><strong>KV v2 secrets engine</strong> — stores static secrets (API keys, seed phrases) with versioning</li>
+        <li><strong>Dynamic secrets</strong> — generate database credentials on-demand with automatic expiry</li>
+        <li><strong>AppRole authentication</strong> — agents authenticate with a role-id + secret-id, no long-lived tokens</li>
+        <li><strong>Token TTLs</strong> — all tokens expire; agents re-authenticate automatically</li>
+      </ul>
+
+      <div class="code-label"><span>vault_client.py</span><span>Python</span></div>
+      <pre><code>import aiohttp, os, time, logging
+from typing import Optional, Any
+
+class VaultClient:
+    """Async HashiCorp Vault client using AppRole authentication."""
+
+    def __init__(self, vault_addr: str, role_id: str, secret_id: str,
+                 mount_path: str = "secret"):
+        self.vault_addr = vault_addr.rstrip("/")
+        self.role_id = role_id
+        self.secret_id = secret_id
+        self.mount_path = mount_path
+        self._token: Optional[str] = None
+        self._token_expires_at: float = 0
+        self.log = logging.getLogger("vault")
+
+    async def _authenticate(self):
+        """Authenticate via AppRole, get a short-lived token."""
+        async with aiohttp.ClientSession() as s:
+            resp = await s.post(
+                f"{self.vault_addr}/v1/auth/approle/login",
+                json={"role_id": self.role_id, "secret_id": self.secret_id}
+            )
+            resp.raise_for_status()
+            data = await resp.json()
+            auth = data["auth"]
+            self._token = auth["client_token"]
+            # Set expiry 60s before actual TTL for safety buffer
+            self._token_expires_at = time.time() + auth["lease_duration"] - 60
+            self.log.info(f"Vault authenticated; token valid for ~{auth['lease_duration']}s")
+
+    async def _ensure_token(self):
+        if self._token is None or time.time() >= self._token_expires_at:
+            await self._authenticate()
+
+    async def get_secret(self, path: str) -> dict[str, Any]:
+        """Fetch a KV v2 secret. path e.g. 'agents/my-agent'."""
+        await self._ensure_token()
+        async with aiohttp.ClientSession() as s:
+            resp = await s.get(
+                f"{self.vault_addr}/v1/{self.mount_path}/data/{path}",
+                headers={"X-Vault-Token": self._token}
+            )
+            if resp.status == 404:
+                raise KeyError(f"Secret not found: {path}")
+            resp.raise_for_status()
+            data = await resp.json()
+            return data["data"]["data"]
+
+    async def put_secret(self, path: str, data: dict):
+        """Write/update a KV v2 secret."""
+        await self._ensure_token()
+        async with aiohttp.ClientSession() as s:
+            resp = await s.post(
+                f"{self.vault_addr}/v1/{self.mount_path}/data/{path}",
+                headers={"X-Vault-Token": self._token},
+                json={"data": data}
+            )
+            resp.raise_for_status()
+
+    async def delete_secret_version(self, path: str, versions: list[int]):
+        """Soft-delete specific versions of a secret."""
+        await self._ensure_token()
+        async with aiohttp.ClientSession() as s:
+            resp = await s.post(
+                f"{self.vault_addr}/v1/{self.mount_path}/delete/{path}",
+                headers={"X-Vault-Token": self._token},
+                json={"versions": versions}
+            )
+            resp.raise_for_status()
+
+# Usage:
+# vault = VaultClient(
+#     vault_addr="https://vault.internal:8200",
+#     role_id=os.environ["VAULT_ROLE_ID"],
+#     secret_id=os.environ["VAULT_SECRET_ID"]
+# )
+# secrets = await vault.get_secret("agents/trading-bot-1")
+# api_key = secrets["purpleflea_api_key"]</code></pre>
+
+      <h2 id="aws">4. AWS Secrets Manager Integration</h2>
+      <p>For agents deployed on AWS (EC2, ECS, Lambda), AWS Secrets Manager provides native integration via IAM roles — no vault token management needed. The EC2 instance or ECS task role grants access to specific secrets.</p>
+
+      <div class="code-label"><span>aws_secrets.py</span><span>Python</span></div>
+      <pre><code>import boto3, json, logging
+from functools import lru_cache
+from typing import Any
+import time
+
+class AWSSecretsManager:
+    """AWS Secrets Manager client with caching to minimize API calls."""
+
+    def __init__(self, region: str = "us-east-1", cache_ttl: int = 300):
+        self.client = boto3.client("secretsmanager", region_name=region)
+        self.cache_ttl = cache_ttl
+        self._cache: dict = {}   # secret_name -> (value, expires_at)
+        self.log = logging.getLogger("aws_secrets")
+
+    def get_secret(self, secret_name: str) -> dict[str, Any]:
+        """Get a secret, using cache to avoid rate limits."""
+        cached = self._cache.get(secret_name)
+        if cached and time.time() < cached[1]:
+            return cached[0]
+
+        try:
+            response = self.client.get_secret_value(SecretId=secret_name)
+        except self.client.exceptions.ResourceNotFoundException:
+            raise KeyError(f"Secret not found: {secret_name}")
+
+        if "SecretString" in response:
+            value = json.loads(response["SecretString"])
+        else:
+            import base64
+            value = {"binary": base64.b64decode(response["SecretBinary"])}
+
+        expires_at = time.time() + self.cache_ttl
+        self._cache[secret_name] = (value, expires_at)
+        self.log.info(f"Fetched secret '{secret_name}' from AWS (cached {self.cache_ttl}s)")
+        return value
+
+    def rotate_secret(self, secret_name: str):
+        """Trigger immediate rotation (requires rotation Lambda configured)."""
+        self.client.rotate_secret(SecretId=secret_name)
+        # Invalidate cache
+        self._cache.pop(secret_name, None)
+        self.log.info(f"Triggered rotation for '{secret_name}'")
+
+    def update_secret(self, secret_name: str, data: dict):
+        """Update secret value. Cache is invalidated."""
+        self.client.put_secret_value(
+            SecretId=secret_name,
+            SecretString=json.dumps(data)
+        )
+        self._cache.pop(secret_name, None)
+        self.log.info(f"Updated secret '{secret_name}'")
+
+# Usage with IAM role (no credentials needed on EC2/ECS):
+# sm = AWSSecretsManager(region="us-east-1")
+# secrets = sm.get_secret("purpleflea/trading-agent")
+# api_key = secrets["api_key"]</code></pre>
+
+      <div class="info-box"><strong>Best practice:</strong> Use AWS Secrets Manager rotation with a Lambda function that calls the service's key rotation API and then updates the secret. The cache TTL in your client should be shorter than the rotation interval to ensure agents pick up new keys quickly.</div>
+
+      <h2 id="rotation">5. Rotating API Keys Without Downtime</h2>
+      <p>Key rotation is the process of replacing credentials before they expire or are compromised. The challenge for autonomous agents is continuity: the agent cannot stop while the key rotates. The solution is the <strong>dual-key pattern</strong>:</p>
+
+      <ol>
+        <li>Generate a new key while the old key is still valid</li>
+        <li>Store both keys in the secret store</li>
+        <li>Agent begins using the new key for new requests</li>
+        <li>Wait for any in-flight requests using the old key to complete</li>
+        <li>Revoke the old key</li>
+        <li>Remove old key from secret store</li>
+      </ol>
+
+      <div class="code-label"><span>key_rotation.py</span><span>Python</span></div>
+      <pre><code>import asyncio, aiohttp, time, logging
+from typing import Optional
+
+class RotatingKeyManager:
+    """Dual-key pattern for zero-downtime API key rotation."""
+
+    def __init__(self, vault: VaultClient, secret_path: str,
+                 purpleflea_api_base: str):
+        self.vault = vault
+        self.secret_path = secret_path
+        self.api_base = purpleflea_api_base
+        self.log = logging.getLogger("key_rotation")
+        self._current_key: Optional[str] = None
+        self._old_key: Optional[str] = None
+        self._in_flight: int = 0   # count of requests using old key
+
+    async def load_current_key(self):
+        secrets = await self.vault.get_secret(self.secret_path)
+        self._current_key = secrets["api_key"]
+        self._old_key = secrets.get("api_key_old")
+
+    async def rotate(self):
+        """Perform a live rotation of the Purple Flea API key."""
+        self.log.info("Starting key rotation...")
+
+        # 1. Request new key from Purple Flea
+        async with aiohttp.ClientSession() as s:
+            resp = await s.post(
+                f"{self.api_base}/api/keys/rotate",
+                headers={"Authorization": f"Bearer {self._current_key}"}
+            )
+            resp.raise_for_status()
+            data = await resp.json()
+            new_key = data["new_key"]
+            old_key = self._current_key
+
+        # 2. Store both keys in vault (new = current, old = old)
+        await self.vault.put_secret(self.secret_path, {
+            "api_key": new_key,
+            "api_key_old": old_key,
+            "rotated_at": time.time()
+        })
+        self.log.info(f"Vault updated. New key: ...{new_key[-4:]}")
+
+        # 3. Switch current; keep old for in-flight drain
+        self._old_key = old_key
+        self._current_key = new_key
+
+        # 4. Wait for in-flight requests using old key to complete
+        deadline = time.time() + 30
+        while self._in_flight > 0 and time.time() < deadline:
+            await asyncio.sleep(1)
+
+        # 5. Revoke old key
+        async with aiohttp.ClientSession() as s:
+            await s.delete(
+                f"{self.api_base}/api/keys/{old_key}",
+                headers={"Authorization": f"Bearer {self._current_key}"}
+            )
+
+        # 6. Remove old key from vault
+        await self.vault.put_secret(self.secret_path, {
+            "api_key": new_key,
+            "rotated_at": time.time()
+        })
+        self._old_key = None
+        self.log.info("Rotation complete. Old key revoked.")
+
+    def get_key(self) -> str:
+        return self._current_key</code></pre>
+
+      <h2 id="hsm">6. Wallet Private Key Security: HSM and MPC</h2>
+      <p>Private keys for crypto wallets are the most sensitive secrets an agent manages. If a private key is stolen, funds are irreversibly lost. Two enterprise approaches:</p>
+
+      <h3>Hardware Security Modules (HSM)</h3>
+      <p>An HSM is a physical device that generates and stores private keys in tamper-resistant hardware. The key never leaves the HSM; instead, you send data to sign and receive the signature. Providers: AWS CloudHSM, Azure Dedicated HSM, YubiHSM.</p>
+
+      <h3>Multi-Party Computation (MPC)</h3>
+      <p>MPC splits the private key into shards distributed across multiple parties. A transaction requires a threshold of parties to cooperate (e.g., 2-of-3). No single party or machine ever holds the full key. Providers: Fireblocks, Privy, Web3Auth.</p>
+
+      <div class="code-label"><span>wallet_signer.py</span><span>Python</span></div>
+      <pre><code>from abc import ABC, abstractmethod
+from eth_account import Account
+from eth_account.messages import encode_defunct
+import boto3, json
+
+class WalletSigner(ABC):
+    """Abstract wallet signer — swap implementations without changing agent code."""
+
+    @abstractmethod
+    async def sign_transaction(self, tx: dict) -> str:
+        """Return signed transaction hex."""
+
+    @abstractmethod
+    async def get_address(self) -> str:
+        """Return the wallet's public address."""
+
+class EnvWalletSigner(WalletSigner):
+    """Simple env var signer — development only."""
+
+    def __init__(self, private_key: str):
+        self._acct = Account.from_key(private_key)
+
+    async def sign_transaction(self, tx: dict) -> str:
+        signed = self._acct.sign_transaction(tx)
+        return signed.rawTransaction.hex()
+
+    async def get_address(self) -> str:
+        return self._acct.address
+
+class KMSWalletSigner(WalletSigner):
+    """AWS KMS asymmetric key signer (secp256k1 ECC)."""
+
+    def __init__(self, key_id: str, region: str = "us-east-1"):
+        self.key_id = key_id
+        self.kms = boto3.client("kms", region_name=region)
+        self._address: str = None
+
+    async def get_address(self) -> str:
+        if self._address:
+            return self._address
+        # Fetch public key from KMS
+        resp = self.kms.get_public_key(KeyId=self.key_id)
+        # Parse DER-encoded public key to Ethereum address
+        from eth_keys import keys
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
+        from cryptography.hazmat.backends import default_backend
+        from cryptography.hazmat.primitives.serialization import load_der_public_key
+        pub_key_der = resp["PublicKey"]
+        pub_key_obj = load_der_public_key(pub_key_der, backend=default_backend())
+        pub_bytes = pub_key_obj.public_bytes(Encoding.X962,
+                                              PublicFormat.UncompressedPoint)
+        # pub_bytes[1:] is the 64-byte uncompressed point (skip 0x04 prefix)
+        eth_key = keys.PublicKey(pub_bytes[1:])
+        self._address = eth_key.to_checksum_address()
+        return self._address
+
+    async def sign_transaction(self, tx: dict) -> str:
+        import hashlib
+        # Encode transaction and get keccak256 hash
+        from eth_account._utils.signing import sign_transaction_hash
+        # ... KMS sign call returns DER-encoded signature
+        # Full implementation requires DER -> (r,s) conversion + EIP-155 v computation
+        raise NotImplementedError("Full KMS sign implementation omitted for brevity")</code></pre>
+
+      <div class="info-box"><strong>Recommendation for Purple Flea agents:</strong> For agents managing less than $10K, env var signing with a dedicated hot wallet is acceptable. Above $10K, use a 2-of-3 MPC solution. Never store a high-value wallet's private key on the same machine that runs the agent's LLM inference.</div>
+
+      <h2 id="purpleflea-keys">7. Purple Flea API Key Lifecycle</h2>
+      <p>Purple Flea API keys follow a defined lifecycle. Understanding it helps you build agents that handle key transitions gracefully.</p>
+
+      <ul>
+        <li><strong>Creation</strong> — keys are created via <code>POST /api/keys</code> with a scope (read, trade, admin)</li>
+        <li><strong>Active use</strong> — keys are sent as <code>Authorization: Bearer pf_live_...</code> headers</li>
+        <li><strong>Expiry warning</strong> — 7 days before expiry, the API returns a <code>X-Key-Expires-In</code> header</li>
+        <li><strong>Rotation</strong> — use <code>POST /api/keys/rotate</code> to get a new key before expiry</li>
+        <li><strong>Revocation</strong> — <code>DELETE /api/keys/{key_id}</code> immediately invalidates a key</li>
+      </ul>
+
+      <div class="code-label"><span>purpleflea_key_manager.py</span><span>Python</span></div>
+      <pre><code>import aiohttp, time, logging
+from typing import Optional
+
+class PurpleFleatKeyManager:
+    """Manages Purple Flea API key lifecycle: expiry detection + auto-rotation."""
+
+    EXPIRY_WARNING_DAYS = 7
+
+    def __init__(self, initial_key: str, secret_store, api_base: str):
+        self.api_base = api_base
+        self.secret_store = secret_store  # vault or AWS SM client
+        self._key = initial_key
+        self._key_expires_at: Optional[float] = None
+        self.log = logging.getLogger("pf_keys")
+
+    @property
+    def key(self) -> str:
+        return self._key
+
+    async def check_and_rotate(self, session: aiohttp.ClientSession):
+        """Call this after each API response to check expiry headers."""
+        if self._key_expires_at is None:
+            return
+
+        days_left = (self._key_expires_at - time.time()) / 86400
+        if days_left <= self.EXPIRY_WARNING_DAYS:
+            self.log.warning(f"API key expires in {days_left:.1f} days — rotating")
+            await self._do_rotate(session)
+
+    async def handle_response_headers(self, headers: dict):
+        """Parse X-Key-Expires-In from API response headers."""
+        expires_in = headers.get("X-Key-Expires-In")
+        if expires_in:
+            self._key_expires_at = time.time() + int(expires_in)
+
+    async def _do_rotate(self, session: aiohttp.ClientSession):
+        resp = await session.post(
+            f"{self.api_base}/api/keys/rotate",
+            headers={"Authorization": f"Bearer {self._key}"}
+        )
+        if resp.status != 200:
+            self.log.error(f"Key rotation failed: {resp.status}")
+            return
+        data = await resp.json()
+        new_key = data["key"]
+        old_key = self._key
+
+        # Persist new key to secret store
+        await self.secret_store.put_secret("agents/my-agent", {
+            "api_key": new_key,
+            "api_key_old": old_key,
+            "rotated_at": time.time()
+        })
+        self._key = new_key
+        self._key_expires_at = None
+        self.log.info(f"API key rotated successfully. New key: ...{new_key[-4:]}")</code></pre>
+
+      <h2 id="wrapper">8. SecretsManager Wrapper Class</h2>
+      <p>In production agents, you need a unified interface that works across development (env vars), staging (HashiCorp Vault), and production (AWS Secrets Manager). The wrapper pattern provides this abstraction.</p>
+
+      <div class="code-label"><span>secrets_manager.py</span><span>Python</span></div>
+      <pre><code>import os, logging
+from enum import Enum
+from typing import Any, Optional
+
+class SecretBackend(Enum):
+    ENV = "env"
+    VAULT = "vault"
+    AWS = "aws"
+
+class SecretsManager:
+    """
+    Unified secrets manager. Backend is selected by SECRETS_BACKEND env var.
+    Falls back to env vars in development.
+    """
+
+    def __init__(self):
+        self.log = logging.getLogger("secrets")
+        backend_name = os.environ.get("SECRETS_BACKEND", "env").lower()
+        self.backend = SecretBackend(backend_name)
+        self._impl = self._init_backend()
+        self.log.info(f"Secrets backend: {self.backend.value}")
+
+    def _init_backend(self):
+        if self.backend == SecretBackend.ENV:
+            return EnvSecretsBackend()
+        elif self.backend == SecretBackend.VAULT:
+            return VaultSecretsBackend(
+                vault_addr=os.environ["VAULT_ADDR"],
+                role_id=os.environ["VAULT_ROLE_ID"],
+                secret_id=os.environ["VAULT_SECRET_ID"],
+            )
+        elif self.backend == SecretBackend.AWS:
+            return AWSSecretsBackend(
+                region=os.environ.get("AWS_REGION", "us-east-1")
+            )
+
+    async def get(self, key: str, namespace: str = "default") -> Optional[str]:
+        """Get a single secret value by key and namespace."""
+        try:
+            return await self._impl.get(key, namespace)
+        except Exception as e:
+            self.log.error(f"Failed to get secret '{key}' from {self.backend.value}: {e}")
+            raise
+
+    async def set(self, key: str, value: str, namespace: str = "default"):
+        """Store a secret value."""
+        await self._impl.set(key, value, namespace)
+
+    async def rotate(self, key: str, namespace: str = "default"):
+        """Trigger rotation for a secret."""
+        await self._impl.rotate(key, namespace)
+
+class EnvSecretsBackend:
+    async def get(self, key: str, namespace: str) -> Optional[str]:
+        env_key = f"{namespace.upper()}_{key.upper()}".replace("-", "_")
+        val = os.environ.get(env_key) or os.environ.get(key.upper())
+        return val
+
+    async def set(self, key: str, value: str, namespace: str):
+        # Cannot set env vars persistently; log warning
+        logging.getLogger("secrets").warning(
+            f"EnvSecretsBackend.set() called for '{key}' — env vars are not persistent"
+        )
+
+    async def rotate(self, key: str, namespace: str):
+        raise NotImplementedError("Use vault or AWS backend for rotation")
+
+# In your agent:
+# secrets = SecretsManager()
+# api_key = await secrets.get("API_KEY", namespace="purpleflea")
+# private_key = await secrets.get("WALLET_PRIVATE_KEY", namespace="wallet")</code></pre>
+
+      <div class="tip-box"><strong>Security principle:</strong> Apply least-privilege to secrets. A trading agent only needs its own API key and wallet key — not database admin passwords or other agents' keys. Use Vault policies or AWS IAM to enforce this boundary programmatically.</div>
+
+      <div class="cta-block">
+        <h3>Secure your agent with Purple Flea</h3>
+        <p>Purple Flea provides API keys, wallet infrastructure, escrow, and a full financial stack for autonomous agents. Start with the free faucet — no risk, no commitment.</p>
+        <a href="https://purpleflea.com" class="cta-btn">Get Started Free</a>
+      </div>
+
+    </article>
+
+    <aside class="toc-sidebar">
+      <h3>Contents</h3>
+      <ol>
+        <li><a href="#threat">Threat Model</a></li>
+        <li><a href="#envvars">Environment Variables</a></li>
+        <li><a href="#vault">HashiCorp Vault</a></li>
+        <li><a href="#aws">AWS Secrets Manager</a></li>
+        <li><a href="#rotation">Key Rotation</a></li>
+        <li><a href="#hsm">HSM and MPC</a></li>
+        <li><a href="#purpleflea-keys">Purple Flea Key Lifecycle</a></li>
+        <li><a href="#wrapper">SecretsManager Wrapper</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea. Financial infrastructure for AI agents. &mdash; <a href="https://purpleflea.com">purpleflea.com</a></p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const docH = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = docH > 0 ? (window.scrollY / docH) * 100 : 0;
+      bar.style.width = pct + '%';
+    });
+  </script>
+</body>
+</html>
