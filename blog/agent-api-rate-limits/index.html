@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Navigating Purple Flea API Rate Limits: Throttling for High-Frequency Agents | Purple Flea Blog</title>
+<meta name="description" content="How AI agents can handle Purple Flea API rate limits with exponential backoff, request queuing, and intelligent throttling. Python RateLimiter class included.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/blog/agent-api-rate-limits/">
+<meta property="og:title" content="Navigating Purple Flea API Rate Limits: Throttling for High-Frequency Agents">
+<meta property="og:description" content="How AI agents can handle Purple Flea API rate limits with exponential backoff, request queuing, and intelligent throttling. Python RateLimiter class included.">
+<meta property="og:url" content="https://purpleflea.com/blog/agent-api-rate-limits/">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Navigating Purple Flea API Rate Limits: Throttling for High-Frequency Agents",
+  "description": "How AI agents can handle Purple Flea API rate limits with exponential backoff, request queuing, and intelligent throttling.",
+  "url": "https://purpleflea.com/blog/agent-api-rate-limits/",
+  "datePublished": "2026-03-06",
+  "author": {"@type": "Organization", "name": "Purple Flea"},
+  "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"}
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F7E3;</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090B; --bg-card: #111118; --border: rgba(255,255,255,0.06);
+  --text: #FAFAFA; --text-secondary: #9090a8; --text-muted: #5a5a72;
+  --purple: #A855F7; --purple-dim: rgba(168,85,247,0.12);
+  --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6;
+  --mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+nav { border-bottom: 1px solid var(--border); padding: 14px 0; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.nav-inner { max-width: 760px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { text-decoration: none; color: var(--text); font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.nav-logo-icon { color: var(--purple); }
+.nav-links { display: flex; gap: 20px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.825rem; }
+.nav-links a:hover { color: var(--text); }
+.container { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+.hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); }
+.tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.tag { display: inline-flex; align-items: center; gap: 6px; border: 1px solid; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; }
+.tag-blue { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); color: var(--blue); }
+.tag-green { background: rgba(34,197,94,0.10); border-color: rgba(34,197,94,0.25); color: var(--green); }
+.hero h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; margin-bottom: 16px; }
+.hero-meta { color: var(--text-muted); font-size: 0.8rem; display: flex; gap: 16px; flex-wrap: wrap; }
+.content { padding: 48px 0 80px; }
+.content h2 { font-size: 1.25rem; font-weight: 600; margin: 44px 0 14px; color: var(--text); }
+.content h3 { font-size: 1rem; font-weight: 600; margin: 30px 0 10px; color: var(--text); }
+.content p { color: var(--text-secondary); margin-bottom: 16px; font-size: 0.95rem; }
+.content ul, .content ol { color: var(--text-secondary); margin: 0 0 16px 1.4rem; font-size: 0.95rem; }
+.content li { margin-bottom: 7px; }
+.content a { color: var(--purple); text-decoration: none; }
+.content a:hover { text-decoration: underline; }
+.code-block { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 24px 0; overflow-x: auto; }
+.code-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+pre { font-family: var(--mono); font-size: 0.825rem; line-height: 1.7; color: #c9c9e0; }
+.kw { color: #c792ea; } .fn { color: #82aaff; } .st { color: #c3e88d; }
+.cm { color: #546e7a; font-style: italic; } .nm { color: #f78c6c; }
+.tp { color: #ffcb6b; } .url { color: var(--purple); }
+.callout { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-title { font-size: 0.8rem; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.callout p { margin: 0; font-size: 0.9rem; }
+.callout-green { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+.callout-green .callout-title { color: var(--green); }
+.callout-amber { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+.callout-amber .callout-title { color: var(--amber); }
+.callout-blue { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); }
+.callout-blue .callout-title { color: var(--blue); }
+.rate-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.875rem; }
+.rate-table th { text-align: left; padding: 10px 14px; color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
+.rate-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-secondary); }
+.rate-table td:first-child { color: var(--text); font-weight: 500; font-family: var(--mono); font-size: 0.825rem; }
+.rate-table td.mono { font-family: var(--mono); font-size: 0.825rem; color: var(--green); }
+.rate-table td.amber { color: var(--amber); font-family: var(--mono); font-size: 0.825rem; }
+.rate-table tr:last-child td { border-bottom: none; }
+.highlight { color: var(--purple); font-weight: 600; }
+.green { color: var(--green); }
+.amber { color: var(--amber); }
+footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; }
+footer p { color: var(--text-muted); font-size: 0.8rem; }
+footer a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span class="nav-logo-icon">&#9830;</span> Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="container">
+    <div class="tags">
+      <span class="tag tag-green">Guide</span>
+      <span class="tag tag-blue">Tools</span>
+    </div>
+    <h1>Navigating Purple Flea API Rate Limits:<br>Throttling for High-Frequency Agents</h1>
+    <div class="hero-meta">
+      <span>March 6, 2026</span>
+      <span>Purple Flea Team</span>
+      <span>10 min read</span>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="container">
+
+    <p>High-frequency AI agents hit API rate limits. It is not a bug — it is an engineering constraint you design around. Whether your agent is polling prices every 100ms, submitting dozens of trades per minute, or running parallel wallet queries, you need a principled approach to request management or you will get throttled, miss fills, and leave money on the table.</p>
+
+    <p>This guide covers the Purple Flea API rate limit model, how rate limit responses work, the four core throttling strategies, and a complete Python <code>RateLimiter</code> class you can drop into any agent codebase today.</p>
+
+    <h2>Purple Flea API Rate Limit Reference</h2>
+
+    <p>The Purple Flea platform exposes six services, each with independent rate limit tiers. Limits are applied per API key and per IP. Exceeding a limit returns HTTP <code>429 Too Many Requests</code> with a <code>Retry-After</code> header indicating the seconds until the limit resets.</p>
+
+    <table class="rate-table">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Endpoint class</th>
+          <th>Limit</th>
+          <th>Window</th>
+          <th>429 backoff</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Casino API</td>
+          <td>Game actions (bet, cashout)</td>
+          <td class="mono">60 req</td>
+          <td>per minute</td>
+          <td class="amber">60s</td>
+        </tr>
+        <tr>
+          <td>Casino API</td>
+          <td>Balance / history reads</td>
+          <td class="mono">300 req</td>
+          <td>per minute</td>
+          <td class="amber">30s</td>
+        </tr>
+        <tr>
+          <td>Trading API</td>
+          <td>Order placement</td>
+          <td class="mono">120 req</td>
+          <td>per minute</td>
+          <td class="amber">60s</td>
+        </tr>
+        <tr>
+          <td>Trading API</td>
+          <td>Market data / price reads</td>
+          <td class="mono">600 req</td>
+          <td>per minute</td>
+          <td class="amber">15s</td>
+        </tr>
+        <tr>
+          <td>Wallet API</td>
+          <td>Send / receive transactions</td>
+          <td class="mono">30 req</td>
+          <td>per minute</td>
+          <td class="amber">120s</td>
+        </tr>
+        <tr>
+          <td>Wallet API</td>
+          <td>Balance reads</td>
+          <td class="mono">240 req</td>
+          <td>per minute</td>
+          <td class="amber">20s</td>
+        </tr>
+        <tr>
+          <td>Domains API</td>
+          <td>Domain actions (buy, list)</td>
+          <td class="mono">30 req</td>
+          <td>per minute</td>
+          <td class="amber">120s</td>
+        </tr>
+        <tr>
+          <td>Escrow API</td>
+          <td>Create / resolve escrow</td>
+          <td class="mono">30 req</td>
+          <td>per minute</td>
+          <td class="amber">120s</td>
+        </tr>
+        <tr>
+          <td>Faucet API</td>
+          <td>Claim (once per agent)</td>
+          <td class="mono">1 req</td>
+          <td>per key lifetime</td>
+          <td class="amber">N/A</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-amber">
+      <div class="callout-title">Key Insight</div>
+      <p>Write-heavy endpoints (transactions, orders, bets) have lower limits than read endpoints. Design your agent to cache read results aggressively and minimize redundant state polls. A well-cached agent can run 10x higher effective throughput than a naive one hitting the same limit.</p>
+    </div>
+
+    <h2>How 429 Responses Work</h2>
+
+    <p>When your agent exceeds a rate limit, the API returns:</p>
+
+    <div class="code-block">
+      <div class="code-label">HTTP Response</div>
+      <pre>HTTP/1.1 429 Too Many Requests
+Retry-After: 45
+X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1741305600
+Content-Type: application/json
+
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests. Retry after 45 seconds.",
+  "retry_after": 45
+}</pre>
+    </div>
+
+    <p>The three headers you care about:</p>
+
+    <ul>
+      <li><code>Retry-After</code>: exact seconds until the limit window resets. Use this, not a fixed backoff.</li>
+      <li><code>X-RateLimit-Remaining</code>: requests left in the current window. Monitor this on every response to avoid hitting the wall.</li>
+      <li><code>X-RateLimit-Reset</code>: Unix timestamp when the window resets. Useful for scheduling batch operations.</li>
+    </ul>
+
+    <p>A naive agent ignores these headers and either crashes on 429 or blindly sleeps for a fixed duration. A sophisticated agent tracks remaining capacity per endpoint and proactively throttles before hitting the limit.</p>
+
+    <h2>Strategy 1: Token Bucket Rate Limiting</h2>
+
+    <p>The token bucket algorithm is the gold standard for smooth rate limiting. Each endpoint has a bucket with a fixed capacity (the rate limit). Tokens refill at a constant rate (1 per window/capacity). Each request consumes one token. If the bucket is empty, the request waits.</p>
+
+    <p>This gives you burst headroom (use multiple tokens quickly when they have accumulated) while enforcing the average rate limit over time. It is strictly superior to naive sleep loops.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Token Bucket</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> time
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Dict
+
+<span class="tp">@dataclass</span>
+<span class="kw">class</span> <span class="tp">TokenBucket</span>:
+    capacity: <span class="tp">int</span>          <span class="cm"># max tokens (= rate limit)</span>
+    refill_rate: <span class="tp">float</span>    <span class="cm"># tokens per second</span>
+    tokens: <span class="tp">float</span> = field(init=<span class="kw">False</span>)
+    last_refill: <span class="tp">float</span> = field(init=<span class="kw">False</span>)
+
+    <span class="kw">def</span> <span class="fn">__post_init__</span>(<span class="nm">self</span>):
+        <span class="nm">self</span>.tokens = <span class="nm">self</span>.capacity
+        <span class="nm">self</span>.last_refill = time.<span class="fn">monotonic</span>()
+
+    <span class="kw">def</span> <span class="fn">_refill</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        now = time.<span class="fn">monotonic</span>()
+        elapsed = now - <span class="nm">self</span>.last_refill
+        gained = elapsed * <span class="nm">self</span>.refill_rate
+        <span class="nm">self</span>.tokens = <span class="fn">min</span>(<span class="nm">self</span>.capacity, <span class="nm">self</span>.tokens + gained)
+        <span class="nm">self</span>.last_refill = now
+
+    <span class="kw">async def</span> <span class="fn">acquire</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        <span class="st">"""Block until a token is available."""</span>
+        <span class="kw">while True</span>:
+            <span class="nm">self</span>.<span class="fn">_refill</span>()
+            <span class="kw">if</span> <span class="nm">self</span>.tokens >= <span class="nm">1</span>:
+                <span class="nm">self</span>.tokens -= <span class="nm">1</span>
+                <span class="kw">return</span>
+            wait = (<span class="nm">1</span> - <span class="nm">self</span>.tokens) / <span class="nm">self</span>.refill_rate
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(wait)</pre>
+    </div>
+
+    <h2>Strategy 2: Exponential Backoff with Jitter</h2>
+
+    <p>When a 429 actually fires — because your token bucket was too aggressive, or because you share an IP with another agent — you need a recovery strategy. Naive "sleep 60s and retry" causes thundering herd: all throttled agents wake up simultaneously and immediately hit the limit again.</p>
+
+    <p>Exponential backoff with jitter solves this. Each retry doubles the wait time, with a random jitter added so multiple agents desynchronize.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Exponential Backoff</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> random
+<span class="kw">import</span> httpx
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="kw">async def</span> <span class="fn">request_with_backoff</span>(
+    client: httpx.<span class="tp">AsyncClient</span>,
+    method: <span class="tp">str</span>,
+    url: <span class="tp">str</span>,
+    max_retries: <span class="tp">int</span> = <span class="nm">7</span>,
+    base_delay: <span class="tp">float</span> = <span class="nm">1.0</span>,
+    max_delay: <span class="tp">float</span> = <span class="nm">120.0</span>,
+    **kwargs
+) -> httpx.<span class="tp">Response</span>:
+    <span class="st">"""Execute an HTTP request with exponential backoff on 429."""</span>
+    attempt = <span class="nm">0</span>
+    <span class="kw">while</span> attempt <= max_retries:
+        resp = <span class="kw">await</span> client.<span class="fn">request</span>(method, url, **kwargs)
+
+        <span class="kw">if</span> resp.status_code != <span class="nm">429</span>:
+            <span class="kw">return</span> resp
+
+        <span class="cm"># Respect Retry-After if present</span>
+        retry_after = resp.headers.<span class="fn">get</span>(<span class="st">"Retry-After"</span>)
+        <span class="kw">if</span> retry_after:
+            wait = <span class="fn">float</span>(retry_after)
+        <span class="kw">else</span>:
+            <span class="cm"># Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 64s</span>
+            exp_delay = base_delay * (<span class="nm">2</span> ** attempt)
+            jitter = random.<span class="fn">uniform</span>(<span class="nm">0</span>, exp_delay * <span class="nm">0.25</span>)
+            wait = <span class="fn">min</span>(exp_delay + jitter, max_delay)
+
+        <span class="fn">print</span>(<span class="st">f"429 on {url}, retrying in {wait:.1f}s (attempt {attempt+1}/{max_retries})"</span>)
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(wait)
+        attempt += <span class="nm">1</span>
+
+    <span class="kw">raise</span> <span class="tp">RuntimeError</span>(<span class="st">f"Max retries exceeded for {url}"</span>)</pre>
+    </div>
+
+    <div class="callout callout-blue">
+      <div class="callout-title">Jitter is Critical</div>
+      <p>Without jitter, 10 agents all throttled at the same moment will all retry at the same moment. Adding random jitter of 0-25% of the delay spreads retries out and prevents the cascade from hitting the limit again immediately.</p>
+    </div>
+
+    <h2>Strategy 3: Request Queue with Priority Lanes</h2>
+
+    <p>For agents with multiple concurrent tasks (price monitoring, order management, balance checks), a priority queue prevents low-priority read operations from consuming the request budget that high-priority write operations need.</p>
+
+    <p>Assign priorities: market-critical writes (order placement, cashout) get priority 0, informational reads get priority 2. The queue drains highest-priority requests first.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Priority Request Queue</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> heapq
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Callable, Coroutine
+
+<span class="tp">@dataclass</span>(<span class="fn">order</span>=<span class="kw">True</span>)
+<span class="kw">class</span> <span class="tp">QueuedRequest</span>:
+    priority: <span class="tp">int</span>
+    seq: <span class="tp">int</span>                                    <span class="cm"># tiebreak by insertion order</span>
+    coro_fn: <span class="tp">Callable</span> = field(compare=<span class="kw">False</span>)   <span class="cm"># coroutine factory</span>
+    future: asyncio.<span class="tp">Future</span> = field(compare=<span class="kw">False</span>)
+
+<span class="kw">class</span> <span class="tp">PriorityRequestQueue</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, bucket: <span class="tp">TokenBucket</span>):
+        <span class="nm">self</span>.bucket = bucket
+        <span class="nm">self</span>._heap: list = []
+        <span class="nm">self</span>._seq = <span class="nm">0</span>
+        <span class="nm">self</span>._task = asyncio.<span class="fn">ensure_future</span>(<span class="nm">self</span>.<span class="fn">_drain</span>())
+
+    <span class="kw">async def</span> <span class="fn">submit</span>(<span class="nm">self</span>, coro_fn: <span class="tp">Callable</span>, priority: <span class="tp">int</span> = <span class="nm">1</span>) -> <span class="tp">Any</span>:
+        <span class="st">"""Submit a request. Lower priority number = higher urgency."""</span>
+        loop = asyncio.<span class="fn">get_event_loop</span>()
+        fut = loop.<span class="fn">create_future</span>()
+        item = <span class="tp">QueuedRequest</span>(priority, <span class="nm">self</span>._seq, coro_fn, fut)
+        <span class="nm">self</span>._seq += <span class="nm">1</span>
+        heapq.<span class="fn">heappush</span>(<span class="nm">self</span>._heap, item)
+        <span class="kw">return await</span> fut
+
+    <span class="kw">async def</span> <span class="fn">_drain</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        <span class="kw">while True</span>:
+            <span class="kw">if not</span> <span class="nm">self</span>._heap:
+                <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="nm">0.005</span>)
+                <span class="kw">continue</span>
+            <span class="kw">await</span> <span class="nm">self</span>.bucket.<span class="fn">acquire</span>()
+            item = heapq.<span class="fn">heappop</span>(<span class="nm">self</span>._heap)
+            <span class="kw">try</span>:
+                result = <span class="kw">await</span> item.<span class="fn">coro_fn</span>()
+                item.future.<span class="fn">set_result</span>(result)
+            <span class="kw">except</span> <span class="tp">Exception</span> <span class="kw">as</span> e:
+                item.future.<span class="fn">set_exception</span>(e)</pre>
+    </div>
+
+    <h2>Strategy 4: Adaptive Throttling via Remaining Header</h2>
+
+    <p>The most sophisticated approach uses the <code>X-RateLimit-Remaining</code> header returned on every successful response to dynamically adjust the send rate. When remaining capacity is high, send at full speed. As remaining drops below a threshold, slow down proactively before hitting 429.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Adaptive Throttling</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> time
+
+<span class="kw">class</span> <span class="tp">AdaptiveThrottler</span>:
+    <span class="st">"""Adjusts send rate based on X-RateLimit-Remaining header."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, limit: <span class="tp">int</span>, window_seconds: <span class="tp">int</span>):
+        <span class="nm">self</span>.limit = limit
+        <span class="nm">self</span>.window = window_seconds
+        <span class="nm">self</span>.remaining = limit
+        <span class="nm">self</span>.reset_at: <span class="tp">float</span> = time.<span class="fn">time</span>() + window_seconds
+
+    <span class="kw">def</span> <span class="fn">update_from_headers</span>(<span class="nm">self</span>, headers: dict) -> <span class="tp">None</span>:
+        <span class="st">"""Call after every successful response."""</span>
+        <span class="kw">if</span> <span class="st">"X-RateLimit-Remaining"</span> <span class="kw">in</span> headers:
+            <span class="nm">self</span>.remaining = <span class="fn">int</span>(headers[<span class="st">"X-RateLimit-Remaining"</span>])
+        <span class="kw">if</span> <span class="st">"X-RateLimit-Reset"</span> <span class="kw">in</span> headers:
+            <span class="nm">self</span>.reset_at = <span class="fn">float</span>(headers[<span class="st">"X-RateLimit-Reset"</span>])
+
+    <span class="kw">async def</span> <span class="fn">throttle</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        <span class="st">"""Call before every request. Introduces adaptive delays."""</span>
+        now = time.<span class="fn">time</span>()
+        time_left = <span class="fn">max</span>(<span class="nm">0.1</span>, <span class="nm">self</span>.reset_at - now)
+
+        <span class="kw">if</span> <span class="nm">self</span>.remaining <= <span class="nm">0</span>:
+            <span class="cm"># Exhausted — wait for reset</span>
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(time_left)
+            <span class="nm">self</span>.remaining = <span class="nm">self</span>.limit
+            <span class="nm">self</span>.reset_at = time.<span class="fn">time</span>() + <span class="nm">self</span>.window
+        <span class="kw">elif</span> <span class="nm">self</span>.remaining < <span class="nm">self</span>.limit * <span class="nm">0.1</span>:
+            <span class="cm"># Under 10% remaining — slow to half pace</span>
+            safe_rate = (<span class="nm">self</span>.remaining / time_left) * <span class="nm">0.5</span>
+            delay = <span class="nm">1.0</span> / safe_rate <span class="kw">if</span> safe_rate > <span class="nm">0</span> <span class="kw">else</span> time_left
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(delay)
+        <span class="kw">elif</span> <span class="nm">self</span>.remaining < <span class="nm">self</span>.limit * <span class="nm">0.25</span>:
+            <span class="cm"># Under 25% remaining — pace evenly over remaining window</span>
+            safe_rate = <span class="nm">self</span>.remaining / time_left
+            delay = <span class="nm">1.0</span> / safe_rate <span class="kw">if</span> safe_rate > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0.5</span>
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(delay)
+        <span class="cm"># else: plenty of remaining capacity, no delay needed</span></pre>
+    </div>
+
+    <h2>The Complete RateLimiter Class</h2>
+
+    <p>This production-ready <code>RateLimiter</code> class combines all four strategies: token bucket for proactive throttling, exponential backoff for 429 recovery, response header tracking for adaptive adjustment, and per-endpoint bucket isolation so a Trading API burst does not slow your Wallet API calls.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Production RateLimiter</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> random
+<span class="kw">import</span> time
+<span class="kw">import</span> httpx
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Optional, Any
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+
+<span class="kw">class</span> <span class="tp">Endpoint</span>(<span class="tp">Enum</span>):
+    CASINO_ACTION   = (<span class="nm">60</span>, <span class="nm">60</span>)
+    CASINO_READ     = (<span class="nm">300</span>, <span class="nm">60</span>)
+    TRADING_ORDER   = (<span class="nm">120</span>, <span class="nm">60</span>)
+    TRADING_MARKET  = (<span class="nm">600</span>, <span class="nm">60</span>)
+    WALLET_SEND     = (<span class="nm">30</span>, <span class="nm">60</span>)
+    WALLET_READ     = (<span class="nm">240</span>, <span class="nm">60</span>)
+    DOMAINS_ACTION  = (<span class="nm">30</span>, <span class="nm">60</span>)
+    ESCROW_ACTION   = (<span class="nm">30</span>, <span class="nm">60</span>)
+
+<span class="kw">class</span> <span class="tp">RateLimiter</span>:
+    <span class="st">"""
+    Per-endpoint token bucket rate limiter with adaptive throttling
+    and exponential backoff. Thread-safe via asyncio.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, api_key: <span class="tp">str</span>):
+        <span class="nm">self</span>.api_key = api_key
+        <span class="nm">self</span>.client = httpx.<span class="tp">AsyncClient</span>(
+            headers={<span class="st">"X-API-Key"</span>: api_key},
+            timeout=<span class="nm">30.0</span>
+        )
+        <span class="nm">self</span>._buckets: Dict[<span class="tp">Endpoint</span>, dict] = {
+            ep: {
+                <span class="st">"tokens"</span>: ep.value[<span class="nm">0</span>],
+                <span class="st">"capacity"</span>: ep.value[<span class="nm">0</span>],
+                <span class="st">"rate"</span>: ep.value[<span class="nm">0</span>] / ep.value[<span class="nm">1</span>],  <span class="cm"># tokens/sec</span>
+                <span class="st">"last_refill"</span>: time.<span class="fn">monotonic</span>(),
+                <span class="st">"remaining"</span>: ep.value[<span class="nm">0</span>],
+                <span class="st">"reset_at"</span>: time.<span class="fn">time</span>() + ep.value[<span class="nm">1</span>],
+            }
+            <span class="kw">for</span> ep <span class="kw">in</span> <span class="tp">Endpoint</span>
+        }
+
+    <span class="kw">def</span> <span class="fn">_refill_bucket</span>(<span class="nm">self</span>, ep: <span class="tp">Endpoint</span>) -> <span class="tp">None</span>:
+        b = <span class="nm">self</span>._buckets[ep]
+        now = time.<span class="fn">monotonic</span>()
+        gained = (now - b[<span class="st">"last_refill"</span>]) * b[<span class="st">"rate"</span>]
+        b[<span class="st">"tokens"</span>] = <span class="fn">min</span>(b[<span class="st">"capacity"</span>], b[<span class="st">"tokens"</span>] + gained)
+        b[<span class="st">"last_refill"</span>] = now
+
+    <span class="kw">async def</span> <span class="fn">_acquire_token</span>(<span class="nm">self</span>, ep: <span class="tp">Endpoint</span>) -> <span class="tp">None</span>:
+        b = <span class="nm">self</span>._buckets[ep]
+        <span class="kw">while True</span>:
+            <span class="nm">self</span>.<span class="fn">_refill_bucket</span>(ep)
+            <span class="kw">if</span> b[<span class="st">"tokens"</span>] >= <span class="nm">1</span>:
+                b[<span class="st">"tokens"</span>] -= <span class="nm">1</span>
+                <span class="kw">return</span>
+            wait = (<span class="nm">1</span> - b[<span class="st">"tokens"</span>]) / b[<span class="st">"rate"</span>]
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(wait)
+
+    <span class="kw">def</span> <span class="fn">_update_adaptive</span>(<span class="nm">self</span>, ep: <span class="tp">Endpoint</span>, headers: dict) -> <span class="tp">None</span>:
+        b = <span class="nm">self</span>._buckets[ep]
+        <span class="kw">if</span> <span class="st">"X-RateLimit-Remaining"</span> <span class="kw">in</span> headers:
+            b[<span class="st">"remaining"</span>] = <span class="fn">int</span>(headers[<span class="st">"X-RateLimit-Remaining"</span>])
+        <span class="kw">if</span> <span class="st">"X-RateLimit-Reset"</span> <span class="kw">in</span> headers:
+            b[<span class="st">"reset_at"</span>] = <span class="fn">float</span>(headers[<span class="st">"X-RateLimit-Reset"</span>])
+
+    <span class="kw">async def</span> <span class="fn">request</span>(
+        <span class="nm">self</span>,
+        endpoint: <span class="tp">Endpoint</span>,
+        method: <span class="tp">str</span>,
+        url: <span class="tp">str</span>,
+        max_retries: <span class="tp">int</span> = <span class="nm">6</span>,
+        **kwargs
+    ) -> <span class="tp">Any</span>:
+        <span class="st">"""
+        Execute a rate-limited HTTP request with backoff.
+
+        Usage:
+            data = await limiter.request(
+                Endpoint.TRADING_ORDER,
+                "POST",
+                "https://trading.purpleflea.com/api/v1/orders",
+                json={"market": "BTC-USDC", "side": "buy", "amount": 100}
+            )
+        """</span>
+        <span class="kw">await</span> <span class="nm">self</span>.<span class="fn">_acquire_token</span>(endpoint)
+
+        attempt = <span class="nm">0</span>
+        <span class="kw">while</span> attempt <= max_retries:
+            resp = <span class="kw">await</span> <span class="nm">self</span>.client.<span class="fn">request</span>(method, url, **kwargs)
+            <span class="nm">self</span>.<span class="fn">_update_adaptive</span>(endpoint, resp.headers)
+
+            <span class="kw">if</span> resp.status_code == <span class="nm">429</span>:
+                retry_after = resp.headers.<span class="fn">get</span>(<span class="st">"Retry-After"</span>)
+                wait = <span class="fn">float</span>(retry_after) <span class="kw">if</span> retry_after <span class="kw">else</span> \
+                    <span class="fn">min</span>(<span class="nm">1.0</span> * <span class="nm">2</span>**attempt + random.<span class="fn">uniform</span>(<span class="nm">0</span>, <span class="nm">1</span>), <span class="nm">120</span>)
+                <span class="fn">print</span>(<span class="st">f"[RateLimiter] 429 {endpoint.name}, retry in {wait:.1f}s"</span>)
+                <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(wait)
+                <span class="kw">await</span> <span class="nm">self</span>.<span class="fn">_acquire_token</span>(endpoint)
+                attempt += <span class="nm">1</span>
+                <span class="kw">continue</span>
+
+            resp.<span class="fn">raise_for_status</span>()
+            <span class="kw">return</span> resp.<span class="fn">json</span>()
+
+        <span class="kw">raise</span> <span class="tp">RuntimeError</span>(<span class="st">f"Max retries exceeded: {url}"</span>)
+
+    <span class="kw">async def</span> <span class="fn">close</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        <span class="kw">await</span> <span class="nm">self</span>.client.<span class="fn">aclose</span>()</pre>
+    </div>
+
+    <h2>Caching to Reduce Request Pressure</h2>
+
+    <p>Many requests your agent makes are not strictly necessary. If you are checking your wallet balance 10 times per second, you are burning rate limit budget on data that has not changed. A simple TTL cache on read endpoints can cut your actual request volume by 60-80%.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — TTL Cache for Read Endpoints</div>
+      <pre><span class="kw">import</span> time
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Optional, Tuple
+
+<span class="kw">class</span> <span class="tp">TTLCache</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>):
+        <span class="nm">self</span>._store: dict[<span class="tp">str</span>, Tuple[<span class="tp">Any</span>, <span class="tp">float</span>]] = {}
+
+    <span class="kw">def</span> <span class="fn">get</span>(<span class="nm">self</span>, key: <span class="tp">str</span>, ttl: <span class="tp">float</span> = <span class="nm">5.0</span>) -> Optional[<span class="tp">Any</span>]:
+        <span class="kw">if</span> key <span class="kw">in</span> <span class="nm">self</span>._store:
+            value, stored_at = <span class="nm">self</span>._store[key]
+            <span class="kw">if</span> time.<span class="fn">time</span>() - stored_at < ttl:
+                <span class="kw">return</span> value
+        <span class="kw">return None</span>
+
+    <span class="kw">def</span> <span class="fn">set</span>(<span class="nm">self</span>, key: <span class="tp">str</span>, value: <span class="tp">Any</span>) -> <span class="tp">None</span>:
+        <span class="nm">self</span>._store[key] = (value, time.<span class="fn">time</span>())
+
+<span class="cm"># Recommended TTLs per Purple Flea endpoint type</span>
+CACHE_TTL = {
+    <span class="st">"wallet_balance"</span>: <span class="nm">10.0</span>,    <span class="cm"># 10s — balances change slowly</span>
+    <span class="st">"market_price"</span>: <span class="nm">0.5</span>,        <span class="cm"># 500ms — prices change fast</span>
+    <span class="st">"casino_balance"</span>: <span class="nm">5.0</span>,      <span class="cm"># 5s</span>
+    <span class="st">"domain_listing"</span>: <span class="nm">30.0</span>,     <span class="cm"># 30s — listings are stable</span>
+    <span class="st">"escrow_status"</span>: <span class="nm">3.0</span>,       <span class="cm"># 3s — could change on dispute</span>
+}</pre>
+    </div>
+
+    <h2>Putting It All Together: High-Frequency Trading Agent</h2>
+
+    <p>Here is a minimal trading agent skeleton that combines the <code>RateLimiter</code> with TTL caching, running a 100ms price monitoring loop without ever hitting a 429:</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Throttled Trading Agent</div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> rate_limiter <span class="kw">import</span> <span class="tp">RateLimiter</span>, <span class="tp">Endpoint</span>
+<span class="kw">from</span> ttl_cache <span class="kw">import</span> <span class="tp">TTLCache</span>, CACHE_TTL
+
+<span class="kw">class</span> <span class="tp">ThrottledTradingAgent</span>:
+    BASE = <span class="st">"https://trading.purpleflea.com/api/v1"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, api_key: <span class="tp">str</span>):
+        <span class="nm">self</span>.rl = <span class="tp">RateLimiter</span>(api_key)
+        <span class="nm">self</span>.cache = <span class="tp">TTLCache</span>()
+
+    <span class="kw">async def</span> <span class="fn">get_price</span>(<span class="nm">self</span>, market: <span class="tp">str</span>) -> <span class="tp">float</span>:
+        key = <span class="st">f"price:{market}"</span>
+        cached = <span class="nm">self</span>.cache.<span class="fn">get</span>(key, ttl=CACHE_TTL[<span class="st">"market_price"</span>])
+        <span class="kw">if</span> cached <span class="kw">is not None</span>:
+            <span class="kw">return</span> cached
+
+        data = <span class="kw">await</span> <span class="nm">self</span>.rl.<span class="fn">request</span>(
+            <span class="tp">Endpoint</span>.TRADING_MARKET, <span class="st">"GET"</span>,
+            <span class="st">f"{self.BASE}/markets/{market}/price"</span>
+        )
+        price = data[<span class="st">"price"</span>]
+        <span class="nm">self</span>.cache.<span class="fn">set</span>(key, price)
+        <span class="kw">return</span> price
+
+    <span class="kw">async def</span> <span class="fn">place_order</span>(<span class="nm">self</span>, market: <span class="tp">str</span>, side: <span class="tp">str</span>, amount: <span class="tp">float</span>) -> dict:
+        <span class="cm"># Orders are never cached — always go through rate limiter</span>
+        <span class="kw">return await</span> <span class="nm">self</span>.rl.<span class="fn">request</span>(
+            <span class="tp">Endpoint</span>.TRADING_ORDER, <span class="st">"POST"</span>,
+            <span class="st">f"{self.BASE}/orders"</span>,
+            json={<span class="st">"market"</span>: market, <span class="st">"side"</span>: side, <span class="st">"amount"</span>: amount}
+        )
+
+    <span class="kw">async def</span> <span class="fn">run</span>(<span class="nm">self</span>) -> <span class="tp">None</span>:
+        <span class="fn">print</span>(<span class="st">"[Agent] Starting throttled trading loop..."</span>)
+        <span class="kw">while True</span>:
+            price = <span class="kw">await</span> <span class="nm">self</span>.<span class="fn">get_price</span>(<span class="st">"BTC-USDC"</span>)
+            <span class="cm"># ... strategy logic here ...</span>
+            <span class="kw">if</span> <span class="nm">self</span>.<span class="fn">should_buy</span>(price):
+                order = <span class="kw">await</span> <span class="nm">self</span>.<span class="fn">place_order</span>(<span class="st">"BTC-USDC"</span>, <span class="st">"buy"</span>, <span class="nm">100</span>)
+                <span class="fn">print</span>(<span class="st">f"[Agent] Order placed: {order['id']}"</span>)
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="nm">0.1</span>)  <span class="cm"># 10 Hz loop</span>
+
+    <span class="kw">def</span> <span class="fn">should_buy</span>(<span class="nm">self</span>, price: <span class="tp">float</span>) -> <span class="tp">bool</span>:
+        <span class="kw">return</span> <span class="kw">False</span>  <span class="cm"># Replace with your strategy logic</span>
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    agent = <span class="tp">ThrottledTradingAgent</span>(api_key=<span class="st">"pf_live_your_key_here"</span>)
+    <span class="kw">try</span>:
+        <span class="kw">await</span> agent.<span class="fn">run</span>()
+    <span class="kw">finally</span>:
+        <span class="kw">await</span> agent.rl.<span class="fn">close</span>()
+
+asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</pre>
+    </div>
+
+    <h2>Common Mistakes and How to Avoid Them</h2>
+
+    <h3>Mistake 1: Single global rate limiter</h3>
+    <p>Using one limiter for all endpoints conflates their separate limits. A burst of market data reads should not burn the budget for order placement. Always isolate per-endpoint bucket.</p>
+
+    <h3>Mistake 2: Ignoring Retry-After</h3>
+    <p>Sleeping a fixed 60 seconds on every 429 is usually wrong. If the window resets in 3 seconds, you are wasting 57 seconds. Read <code>Retry-After</code> and sleep exactly that long.</p>
+
+    <h3>Mistake 3: No jitter in backoff</h3>
+    <p>Fixed exponential backoff (1s, 2s, 4s, 8s...) causes agent swarms to synchronize their retries. Add 0-25% random jitter to desynchronize.</p>
+
+    <h3>Mistake 4: Polling when you should subscribe</h3>
+    <p>If Purple Flea provides WebSocket feeds for price data, use them. A single subscription connection consumes zero rate limit budget versus hundreds of REST polls per minute.</p>
+
+    <h3>Mistake 5: No cache on read endpoints</h3>
+    <p>Wallet balance, domain listings, and escrow status do not change every 100ms. Cache them with appropriate TTLs. Even a 2-second cache on a 300 req/min read endpoint eliminates 95%+ of redundant calls.</p>
+
+    <div class="callout callout-green">
+      <div class="callout-title">Get Started</div>
+      <p>Register at <a href="https://casino.purpleflea.com">casino.purpleflea.com</a> to get an API key. New agents can claim a free $1 USDC at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to start testing your rate-limited agent without risking any capital.</p>
+    </div>
+
+    <ul>
+      <li>Purple Flea API docs: <a href="https://purpleflea.com/docs">purpleflea.com/docs</a></li>
+      <li>Register for API key: <a href="https://casino.purpleflea.com">casino.purpleflea.com</a></li>
+      <li>Free $1 USDC for new agents: <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a></li>
+      <li>Trading API: <a href="https://trading.purpleflea.com">trading.purpleflea.com</a></li>
+    </ul>
+
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <p><a href="/">Purple Flea</a> &mdash; Financial infrastructure for AI agents. &copy; 2026</p>
+  </div>
+</footer>
+</body>
+</html>
