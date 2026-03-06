@@ -662,6 +662,111 @@ class SwapMonitor:
 
           <p>The Python examples above provide a starting framework. In production, extend with database logging of all swaps, per-token slippage history, gas price feeds, and circuit breakers that halt trading when market conditions deviate from norms.</p>
 
+          <h2 id="aggregator-risk">Aggregator Risk Management</h2>
+
+          <p>DEX aggregators introduce additional risk vectors that AI agents must account for:</p>
+
+          <h3 id="smart-contract-risk">Smart Contract Risk</h3>
+
+          <p>Aggregator contracts are complex—they interact with dozens of underlying protocols in a single transaction. Smart contract bugs in aggregator router logic have caused losses in the past. Mitigations for agents:</p>
+
+          <ul>
+            <li>Set a per-swap maximum size limit to bound smart contract risk exposure</li>
+            <li>Prefer aggregators that have undergone multiple security audits (1inch, ParaSwap, 0x all have extensive audit histories)</li>
+            <li>Use permit2 or ERC-20 allowance revocation between swaps to avoid unlimited approvals sitting on-chain</li>
+            <li>Monitor aggregator protocol security feeds and pause swapping if a vulnerability is disclosed</li>
+          </ul>
+
+          <h3 id="oracle-manipulation">Oracle Manipulation Risk</h3>
+
+          <p>Some aggregator routes pass through pools that use on-chain price oracles. If an attacker can manipulate the oracle (flash loan attack), they can make the aggregator route through a manipulated pool. For large swaps, verify the route's pool sources and avoid routing through low-liquidity or oracle-dependent pools for the final pricing step.</p>
+
+          <h3 id="api-dependency">API Dependency and Fallback</h3>
+
+          <p>Aggregator APIs can experience downtime. The Python agent above handles this via the <code>Optional[QuoteResult]</code> return—if an API fails, it returns <code>None</code> and the router falls back to remaining aggregators. For production agents, maintain a local fallback: a direct Uniswap V3 quote that does not depend on any aggregator API:</p>
+
+          <pre><code class="language-python">async def get_uniswap_v3_fallback_quote(
+    session: aiohttp.ClientSession,
+    src_token: str,
+    dst_token: str,
+    amount_wei: int,
+    rpc_url: str = "https://eth.llamarpc.com",
+) -> Optional[QuoteResult]:
+    """
+    Direct on-chain Uniswap V3 quote as aggregator fallback.
+    Uses eth_call to the QuoterV2 contract.
+    """
+    QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+    # ABI encode: quoteExactInputSingle(tokenIn, tokenOut, fee, amountIn, sqrtPriceLimitX96)
+    # For brevity, using a simplified direct approach
+    # In production, use web3.py or ethers.js with the full ABI
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{
+            "to": QUOTER_V2,
+            # Encoded call data would go here
+            "data": "0x..."  # Encode quoteExactInputSingle
+        }, "latest"],
+        "id": 1,
+    }
+    try:
+        async with session.post(rpc_url, json=payload) as resp:
+            data = await resp.json()
+            result_hex = data.get("result", "0x0")
+            dst_amount = int(result_hex, 16)
+            return QuoteResult(
+                aggregator="UniswapV3-Direct",
+                src_amount=amount_wei,
+                dst_amount=dst_amount,
+                gas_estimate=180_000,
+                net_dst_amount=float(dst_amount),
+                route_summary="UniswapV3 direct (0.05% pool)",
+            )
+    except Exception as e:
+        print(f"UniswapV3 fallback failed: {e}")
+        return None
+</code></pre>
+
+          <h2 id="multi-chain-aggregators">Multi-Chain Aggregator Landscape</h2>
+
+          <p>The aggregator landscape differs substantially by chain. Agents operating on non-Ethereum chains need chain-specific aggregator integrations:</p>
+
+          <table>
+            <thead>
+              <tr><th>Chain</th><th>Primary Aggregator</th><th>Secondary</th><th>API Style</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Ethereum</td><td>1inch</td><td>ParaSwap, 0x</td><td>REST API</td></tr>
+              <tr><td>BNB Chain</td><td>1inch (BNB)</td><td>PancakeSwap Router</td><td>REST API</td></tr>
+              <tr><td>Polygon/MATIC</td><td>1inch (137)</td><td>ParaSwap (137)</td><td>REST API</td></tr>
+              <tr><td>Arbitrum</td><td>1inch (42161)</td><td>Camelot Aggregator</td><td>REST API</td></tr>
+              <tr><td>Solana</td><td>Jupiter</td><td>Raydium</td><td>REST API</td></tr>
+              <tr><td>Base</td><td>1inch (8453)</td><td>BaseSwap</td><td>REST API</td></tr>
+            </tbody>
+          </table>
+
+          <p>For 1inch and ParaSwap, the API structure is identical across chains—only the chain ID parameter changes. This makes multi-chain integration straightforward: parameterize the chain ID and run the same quote comparison logic across all supported chains.</p>
+
+          <p>Jupiter is the dominant aggregator on Solana with a REST API at <code>https://quote-api.jup.ag/v6/quote</code>. For agents using the Purple Flea Wallet's Solana support, Jupiter routing is used automatically under the hood.</p>
+
+          <h2 id="performance-benchmarks">Performance Benchmarks for Agent Swap Loops</h2>
+
+          <p>An AI agent that executes many swaps per day needs to understand the performance characteristics of the aggregator query loop. Typical latencies for the full quote-and-execute cycle:</p>
+
+          <ul>
+            <li><strong>1inch API quote:</strong> 150-400ms average; spikes to 1-2s during high congestion</li>
+            <li><strong>ParaSwap API quote:</strong> 100-350ms average</li>
+            <li><strong>Parallel query (both APIs):</strong> max(1inch_latency, paraswap_latency) — typically 200-400ms total</li>
+            <li><strong>Transaction broadcast to mempool:</strong> 50-100ms</li>
+            <li><strong>Block confirmation (ETH L1):</strong> 12 seconds average, 24 seconds for 99th percentile</li>
+            <li><strong>Full cycle (quote + execute + confirm):</strong> ~15-30 seconds on ETH L1</li>
+          </ul>
+
+          <p>For agents that need sub-second swap execution (e.g., arbitrage bots), direct contract interaction is required—aggregator APIs add too much latency for time-critical strategies. For agents making strategic swaps (rebalancing, harvesting, position sizing), the aggregator latency is well within acceptable bounds.</p>
+
+          <p>Cache aggregator quotes for up to 30 seconds if re-using them for multiple decisions in the same cycle. Prices move slowly enough that a 30-second-old quote is usually still valid for non-time-critical swaps, saving API call overhead.</p>
+
         </div>
       </article>
     </main>
@@ -683,6 +788,9 @@ class SwapMonitor:
           <li><a href="#cross-chain-considerations">Cross-Chain Routing</a></li>
           <li><a href="#monitoring-and-alerts">Monitoring and Alerting</a></li>
           <li><a href="#gas-token-strategies">Gas Token Strategies</a></li>
+          <li><a href="#aggregator-risk">Aggregator Risk Management</a></li>
+          <li><a href="#multi-chain-aggregators">Multi-Chain Aggregators</a></li>
+          <li><a href="#performance-benchmarks">Performance Benchmarks</a></li>
           <li><a href="#summary">Summary</a></li>
         </ul>
       </div>

@@ -693,6 +693,165 @@ async def check_and_rebalance(pf_api_key: str, agent_id: str):
 
           <p>The Python code in this guide provides a working foundation. In production, extend with a persistent fee cache (refresh every 60 seconds), per-counterparty trust scoring, and circuit breakers that temporarily disable rails with recent failure history.</p>
 
+          <h2 id="payment-batching">Payment Batching and Aggregation</h2>
+
+          <p>Agents that process many small payments benefit from batching—grouping multiple payments into a single transaction to amortize fixed gas costs. Batching is most effective on Ethereum L1 and L2 networks where fixed gas overhead is significant relative to the transfer value.</p>
+
+          <p>Approaches to payment batching:</p>
+
+          <ul>
+            <li><strong>Multicall contracts:</strong> Use a contract like Gnosis Safe's MultiSend or Uniswap's Multicall to bundle up to 50+ transfers in a single transaction</li>
+            <li><strong>Off-chain netting:</strong> Before broadcasting, net all payments between the same pair of agents in the same direction (A owes B $10, B owes A $7 = net $3 from A to B)</li>
+            <li><strong>Time-windowed batching:</strong> Collect pending payments for 60 seconds, then broadcast as a batch</li>
+          </ul>
+
+          <pre><code class="language-python">from collections import defaultdict
+from typing import List, Tuple
+import asyncio
+
+@dataclass
+class PendingPayment:
+    from_agent: str
+    to_agent: str
+    amount_usd: float
+    currency: str
+    memo: str
+    created_at: float  # unix timestamp
+
+
+class PaymentBatcher:
+    def __init__(self, batch_window_sec: float = 60.0, max_batch_size: int = 50):
+        self.queue: List[PendingPayment] = []
+        self.batch_window = batch_window_sec
+        self.max_batch_size = max_batch_size
+        self._lock = asyncio.Lock()
+
+    async def add(self, payment: PendingPayment):
+        async with self._lock:
+            self.queue.append(payment)
+            if len(self.queue) >= self.max_batch_size:
+                await self._flush()
+
+    async def run(self):
+        """Periodically flush queued payments."""
+        while True:
+            await asyncio.sleep(self.batch_window)
+            async with self._lock:
+                if self.queue:
+                    await self._flush()
+
+    def _net_payments(self, payments: List[PendingPayment]) -> List[PendingPayment]:
+        """Net bilateral payments between agent pairs."""
+        net = defaultdict(float)
+        for p in payments:
+            key = (p.from_agent, p.to_agent, p.currency)
+            net[key] += p.amount_usd
+        # Reduce bidirectional netting
+        settled = {}
+        result = []
+        for (frm, to, currency), amount in net.items():
+            reverse = (to, frm, currency)
+            if reverse in settled:
+                offset = min(settled[reverse], amount)
+                settled[reverse] -= offset
+                amount -= offset
+                if settled[reverse] <= 0:
+                    del settled[reverse]
+            if amount > 0.01:  # minimum threshold
+                settled[(frm, to, currency)] = amount
+        for (frm, to, currency), amount in settled.items():
+            result.append(PendingPayment(
+                from_agent=frm, to_agent=to, amount_usd=amount,
+                currency=currency, memo="batched+netted", created_at=0
+            ))
+        return result
+
+    async def _flush(self):
+        """Process the current queue as a batch."""
+        if not self.queue:
+            return
+        to_process = self.queue.copy()
+        self.queue.clear()
+        netted = self._net_payments(to_process)
+        print(f"Flushing batch: {len(to_process)} payments -> {len(netted)} after netting")
+        # In production: submit netted payments via optimal rail
+        for p in netted:
+            print(f"  {p.from_agent} -> {p.to_agent}: ${p.amount_usd:.2f} {p.currency}")
+</code></pre>
+
+          <h2 id="compliance-and-limits">Compliance, Limits, and Circuit Breakers</h2>
+
+          <p>An autonomous payment router running without human oversight needs hard limits to prevent runaway behavior:</p>
+
+          <h3 id="per-transaction-limits">Per-Transaction Limits</h3>
+
+          <ul>
+            <li>Maximum single payment: define an upper bound (e.g., $10,000) above which human approval is required</li>
+            <li>Daily cumulative limit: cap total outbound payments per 24 hours</li>
+            <li>Per-counterparty limit: limit exposure to any single recipient agent</li>
+          </ul>
+
+          <h3 id="circuit-breakers">Circuit Breakers</h3>
+
+          <p>Circuit breakers pause automatic payment routing when anomalies are detected:</p>
+
+          <ul>
+            <li>Rapid succession of failed transactions (may indicate smart contract issue or insufficient funds)</li>
+            <li>Fee spike above a threshold (e.g., Ethereum gas &gt; 300 gwei pauses L1 payments)</li>
+            <li>Balance drops below minimum operating reserve</li>
+            <li>External API error rate exceeds 50% over a 5-minute window</li>
+          </ul>
+
+          <pre><code class="language-python">class PaymentCircuitBreaker:
+    def __init__(
+        self,
+        max_failure_rate: float = 0.3,
+        window_sec: float = 300.0,
+        cooldown_sec: float = 600.0,
+    ):
+        self.max_failure_rate = max_failure_rate
+        self.window = window_sec
+        self.cooldown = cooldown_sec
+        self.attempts: List[Tuple[float, bool]] = []  # (timestamp, success)
+        self.tripped_at: Optional[float] = None
+
+    def is_open(self) -> bool:
+        """Returns True if circuit is open (payments blocked)."""
+        import time
+        if self.tripped_at is None:
+            return False
+        if time.time() - self.tripped_at > self.cooldown:
+            self.tripped_at = None
+            return False
+        return True
+
+    def record(self, success: bool):
+        """Record a payment attempt outcome."""
+        import time
+        now = time.time()
+        self.attempts = [(t, s) for t, s in self.attempts if now - t < self.window]
+        self.attempts.append((now, success))
+        if len(self.attempts) >= 5:
+            failures = sum(1 for _, s in self.attempts if not s)
+            rate = failures / len(self.attempts)
+            if rate > self.max_failure_rate:
+                self.tripped_at = now
+                print(f"CIRCUIT BREAKER TRIPPED: {rate:.0%} failure rate over last {self.window}s")
+</code></pre>
+
+          <h2 id="treasury-management">Agent Treasury Management</h2>
+
+          <p>Payment routing is only as reliable as the agent's treasury—the aggregate of balances across all supported rails. Poor treasury management leads to frequent fallbacks and missed payments. Core principles:</p>
+
+          <ul>
+            <li><strong>Diversify holdings:</strong> Maintain stablecoin reserves (USDC, USDT) alongside native chain tokens. Stablecoins eliminate price risk on reserved operating capital.</li>
+            <li><strong>Reserve ratio:</strong> Keep at least 30 days of expected outflows in liquid reserves at all times</li>
+            <li><strong>Yield on reserves:</strong> Idle stablecoin reserves can earn yield via Purple Flea's DeFi integrations or simple lending protocols while remaining accessible for payments</li>
+            <li><strong>Rebalance triggers:</strong> Automate rebalancing when any chain's balance drops below 2x the expected daily outflow for that chain</li>
+          </ul>
+
+          <p>The combination of optimal rail selection, fee monitoring, fallback logic, batching, and circuit breakers produces a payment routing system that an AI agent can rely on for autonomous operation across multiple chains and counterparties without manual intervention.</p>
+
         </div>
       </article>
     </main>
@@ -711,6 +870,9 @@ async def check_and_rebalance(pf_api_key: str, agent_id: str):
           <li><a href="#multichain-balance-management">Multi-Chain Balances</a></li>
           <li><a href="#streaming-payments">Streaming Payments</a></li>
           <li><a href="#routing-metrics">Routing Metrics</a></li>
+          <li><a href="#payment-batching">Payment Batching</a></li>
+          <li><a href="#compliance-and-limits">Compliance and Limits</a></li>
+          <li><a href="#treasury-management">Treasury Management</a></li>
           <li><a href="#summary">Summary</a></li>
         </ul>
       </div>
