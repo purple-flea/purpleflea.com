@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pair Trading for AI Agents: Statistical Arbitrage Between Correlated Assets | Purple Flea</title>
+  <meta name="description" content="How AI agents can implement pair trading and statistical arbitrage — cointegration testing, pairs selection, z-score entry/exit rules, and how the Purple Flea Trading API handles the hedge leg." />
+  <meta property="og:title" content="Pair Trading for AI Agents: Statistical Arbitrage Between Correlated Assets" />
+  <meta property="og:description" content="How AI agents can implement pair trading and statistical arbitrage — cointegration testing, pairs selection, z-score entry/exit rules, and how the Purple Flea Trading API handles the hedge leg." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-pair-trading/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-pair-trading/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Pair Trading for AI Agents: Statistical Arbitrage Between Correlated Assets",
+    "description": "How AI agents can implement pair trading and statistical arbitrage — cointegration testing, pairs selection, z-score entry/exit rules, and how the Purple Flea Trading API handles the hedge leg.",
+    "url": "https://purpleflea.com/blog/agent-pair-trading/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["pair trading", "statistical arbitrage", "cointegration", "AI agents", "Purple Flea Trading", "z-score", "hedge ratio"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .post-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .content pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .content code:not(pre code) {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      background: #18181B;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(168,85,247,0.07);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+    .tok-decorator { color: #F9A8D4; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">&#x1F7E3; Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/for-agents">For Agents</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">&larr; Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">Strategy</span>
+        <span class="tag blue">Research</span>
+      </div>
+
+      <h1>Pair Trading for AI Agents: Statistical Arbitrage Between Correlated Assets</h1>
+
+      <div class="post-meta">
+        <span>&#x1F4C5; March 6, 2026</span>
+        <span>&#x23F1; 16 min read</span>
+        <span>&#x270D;&#xFE0F; Purple Flea Research</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>Pair trading is one of the oldest quantitative strategies in finance — long one asset, short a correlated partner, profit when the spread mean-reverts. For AI agents it is uniquely attractive: the position is market-neutral in theory, generates income independent of broad market direction, and the signal logic is fully automatable with no subjective judgment required. This guide covers everything from cointegration theory to live execution on <a href="/trading">Purple Flea Trading</a>.</p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">275+</div>
+            <div class="stat-label">Perpetual markets to pair</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">&lt;1s</div>
+            <div class="stat-label">Execution latency target</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">20%</div>
+            <div class="stat-label">Trading API referral</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">100x</div>
+            <div class="stat-label">Max leverage on each leg</div>
+          </div>
+        </div>
+
+        <h2 id="what-is-pair-trading">What Is Pair Trading?</h2>
+
+        <p>A pair trade exploits the historical tendency of two correlated assets to revert to a stable price relationship. When Asset A rises relative to Asset B beyond what history predicts, you sell A and buy B expecting convergence. When they converge, both positions are closed for profit.</p>
+
+        <p>The key statistical concept is <strong>cointegration</strong> — a stronger relationship than simple correlation. Two series are cointegrated if a linear combination of them is stationary (mean-reverting), even though each series individually is a random walk. Correlation only measures how assets move together; cointegration confirms a long-run equilibrium that prices are pulled back toward.</p>
+
+        <div class="callout">
+          <div class="callout-title">Correlation vs. Cointegration</div>
+          <p>BTC and ETH are highly correlated (both trend up in bull markets) but may not be cointegrated — their ratio can drift indefinitely. SOL and AVAX, or two exchange-listed tokens tracking the same narrative, may be cointegrated — their spread is stationary and reverts predictably. Always test for cointegration, not just correlation.</p>
+        </div>
+
+        <h2 id="cointegration-testing">Cointegration Testing in Python</h2>
+
+        <p>The Engle-Granger test is the standard method for detecting cointegration between two price series. It runs an OLS regression of one series on the other, then tests whether the residuals are stationary using the Augmented Dickey-Fuller test. A p-value below 0.05 indicates cointegration at 95% confidence.</p>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+<span class="tok-keyword">import</span> pandas <span class="tok-keyword">as</span> pd
+<span class="tok-keyword">from</span> statsmodels.tsa.stattools <span class="tok-keyword">import</span> coint, adfuller
+<span class="tok-keyword">from</span> statsmodels.regression.linear_model <span class="tok-keyword">import</span> OLS
+<span class="tok-keyword">import</span> requests
+
+<span class="tok-keyword">def</span> <span class="tok-func">fetch_ohlcv</span>(market: str, limit: int = <span class="tok-number">500</span>) -> pd.Series:
+    <span class="tok-string">"""Fetch closing prices from Purple Flea Trading API."""</span>
+    resp = requests.get(
+        <span class="tok-string">f"https://api.purpleflea.com/trading/candles"</span>,
+        params={<span class="tok-string">"market"</span>: market, <span class="tok-string">"interval"</span>: <span class="tok-string">"1h"</span>, <span class="tok-string">"limit"</span>: limit},
+        headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {API_KEY}"</span>}
+    )
+    data = resp.json()[<span class="tok-string">"candles"</span>]
+    closes = [c[<span class="tok-string">"close"</span>] <span class="tok-keyword">for</span> c <span class="tok-keyword">in</span> data]
+    <span class="tok-keyword">return</span> pd.Series(closes, name=market)
+
+<span class="tok-keyword">def</span> <span class="tok-func">test_cointegration</span>(series_a: pd.Series, series_b: pd.Series) -> dict:
+    <span class="tok-string">"""
+    Run Engle-Granger cointegration test on two price series.
+    Returns p_value, hedge_ratio, and whether cointegrated at 95%.
+    """</span>
+    <span class="tok-comment"># Engle-Granger test (checks both directions, takes min p-value)</span>
+    score, p_val, crit_vals = coint(series_a, series_b)
+
+    <span class="tok-comment"># OLS regression to find hedge ratio: A = beta * B + alpha</span>
+    X = np.column_stack([series_b.values, np.ones(len(series_b))])
+    model = OLS(series_a.values, X).fit()
+    hedge_ratio = model.params[<span class="tok-number">0</span>]
+    alpha = model.params[<span class="tok-number">1</span>]
+
+    <span class="tok-comment"># Compute residuals (the "spread" we will trade)</span>
+    spread = series_a.values - hedge_ratio * series_b.values - alpha
+
+    <span class="tok-comment"># Confirm spread stationarity with ADF</span>
+    adf_result = adfuller(spread, autolag=<span class="tok-string">'AIC'</span>)
+    spread_p_val = adf_result[<span class="tok-number">1</span>]
+
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"p_value"</span>: p_val,
+        <span class="tok-string">"spread_adf_p"</span>: spread_p_val,
+        <span class="tok-string">"hedge_ratio"</span>: hedge_ratio,
+        <span class="tok-string">"alpha"</span>: alpha,
+        <span class="tok-string">"cointegrated"</span>: p_val &lt; <span class="tok-number">0.05</span> <span class="tok-keyword">and</span> spread_p_val &lt; <span class="tok-number">0.05</span>,
+        <span class="tok-string">"spread_mean"</span>: spread.mean(),
+        <span class="tok-string">"spread_std"</span>: spread.std(),
+    }
+
+<span class="tok-comment"># Example: test SOL-PERP vs AVAX-PERP</span>
+sol = fetch_ohlcv(<span class="tok-string">"SOL-PERP"</span>)
+avax = fetch_ohlcv(<span class="tok-string">"AVAX-PERP"</span>)
+result = test_cointegration(sol, avax)
+
+print(f<span class="tok-string">"Cointegrated: {result['cointegrated']}"</span>)
+print(f<span class="tok-string">"Engle-Granger p-value: {result['p_value']:.4f}"</span>)
+print(f<span class="tok-string">"Hedge ratio (beta): {result['hedge_ratio']:.4f}"</span>)
+print(f<span class="tok-string">"Spread mean: {result['spread_mean']:.4f}, std: {result['spread_std']:.4f}"</span>)</code></pre>
+
+        <h2 id="pairs-selection">Pairs Selection: Scanning the Universe</h2>
+
+        <p>With 275+ perpetual markets on Purple Flea Trading, there are thousands of candidate pairs. Automated scanning lets your agent test all combinations and rank them by cointegration strength.</p>
+
+        <h3>Universe Filtering</h3>
+
+        <p>Before running statistical tests, narrow the universe by domain knowledge. Good pairs share:</p>
+
+        <ul>
+          <li><strong>Same sector</strong> — Layer-1s (SOL, AVAX, NEAR, APT), DeFi tokens, AI tokens, gaming tokens</li>
+          <li><strong>Similar market cap</strong> — large-cap pairs are more liquid with tighter bid-ask spreads</li>
+          <li><strong>High correlation</strong> as a prerequisite screen (Pearson r &gt; 0.85 over 90 days)</li>
+          <li><strong>Both listed on Purple Flea Trading</strong> for simultaneous execution without exchange risk</li>
+        </ul>
+
+        <pre><code><span class="tok-keyword">import</span> itertools
+
+<span class="tok-keyword">def</span> <span class="tok-func">scan_pairs</span>(
+    markets: list[str],
+    lookback_hours: int = <span class="tok-number">500</span>,
+    corr_threshold: float = <span class="tok-number">0.85</span>,
+    coint_pval: float = <span class="tok-number">0.05</span>,
+) -> list[dict]:
+    <span class="tok-string">"""
+    Scan all pairs in a list of markets.
+    Returns pairs ranked by cointegration p-value (best first).
+    """</span>
+    <span class="tok-comment"># Fetch all price series</span>
+    prices = {}
+    <span class="tok-keyword">for</span> market <span class="tok-keyword">in</span> markets:
+        prices[market] = fetch_ohlcv(market, limit=lookback_hours)
+
+    price_df = pd.DataFrame(prices).dropna()
+    candidates = []
+
+    <span class="tok-keyword">for</span> a, b <span class="tok-keyword">in</span> itertools.combinations(markets, <span class="tok-number">2</span>):
+        <span class="tok-comment"># Pre-screen with correlation</span>
+        corr = price_df[a].corr(price_df[b])
+        <span class="tok-keyword">if</span> abs(corr) &lt; corr_threshold:
+            <span class="tok-keyword">continue</span>
+
+        <span class="tok-comment"># Run cointegration test</span>
+        result = test_cointegration(price_df[a], price_df[b])
+        <span class="tok-keyword">if</span> result[<span class="tok-string">"cointegrated"</span>]:
+            candidates.append({
+                <span class="tok-string">"pair"</span>: (a, b),
+                <span class="tok-string">"correlation"</span>: corr,
+                <span class="tok-string">"p_value"</span>: result[<span class="tok-string">"p_value"</span>],
+                <span class="tok-string">"hedge_ratio"</span>: result[<span class="tok-string">"hedge_ratio"</span>],
+                <span class="tok-string">"spread_std"</span>: result[<span class="tok-string">"spread_std"</span>],
+                <span class="tok-string">"alpha"</span>: result[<span class="tok-string">"alpha"</span>],
+            })
+
+    <span class="tok-comment"># Sort by strongest cointegration (lowest p-value)</span>
+    candidates.sort(key=<span class="tok-keyword">lambda</span> x: x[<span class="tok-string">"p_value"</span>])
+    <span class="tok-keyword">return</span> candidates
+
+<span class="tok-comment"># Layer-1 universe scan</span>
+L1_MARKETS = [<span class="tok-string">"SOL-PERP"</span>, <span class="tok-string">"AVAX-PERP"</span>, <span class="tok-string">"NEAR-PERP"</span>, <span class="tok-string">"APT-PERP"</span>, <span class="tok-string">"SUI-PERP"</span>, <span class="tok-string">"TIA-PERP"</span>]
+good_pairs = scan_pairs(L1_MARKETS)
+<span class="tok-keyword">for</span> p <span class="tok-keyword">in</span> good_pairs[:5]:
+    print(f<span class="tok-string">"{p['pair']} | p={p['p_value']:.4f} | beta={p['hedge_ratio']:.3f}"</span>)</code></pre>
+
+        <div class="callout blue">
+          <div class="callout-title">Re-Test Cointegration Frequently</div>
+          <p>Cointegration is not permanent. Market structure changes, new competitors emerge, correlations break down. Re-run your pairs scan at least weekly. If a pair's ADF p-value rises above 0.10, stop trading it immediately and cut the position — the mean-reversion anchor may be gone.</p>
+        </div>
+
+        <h2 id="zscore-signals">Z-Score Entry and Exit Rules</h2>
+
+        <p>Once you have a confirmed cointegrated pair and its hedge ratio, compute the live <strong>spread</strong> and normalize it to a z-score relative to the recent rolling mean and standard deviation. The z-score tells you how many standard deviations the spread is away from its historical mean — this is your trading signal.</p>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+
+<span class="tok-keyword">class</span> <span class="tok-class">PairSignalEngine</span>:
+    <span class="tok-string">"""
+    Computes live z-score for a cointegrated pair and generates
+    entry / exit signals.
+    """</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(
+        self,
+        hedge_ratio: float,
+        alpha: float,
+        lookback: int = <span class="tok-number">60</span>,     <span class="tok-comment"># rolling window in candles</span>
+        entry_z: float = <span class="tok-number">2.0</span>,   <span class="tok-comment"># enter when |z| > 2</span>
+        exit_z: float = <span class="tok-number">0.5</span>,    <span class="tok-comment"># exit when |z| < 0.5</span>
+        stop_z: float = <span class="tok-number">3.5</span>,    <span class="tok-comment"># stop-loss when |z| > 3.5</span>
+    ):
+        self.hedge_ratio = hedge_ratio
+        self.alpha = alpha
+        self.lookback = lookback
+        self.entry_z = entry_z
+        self.exit_z = exit_z
+        self.stop_z = stop_z
+        self.spread_history: list[float] = []
+
+    <span class="tok-keyword">def</span> <span class="tok-func">update</span>(self, price_a: float, price_b: float) -> dict:
+        <span class="tok-string">"""Feed in the latest prices and get a signal back."""</span>
+        spread = price_a - self.hedge_ratio * price_b - self.alpha
+        self.spread_history.append(spread)
+
+        <span class="tok-comment"># Keep only the rolling window</span>
+        <span class="tok-keyword">if</span> len(self.spread_history) &gt; self.lookback:
+            self.spread_history.pop(<span class="tok-number">0</span>)
+
+        <span class="tok-keyword">if</span> len(self.spread_history) &lt; self.lookback:
+            <span class="tok-keyword">return</span> {<span class="tok-string">"signal"</span>: <span class="tok-string">"WAIT"</span>, <span class="tok-string">"z_score"</span>: <span class="tok-number">0.0</span>}
+
+        arr = np.array(self.spread_history)
+        mean = arr.mean()
+        std = arr.std()
+
+        <span class="tok-keyword">if</span> std &lt; <span class="tok-number">1e-10</span>:
+            <span class="tok-keyword">return</span> {<span class="tok-string">"signal"</span>: <span class="tok-string">"WAIT"</span>, <span class="tok-string">"z_score"</span>: <span class="tok-number">0.0</span>}
+
+        z = (spread - mean) / std
+
+        signal = <span class="tok-string">"HOLD"</span>
+        <span class="tok-keyword">if</span> z &gt; self.stop_z <span class="tok-keyword">or</span> z &lt; -self.stop_z:
+            signal = <span class="tok-string">"STOP_LOSS"</span>
+        <span class="tok-keyword">elif</span> z &gt; self.entry_z:
+            signal = <span class="tok-string">"ENTER_SHORT_A_LONG_B"</span>   <span class="tok-comment"># A overpriced relative to B</span>
+        <span class="tok-keyword">elif</span> z &lt; -self.entry_z:
+            signal = <span class="tok-string">"ENTER_LONG_A_SHORT_B"</span>   <span class="tok-comment"># A underpriced relative to B</span>
+        <span class="tok-keyword">elif</span> -self.exit_z &lt; z &lt; self.exit_z:
+            signal = <span class="tok-string">"EXIT"</span>                  <span class="tok-comment"># Spread has mean-reverted</span>
+
+        <span class="tok-keyword">return</span> {
+            <span class="tok-string">"signal"</span>: signal,
+            <span class="tok-string">"z_score"</span>: z,
+            <span class="tok-string">"spread"</span>: spread,
+            <span class="tok-string">"spread_mean"</span>: mean,
+            <span class="tok-string">"spread_std"</span>: std,
+        }</code></pre>
+
+        <h3>Choosing Z-Score Thresholds</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Threshold</th>
+                <th>Entry Z</th>
+                <th>Exit Z</th>
+                <th>Stop Z</th>
+                <th>Character</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Aggressive</td>
+                <td>1.5</td>
+                <td>0.25</td>
+                <td>3.0</td>
+                <td>More trades, lower per-trade PnL</td>
+              </tr>
+              <tr>
+                <td>Standard</td>
+                <td>2.0</td>
+                <td>0.5</td>
+                <td>3.5</td>
+                <td>Balanced frequency and edge</td>
+              </tr>
+              <tr>
+                <td>Conservative</td>
+                <td>2.5</td>
+                <td>0.75</td>
+                <td>4.0</td>
+                <td>Fewer trades, wider expected PnL per trade</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="sizing-the-hedge">Sizing the Hedge Leg</h2>
+
+        <p>The hedge ratio determines how many units of Asset B to trade per unit of Asset A. On a perpetuals exchange where positions are denominated in USDC, you need to translate the statistical beta into notional dollar amounts.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">compute_position_sizes</span>(
+    total_capital_usdc: float,
+    hedge_ratio: float,
+    price_a: float,
+    price_b: float,
+    leverage: float = <span class="tok-number">3.0</span>,
+) -> dict:
+    <span class="tok-string">"""
+    Compute the dollar sizes for each leg of the pair trade.
+
+    The goal is for the dollar value of leg B to be `hedge_ratio`
+    times the dollar value of leg A so that a 1% move in B is offset
+    by a hedge_ratio% move in A.
+    """</span>
+    <span class="tok-comment"># Allocate capital: split so that notional values are beta-weighted</span>
+    <span class="tok-comment"># Let x = notional A. Then notional B = hedge_ratio * x (in price-B units)</span>
+    <span class="tok-comment"># Total margin = (notional_A + notional_B) / leverage</span>
+
+    notional_a = total_capital_usdc * leverage / (<span class="tok-number">1</span> + hedge_ratio)
+    notional_b = notional_a * hedge_ratio
+
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"size_a_usdc"</span>: round(notional_a, <span class="tok-number">2</span>),
+        <span class="tok-string">"size_b_usdc"</span>: round(notional_b, <span class="tok-number">2</span>),
+        <span class="tok-string">"margin_required"</span>: round((notional_a + notional_b) / leverage, <span class="tok-number">2</span>),
+    }
+
+<span class="tok-comment"># Example: $500 capital, 3x leverage, beta = 0.72</span>
+sizes = compute_position_sizes(
+    total_capital_usdc=<span class="tok-number">500</span>,
+    hedge_ratio=<span class="tok-number">0.72</span>,
+    price_a=<span class="tok-number">145.0</span>,   <span class="tok-comment"># SOL price</span>
+    price_b=<span class="tok-number">35.0</span>,    <span class="tok-comment"># AVAX price</span>
+    leverage=<span class="tok-number">3.0</span>,
+)
+print(sizes)
+<span class="tok-comment"># {'size_a_usdc': 872.09, 'size_b_usdc': 627.91, 'margin_required': 500.0}</span></code></pre>
+
+        <h2 id="execution-purple-flea">Executing Both Legs on Purple Flea Trading</h2>
+
+        <p>The hardest part of pair trading is executing both legs simultaneously. Legged-in entries — where you place one leg and then the other a second later — expose you to execution risk if the market moves between the two fills. The Purple Flea Trading API lets you submit both orders in rapid succession and tag them with a correlation ID for audit tracking.</p>
+
+        <pre><code><span class="tok-keyword">import</span> asyncio
+<span class="tok-keyword">import</span> aiohttp
+<span class="tok-keyword">import</span> time
+
+API_BASE = <span class="tok-string">"https://api.purpleflea.com/trading"</span>
+
+<span class="tok-keyword">async def</span> <span class="tok-func">open_pair_trade</span>(
+    session: aiohttp.ClientSession,
+    api_key: str,
+    signal: str,
+    market_a: str,
+    market_b: str,
+    size_a_usdc: float,
+    size_b_usdc: float,
+    corr_id: str,
+) -> tuple[dict, dict]:
+    <span class="tok-string">"""
+    Open both legs of a pair trade concurrently.
+    signal: 'ENTER_SHORT_A_LONG_B' or 'ENTER_LONG_A_SHORT_B'
+    """</span>
+    headers = {<span class="tok-string">"Authorization"</span>: f<span class="tok-string">"Bearer {api_key}"</span>, <span class="tok-string">"Content-Type"</span>: <span class="tok-string">"application/json"</span>}
+
+    <span class="tok-keyword">if</span> signal == <span class="tok-string">"ENTER_SHORT_A_LONG_B"</span>:
+        side_a, side_b = <span class="tok-string">"short"</span>, <span class="tok-string">"long"</span>
+    <span class="tok-keyword">else</span>:
+        side_a, side_b = <span class="tok-string">"long"</span>, <span class="tok-string">"short"</span>
+
+    order_a = {
+        <span class="tok-string">"market"</span>: market_a,
+        <span class="tok-string">"side"</span>: side_a,
+        <span class="tok-string">"size_usdc"</span>: size_a_usdc,
+        <span class="tok-string">"order_type"</span>: <span class="tok-string">"market"</span>,
+        <span class="tok-string">"client_id"</span>: f<span class="tok-string">"{corr_id}_leg_a"</span>,
+    }
+    order_b = {
+        <span class="tok-string">"market"</span>: market_b,
+        <span class="tok-string">"side"</span>: side_b,
+        <span class="tok-string">"size_usdc"</span>: size_b_usdc,
+        <span class="tok-string">"order_type"</span>: <span class="tok-string">"market"</span>,
+        <span class="tok-string">"client_id"</span>: f<span class="tok-string">"{corr_id}_leg_b"</span>,
+    }
+
+    <span class="tok-comment"># Submit both legs concurrently to minimize leg risk</span>
+    result_a, result_b = <span class="tok-keyword">await</span> asyncio.gather(
+        session.post(f<span class="tok-string">"{API_BASE}/orders"</span>, json=order_a, headers=headers),
+        session.post(f<span class="tok-string">"{API_BASE}/orders"</span>, json=order_b, headers=headers),
+    )
+
+    fill_a = <span class="tok-keyword">await</span> result_a.json()
+    fill_b = <span class="tok-keyword">await</span> result_b.json()
+
+    <span class="tok-keyword">return</span> fill_a, fill_b
+
+<span class="tok-keyword">async def</span> <span class="tok-func">main</span>():
+    engine = PairSignalEngine(hedge_ratio=<span class="tok-number">0.72</span>, alpha=<span class="tok-number">5.3</span>)
+    sizes = compute_position_sizes(<span class="tok-number">500</span>, <span class="tok-number">0.72</span>, <span class="tok-number">145.0</span>, <span class="tok-number">35.0</span>, leverage=<span class="tok-number">3</span>)
+
+    <span class="tok-keyword">async with</span> aiohttp.ClientSession() <span class="tok-keyword">as</span> session:
+        <span class="tok-keyword">while</span> <span class="tok-keyword">True</span>:
+            <span class="tok-comment"># Fetch current prices</span>
+            sol_price = <span class="tok-keyword">await</span> get_last_price(session, <span class="tok-string">"SOL-PERP"</span>)
+            avax_price = <span class="tok-keyword">await</span> get_last_price(session, <span class="tok-string">"AVAX-PERP"</span>)
+
+            result = engine.update(sol_price, avax_price)
+            print(f<span class="tok-string">"Z={result['z_score']:.2f} Signal={result['signal']}"</span>)
+
+            <span class="tok-keyword">if</span> result[<span class="tok-string">"signal"</span>].startswith(<span class="tok-string">"ENTER"</span>):
+                corr_id = f<span class="tok-string">"pair_{int(time.time())}"</span>
+                fill_a, fill_b = <span class="tok-keyword">await</span> open_pair_trade(
+                    session, API_KEY, result[<span class="tok-string">"signal"</span>],
+                    <span class="tok-string">"SOL-PERP"</span>, <span class="tok-string">"AVAX-PERP"</span>,
+                    sizes[<span class="tok-string">"size_a_usdc"</span>], sizes[<span class="tok-string">"size_b_usdc"</span>], corr_id
+                )
+                print(f<span class="tok-string">"Opened pair: A={fill_a}, B={fill_b}"</span>)
+
+            <span class="tok-keyword">await</span> asyncio.sleep(<span class="tok-number">60</span>)  <span class="tok-comment"># check every minute</span>
+
+asyncio.run(main())</code></pre>
+
+        <div class="callout red">
+          <div class="callout-title">Leg Risk: The Biggest Pair Trading Failure Mode</div>
+          <p>If your Leg A fill succeeds but Leg B fails (e.g. insufficient margin, market halt, API timeout), you now hold a naked directional position — the opposite of what pair trading is designed to give you. Always check both fill confirmations and have an automatic rollback routine: if Leg B fails within 2 seconds, market-close Leg A immediately.</p>
+        </div>
+
+        <h2 id="risk-management">Risk Management and Position Limits</h2>
+
+        <p>Even with cointegrated pairs, spread divergence can persist far longer than expected. The historical 3.5-sigma stop provides a safety net, but you also need position-level and portfolio-level limits to prevent catastrophic losses on a regime change.</p>
+
+        <h3>Recommended Risk Controls</h3>
+
+        <ul>
+          <li><strong>Max pairs open simultaneously:</strong> 3-5 pairs; more concentrates correlation risk during market stress when all pair spreads widen at once</li>
+          <li><strong>Max per-pair margin:</strong> 15-20% of total capital; diversification is your primary edge</li>
+          <li><strong>Hard stop after N losing trades:</strong> if 3 consecutive pair trades hit stop-loss, pause for 24 hours and re-test cointegration before resuming</li>
+          <li><strong>Overnight hold limit:</strong> review open positions before major scheduled events (Fed meetings, token unlocks, protocol upgrades) that can break correlations temporarily</li>
+          <li><strong>Spread half-life monitoring:</strong> fit an Ornstein-Uhlenbeck process to measure how quickly the spread mean-reverts; if half-life exceeds 48 hours, the pair is no longer suitable for short-term trading</li>
+        </ul>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+
+<span class="tok-keyword">def</span> <span class="tok-func">estimate_half_life</span>(spread: np.ndarray) -> float:
+    <span class="tok-string">"""
+    Fit an AR(1) process to estimate the spread's half-life in periods.
+    Half-life = -log(2) / log(phi) where phi is the AR(1) coefficient.
+    If half_life > 48 (hours), avoid this pair.
+    """</span>
+    y = spread[<span class="tok-number">1</span>:]
+    x = spread[:<span class="tok-number">-1</span>]
+    phi = np.polyfit(x, y, <span class="tok-number">1</span>)[<span class="tok-number">0</span>]   <span class="tok-comment"># AR(1) coefficient</span>
+
+    <span class="tok-keyword">if</span> phi &gt;= <span class="tok-number">1</span> <span class="tok-keyword">or</span> phi &lt;= <span class="tok-number">0</span>:
+        <span class="tok-keyword">return</span> float(<span class="tok-string">"inf"</span>)   <span class="tok-comment"># non-stationary or negative mean-reversion</span>
+
+    half_life = -np.log(<span class="tok-number">2</span>) / np.log(phi)
+    <span class="tok-keyword">return</span> half_life
+
+<span class="tok-comment"># Example check before trading</span>
+spread_data = np.array(engine.spread_history)
+hl = estimate_half_life(spread_data)
+print(f<span class="tok-string">"Estimated half-life: {hl:.1f} candles"</span>)
+<span class="tok-keyword">if</span> hl &gt; <span class="tok-number">48</span>:
+    print(<span class="tok-string">"Half-life too long — skip this pair today"</span>)
+<span class="tok-keyword">else</span>:
+    print(f<span class="tok-string">"Good to trade — spread reverts in ~{hl:.0f} hours"</span>)</code></pre>
+
+        <h2 id="referral-income">Pair Trading at Scale: Referral Income on Purple Flea</h2>
+
+        <p>A pair trading agent executing on Purple Flea Trading benefits from the <strong>20% referral fee</strong> on the trading volume of any agents it refers. An agent that both runs its own pair strategies and deploys the same code for a fleet of sub-agents can compound income across two channels: spread PnL from its own book, and referral revenue from every trade placed by agents it has registered under its referral link.</p>
+
+        <div class="callout green">
+          <div class="callout-title">Building a Pair Trading Agent Fleet</div>
+          <p>Register your agent at <a href="https://wallet.purpleflea.com">wallet.purpleflea.com</a> to get your referral link. Deploy sub-agents using that link. Every pair trade those sub-agents execute generates 20% of Purple Flea's trading fee back to you — passive income layered on top of strategy returns.</p>
+        </div>
+
+        <div class="cta-box">
+          <h3>Start Pair Trading on Purple Flea</h3>
+          <p>Register your agent, fund your wallet, and start scanning for cointegrated pairs across 275+ perpetual markets — all via API, no KYC required.</p>
+          <a href="https://purpleflea.com" class="btn">Register your agent &rarr;</a>
+          <a href="/trading" class="btn btn-outline">Trading API docs</a>
+        </div>
+
+      </div>
+    </article>
+
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>Table of Contents</h4>
+        <ol>
+          <li><a href="#what-is-pair-trading">What Is Pair Trading?</a></li>
+          <li><a href="#cointegration-testing">Cointegration Testing</a></li>
+          <li><a href="#pairs-selection">Pairs Selection Scan</a></li>
+          <li><a href="#zscore-signals">Z-Score Entry &amp; Exit</a></li>
+          <li><a href="#sizing-the-hedge">Sizing the Hedge Leg</a></li>
+          <li><a href="#execution-purple-flea">Execution on Purple Flea</a></li>
+          <li><a href="#risk-management">Risk Management</a></li>
+          <li><a href="#referral-income">Referral Income at Scale</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea. Blue-chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/trading">Trading API</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="https://wallet.purpleflea.com">Register</a>
+    </div>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+      bar.style.width = pct + '%';
+    });
+
+    const tocLinks = document.querySelectorAll('.toc-box a');
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-box a[href="#${e.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => obs.observe(h));
+  </script>
+</body>
+</html>
