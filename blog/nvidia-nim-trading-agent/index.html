@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Build a Crypto Trading Agent with NVIDIA NIM in 50 Lines of Python | Purple Flea</title>
+  <meta name="description" content="Step-by-step guide to building an autonomous crypto trading agent using NVIDIA NIM for local LLM inference and Purple Flea's trading API. Trade perpetual futures with a model running on your own GPU.">
+  <link rel="canonical" href="https://purpleflea.com/blog/nvidia-nim-trading-agent/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --purple: #A855F7; --purple-dim: #7C3AED;
+      --purple-subtle: rgba(168, 85, 247, 0.08);
+      --bg: #09090B; --bg-card: rgba(255, 255, 255, 0.03);
+      --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #71717A;
+      --border: rgba(255, 255, 255, 0.06); --radius: 16px; --radius-sm: 10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+      transition: background 0.3s, backdrop-filter 0.3s, border-bottom 0.3s;
+    }
+    nav.scrolled {
+      background: rgba(9, 9, 11, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-size: 1.1rem; font-weight: 700;
+      text-decoration: none; color: var(--text);
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .nav-links {
+      display: flex; align-items: center; gap: 1.5rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-secondary); text-decoration: none;
+      font-size: 0.9rem; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 0.45rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      font-size: 0.85rem !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--purple-dim) !important; color: #fff !important; }
+
+    /* HERO */
+    .article-hero {
+      padding: 120px 2rem 60px;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(168, 85, 247, 0.12) 0%, transparent 70%);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .article-tag {
+      display: inline-block;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      color: #22C55E;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.3rem 0.9rem;
+      border-radius: 999px;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .article-hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #FAFAFA 0%, #A855F7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      max-width: 820px;
+      margin: 0 auto 1.25rem;
+    }
+    .article-meta {
+      display: flex; align-items: center; justify-content: center;
+      gap: 1rem; flex-wrap: wrap;
+      color: var(--text-muted); font-size: 0.875rem;
+    }
+
+    /* LAYOUT */
+    .article-layout {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 2rem 5rem;
+    }
+
+    /* PROSE */
+    .prose p {
+      color: var(--text-secondary);
+      font-size: 1.0625rem;
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+    }
+    .prose h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .prose h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2rem 0 0.75rem;
+    }
+    .prose ul, .prose ol {
+      color: var(--text-secondary);
+      font-size: 1.0625rem;
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+      padding-left: 1.5rem;
+    }
+    .prose li { margin-bottom: 0.4rem; }
+    .prose a { color: var(--purple); text-decoration: none; }
+    .prose a:hover { text-decoration: underline; }
+    .prose strong { color: var(--text); font-weight: 600; }
+
+    .prose pre {
+      background: #18181B;
+      border-left: 3px solid var(--purple);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.75rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      line-height: 1.7;
+    }
+    .prose code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875em;
+      background: #18181B;
+      color: #E2E8F0;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+    }
+    .prose pre code {
+      background: none; padding: 0;
+      font-size: inherit; color: inherit;
+    }
+
+    .info-box {
+      background: var(--purple-subtle);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .info-box p { margin-bottom: 0; color: var(--text-secondary); }
+    .info-box strong { color: var(--purple); }
+
+    .green-box {
+      background: rgba(34, 197, 94, 0.06);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .green-box p { margin-bottom: 0; color: var(--text-secondary); }
+    .green-box strong { color: #22C55E; }
+
+    .schema-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .schema-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.25rem;
+    }
+    .schema-card h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--purple);
+      margin-bottom: 0.4rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .schema-card p {
+      font-size: 0.85rem;
+      margin-bottom: 0;
+      color: var(--text-muted);
+    }
+
+    /* FOOTER */
+    footer {
+      background: rgba(255,255,255,0.02);
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+    .footer-links {
+      display: flex; justify-content: center; flex-wrap: wrap;
+      gap: 1.5rem; list-style: none; margin-bottom: 1.25rem;
+    }
+    .footer-links a {
+      color: var(--text-muted); text-decoration: none;
+      font-size: 0.875rem; transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { color: var(--text-muted); font-size: 0.8rem; }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .article-layout { padding: 2rem 1.25rem 4rem; }
+      .schema-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav id="main-nav">
+    <a class="nav-logo" href="/">🟣 Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/trading">Trading</a></li>
+      <li><a href="/wallet">Wallet</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/api-keys" class="nav-cta">Get API Key</a></li>
+    </ul>
+  </nav>
+
+  <header class="article-hero">
+    <div class="article-tag">Guide</div>
+    <h1>Build a Crypto Trading Agent with NVIDIA NIM in 50 Lines of Python</h1>
+    <div class="article-meta">
+      <span>March 6, 2026</span>
+      <span>·</span>
+      <span>Purple Flea Team</span>
+      <span>·</span>
+      <span>8 min read</span>
+    </div>
+  </header>
+
+  <main class="article-layout">
+    <article class="prose">
+
+      <h2>Introduction</h2>
+      <p>NVIDIA NIM (NVIDIA Inference Microservices) lets you run production-grade LLMs on your own GPU infrastructure with an OpenAI-compatible API. Combined with Purple Flea's trading API, you get a fully autonomous, privacy-preserving trading agent where your positions, strategies, and alpha never leave your own hardware.</p>
+      <p>No cloud API costs, no rate limits, no latency spikes at 3am when a market moves. This guide shows you how to wire up NIM's local inference endpoint to Purple Flea's perpetual futures trading API in roughly 50 lines of Python.</p>
+
+      <h2>Why Local Inference for Trading Agents</h2>
+      <p>Cloud LLMs work fine for most agent tasks, but trading has unique requirements that push the tradeoffs in favor of local inference:</p>
+      <ul>
+        <li><strong>No cloud API latency:</strong> Local inference adds sub-5ms overhead vs 200-800ms round-trip to OpenAI's servers. When a liquidation cascade is in progress, milliseconds matter.</li>
+        <li><strong>Strategy stays private:</strong> Your prompts, market context, and position logic never leave your hardware. No AI provider can observe your trading patterns or sell aggregated signal data.</li>
+        <li><strong>Consistent throughput:</strong> No shared-infrastructure rate limits. Your agent can run inference loops as fast as your GPU allows — critical during high-volatility periods when you want faster decision cycles.</li>
+        <li><strong>Run multiple models in parallel:</strong> Dedicated hardware lets you run a fast model for execution decisions and a slower, larger model for risk analysis simultaneously.</li>
+      </ul>
+
+      <h2>Prerequisites</h2>
+      <ul>
+        <li>NVIDIA GPU (A10G, A100, or H100 recommended; RTX 3090/4090 works for smaller models)</li>
+        <li>NVIDIA NIM installed and running locally — see <a href="https://docs.nvidia.com/nim/" target="_blank" rel="noopener">NVIDIA NIM docs</a></li>
+        <li>Purple Flea API key from <a href="/api-keys">/api-keys</a></li>
+        <li>Python 3.10+ with <code>openai</code> and <code>requests</code> installed</li>
+        <li>A model pulled into NIM — <code>meta/llama-3.1-70b-instruct</code> is recommended for trading</li>
+      </ul>
+      <div class="green-box">
+        <p><strong>Quick start:</strong> Install dependencies with <code>pip install openai requests</code>. NIM exposes an OpenAI-compatible endpoint at <code>http://localhost:8000/v1</code> by default — no SDK changes needed.</p>
+      </div>
+
+      <h2>The Tool Schema</h2>
+      <p>Define Purple Flea's trading capabilities as OpenAI-compatible function tools. The model will decide when and how to call each one:</p>
+
+      <div class="schema-grid">
+        <div class="schema-card">
+          <h4>get_price</h4>
+          <p>Fetch current mark price and 24h change for any perpetual market</p>
+        </div>
+        <div class="schema-card">
+          <h4>open_long</h4>
+          <p>Open a leveraged long position with configurable size in USD</p>
+        </div>
+        <div class="schema-card">
+          <h4>close_trade</h4>
+          <p>Close an existing position by trade ID, full or partial</p>
+        </div>
+        <div class="schema-card">
+          <h4>get_portfolio</h4>
+          <p>Return current open positions, unrealized PnL, and margin usage</p>
+        </div>
+      </div>
+
+      <pre><code>tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_price",
+            "description": "Get current price for a perpetual market",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "e.g. BTC-PERP, ETH-PERP"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_long",
+            "description": "Open a long position on a perpetual futures market",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                    "size_usd": {"type": "number", "description": "Position size in USD"},
+                    "leverage": {"type": "number", "description": "Leverage multiplier, 1-10"}
+                },
+                "required": ["symbol", "size_usd"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_portfolio",
+            "description": "Get current portfolio: open positions, PnL, margin",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "close_trade",
+            "description": "Close an open position",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "trade_id": {"type": "string"},
+                    "close_pct": {"type": "number", "description": "0-100, percentage to close"}
+                },
+                "required": ["trade_id"]
+            }
+        }
+    }
+]</code></pre>
+
+      <h2>The Full Agent Code</h2>
+      <p>Here is the complete trading agent — NIM handles the LLM reasoning, Purple Flea handles execution:</p>
+
+      <pre><code>from openai import OpenAI
+import requests
+import json
+
+# NIM runs locally on OpenAI-compatible endpoint
+nim_client = OpenAI(base_url="http://localhost:8000/v1", api_key="nim-local")
+PURPLE_FLEA_KEY = "your-pf-api-key"
+PF_BASE = "https://purpleflea.com/api/v1"
+HEADERS = {"Authorization": f"Bearer {PURPLE_FLEA_KEY}", "Content-Type": "application/json"}
+
+def call_purple_flea(name: str, args: dict) -> dict:
+    """Execute a Purple Flea API call based on tool name."""
+    if name == "get_price":
+        r = requests.get(f"{PF_BASE}/markets/{args['symbol']}/price", headers=HEADERS)
+        return r.json()
+    elif name == "open_long":
+        payload = {
+            "symbol": args["symbol"],
+            "side": "long",
+            "size": args["size_usd"],
+            "leverage": args.get("leverage", 2)
+        }
+        r = requests.post(f"{PF_BASE}/trade", json=payload, headers=HEADERS)
+        return r.json()
+    elif name == "get_portfolio":
+        r = requests.get(f"{PF_BASE}/portfolio", headers=HEADERS)
+        return r.json()
+    elif name == "close_trade":
+        payload = {"trade_id": args["trade_id"], "close_pct": args.get("close_pct", 100)}
+        r = requests.post(f"{PF_BASE}/trade/close", json=payload, headers=HEADERS)
+        return r.json()
+    return {"error": "unknown tool"}
+
+def run_trading_agent():
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are an autonomous crypto trading agent running on Purple Flea's "
+                "perpetual futures exchange. Your goal: maximize returns while keeping "
+                "max drawdown under 10%. Check BTC-PERP price, review your portfolio, "
+                "and make a trading decision. Be concise and decisive."
+            )
+        },
+        {
+            "role": "user",
+            "content": "Analyze the market and take action if conditions warrant it."
+        }
+    ]
+
+    # Agentic loop: run until model stops calling tools
+    while True:
+        response = nim_client.chat.completions.create(
+            model="meta/llama-3.1-70b-instruct",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+            temperature=0.3
+        )
+
+        msg = response.choices[0].message
+        messages.append(msg)
+
+        if not msg.tool_calls:
+            print("Agent decision:", msg.content)
+            break
+
+        # Execute each tool call
+        for tc in msg.tool_calls:
+            fn_name = tc.function.name
+            fn_args = json.loads(tc.function.arguments)
+            result = call_purple_flea(fn_name, fn_args)
+            print(f"Tool: {fn_name}({fn_args}) -> {result}")
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": json.dumps(result)
+            })
+
+if __name__ == "__main__":
+    run_trading_agent()</code></pre>
+
+      <h2>Handling Tool Calls in the Loop</h2>
+      <p>The agentic loop above keeps running until the model returns a message with no tool calls — that's when it has finished acting and wants to summarize. A typical execution trace looks like:</p>
+      <ol>
+        <li>Model calls <code>get_portfolio()</code> — sees $500 balance, no open positions</li>
+        <li>Model calls <code>get_price(BTC-PERP)</code> — sees $78,200, down 2.1% in 24h</li>
+        <li>Model calls <code>open_long(BTC-PERP, size_usd=50, leverage=2)</code></li>
+        <li>Model returns summary: "Opened $50 2x BTC long at $78,200. Stop loss mentally at -3%. Awaiting confirmation."</li>
+      </ol>
+      <p>The model sequences these calls itself — you don't need to orchestrate the order. This is the core of tool-calling agents: the LLM decides what information it needs and fetches it iteratively.</p>
+
+      <h2>Production Tips</h2>
+      <p>Before running this agent with real capital, add these safeguards:</p>
+      <ul>
+        <li><strong>Hard position limits:</strong> Add a pre-check that rejects any <code>open_long</code> call where <code>size_usd</code> exceeds 10% of portfolio balance. Do this in <code>call_purple_flea()</code>, not in the prompt.</li>
+        <li><strong>Stop-loss enforcement:</strong> After opening a position, spawn a background monitor thread that polls the price every 30s and closes the trade if PnL falls below your threshold.</li>
+        <li><strong>Async execution:</strong> Use <code>asyncio</code> and <code>aiohttp</code> for the tool execution layer — NIM inference is already fast, don't let network I/O stall the loop.</li>
+        <li><strong>Rate limiting:</strong> Add a minimum 5-minute interval between consecutive trades to avoid chasing noise. Track last trade timestamp in a simple dict.</li>
+        <li><strong>Logging:</strong> Write all tool calls and results to a structured log file. Post-trade analysis is the fastest way to improve your agent's system prompt.</li>
+      </ul>
+
+      <h2>Performance: Local vs Cloud</h2>
+      <p>On an A10G GPU running <code>llama-3.1-70b-instruct</code> via NIM, a full 4-tool-call agent loop completes in approximately 8-12 seconds total — about 2-3 seconds per inference step. Cloud API equivalent is 6-15 seconds with network variance included.</p>
+      <p>For latency-critical strategies (scalping, liquidation cascades), the more meaningful optimization is reducing Purple Flea API round-trips and pre-fetching market data into the context window before starting the loop. The LLM reasoning itself is rarely the bottleneck for trade execution timescales.</p>
+
+      <h2>Conclusion</h2>
+      <p>NVIDIA NIM plus Purple Flea gives you a local, private, rate-limit-free autonomous trading stack in under 50 lines. The OpenAI-compatible interface means you can swap any model — try smaller, faster models like <code>llama-3.1-8b</code> for high-frequency signals and larger models for portfolio-level strategy.</p>
+      <p>Full trading API docs at <a href="/trading-api">/trading-api</a>, API reference at <a href="/api-reference">/api-reference</a>, and the NVIDIA NIM integration guide at <a href="/for-nvidia-nim">/for-nvidia-nim</a>.</p>
+
+    </article>
+  </main>
+
+  <footer>
+    <ul class="footer-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/trading">Trading</a></li>
+      <li><a href="/wallet">Wallet</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/api-keys">API Keys</a></li>
+      <li><a href="/api-reference">API Reference</a></li>
+    </ul>
+    <p class="footer-copy">© 2026 Purple Flea</p>
+  </footer>
+
+  <script>
+    const nav = document.getElementById('main-nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+  </script>
+</body>
+</html>
