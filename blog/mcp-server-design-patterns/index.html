@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Server Design Patterns | Purple Flea</title>
+  <meta name="description" content="Model Context Protocol server best practices: tool schemas, streaming, auth, error handling, versioning, Purple Flea MCP examples, FastMCP integration, and performance optimization.">
+  <meta property="og:title" content="MCP Server Design Patterns | Purple Flea">
+  <meta property="og:description" content="Complete guide to MCP server design: tool definition schemas, streaming vs batch, auth patterns, testing, and full Purple Flea client integration.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/mcp-server-design-patterns/">
+  <link rel="canonical" href="https://purpleflea.com/blog/mcp-server-design-patterns/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "MCP Server Design Patterns",
+    "description": "Model Context Protocol server best practices: tool schemas, streaming, auth, error handling, versioning, Purple Flea MCP examples, FastMCP integration, and performance optimization.",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/mcp-server-design-patterns/",
+    "keywords": ["MCP server", "Model Context Protocol", "FastMCP", "AI tools", "Purple Flea MCP"]
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --surface2: #18181B;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --yellow: #EAB308;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --cyan: #06B6D4;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 9999;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo { font-weight: 700; font-size: 1rem; text-decoration: none; color: var(--text); }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--accent-dim); color: #fff; }
+
+    .layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 4rem;
+    }
+
+    article { min-width: 0; }
+
+    .tag-chip {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .tag-mcp { background: rgba(168,85,247,0.15); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); }
+
+    h1 { font-size: 2.4rem; font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2.5rem; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    h2 { font-size: 1.6rem; font-weight: 700; margin: 3rem 0 1rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    h3 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    h4 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--accent); }
+
+    p { margin-bottom: 1.25rem; color: #D4D4D8; }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    li { margin-bottom: 0.5rem; color: #D4D4D8; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      position: relative;
+    }
+    pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; line-height: 1.6; color: #E4E4E7; }
+    .lang-label {
+      position: absolute;
+      top: 0.6rem; right: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--surface2); padding: 0.15em 0.4em; border-radius: 4px; color: var(--accent); }
+    pre code { background: none; padding: 0; color: #E4E4E7; }
+
+    .callout {
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+      border-left: 3px solid;
+    }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(234,179,8,0.08); border-color: var(--yellow); }
+    .callout-tip  { background: rgba(168,85,247,0.08); border-color: var(--accent); }
+    .callout-success { background: rgba(34,197,94,0.08); border-color: var(--green); }
+    .callout strong { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: var(--surface2); color: var(--muted); font-weight: 600; text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168,85,247,0.04); }
+
+    .pattern-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .pattern-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .pattern-card:hover { border-color: var(--accent); }
+    .pattern-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+    .pattern-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; }
+    .pattern-desc { font-size: 0.83rem; color: var(--muted); }
+
+    .endpoint-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .get { background: rgba(34,197,94,0.15); color: var(--green); }
+    .post { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .stream { background: rgba(168,85,247,0.15); color: var(--accent); }
+
+    aside { position: relative; }
+    .toc {
+      position: sticky;
+      top: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      font-size: 0.85rem;
+    }
+    .toc h4 { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1rem; }
+    .toc ul { list-style: none; padding: 0; }
+    .toc li { margin-bottom: 0.5rem; }
+    .toc a { color: var(--muted); text-decoration: none; transition: color 0.2s; padding-left: 0.5rem; border-left: 2px solid transparent; display: block; }
+    .toc a:hover, .toc a.active { color: var(--accent); border-left-color: var(--accent); }
+
+    footer { background: var(--surface); border-top: 1px solid var(--border); padding: 2.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 4rem; }
+    footer a { color: var(--accent); }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; gap: 2rem; }
+      aside { display: none; }
+      h1 { font-size: 1.8rem; }
+    }
+    @media (max-width: 600px) {
+      nav { padding: 0 1rem; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .layout { padding: 2rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo"><span>&#9899;</span> Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/register" class="nav-cta">Get API Key &rarr;</a>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <article>
+      <div class="tag-chip tag-mcp">MCP</div>
+      <h1>MCP Server Design Patterns</h1>
+      <div class="meta">
+        <span>&#128197; March 6, 2026</span>
+        <span>&#128336; 26 min read</span>
+        <span>&#9881; Purple Flea Engineering</span>
+      </div>
+
+      <p>The Model Context Protocol (MCP) has become the standard interface for exposing capabilities to AI agents. It defines how tools are described, how agents call them, and how results are streamed back. But MCP is just a specification — the quality of your server's design determines whether agents use your tools reliably or fail unpredictably.</p>
+
+      <p>This guide covers the design patterns we have developed building and running six production MCP endpoints at Purple Flea: casino, trading, wallet, domains, faucet, and escrow. Every pattern here was learned from real agent usage at scale.</p>
+
+      <div class="callout callout-tip">
+        <strong>Purple Flea MCP Endpoints</strong>
+        All six Purple Flea services expose MCP-compatible endpoints:
+        <ul style="margin-top:0.5rem;">
+          <li><code>https://faucet.purpleflea.com/mcp</code></li>
+          <li><code>https://escrow.purpleflea.com/mcp</code></li>
+          <li>Casino, trading, wallet, domains at their respective subdomains</li>
+        </ul>
+        Listed on <a href="https://smithery.ai/servers/purpleflea/faucet">Smithery</a> for discovery.
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="mcp-fundamentals">MCP Fundamentals Recap</h2>
+
+      <p>MCP is a JSON-RPC 2.0-based protocol with a specific lifecycle: initialize → list tools → call tool → stream result. The key data structures are:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Concept</th><th>Role</th><th>Key Fields</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Tool</strong></td><td>A callable capability</td><td><code>name</code>, <code>description</code>, <code>inputSchema</code></td></tr>
+            <tr><td><strong>ToolCall</strong></td><td>Agent invocation</td><td><code>name</code>, <code>arguments</code></td></tr>
+            <tr><td><strong>ToolResult</strong></td><td>Server response</td><td><code>content[]</code>, <code>isError</code></td></tr>
+            <tr><td><strong>Content</strong></td><td>Result payload</td><td><code>type</code> (text/image/resource), <code>text</code></td></tr>
+            <tr><td><strong>Resource</strong></td><td>Read-only data source</td><td><code>uri</code>, <code>mimeType</code>, <code>contents</code></td></tr>
+            <tr><td><strong>Prompt</strong></td><td>Reusable agent prompts</td><td><code>name</code>, <code>arguments</code>, <code>messages</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>MCP supports three transport types: <strong>stdio</strong> (local process), <strong>SSE</strong> (Server-Sent Events), and <strong>StreamableHTTP</strong> (recommended for production). Purple Flea uses StreamableHTTP exclusively — it supports both streaming and batch over standard HTTPS, works behind CDNs, and handles reconnection gracefully.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="tool-definition-schemas">Tool Definition Schemas</h2>
+
+      <p>Tool schemas are the contract between your server and every AI agent that connects to it. Poorly written schemas cause agents to call tools incorrectly, pass wrong parameter types, and receive errors they cannot recover from.</p>
+
+      <h3>The Five Principles of Good Tool Schemas</h3>
+
+      <div class="pattern-grid">
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128269;</div>
+          <div class="pattern-title">Specific Names</div>
+          <div class="pattern-desc">Use verb_noun format. <code>place_bet</code> not <code>bet</code>. <code>get_wallet_balance</code> not <code>balance</code>. Agents reason about tool names.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128214;</div>
+          <div class="pattern-title">Rich Descriptions</div>
+          <div class="pattern-desc">Include: what it does, when to use it, units of parameters, example values, and what errors to expect. Agents use this verbatim in reasoning.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128203;</div>
+          <div class="pattern-title">Strict Input Schema</div>
+          <div class="pattern-desc">Use JSON Schema with <code>additionalProperties: false</code>. Mark all non-optional fields as <code>required</code>. Use <code>enum</code> for constrained strings.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#9888;</div>
+          <div class="pattern-title">Explicit Units</div>
+          <div class="pattern-desc">Is <code>amount</code> in USDC, satoshis, or wei? Always specify in both the field name and description: <code>amount_usdc</code>.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128260;</div>
+          <div class="pattern-title">Idempotency Keys</div>
+          <div class="pattern-desc">Any state-mutating tool should accept an optional <code>idempotency_key</code>. Agents retry on timeout — without this, you get duplicate transactions.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128196;</div>
+          <div class="pattern-title">Pagination</div>
+          <div class="pattern-desc">List tools should support <code>limit</code> and <code>cursor</code>. Never return unbounded lists — agents can't handle 10,000 results in a context window.</div>
+        </div>
+      </div>
+
+      <pre><span class="lang-label">python</span><code"># Purple Flea faucet tool schema — example of well-designed MCP tool definition
+
+FAUCET_CLAIM_TOOL = {
+    "name": "faucet_claim",
+    "description": (
+        "Claim a one-time free allocation of USDC from the Purple Flea faucet. "
+        "This tool is for new agents that have not yet made a deposit. "
+        "Each agent_id can claim once per 24-hour window. "
+        "Returns the transaction ID and claimed amount on success. "
+        "Errors: ALREADY_CLAIMED (try again after 24h), INVALID_API_KEY, "
+        "FAUCET_EMPTY (retry in ~1 hour)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["agent_id", "api_key", "wallet_address"],
+        "properties": {
+            "agent_id": {
+                "type": "string",
+                "description": "Your unique agent identifier from Purple Flea registration.",
+                "pattern": "^[a-zA-Z0-9_-]{8,64}$"
+            },
+            "api_key": {
+                "type": "string",
+                "description": "Your Purple Flea API key (format: pf_live_&lt;your_key&gt;).",
+                "pattern": "^pf_live_.+"
+            },
+            "wallet_address": {
+                "type": "string",
+                "description": "USDC-compatible wallet address (Ethereum/Polygon/Base) to receive funds."
+            },
+            "idempotency_key": {
+                "type": "string",
+                "description": "Optional. Unique key to prevent duplicate claims on retry. UUID recommended.",
+                "maxLength": 64
+            }
+        }
+    }
+}
+
+ESCROW_CREATE_TOOL = {
+    "name": "escrow_create",
+    "description": (
+        "Create a new escrow agreement between two agents. "
+        "The caller (payer) deposits funds that are held until the receiver "
+        "completes the agreed work and both parties confirm, or the escrow expires. "
+        "Fee: 1% of escrowed amount. Referral: 15% of fees go to referrer. "
+        "Returns: escrow_id, expiry_timestamp, fee_amount_usdc. "
+        "Errors: INSUFFICIENT_FUNDS, INVALID_COUNTERPARTY, AMOUNT_TOO_LOW (min $1 USDC)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["api_key", "counterparty_agent_id", "amount_usdc", "description", "expiry_hours"],
+        "properties": {
+            "api_key":               {"type": "string", "description": "Your pf_live_ API key."},
+            "counterparty_agent_id": {"type": "string", "description": "The agent ID of the receiver."},
+            "amount_usdc":           {"type": "number", "minimum": 1, "description": "Amount in USDC to escrow."},
+            "description":           {"type": "string", "maxLength": 500, "description": "Human-readable description of the task/service being escrowed."},
+            "expiry_hours":          {"type": "integer", "minimum": 1, "maximum": 720, "description": "Hours until escrow auto-expires if not resolved (1–720)."},
+            "referrer_id":           {"type": "string", "description": "Optional. Agent ID of your referrer (earns 15% of fees)."},
+            "idempotency_key":       {"type": "string", "maxLength": 64}
+        }
+    }
+}
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="streaming-vs-batch">Streaming vs Batch Responses</h2>
+
+      <p>MCP supports both synchronous (batch) and streaming responses. Choosing incorrectly causes UX problems for agents: batch responses on slow operations block the agent's context; streaming on simple lookups adds unnecessary overhead.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Pattern</th><th>Use When</th><th>MCP Mechanism</th><th>Example</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Synchronous</strong></td>
+              <td>Response &lt; 500ms, deterministic output</td>
+              <td>Single <code>ToolResult</code></td>
+              <td>get_balance, get_price</td>
+            </tr>
+            <tr>
+              <td><strong>Progress Stream</strong></td>
+              <td>Long-running ops (1–30s), user needs updates</td>
+              <td><code>notifications/progress</code></td>
+              <td>large trade execution, sync wallet</td>
+            </tr>
+            <tr>
+              <td><strong>Content Stream</strong></td>
+              <td>Large result sets, real-time data</td>
+              <td>Chunked <code>ToolResult</code> content</td>
+              <td>market data feed, order book</td>
+            </tr>
+            <tr>
+              <td><strong>Resource Subscription</strong></td>
+              <td>Ongoing monitoring, push updates</td>
+              <td><code>resources/subscribe</code></td>
+              <td>balance monitor, price alerts</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>FastMCP Streaming Implementation</h3>
+      <p>FastMCP (Python) makes streaming trivial with async generators:</p>
+
+      <pre><span class="lang-label">python</span><code>from mcp.server.fastmcp import FastMCP
+from mcp.types import TextContent
+import asyncio
+import httpx
+
+mcp = FastMCP("purple-flea-escrow", version="1.0.0")
+
+@mcp.tool()
+async def escrow_create(
+    api_key: str,
+    counterparty_agent_id: str,
+    amount_usdc: float,
+    description: str,
+    expiry_hours: int,
+    idempotency_key: str = ""
+) -> str:
+    """
+    Create a new escrow agreement. 1% fee applies.
+    Use this to pay another agent for a service with trustless release.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://escrow.purpleflea.com/api/escrow/create",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "counterparty": counterparty_agent_id,
+                "amount": amount_usdc,
+                "description": description,
+                "expiry_hours": expiry_hours,
+                "idempotency_key": idempotency_key or None,
+            },
+            timeout=15.0
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return (
+            f"Escrow created: ID={data['escrow_id']}, "
+            f"Amount={data['amount_usdc']} USDC, "
+            f"Fee={data['fee_usdc']} USDC, "
+            f"Expires={data['expiry_iso']}"
+        )
+
+@mcp.tool()
+async def wallet_sync_stream(api_key: str, chain: str = "ethereum") -> str:
+    """
+    Sync wallet across chain. Streams progress updates during sync.
+    chain: 'ethereum' | 'polygon' | 'base' | 'solana'
+    Takes 5–30 seconds depending on chain.
+    """
+    # In a real implementation, use MCP progress notifications.
+    # Here we demonstrate the pattern with a simple polling loop.
+    stages = [
+        "Connecting to RPC node...",
+        "Fetching transaction history...",
+        "Computing balances...",
+        "Updating Purple Flea wallet record...",
+        "Sync complete."
+    ]
+    # MCP progress notifications would be sent between each stage.
+    # FastMCP supports ctx.report_progress(current, total) inside tools.
+    results = []
+    for i, stage in enumerate(stages):
+        await asyncio.sleep(0.1)  # Simulate work
+        results.append(f"[{i+1}/{len(stages)}] {stage}")
+
+    return "\n".join(results)
+
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=4007)
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="auth-patterns">Authentication Patterns</h2>
+
+      <p>MCP does not define an authentication standard — that is intentional. Servers implement auth via HTTP headers or initialization parameters. We have evaluated four patterns across Purple Flea's services:</p>
+
+      <h3>Pattern 1: Bearer Token in HTTP Header (Recommended)</h3>
+      <p>The agent sends <code>Authorization: Bearer pf_live_&lt;key&gt;</code> on every request. The server validates on each call. This is stateless, works with any HTTP infrastructure, and enables per-request rate limiting.</p>
+
+      <pre><span class="lang-label">python</span><code">from fastapi import FastAPI, Request, HTTPException, Depends
+from functools import lru_cache
+import hashlib, time
+
+app = FastAPI()
+
+# Simple in-memory rate limiter (use Redis in production)
+_rate_store: dict[str, list[float]] = {}
+
+def validate_api_key(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer pf_live_"):
+        raise HTTPException(401, "Invalid or missing API key")
+    key = auth.removeprefix("Bearer ")
+    # Rate limit: 100 req/min per key
+    key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
+    now = time.time()
+    window = [t for t in _rate_store.get(key_hash, []) if now - t &lt; 60]
+    if len(window) >= 100:
+        raise HTTPException(429, "Rate limit exceeded: 100 req/min")
+    window.append(now)
+    _rate_store[key_hash] = window
+    return key
+
+@app.post("/mcp")
+async def mcp_endpoint(request: Request, api_key: str = Depends(validate_api_key)):
+    body = await request.json()
+    # Process MCP JSON-RPC request...
+    return {"jsonrpc": "2.0", "id": body.get("id"), "result": {}}
+</code></pre>
+
+      <h3>Pattern 2: API Key in Tool Arguments (Fallback)</h3>
+      <p>When HTTP header injection is not possible (some MCP clients strip headers), accept the API key as a tool argument. Mark it as sensitive in the schema description. Purple Flea escrow uses this as a fallback.</p>
+
+      <h3>Pattern 3: OAuth 2.0 / PKCE (Enterprise)</h3>
+      <p>For multi-tenant deployments where agents act on behalf of human principals, implement OAuth 2.0 with PKCE. The MCP client handles the flow; the server validates JWTs. Not used by Purple Flea currently but planned for the enterprise tier.</p>
+
+      <h3>Pattern 4: Mutual TLS (High-Security)</h3>
+      <p>For agent-to-agent trust without API keys. Each agent presents a client certificate. Best for escrow negotiations where contract authenticity must be cryptographically provable.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="error-handling">Error Handling and Recovery Patterns</h2>
+
+      <p>MCP errors have two layers: transport errors (HTTP 4xx/5xx) and application errors (MCP <code>isError: true</code> in ToolResult). Agents handle these differently — transport errors trigger automatic retry; application errors require agent reasoning to recover.</p>
+
+      <h3>Error Classification Taxonomy</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Error Code</th><th>Layer</th><th>Retryable?</th><th>Agent Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>INVALID_API_KEY</code></td><td>App</td><td>No</td><td>Request new key / stop</td></tr>
+            <tr><td><code>INSUFFICIENT_FUNDS</code></td><td>App</td><td>No</td><td>Claim faucet or deposit</td></tr>
+            <tr><td><code>AMOUNT_TOO_LOW</code></td><td>App</td><td>Adjust param</td><td>Increase amount</td></tr>
+            <tr><td><code>RATE_LIMITED</code></td><td>App</td><td>Yes (after backoff)</td><td>Exponential backoff</td></tr>
+            <tr><td><code>ALREADY_CLAIMED</code></td><td>App</td><td>Yes (after 24h)</td><td>Set timer, retry</td></tr>
+            <tr><td><code>FAUCET_EMPTY</code></td><td>App</td><td>Yes (1h)</td><td>Retry with delay</td></tr>
+            <tr><td>HTTP 429</td><td>Transport</td><td>Yes</td><td>Respect Retry-After header</td></tr>
+            <tr><td>HTTP 503</td><td>Transport</td><td>Yes</td><td>Exponential backoff, max 3x</td></tr>
+            <tr><td>HTTP 500</td><td>Transport</td><td>If idempotent</td><td>Retry with idempotency key</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre><span class="lang-label">python</span><code">import asyncio
+from typing import Any
+
+class MCPError(Exception):
+    def __init__(self, code: str, message: str, retryable: bool = False, retry_after: int = 0):
+        self.code = code
+        self.message = message
+        self.retryable = retryable
+        self.retry_after = retry_after
+        super().__init__(f"[{code}] {message}")
+
+def parse_mcp_error(result: dict) -> MCPError | None:
+    """Parse an MCP ToolResult into a typed error."""
+    if not result.get("isError"):
+        return None
+    content = result.get("content", [])
+    text = content[0].get("text", "") if content else ""
+    # Parse structured error from text
+    if "RATE_LIMITED" in text:
+        return MCPError("RATE_LIMITED", text, retryable=True, retry_after=60)
+    if "ALREADY_CLAIMED" in text:
+        return MCPError("ALREADY_CLAIMED", text, retryable=True, retry_after=86400)
+    if "FAUCET_EMPTY" in text:
+        return MCPError("FAUCET_EMPTY", text, retryable=True, retry_after=3600)
+    if "INSUFFICIENT_FUNDS" in text:
+        return MCPError("INSUFFICIENT_FUNDS", text, retryable=False)
+    return MCPError("UNKNOWN_ERROR", text, retryable=False)
+
+async def call_with_retry(
+    tool_call_fn,
+    max_attempts: int = 3,
+    base_delay: float = 1.0
+) -> Any:
+    """Retry wrapper for MCP tool calls with exponential backoff."""
+    last_error = None
+    for attempt in range(max_attempts):
+        try:
+            result = await tool_call_fn()
+            err = parse_mcp_error(result)
+            if err is None:
+                return result
+            if not err.retryable:
+                raise err
+            delay = err.retry_after or (base_delay * 2 ** attempt)
+            await asyncio.sleep(min(delay, 300))  # Cap at 5 minutes
+            last_error = err
+        except MCPError:
+            raise
+        except Exception as e:
+            delay = base_delay * 2 ** attempt
+            await asyncio.sleep(delay)
+            last_error = e
+    raise last_error or RuntimeError("Max retries exceeded")
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="versioning">API Versioning Strategies</h2>
+
+      <p>MCP servers change over time — tools get renamed, parameters get added, behaviors shift. Without a versioning strategy, every breaking change silently breaks every connected agent.</p>
+
+      <h3>Purple Flea Versioning Approach</h3>
+      <ul>
+        <li><strong>Version in server name:</strong> <code>FastMCP("purple-flea-escrow", version="1.2.0")</code></li>
+        <li><strong>Additive-only changes</strong> for minor versions: add optional parameters, add new tools, expand enum values</li>
+        <li><strong>Major version prefix for breaking changes:</strong> <code>escrow_v2_create</code> alongside <code>escrow_create</code></li>
+        <li><strong>Deprecation notices in tool descriptions:</strong> <code>"DEPRECATED as of v1.3.0 — use escrow_create_v2 instead. Will be removed 2026-09-01."</code></li>
+        <li><strong>Version header on responses:</strong> <code>X-MCP-Server-Version: 1.2.0</code></li>
+      </ul>
+
+      <pre><span class="lang-label">python</span><code">from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP(
+    name="purple-flea-faucet",
+    version="1.1.0",
+    instructions=(
+        "This is the Purple Flea Faucet MCP server. "
+        "New agents can claim free USDC to try the casino and other services. "
+        "API keys have format pf_live_&lt;your_key&gt;. "
+        "Register at https://purpleflea.com/register."
+    )
+)
+
+@mcp.tool()
+async def faucet_claim(agent_id: str, api_key: str, wallet_address: str) -> str:
+    """
+    [v1.1] Claim free USDC for new agents. One claim per 24 hours.
+    Changed in v1.1: added wallet_address parameter (was auto-derived in v1.0).
+    """
+    ...
+
+@mcp.tool()
+async def faucet_status(agent_id: str, api_key: str) -> str:
+    """Check faucet claim status and time until next claim is available."""
+    ...
+
+# Export capabilities for agent discovery
+@mcp.resource("info://capabilities")
+async def server_capabilities() -> str:
+    return (
+        '{"version":"1.1.0","tools":["faucet_claim","faucet_status"],'
+        '"rate_limits":{"claims_per_day":1,"status_per_min":60},'
+        '"auth":"Bearer pf_live_<your_key>"}'
+    )
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="purple-flea-examples">Complete Purple Flea MCP Examples</h2>
+
+      <h3>Faucet MCP Server</h3>
+      <p>The simplest Purple Flea MCP server — two tools, stateless, no streaming required.</p>
+
+      <pre><span class="lang-label">python</span><code">"""
+purple_flea_faucet_mcp.py
+FastMCP server for the Purple Flea Faucet service.
+Run: uvicorn purple_flea_faucet_mcp:app --port 4006
+"""
+from mcp.server.fastmcp import FastMCP
+import httpx
+
+FAUCET_BASE = "https://faucet.purpleflea.com/api"
+mcp = FastMCP("purple-flea-faucet", version="1.1.0")
+
+@mcp.tool()
+async def faucet_claim(agent_id: str, api_key: str, wallet_address: str,
+                        idempotency_key: str = "") -> str:
+    """
+    Claim free USDC from the Purple Flea Faucet.
+    One claim per agent per 24-hour period.
+    api_key format: pf_live_&lt;your_key&gt;
+    Returns: transaction ID and claimed amount.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            f"{FAUCET_BASE}/claim",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"agent_id": agent_id, "wallet": wallet_address,
+                  "idempotency_key": idempotency_key or None}
+        )
+        if r.status_code == 200:
+            d = r.json()
+            return f"Claimed {d['amount_usdc']} USDC. TxID: {d['tx_id']}"
+        err = r.json().get("error", r.text)
+        return f"ERROR [{r.status_code}]: {err}"
+
+@mcp.tool()
+async def faucet_status(agent_id: str, api_key: str) -> str:
+    """
+    Check faucet claim status for this agent.
+    Returns: whether a claim is available and seconds until next claim.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            f"{FAUCET_BASE}/status/{agent_id}",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        if r.status_code == 200:
+            d = r.json()
+            if d["can_claim"]:
+                return "Claim available now!"
+            return f"Next claim available in {d['seconds_until_claim']}s"
+        return f"ERROR: {r.json().get('error', r.text)}"
+
+app = mcp.streamable_http_app()
+</code></pre>
+
+      <h3>Casino MCP Tool</h3>
+
+      <pre><span class="lang-label">python</span><code">@mcp.tool()
+async def casino_place_bet(
+    api_key: str,
+    game: str,
+    amount_usdc: float,
+    params: dict,
+    idempotency_key: str = ""
+) -> str:
+    """
+    Place a bet on a Purple Flea casino game.
+    game: 'coin_flip' | 'dice' | 'roulette' | 'crash' | 'poker'
+    amount_usdc: Bet size in USDC (min 0.01, max depends on game limits).
+    params: Game-specific parameters as JSON object.
+      - coin_flip: {"side": "heads" | "tails"}
+      - dice: {"target": 1-6, "type": "exact" | "over" | "under"}
+      - roulette: {"bet_type": "red" | "black" | "number", "number": 0-36}
+      - crash: {"auto_cashout": 1.5}  (multiplier)
+    Returns: outcome, pnl_usdc, new_balance_usdc.
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(
+            "https://casino.purpleflea.com/api/bet",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"game": game, "amount_usdc": amount_usdc,
+                  "params": params, "idempotency_key": idempotency_key or None}
+        )
+        if r.status_code == 200:
+            d = r.json()
+            outcome = "WIN" if d["pnl_usdc"] > 0 else "LOSS"
+            return (f"{outcome}: {d['pnl_usdc']:+.2f} USDC | "
+                    f"Balance: {d['new_balance_usdc']:.2f} USDC | "
+                    f"Provably fair hash: {d['proof_hash'][:16]}...")
+        return f"BET ERROR [{r.status_code}]: {r.json().get('error')}"
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="testing">Testing MCP Servers</h2>
+
+      <p>MCP server testing has three levels: unit tests for tool logic, integration tests against a local server, and end-to-end tests with a real MCP client.</p>
+
+      <pre><span class="lang-label">python</span><code">"""
+tests/test_faucet_mcp.py — MCP server test suite
+"""
+import pytest
+import httpx
+from unittest.mock import AsyncMock, patch
+
+# Level 1: Unit test tool logic directly
+@pytest.mark.asyncio
+async def test_faucet_claim_success():
+    mock_response = AsyncMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"amount_usdc": 1.0, "tx_id": "tx_abc123"}
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        from purple_flea_faucet_mcp import faucet_claim
+        result = await faucet_claim(
+            agent_id="test_agent",
+            api_key="pf_live_test_key",
+            wallet_address="0xdeadbeef"
+        )
+        assert "1.0 USDC" in result
+        assert "tx_abc123" in result
+
+@pytest.mark.asyncio
+async def test_faucet_already_claimed():
+    mock_response = AsyncMock()
+    mock_response.status_code = 429
+    mock_response.json.return_value = {"error": "ALREADY_CLAIMED"}
+
+    with patch("httpx.AsyncClient.post", return_value=mock_response):
+        from purple_flea_faucet_mcp import faucet_claim
+        result = await faucet_claim("test", "pf_live_test", "0x123")
+        assert "ALREADY_CLAIMED" in result
+
+# Level 2: Integration test against local server
+@pytest.mark.integration
+async def test_mcp_tools_list():
+    """Test that the MCP server correctly lists tools via protocol."""
+    async with httpx.AsyncClient(base_url="http://localhost:4006") as client:
+        resp = await client.post("/mcp", json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        tool_names = [t["name"] for t in data["result"]["tools"]]
+        assert "faucet_claim" in tool_names
+        assert "faucet_status" in tool_names
+
+@pytest.mark.integration
+async def test_mcp_initialize():
+    """Test MCP initialization handshake."""
+    async with httpx.AsyncClient(base_url="http://localhost:4006") as client:
+        resp = await client.post("/mcp", json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "clientInfo": {"name": "test-client", "version": "1.0"},
+                "capabilities": {}
+            }
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["result"]["serverInfo"]["name"] == "purple-flea-faucet"
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="performance">Performance Optimization</h2>
+
+      <p>MCP servers serving AI agents at scale face unique performance challenges: agents call tools in parallel, retry on any error, and have tight latency budgets (most LLMs timeout tool calls after 30–60 seconds).</p>
+
+      <h3>Key Optimizations</h3>
+
+      <div class="pattern-grid">
+        <div class="pattern-card">
+          <div class="pattern-icon">&#9889;</div>
+          <div class="pattern-title">Connection Pooling</div>
+          <div class="pattern-desc">Reuse HTTP clients across requests. Never create a new <code>httpx.AsyncClient()</code> per tool call — use a module-level singleton with connection pooling.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128190;</div>
+          <div class="pattern-title">Response Caching</div>
+          <div class="pattern-desc">Cache read-only tool results: prices (5s), balances (30s), game configs (5min). Use Redis for distributed caching across workers.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128268;</div>
+          <div class="pattern-title">Async Everything</div>
+          <div class="pattern-desc">Never use synchronous I/O in tool handlers. Block the event loop for even 100ms and you fail concurrent agent requests.</div>
+        </div>
+        <div class="pattern-card">
+          <div class="pattern-icon">&#128202;</div>
+          <div class="pattern-title">Response Compression</div>
+          <div class="pattern-desc">Enable gzip on all MCP endpoints. Agents in tight context windows appreciate smaller payloads. Large JSON responses can hit 70% compression.</div>
+        </div>
+      </div>
+
+      <pre><span class="lang-label">python</span><code">"""Performance-optimized MCP server skeleton."""
+import asyncio
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+import httpx
+from mcp.server.fastmcp import FastMCP
+from functools import lru_cache
+import time
+
+# Module-level HTTP client — shared across all requests
+_http_client: httpx.AsyncClient | None = None
+
+@asynccontextmanager
+async def lifespan(app) -> AsyncGenerator:
+    global _http_client
+    _http_client = httpx.AsyncClient(
+        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        timeout=httpx.Timeout(10.0, connect=3.0),
+        http2=True,  # H2 multiplexing reduces latency
+    )
+    yield
+    await _http_client.aclose()
+
+# Simple TTL cache for read-only data
+_cache: dict[str, tuple[float, any]] = {}
+
+def cached(ttl_seconds: float):
+    def decorator(fn):
+        async def wrapper(*args, **kwargs):
+            key = f"{fn.__name__}:{args}:{sorted(kwargs.items())}"
+            if key in _cache:
+                ts, value = _cache[key]
+                if time.monotonic() - ts &lt; ttl_seconds:
+                    return value
+            result = await fn(*args, **kwargs)
+            _cache[key] = (time.monotonic(), result)
+            return result
+        return wrapper
+    return decorator
+
+mcp = FastMCP("purple-flea-trading", version="1.0.0")
+
+@mcp.tool()
+@cached(ttl_seconds=5.0)
+async def get_btc_price() -> str:
+    """Get current BTC/USDC price from Purple Flea trading feed. Cached 5s."""
+    r = await _http_client.get("https://trading.purpleflea.com/api/price/BTC-USDC")
+    r.raise_for_status()
+    return f"BTC/USDC: ${r.json()['price']:,.2f}"
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="client-integration">Complete Purple Flea MCP Client Integration</h2>
+
+      <p>Here is a complete example of an agent connecting to all Purple Flea MCP endpoints and using them in a coordinated workflow:</p>
+
+      <pre><span class="lang-label">python</span><code">"""
+agent_mcp_client.py
+Complete Purple Flea MCP client using the MCP Python SDK.
+"""
+import asyncio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+PURPLE_FLEA_MCPS = {
+    "faucet": "https://faucet.purpleflea.com/mcp",
+    "escrow": "https://escrow.purpleflea.com/mcp",
+    "casino": "https://casino.purpleflea.com/mcp",
+}
+
+API_KEY = "pf_live_&lt;your_key&gt;"
+AGENT_ID = "my_agent_001"
+WALLET   = "0xYourWalletAddress"
+
+async def use_faucet():
+    """Claim free USDC if available."""
+    async with streamablehttp_client(PURPLE_FLEA_MCPS["faucet"]) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            # Check status first
+            status = await session.call_tool("faucet_status", {
+                "agent_id": AGENT_ID,
+                "api_key": API_KEY,
+            })
+            print("Faucet status:", status.content[0].text)
+
+            # Claim if available
+            if "available now" in status.content[0].text:
+                claim = await session.call_tool("faucet_claim", {
+                    "agent_id": AGENT_ID,
+                    "api_key": API_KEY,
+                    "wallet_address": WALLET,
+                    "idempotency_key": f"claim_{AGENT_ID}_daily",
+                })
+                print("Faucet claim:", claim.content[0].text)
+
+async def create_escrow_for_service(
+    counterparty: str, amount: float, description: str
+) -> str:
+    """Create an escrow agreement with another agent."""
+    async with streamablehttp_client(PURPLE_FLEA_MCPS["escrow"]) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("escrow_create", {
+                "api_key": API_KEY,
+                "counterparty_agent_id": counterparty,
+                "amount_usdc": amount,
+                "description": description,
+                "expiry_hours": 24,
+                "idempotency_key": f"escrow_{AGENT_ID}_{counterparty}_{amount}",
+            })
+            return result.content[0].text
+
+async def main():
+    print("=== Purple Flea Agent MCP Demo ===")
+
+    # Step 1: Claim faucet
+    await use_faucet()
+
+    # Step 2: Create escrow with a service provider agent
+    escrow_result = await create_escrow_for_service(
+        counterparty="provider_agent_42",
+        amount=5.0,
+        description="Data analysis service: 30-day market sentiment report"
+    )
+    print("Escrow created:", escrow_result)
+
+asyncio.run(main())
+</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="conclusion">Conclusion</h2>
+
+      <p>Building production-grade MCP servers requires attention to schema design, transport selection, auth, error classification, versioning, testing, and performance. The patterns in this guide represent what we have learned running six Purple Flea MCP endpoints serving thousands of agent calls per day.</p>
+
+      <p>The most important principle: <strong>design for agent cognition, not human UX.</strong> Agents read tool descriptions literally, retry on ambiguous errors, and cannot handle unpredictable response formats. Every decision you make in your MCP server design directly affects how reliably agents can use your tools.</p>
+
+      <div class="callout callout-success">
+        <strong>Try It Now</strong>
+        Connect to Purple Flea's live MCP servers: <a href="https://faucet.purpleflea.com/mcp">faucet.purpleflea.com/mcp</a> and <a href="https://escrow.purpleflea.com/mcp">escrow.purpleflea.com/mcp</a>. Both are listed on <a href="https://smithery.ai/servers/purpleflea/faucet">Smithery</a>. Get your API key at <a href="https://purpleflea.com/register">purpleflea.com/register</a>.
+      </div>
+
+    </article>
+
+    <aside>
+      <nav class="toc">
+        <h4>Contents</h4>
+        <ul>
+          <li><a href="#mcp-fundamentals">MCP Fundamentals</a></li>
+          <li><a href="#tool-definition-schemas">Tool Definition Schemas</a></li>
+          <li><a href="#streaming-vs-batch">Streaming vs Batch</a></li>
+          <li><a href="#auth-patterns">Auth Patterns</a></li>
+          <li><a href="#error-handling">Error Handling</a></li>
+          <li><a href="#versioning">Versioning Strategies</a></li>
+          <li><a href="#purple-flea-examples">Purple Flea Examples</a></li>
+          <li><a href="#testing">Testing MCP Servers</a></li>
+          <li><a href="#performance">Performance</a></li>
+          <li><a href="#client-integration">Client Integration</a></li>
+          <li><a href="#conclusion">Conclusion</a></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; <a href="https://purpleflea.com">purpleflea.com</a> &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <p style="margin-top:0.5rem;">
+      <a href="/docs">Docs</a> &bull;
+      <a href="/blog">Blog</a> &bull;
+      <a href="/for-agents">For Agents</a> &bull;
+      <a href="https://faucet.purpleflea.com">Faucet</a> &bull;
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+    </p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const h = document.documentElement;
+      const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+      bar.style.width = pct + '%';
+    });
+    const headings = document.querySelectorAll('article h2[id], article h3[id]');
+    const tocLinks = document.querySelectorAll('.toc a');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove('active'));
+          const active = document.querySelector(`.toc a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
