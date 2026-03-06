@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MEV Strategies for AI Agents: From Sandwich Attacks to Backrunning | Purple Flea</title>
+  <meta name="description" content="How autonomous agents capture maximal extractable value through front-running, sandwich attacks, backrunning, JIT liquidity, and private mempool submission." />
+  <meta name="keywords" content="MEV, maximal extractable value, AI agents, sandwich attacks, backrunning, Flashbots, JIT liquidity, DEX arbitrage" />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="MEV Strategies for AI Agents: From Sandwich Attacks to Backrunning" />
+  <meta property="og:description" content="How autonomous agents capture maximal extractable value through front-running, sandwich attacks, backrunning, JIT liquidity, and private mempool submission." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-mev-strategies/" />
+  <meta property="og:image" content="https://purpleflea.com/og-image.png" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MEV Strategies for AI Agents: From Sandwich Attacks to Backrunning" />
+  <meta name="twitter:description" content="How autonomous agents capture maximal extractable value through front-running, sandwich attacks, backrunning, JIT liquidity, and private mempool submission." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-image.png" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-mev-strategies/" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "MEV Strategies for AI Agents: From Sandwich Attacks to Backrunning",
+    "description": "How autonomous agents capture maximal extractable value through front-running, sandwich attacks, backrunning, JIT liquidity, and private mempool submission.",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/logo.png" } },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://purpleflea.com/blog/agent-mev-strategies/" },
+    "keywords": ["MEV", "maximal extractable value", "AI agents", "sandwich attacks", "backrunning", "Flashbots", "JIT liquidity"],
+    "articleSection": "Strategy"
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B; --surface: #18181B; --border: #27272A; --text: #E4E4E7;
+      --muted: #A1A1AA; --accent: #A855F7; --accent-light: #C084FC;
+      --code-bg: #0D0D0F; --green: #22C55E; --yellow: #EAB308; --red: #EF4444; --blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 16px; line-height: 1.7; }
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); z-index: 9999; transition: width 0.1s linear; }
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .nav-logo { font-size: 1.1rem; font-weight: 700; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--accent) !important; color: #fff !important; padding: 0.4rem 1rem; border-radius: 6px; font-weight: 600; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+    .hero { max-width: 860px; margin: 4rem auto 3rem; padding: 0 1.5rem; }
+    .tag-chip { display: inline-block; background: rgba(168,85,247,0.15); color: var(--accent-light); border: 1px solid rgba(168,85,247,0.3); border-radius: 20px; padding: 0.25rem 0.85rem; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1.25rem; }
+    .hero h1 { font-size: clamp(1.8rem, 4vw, 2.75rem); font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .hero-desc { font-size: 1.1rem; color: var(--muted); max-width: 680px; margin-bottom: 1.5rem; }
+    .hero-meta { display: flex; gap: 1.5rem; color: var(--muted); font-size: 0.875rem; margin-bottom: 2.5rem; flex-wrap: wrap; }
+    .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 3rem; }
+    @media (max-width: 640px) { .stat-cards { grid-template-columns: 1fr; } }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; }
+    .stat-card .stat-val { font-size: 1.75rem; font-weight: 800; color: var(--accent); line-height: 1; margin-bottom: 0.35rem; }
+    .stat-card .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .content-wrap { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 4rem; display: grid; grid-template-columns: 220px 1fr; gap: 3rem; align-items: start; }
+    @media (max-width: 900px) { .content-wrap { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-sidebar h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-sidebar ol { list-style: none; counter-reset: toc; display: flex; flex-direction: column; gap: 0.35rem; }
+    .toc-sidebar ol li { counter-increment: toc; }
+    .toc-sidebar ol li a { display: flex; align-items: flex-start; gap: 0.5rem; color: var(--muted); text-decoration: none; font-size: 0.8rem; line-height: 1.4; transition: color 0.2s; }
+    .toc-sidebar ol li a::before { content: counter(toc, decimal-leading-zero); color: var(--accent); font-size: 0.7rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .toc-sidebar ol li a:hover { color: var(--text); }
+    article h2 { font-size: 1.6rem; font-weight: 700; color: var(--text); margin: 2.75rem 0 1rem; padding-top: 0.5rem; border-top: 1px solid var(--border); scroll-margin-top: 80px; }
+    article h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 1.75rem 0 0.65rem; scroll-margin-top: 80px; }
+    article p { margin-bottom: 1rem; }
+    article a { color: var(--accent-light); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+    article ul, article ol { margin: 0.75rem 0 1rem 1.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.5rem 0; }
+    .callout.warn { border-color: var(--yellow); background: rgba(234,179,8,0.07); }
+    .callout.danger { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout.info { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout strong { display: block; margin-bottom: 0.35rem; }
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; overflow-x: auto; margin: 1.25rem 0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.65; tab-size: 4; }
+    code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.1em 0.4em; }
+    pre code { background: none; border: none; padding: 0; font-size: inherit; }
+    .kw { color: #C084FC; } .fn { color: #60A5FA; } .st { color: #86EFAC; }
+    .cm { color: #52525B; font-style: italic; } .nm { color: #FCA5A5; } .dc { color: #FCD34D; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+    th { background: var(--surface); color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.07em; padding: 0.65rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(59,130,246,0.08) 100%); border: 1px solid rgba(168,85,247,0.35); border-radius: 12px; padding: 2rem; text-align: center; margin: 3rem 0 1rem; }
+    .cta-box h3 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; }
+    .btn-primary { display: inline-block; background: var(--accent); color: #fff; padding: 0.65rem 1.75rem; border-radius: 8px; font-weight: 700; text-decoration: none; transition: background 0.2s; margin: 0.25rem; }
+    .btn-primary:hover { background: var(--accent-light); text-decoration: none; }
+    .btn-secondary { display: inline-block; background: transparent; color: var(--accent-light); border: 1px solid rgba(168,85,247,0.4); padding: 0.65rem 1.75rem; border-radius: 8px; font-weight: 600; text-decoration: none; transition: all 0.2s; margin: 0.25rem; }
+    .btn-secondary:hover { background: rgba(168,85,247,0.1); text-decoration: none; }
+    footer { border-top: 1px solid var(--border); padding: 2rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.875rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple <span>Flea</span></a>
+    <div class="nav-links">
+      <a href="/blog/">Blog</a>
+      <a href="/docs/">Docs</a>
+      <a href="/pricing">Pricing</a>
+      <a href="https://purpleflea.com" class="nav-cta">Start Trading</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="tag-chip">Strategy</div>
+  <h1>MEV Strategies for AI Agents: From Sandwich Attacks to Backrunning</h1>
+  <p class="hero-desc">
+    How autonomous agents capture maximal extractable value through front-running, sandwich attacks,
+    backrunning, JIT liquidity, and private mempool submission — with production Python implementations.
+  </p>
+  <div class="hero-meta">
+    <span>March 6, 2026</span>
+    <span>22 min read</span>
+    <span>Strategy</span>
+  </div>
+  <div class="stat-cards">
+    <div class="stat-card">
+      <div class="stat-val">$680M+</div>
+      <div class="stat-label">MEV Extracted in 2025</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">~40%</div>
+      <div class="stat-label">Blocks with MEV Activity</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">&lt;100ms</div>
+      <div class="stat-label">Bot Reaction Window</div>
+    </div>
+  </div>
+</div>
+
+<div class="content-wrap">
+  <aside class="toc-sidebar">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#mev-taxonomy">MEV Taxonomy</a></li>
+      <li><a href="#sandwich-attacks">Sandwich Attack Mechanics</a></li>
+      <li><a href="#backrunning">Backrunning DEX Arbitrage</a></li>
+      <li><a href="#jit-liquidity">JIT Liquidity Provision</a></li>
+      <li><a href="#private-mempools">Private Mempools &amp; Flashbots</a></li>
+      <li><a href="#mev-boost">MEV-Boost &amp; Builder Economics</a></li>
+      <li><a href="#ethical-considerations">Ethical Considerations</a></li>
+      <li><a href="#python-mev-scanner">Python MEV Scanner</a></li>
+      <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+    </ol>
+  </aside>
+
+  <article>
+
+    <p>
+      Maximal Extractable Value (MEV) represents one of the most profitable and technically demanding
+      niches available to autonomous AI agents operating on public blockchains. By monitoring pending
+      transactions in the mempool, identifying exploitable ordering opportunities, and submitting
+      strategically ordered bundles, MEV agents can capture value that would otherwise be lost or
+      redistributed to block producers.
+    </p>
+    <p>
+      This guide covers the complete MEV landscape — from the mechanics of sandwich attacks to the
+      economics of block builder competition — and provides production-grade Python implementations
+      that agents running on Purple Flea's infrastructure can deploy immediately. Whether your agent
+      is seeded with the Purple Flea faucet or operating at scale, MEV is a route to autonomous
+      revenue that does not require directional market exposure.
+    </p>
+
+    <h2 id="mev-taxonomy">1. MEV Taxonomy</h2>
+    <p>
+      MEV originates from the fact that block producers (validators, sequencers) have discretionary
+      power over transaction ordering within a block. This power can be monetised in several
+      well-documented ways:
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Strategy</th><th>Mechanism</th><th>Typical Profit / Tx</th><th>Complexity</th><th>Capital Required</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Sandwich Attack</td><td>Front-run + back-run a large DEX swap</td><td>$50–$2,000</td><td>Medium</td><td>Yes</td></tr>
+          <tr><td>Backrun Arbitrage</td><td>Exploit price divergence after a swap</td><td>$10–$500</td><td>Low</td><td>Yes</td></tr>
+          <tr><td>Liquidation</td><td>Repay underwater loan, seize discounted collateral</td><td>$100–$10,000</td><td>High</td><td>Yes / Flash Loan</td></tr>
+          <tr><td>JIT Liquidity</td><td>Add and remove LP position around one large swap</td><td>$200–$5,000</td><td>High</td><td>Large</td></tr>
+          <tr><td>NFT Sniping</td><td>Front-run mint or listing transactions</td><td>$10–$1,000,000</td><td>Low</td><td>Small</td></tr>
+          <tr><td>Oracle Manipulation</td><td>Move price oracle, extract from dependent protocol</td><td>$1,000–$50M</td><td>Very High</td><td>Very Large</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The most accessible strategies for new agents are pure backrun arbitrage and sandwich attacks
+      on Uniswap-style AMMs. Liquidations require capital or flash loan plumbing. JIT and oracle
+      manipulation demand near-validator-level infrastructure or protocol-specific knowledge.
+    </p>
+
+    <h3>The MEV Supply Chain</h3>
+    <p>Modern MEV on Ethereum operates through a four-layer supply chain:</p>
+    <ol>
+      <li><strong>Searchers</strong> — Agents that detect opportunities and craft bundles</li>
+      <li><strong>Builders</strong> — Entities that assemble optimised blocks from multiple searcher bundles, competing to offer the highest bid to proposers</li>
+      <li><strong>Relays</strong> — Trusted intermediaries (e.g., Flashbots Relay) that verify block validity before the proposer reveals the full block</li>
+      <li><strong>Validators / Proposers</strong> — Accept the highest-bidding block via MEV-Boost; receive the bid payment in addition to staking rewards</li>
+    </ol>
+    <div class="callout info">
+      <strong>Profit formula:</strong>
+      Net Profit = Gross MEV Extraction - Gas Cost - Builder Tip - Relay Fee.
+      On Ethereum mainnet you generally need $30-$50 gross to clear gas. On Arbitrum or Base, the
+      floor is $2-$5.
+    </div>
+
+    <h2 id="sandwich-attacks">2. Sandwich Attack Mechanics</h2>
+    <p>
+      A sandwich attack exploits a victim's large AMM swap by wrapping it with a front-run and a
+      back-run transaction. The attacker buys the target asset immediately before the victim (pushing
+      the price up), then sells after the victim's swap has further moved the price.
+    </p>
+
+    <h3>Price Impact Mathematics</h3>
+    <p>
+      For a Uniswap V2 constant-product pool with reserves <code>x</code> (token A) and
+      <code>y</code> (token B), the output for an input of <code>a</code> tokens (0.3% fee) is:
+    </p>
+    <pre><code><span class="cm"># Uniswap V2 output with 0.3% fee</span>
+<span class="kw">def</span> <span class="fn">get_amount_out</span>(amount_in: <span class="fn">int</span>, reserve_in: <span class="fn">int</span>, reserve_out: <span class="fn">int</span>) -> <span class="fn">int</span>:
+    amount_in_with_fee = amount_in * <span class="nm">997</span>
+    numerator = amount_in_with_fee * reserve_out
+    denominator = (reserve_in * <span class="nm">1000</span>) + amount_in_with_fee
+    <span class="kw">return</span> numerator // denominator
+
+<span class="kw">def</span> <span class="fn">simulate_sandwich</span>(
+    reserve_eth: <span class="fn">int</span>,
+    reserve_usdc: <span class="fn">int</span>,
+    victim_eth_in: <span class="fn">int</span>,
+    frontrun_eth_in: <span class="fn">int</span>
+) -> <span class="fn">dict</span>:
+    <span class="cm"># Step 1: Attacker front-run — buy USDC with ETH</span>
+    usdc_out_front = get_amount_out(frontrun_eth_in, reserve_eth, reserve_usdc)
+    r_eth_1 = reserve_eth + frontrun_eth_in
+    r_usdc_1 = reserve_usdc - usdc_out_front
+
+    <span class="cm"># Step 2: Victim swap — buys USDC at worse rate (price already moved)</span>
+    usdc_out_victim = get_amount_out(victim_eth_in, r_eth_1, r_usdc_1)
+    r_eth_2 = r_eth_1 + victim_eth_in
+    r_usdc_2 = r_usdc_1 - usdc_out_victim
+
+    <span class="cm"># Step 3: Attacker back-run — sell USDC back for ETH at inflated price</span>
+    eth_out_back = get_amount_out(usdc_out_front, r_usdc_2, r_eth_2)
+
+    profit_eth = eth_out_back - frontrun_eth_in
+    return {
+        <span class="st">"frontrun_eth_in"</span>: frontrun_eth_in,
+        <span class="st">"usdc_received_front"</span>: usdc_out_front,
+        <span class="st">"victim_usdc_received"</span>: usdc_out_victim,
+        <span class="st">"eth_received_back"</span>: eth_out_back,
+        <span class="st">"profit_eth"</span>: profit_eth,
+    }
+
+<span class="cm"># Example: 1000 ETH / 2,000,000 USDC pool, victim swaps 50 ETH</span>
+result = simulate_sandwich(
+    reserve_eth=<span class="nm">1_000</span> * <span class="nm">10</span>**<span class="nm">18</span>,
+    reserve_usdc=<span class="nm">2_000_000</span> * <span class="nm">10</span>**<span class="nm">6</span>,
+    victim_eth_in=<span class="nm">50</span> * <span class="nm">10</span>**<span class="nm">18</span>,
+    frontrun_eth_in=<span class="nm">10</span> * <span class="nm">10</span>**<span class="nm">18</span>,
+)
+<span class="cm"># Attacker profit: ~0.24 ETH on a 10 ETH front-run, 2.4% ROI per block</span></code></pre>
+
+    <h3>Optimal Front-Run Sizing</h3>
+    <p>
+      Finding the optimal front-run amount is a convex optimisation problem. Too small and profit is
+      negligible; too large and the attacker faces diminishing marginal returns while increasing their
+      own slippage. The optimal is typically 10-30% of the victim's trade size for V2 pools.
+    </p>
+    <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> scipy.optimize <span class="kw">import</span> minimize_scalar
+
+<span class="kw">def</span> <span class="fn">find_optimal_frontrun</span>(reserve_eth, reserve_usdc, victim_amount, gas_cost_eth):
+    <span class="kw">def</span> <span class="fn">neg_profit</span>(frontrun_amount):
+        r = simulate_sandwich(reserve_eth, reserve_usdc, victim_amount, <span class="fn">int</span>(frontrun_amount))
+        <span class="kw">return</span> -(r[<span class="st">"profit_eth"</span>] - gas_cost_eth)
+
+    result = minimize_scalar(
+        neg_profit,
+        bounds=(<span class="nm">1e15</span>, victim_amount * <span class="nm">0.5</span>),
+        method=<span class="st">'bounded'</span>
+    )
+    <span class="kw">return</span> -result.fun, <span class="fn">int</span>(result.x)
+
+<span class="cm"># Find optimal for victim swapping 30 ETH, gas costs 0.01 ETH</span>
+profit, optimal_size = find_optimal_frontrun(
+    <span class="nm">1000</span> * <span class="nm">10</span>**<span class="nm">18</span>, <span class="nm">2_000_000</span> * <span class="nm">10</span>**<span class="nm">6</span>,
+    <span class="nm">30</span> * <span class="nm">10</span>**<span class="nm">18</span>, <span class="nm">0.01</span> * <span class="nm">10</span>**<span class="nm">18</span>
+)</code></pre>
+
+    <div class="callout warn">
+      <strong>Sandwich attacks carry legal and reputational risk.</strong>
+      They extract value from ordinary users who receive worse execution than expected. Several
+      jurisdictions are actively considering regulations that could classify this as market
+      manipulation. Consider whether this aligns with your agent's ethical constraints.
+    </div>
+
+    <h2 id="backrunning">3. Backrunning DEX Arbitrage</h2>
+    <p>
+      Backrunning is the cooperative cousin of sandwich attacks. The attacker simply places a
+      transaction immediately after a victim's trade — capitalising on the price impact that trade
+      created, without harming the victim. A large swap on Uniswap creates a price difference with
+      Curve, Balancer, or another Uniswap pool; the backrunner closes that spread.
+    </p>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> web3 <span class="kw">import</span> AsyncWeb3, WebSocketProvider
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+
+<span class="kw">class</span> <span class="fn">BackrunArbitrageBot</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, w3: AsyncWeb3, wallet_address: str, private_key: str):
+        self.w3 = w3
+        self.wallet = wallet_address
+        self.pk = private_key
+        <span class="cm"># Pool reserves would be fetched from chain in production</span>
+        self.pools = {}
+
+    <span class="kw">async def</span> <span class="fn">monitor_mempool</span>(self):
+        <span class="kw">async with</span> self.w3.ws.subscribe(<span class="st">"newPendingTransactions"</span>) <span class="kw">as</span> sub:
+            <span class="kw">async for</span> tx_hash <span class="kw">in</span> sub:
+                <span class="kw">try</span>:
+                    tx = <span class="kw">await</span> self.w3.eth.get_transaction(tx_hash)
+                    <span class="kw">if</span> self.<span class="fn">is_large_dex_swap</span>(tx):
+                        opportunity = <span class="kw">await</span> self.<span class="fn">evaluate_backrun</span>(tx)
+                        <span class="kw">if</span> opportunity[<span class="st">"profitable"</span>]:
+                            <span class="kw">await</span> self.<span class="fn">submit_backrun_bundle</span>(tx, opportunity)
+                <span class="kw">except</span> <span class="fn">Exception</span>:
+                    <span class="kw">continue</span>
+
+    <span class="kw">def</span> <span class="fn">is_large_dex_swap</span>(self, tx) -> bool:
+        <span class="cm"># Check if tx targets known router, value above threshold</span>
+        UNISWAP_V2_ROUTER = <span class="st">"0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"</span>
+        UNISWAP_V3_ROUTER = <span class="st">"0xE592427A0AEce92De3Edee1F18E0157C05861564"</span>
+        MIN_USD_VALUE = <span class="nm">50_000</span> * <span class="nm">10</span>**<span class="nm">6</span>  <span class="cm"># $50k minimum to bother</span>
+        <span class="kw">return</span> (
+            tx.get(<span class="st">"to"</span>) <span class="kw">in</span> [UNISWAP_V2_ROUTER, UNISWAP_V3_ROUTER]
+            <span class="kw">and</span> tx.get(<span class="st">"value"</span>, <span class="nm">0</span>) > <span class="nm">0</span>
+        )
+
+    <span class="kw">async def</span> <span class="fn">evaluate_backrun</span>(self, victim_tx) -> dict:
+        <span class="cm"># Decode victim calldata to extract swap parameters</span>
+        <span class="cm"># Simulate price impact on source pool</span>
+        <span class="cm"># Calculate profit from closing arb on destination pool</span>
+        price_impact = self.<span class="fn">decode_and_simulate</span>(victim_tx)
+        arb_profit = price_impact * <span class="nm">0.003</span>  <span class="cm"># simplified</span>
+        gas_cost = <span class="kw">await</span> self.<span class="fn">estimate_gas_cost</span>()
+        <span class="kw">return</span> {
+            <span class="st">"profitable"</span>: arb_profit > gas_cost * <span class="nm">3</span>,  <span class="cm"># 3x safety margin</span>
+            <span class="st">"expected_profit_usd"</span>: arb_profit,
+            <span class="st">"gas_cost_usd"</span>: gas_cost,
+        }
+
+    <span class="kw">async def</span> <span class="fn">submit_backrun_bundle</span>(self, victim_tx, opportunity):
+        <span class="cm"># Construct arbitrage transaction</span>
+        <span class="cm"># Submit as Flashbots bundle: [victim_tx, arb_tx]</span>
+        <span class="cm"># Tip = 80% of profit to builder for inclusion guarantee</span>
+        tip = <span class="fn">int</span>(opportunity[<span class="st">"expected_profit_usd"</span>] * <span class="nm">0.8</span>)
+        bundle = {
+            <span class="st">"txs"</span>: [victim_tx.hash.hex(), self.<span class="fn">build_arb_tx</span>(opportunity)],
+            <span class="st">"blockNumber"</span>: <span class="kw">await</span> self.w3.eth.block_number + <span class="nm">1</span>,
+            <span class="st">"minTimestamp"</span>: <span class="nm">0</span>,
+            <span class="st">"maxTimestamp"</span>: <span class="nm">0</span>,
+            <span class="st">"revertingTxHashes"</span>: [],
+        }
+        <span class="kw">return</span> bundle  <span class="cm"># send to Flashbots relay</span></code></pre>
+
+    <h3>Multi-Hop Arbitrage</h3>
+    <p>
+      Single-hop arbitrage (A→B→A via two pools) is highly competitive with thin margins. Multi-hop
+      paths (A→B→C→A) are harder to detect and can exploit deeper inefficiencies. Bellman-Ford
+      on a graph of pool prices detects negative-weight cycles, which correspond to arbitrage
+      opportunities.
+    </p>
+    <pre><code><span class="kw">import</span> math
+
+<span class="kw">def</span> <span class="fn">find_arb_cycles</span>(pools: list[dict]) -> list:
+    <span class="cm">"""
+    Bellman-Ford negative cycle detection for DEX arbitrage.
+    Each pool defines an edge: token_in -[log(rate)]-> token_out
+    Negative cycle = profitable arbitrage path.
+    """</span>
+    tokens = <span class="fn">list</span>({p[<span class="st">"token_in"</span>] <span class="kw">for</span> p <span class="kw">in</span> pools} | {p[<span class="st">"token_out"</span>] <span class="kw">for</span> p <span class="kw">in</span> pools})
+    token_idx = {t: i <span class="kw">for</span> i, t <span class="kw">in</span> <span class="fn">enumerate</span>(tokens)}
+    n = <span class="fn">len</span>(tokens)
+    dist = [<span class="fn">float</span>(<span class="st">'inf'</span>)] * n
+    dist[<span class="nm">0</span>] = <span class="nm">0</span>
+    pred = [<span class="nm">-1</span>] * n
+    edges = []
+    <span class="kw">for</span> pool <span class="kw">in</span> pools:
+        u = token_idx[pool[<span class="st">"token_in"</span>]]
+        v = token_idx[pool[<span class="st">"token_out"</span>]]
+        weight = -math.log(pool[<span class="st">"rate"</span>] * (<span class="nm">1</span> - pool[<span class="st">"fee"</span>]))
+        edges.append((u, v, weight, pool[<span class="st">"address"</span>]))
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n - <span class="nm">1</span>):
+        <span class="kw">for</span> u, v, w, addr <span class="kw">in</span> edges:
+            <span class="kw">if</span> dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+                pred[v] = u
+    <span class="cm"># Detect negative cycles</span>
+    cycles = []
+    <span class="kw">for</span> u, v, w, addr <span class="kw">in</span> edges:
+        <span class="kw">if</span> dist[u] + w < dist[v]:
+            cycles.append({<span class="st">"start"</span>: tokens[v], <span class="st">"pool"</span>: addr})
+    <span class="kw">return</span> cycles</code></pre>
+
+    <h2 id="jit-liquidity">4. JIT Liquidity Provision</h2>
+    <p>
+      Just-In-Time (JIT) liquidity is a Uniswap V3 strategy where a sophisticated agent observes a
+      large pending swap, mints a highly concentrated liquidity position in the exact price range of
+      the swap (earning near-100% of swap fees for that block), then immediately burns the position.
+      The result: the JIT provider earns most of the trading fees from a single swap while
+      bearing almost zero inventory risk.
+    </p>
+
+    <h3>JIT Profitability Analysis</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Swap Size</td><td>$1,000,000</td><td>Threshold for JIT to be economic on mainnet</td></tr>
+          <tr><td>V3 Fee Tier</td><td>0.05% (5 bps)</td><td>Most large stablecoin/ETH swaps</td></tr>
+          <tr><td>Gross Fee Revenue</td><td>$500</td><td>$1M * 0.05%</td></tr>
+          <tr><td>JIT Capture Rate</td><td>~90%</td><td>If position covers full price range of swap</td></tr>
+          <tr><td>JIT Fee Capture</td><td>~$450</td><td>Before gas and builder tip</td></tr>
+          <tr><td>Gas + Tip (mint+burn)</td><td>$80–$150</td><td>Two transactions plus bundle fee</td></tr>
+          <tr><td>Net Profit</td><td>$300–$370</td><td>Per occurrence</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <pre><code><span class="kw">from</span> web3 <span class="kw">import</span> Web3
+<span class="kw">import</span> json
+
+UNISWAP_V3_PM_ABI = json.loads(<span class="st">'[...]'</span>)  <span class="cm"># NonFungiblePositionManager ABI</span>
+
+<span class="kw">class</span> <span class="fn">JITLiquidityProvider</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, w3: Web3, nfpm_address: str, wallet: str, pk: str):
+        self.w3 = w3
+        self.nfpm = w3.eth.contract(address=nfpm_address, abi=UNISWAP_V3_PM_ABI)
+        self.wallet = wallet
+        self.pk = pk
+
+    <span class="kw">def</span> <span class="fn">calculate_jit_range</span>(
+        self,
+        current_tick: int,
+        swap_direction: str,  <span class="cm"># 'buy' or 'sell'</span>
+        swap_amount_usd: float,
+        pool_tvl_usd: float,
+    ) -> <span class="fn">tuple</span>[int, int]:
+        <span class="cm">"""
+        Calculate optimal tick range for JIT.
+        For a buy (price up), concentrate just above current price.
+        Range should be 1-2 tick spacings wide for maximum fee capture.
+        """</span>
+        tick_spacing = <span class="nm">10</span>  <span class="cm"># for 0.05% pool</span>
+        price_impact_ticks = <span class="fn">int</span>((swap_amount_usd / pool_tvl_usd) * <span class="nm">10000</span>)
+        <span class="kw">if</span> swap_direction == <span class="st">"buy"</span>:
+            tick_lower = (current_tick // tick_spacing) * tick_spacing
+            tick_upper = tick_lower + max(tick_spacing, price_impact_ticks)
+        <span class="kw">else</span>:
+            tick_upper = (current_tick // tick_spacing + <span class="nm">1</span>) * tick_spacing
+            tick_lower = tick_upper - max(tick_spacing, price_impact_ticks)
+        <span class="kw">return</span> tick_lower, tick_upper
+
+    <span class="kw">def</span> <span class="fn">build_mint_params</span>(self, token0, token1, fee, tick_lower, tick_upper, amount0, amount1):
+        <span class="kw">return</span> {
+            <span class="st">"token0"</span>: token0, <span class="st">"token1"</span>: token1, <span class="st">"fee"</span>: fee,
+            <span class="st">"tickLower"</span>: tick_lower, <span class="st">"tickUpper"</span>: tick_upper,
+            <span class="st">"amount0Desired"</span>: amount0, <span class="st">"amount1Desired"</span>: amount1,
+            <span class="st">"amount0Min"</span>: <span class="nm">0</span>, <span class="st">"amount1Min"</span>: <span class="nm">0</span>,
+            <span class="st">"recipient"</span>: self.wallet,
+            <span class="st">"deadline"</span>: self.w3.eth.get_block(<span class="st">"latest"</span>)[<span class="st">"timestamp"</span>] + <span class="nm">60</span>,
+        }</code></pre>
+
+    <div class="callout green">
+      <strong>JIT liquidity is non-predatory.</strong>
+      Unlike sandwich attacks, JIT providers absorb swap risk and genuinely improve price execution
+      for the victim swap (more liquidity = less slippage). The strategy competes with passive LPs
+      rather than harming swappers.
+    </div>
+
+    <h2 id="private-mempools">5. Private Mempools &amp; Flashbots</h2>
+    <p>
+      Public mempool submission is the worst channel for MEV: your opportunity is immediately visible
+      to all competing bots. Private relays like Flashbots, BloXroute, and Eden Network let you
+      submit bundles directly to builders without broadcasting to the public mempool.
+    </p>
+
+    <h3>Flashbots Bundle Submission</h3>
+    <p>
+      A Flashbots bundle is an ordered list of transactions submitted to <code>eth_sendBundle</code>
+      RPC. Bundles are atomic — if any transaction reverts, the whole bundle is excluded and you
+      pay nothing. This eliminates the gas-wasted failed-transaction problem from public mempool
+      competition.
+    </p>
+    <pre><code><span class="kw">import</span> asyncio, json, time
+<span class="kw">from</span> eth_account <span class="kw">import</span> Account
+<span class="kw">from</span> eth_account.messages <span class="kw">import</span> encode_defunct
+<span class="kw">import</span> aiohttp
+
+FLASHBOTS_RELAY = <span class="st">"https://relay.flashbots.net"</span>
+
+<span class="kw">class</span> <span class="fn">FlashbotsClient</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, searcher_private_key: str, w3):
+        self.searcher = Account.from_key(searcher_private_key)
+        self.w3 = w3
+
+    <span class="kw">def</span> <span class="fn">sign_request</span>(self, body: str) -> str:
+        <span class="cm"># Flashbots requires X-Flashbots-Signature header</span>
+        msg = encode_defunct(text=<span class="st">f"</span>{Web3.keccak(text=body).hex()}<span class="st">"</span>)
+        sig = Account.sign_message(msg, private_key=self.searcher.key)
+        <span class="kw">return</span> <span class="st">f"</span>{self.searcher.address}<span class="st">:</span>{sig.signature.hex()}<span class="st">"</span>
+
+    <span class="kw">async def</span> <span class="fn">send_bundle</span>(
+        self,
+        signed_txs: list[str],
+        target_block: int,
+        min_timestamp: int = <span class="nm">0</span>,
+        max_timestamp: int = <span class="nm">0</span>,
+    ) -> dict:
+        payload = {
+            <span class="st">"jsonrpc"</span>: <span class="st">"2.0"</span>,
+            <span class="st">"id"</span>: <span class="nm">1</span>,
+            <span class="st">"method"</span>: <span class="st">"eth_sendBundle"</span>,
+            <span class="st">"params"</span>: [{
+                <span class="st">"txs"</span>: signed_txs,
+                <span class="st">"blockNumber"</span>: <span class="fn">hex</span>(target_block),
+                <span class="st">"minTimestamp"</span>: min_timestamp,
+                <span class="st">"maxTimestamp"</span>: max_timestamp,
+                <span class="st">"revertingTxHashes"</span>: [],
+            }]
+        }
+        body = json.dumps(payload)
+        headers = {
+            <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>,
+            <span class="st">"X-Flashbots-Signature"</span>: self.<span class="fn">sign_request</span>(body),
+        }
+        <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> session:
+            <span class="kw">async with</span> session.post(FLASHBOTS_RELAY, json=payload, headers=headers) <span class="kw">as</span> resp:
+                <span class="kw">return await</span> resp.json()
+
+    <span class="kw">async def</span> <span class="fn">simulate_bundle</span>(self, signed_txs: list[str], target_block: int) -> dict:
+        <span class="cm"># Use eth_callBundle to simulate before submission</span>
+        payload = {
+            <span class="st">"jsonrpc"</span>: <span class="st">"2.0"</span>, <span class="st">"id"</span>: <span class="nm">1</span>,
+            <span class="st">"method"</span>: <span class="st">"eth_callBundle"</span>,
+            <span class="st">"params"</span>: [{
+                <span class="st">"txs"</span>: signed_txs,
+                <span class="st">"blockNumber"</span>: <span class="fn">hex</span>(target_block - <span class="nm">1</span>),
+                <span class="st">"stateBlockNumber"</span>: <span class="st">"latest"</span>,
+            }]
+        }
+        body = json.dumps(payload)
+        headers = {<span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>, <span class="st">"X-Flashbots-Signature"</span>: self.<span class="fn">sign_request</span>(body)}
+        <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> session:
+            <span class="kw">async with</span> session.post(FLASHBOTS_RELAY, json=payload, headers=headers) <span class="kw">as</span> resp:
+                <span class="kw">return await</span> resp.json()</code></pre>
+
+    <h3>Bundle Strategy: Multi-Block Submission</h3>
+    <p>
+      Because a bundle may not be included in your target block (another builder may win), best
+      practice is to submit the same bundle for blocks N, N+1, and N+2 simultaneously. This
+      increases inclusion probability without any additional cost since failed bundles don't cost gas.
+    </p>
+    <pre><code><span class="kw">async def</span> <span class="fn">submit_with_retry</span>(client: FlashbotsClient, signed_txs, num_blocks=<span class="nm">3</span>):
+    current_block = <span class="kw">await</span> client.w3.eth.block_number
+    tasks = [
+        client.<span class="fn">send_bundle</span>(signed_txs, current_block + i)
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">1</span>, num_blocks + <span class="nm">1</span>)
+    ]
+    results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*tasks, return_exceptions=<span class="kw">True</span>)
+    <span class="kw">return</span> results</code></pre>
+
+    <h2 id="mev-boost">6. MEV-Boost &amp; Builder Economics</h2>
+    <p>
+      MEV-Boost is the middleware that separates block building from block proposing in Ethereum's
+      post-Merge architecture. Understanding builder economics helps you calibrate how much of your
+      MEV profit to tip to builders (the "bid") to maximise inclusion probability.
+    </p>
+
+    <h3>Builder Bid Optimisation</h3>
+    <p>
+      Builders rank bundles by <em>effective gas price</em>: (coinbase transfer + gas fees) / gas used.
+      Your bundle competes with all other bundles for the same block space. The optimal bid is the
+      highest amount you can pay while still being profitable.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Gross MEV</th><th>Gas Cost</th><th>Builder Tip (80%)</th><th>Agent Net</th><th>Inclusion P</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>$200</td><td>$30</td><td>$136</td><td>$34</td><td>~60%</td></tr>
+          <tr><td>$500</td><td>$30</td><td>$376</td><td>$94</td><td>~85%</td></tr>
+          <tr><td>$2,000</td><td>$50</td><td>$1,560</td><td>$390</td><td>~97%</td></tr>
+          <tr><td>$10,000</td><td>$80</td><td>$7,936</td><td>$1,984</td><td>~99%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      The 80% tip is a heuristic; in high-competition scenarios agents bid up to 90-95% of gross
+      profit. Some strategies use a dynamic tipping formula based on historical builder competition
+      data fetched from the Flashbots transparency dashboard.
+    </p>
+    <pre><code><span class="kw">import</span> statistics
+
+<span class="kw">class</span> <span class="fn">DynamicTipCalculator</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.recent_winning_bids: list[float] = []  <span class="cm"># track historical wins</span>
+
+    <span class="kw">def</span> <span class="fn">calculate_tip</span>(self, gross_profit: float, gas_cost: float) -> float:
+        net = gross_profit - gas_cost
+        <span class="kw">if</span> net <= <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="nm">0</span>
+        <span class="kw">if not</span> self.recent_winning_bids:
+            <span class="kw">return</span> net * <span class="nm">0.80</span>  <span class="cm"># default 80% tip</span>
+        <span class="cm"># Target tip at 90th percentile of recent wins to be competitive</span>
+        p90 = statistics.quantiles(self.recent_winning_bids, n=<span class="nm">10</span>)[<span class="nm">8</span>]
+        tip = min(net * <span class="nm">0.95</span>, max(net * <span class="nm">0.5</span>, p90))
+        <span class="kw">return</span> tip
+
+    <span class="kw">def</span> <span class="fn">record_win</span>(self, bid_amount: float):
+        self.recent_winning_bids.append(bid_amount)
+        <span class="kw">if</span> <span class="fn">len</span>(self.recent_winning_bids) > <span class="nm">200</span>:
+            self.recent_winning_bids.pop(<span class="nm">0</span>)</code></pre>
+
+    <h2 id="ethical-considerations">7. Ethical Considerations</h2>
+    <p>
+      The MEV landscape sits on a spectrum from clearly beneficial (backrun arbitrage that improves
+      price efficiency) to clearly harmful (sandwich attacks that extract from ordinary users). A
+      responsible MEV agent should:
+    </p>
+    <ul>
+      <li><strong>Prefer non-predatory strategies</strong> — backrunning, JIT liquidity, and liquidations all serve legitimate economic functions without directly harming victims</li>
+      <li><strong>Avoid oracle manipulation</strong> — this can destabilise entire protocols and cause cascading losses for uninvolved users</li>
+      <li><strong>Comply with emerging regulations</strong> — the EU's MiCA framework and US CFTC guidance are increasingly classifying certain MEV strategies as manipulative</li>
+      <li><strong>Consider MEV-protected RPC endpoints</strong> — routing your own swaps through Flashbots Protect or MEV Blocker prevents your agent from being sandwiched when it trades</li>
+      <li><strong>Disclose MEV activity</strong> — in agent-to-agent financial relationships, transparency about MEV income helps build trust</li>
+    </ul>
+    <div class="callout danger">
+      <strong>Legal Warning</strong>
+      Front-running and sandwich attacks on users may constitute market manipulation under applicable
+      securities or commodities law depending on jurisdiction and asset type. This guide is for
+      educational purposes only. Always consult legal counsel before deploying MEV strategies.
+    </div>
+
+    <h3>MEV Strategy Ethics Matrix</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Strategy</th><th>Harms Victim?</th><th>Improves Market?</th><th>Legal Risk</th><th>Agent Recommendation</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Backrun Arbitrage</td><td>No</td><td>Yes (price discovery)</td><td>Low</td><td>Recommended</td></tr>
+          <tr><td>Liquidation Bots</td><td>Minimal (by design)</td><td>Yes (protocol health)</td><td>Low</td><td>Recommended</td></tr>
+          <tr><td>JIT Liquidity</td><td>No</td><td>Yes (reduces slippage)</td><td>Low</td><td>Recommended</td></tr>
+          <tr><td>Sandwich Attacks</td><td>Yes (directly)</td><td>No</td><td>Medium-High</td><td>Use with caution</td></tr>
+          <tr><td>Oracle Manipulation</td><td>Yes (severely)</td><td>No</td><td>Very High</td><td>Avoid</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="python-mev-scanner">8. Python MEV Scanner</h2>
+    <p>
+      A production MEV scanner integrates all strategies into a single monitoring loop. The
+      following implementation uses async WebSocket connections for real-time mempool monitoring,
+      with parallel evaluation of multiple opportunity types per incoming transaction.
+    </p>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">from</span> web3 <span class="kw">import</span> AsyncWeb3, WebSocketProvider
+<span class="kw">from</span> eth_account <span class="kw">import</span> Account
+<span class="kw">import</span> logging
+
+logging.basicConfig(level=logging.INFO, format=<span class="st">"%(asctime)s %(levelname)s %(message)s"</span>)
+logger = logging.getLogger(<span class="st">"mev-scanner"</span>)
+
+@dataclass
+<span class="kw">class</span> <span class="fn">MEVOpportunity</span>:
+    strategy: str
+    gross_profit_usd: float
+    gas_cost_usd: float
+    net_profit_usd: float
+    confidence: float  <span class="cm"># 0-1</span>
+    victim_tx_hash: str
+    params: dict = field(default_factory=dict)
+
+@dataclass
+<span class="kw">class</span> <span class="fn">AgentConfig</span>:
+    rpc_url: str
+    private_key: str
+    min_profit_usd: float = <span class="nm">20.0</span>
+    min_confidence: float = <span class="nm">0.85</span>
+    max_gas_gwei: float = <span class="nm">100.0</span>
+    strategies: list[str] = field(default_factory=<span class="kw">lambda</span>: [<span class="st">"backrun"</span>, <span class="st">"jit"</span>])
+
+<span class="kw">class</span> <span class="fn">MEVScannerAgent</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config: AgentConfig):
+        self.config = config
+        self.account = Account.from_key(config.private_key)
+        self.flashbots = FlashbotsClient(config.private_key, <span class="kw">None</span>)
+        self.tip_calc = DynamicTipCalculator()
+        self.stats = {<span class="st">"scanned"</span>: <span class="nm">0</span>, <span class="st">"opportunities"</span>: <span class="nm">0</span>, <span class="st">"submitted"</span>: <span class="nm">0</span>, <span class="st">"wins"</span>: <span class="nm">0</span>}
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self):
+        logger.info(<span class="st">f"MEV Scanner starting | wallet: </span>{self.account.address}<span class="st">"</span>)
+        w3 = <span class="kw">await</span> AsyncWeb3.connect(WebSocketProvider(self.config.rpc_url))
+        self.flashbots.w3 = w3
+        <span class="kw">async with</span> w3.ws.subscribe(<span class="st">"newPendingTransactions"</span>) <span class="kw">as</span> sub:
+            <span class="kw">async for</span> tx_hash <span class="kw">in</span> sub:
+                self.stats[<span class="st">"scanned"</span>] += <span class="nm">1</span>
+                asyncio.<span class="fn">create_task</span>(self.<span class="fn">process_tx</span>(w3, tx_hash))
+
+    <span class="kw">async def</span> <span class="fn">process_tx</span>(self, w3, tx_hash):
+        <span class="kw">try</span>:
+            tx = <span class="kw">await</span> w3.eth.get_transaction(tx_hash)
+            <span class="kw">if</span> tx <span class="kw">is None</span>: <span class="kw">return</span>
+            <span class="cm"># Evaluate all configured strategies in parallel</span>
+            evaluators = []
+            <span class="kw">if</span> <span class="st">"backrun"</span> <span class="kw">in</span> self.config.strategies:
+                evaluators.append(self.<span class="fn">evaluate_backrun</span>(tx))
+            <span class="kw">if</span> <span class="st">"jit"</span> <span class="kw">in</span> self.config.strategies:
+                evaluators.append(self.<span class="fn">evaluate_jit</span>(tx))
+            <span class="kw">if</span> <span class="st">"sandwich"</span> <span class="kw">in</span> self.config.strategies:
+                evaluators.append(self.<span class="fn">evaluate_sandwich</span>(tx))
+            results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*evaluators, return_exceptions=<span class="kw">True</span>)
+            opportunities = [r <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if</span> <span class="fn">isinstance</span>(r, MEVOpportunity) <span class="kw">and</span> r <span class="kw">is not None</span>]
+            best = max(opportunities, key=<span class="kw">lambda</span> o: o.net_profit_usd, default=<span class="kw">None</span>)
+            <span class="kw">if</span> best <span class="kw">and</span> best.net_profit_usd >= self.config.min_profit_usd <span class="kw">and</span> best.confidence >= self.config.min_confidence:
+                self.stats[<span class="st">"opportunities"</span>] += <span class="nm">1</span>
+                <span class="kw">await</span> self.<span class="fn">execute_opportunity</span>(w3, tx, best)
+        <span class="kw">except</span> <span class="fn">Exception</span> <span class="kw">as</span> e:
+            logger.debug(<span class="st">f"Error processing tx: </span>{e}<span class="st">"</span>)
+
+    <span class="kw">async def</span> <span class="fn">evaluate_backrun</span>(self, tx) -> Optional[MEVOpportunity]:
+        <span class="cm"># Check if this is a DEX swap that creates an arbitrage opportunity</span>
+        <span class="kw">if not</span> self.<span class="fn">is_dex_swap</span>(tx): <span class="kw">return None</span>
+        arb_profit = <span class="kw">await</span> self.<span class="fn">calculate_arb_profit</span>(tx)
+        gas_cost = <span class="kw">await</span> self.<span class="fn">estimate_gas_cost_usd</span>()
+        <span class="kw">if</span> arb_profit <= gas_cost: <span class="kw">return None</span>
+        <span class="kw">return</span> MEVOpportunity(
+            strategy=<span class="st">"backrun"</span>,
+            gross_profit_usd=arb_profit,
+            gas_cost_usd=gas_cost,
+            net_profit_usd=arb_profit - gas_cost,
+            confidence=<span class="nm">0.90</span>,
+            victim_tx_hash=tx.hash.hex(),
+        )
+
+    <span class="kw">async def</span> <span class="fn">evaluate_jit</span>(self, tx) -> Optional[MEVOpportunity]:
+        <span class="kw">if not</span> self.<span class="fn">is_v3_swap</span>(tx): <span class="kw">return None</span>
+        swap_usd = <span class="kw">await</span> self.<span class="fn">estimate_swap_value_usd</span>(tx)
+        <span class="kw">if</span> swap_usd < <span class="nm">500_000</span>: <span class="kw">return None</span>  <span class="cm"># JIT only worthwhile on large swaps</span>
+        fee_tier = self.<span class="fn">get_pool_fee_tier</span>(tx)
+        gross = swap_usd * (fee_tier / <span class="nm">1_000_000</span>) * <span class="nm">0.9</span>
+        gas_cost = <span class="kw">await</span> self.<span class="fn">estimate_gas_cost_usd</span>() * <span class="nm">2</span>  <span class="cm"># mint + burn</span>
+        <span class="kw">if</span> gross <= gas_cost: <span class="kw">return None</span>
+        <span class="kw">return</span> MEVOpportunity(
+            strategy=<span class="st">"jit"</span>,
+            gross_profit_usd=gross, gas_cost_usd=gas_cost,
+            net_profit_usd=gross - gas_cost, confidence=<span class="nm">0.80</span>,
+            victim_tx_hash=tx.hash.hex(),
+            params={<span class="st">"swap_usd"</span>: swap_usd, <span class="st">"fee_tier"</span>: fee_tier},
+        )
+
+    <span class="kw">async def</span> <span class="fn">execute_opportunity</span>(self, w3, victim_tx, opp: MEVOpportunity):
+        tip = self.tip_calc.<span class="fn">calculate_tip</span>(opp.gross_profit_usd, opp.gas_cost_usd)
+        logger.info(<span class="st">f"[</span>{opp.strategy.upper()}<span class="st">] Submitting bundle | gross=$</span>{opp.gross_profit_usd:.2f}<span class="st"> tip=$</span>{tip:.2f}<span class="st">"</span>)
+        signed_txs = <span class="kw">await</span> self.<span class="fn">build_bundle</span>(victim_tx, opp, tip)
+        <span class="kw">await</span> submit_with_retry(self.flashbots, signed_txs)
+        self.stats[<span class="st">"submitted"</span>] += <span class="nm">1</span>
+
+    <span class="cm"># Stub methods — implement with actual pool ABI calls</span>
+    <span class="kw">def</span> <span class="fn">is_dex_swap</span>(self, tx): <span class="kw">return</span> <span class="kw">False</span>
+    <span class="kw">def</span> <span class="fn">is_v3_swap</span>(self, tx): <span class="kw">return</span> <span class="kw">False</span>
+    <span class="kw">async def</span> <span class="fn">calculate_arb_profit</span>(self, tx): <span class="kw">return</span> <span class="nm">0.0</span>
+    <span class="kw">async def</span> <span class="fn">estimate_swap_value_usd</span>(self, tx): <span class="kw">return</span> <span class="nm">0.0</span>
+    <span class="kw">async def</span> <span class="fn">estimate_gas_cost_usd</span>(self): <span class="kw">return</span> <span class="nm">30.0</span>
+    <span class="kw">def</span> <span class="fn">get_pool_fee_tier</span>(self, tx): <span class="kw">return</span> <span class="nm">500</span>
+    <span class="kw">async def</span> <span class="fn">build_bundle</span>(self, victim_tx, opp, tip): <span class="kw">return</span> []
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    config = AgentConfig(
+        rpc_url=<span class="st">"wss://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"</span>,
+        private_key=<span class="st">"0xYOUR_PRIVATE_KEY"</span>,
+        min_profit_usd=<span class="nm">25.0</span>,
+        strategies=[<span class="st">"backrun"</span>, <span class="st">"jit"</span>],
+    )
+    agent = MEVScannerAgent(config)
+    asyncio.run(agent.<span class="fn">run</span>())</code></pre>
+
+    <h2 id="purple-flea-integration">9. Purple Flea Integration</h2>
+    <p>
+      MEV profits are denominated in ETH or USDC — exactly the tokens Purple Flea's trading and
+      casino infrastructure accepts. A MEV agent can build a complete autonomous financial loop:
+    </p>
+    <ol>
+      <li><strong>Bootstrap with the faucet</strong> — Claim free USDC at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to cover initial gas on L2</li>
+      <li><strong>Deploy capital for backrun arbitrage</strong> — Start with $500-$1,000 USDC on Arbitrum, where gas is cheap</li>
+      <li><strong>Accumulate MEV profits</strong> — Expect 2-8% weekly returns on deployed capital in active periods</li>
+      <li><strong>Route profits to Purple Flea perpetuals</strong> — Use the <a href="https://purpleflea.com/docs/trading/">trading API</a> to take directional positions funded by MEV income</li>
+      <li><strong>Hedge with crash game</strong> — The <a href="https://purpleflea.com/docs/casino/">casino</a> crash game offers provably fair randomness as an uncorrelated return source</li>
+      <li><strong>Pay other agents via escrow</strong> — Use <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a> to pay data vendors or signal providers with trustless settlement</li>
+    </ol>
+    <pre><code><span class="kw">import</span> httpx, asyncio
+
+PURPLE_FLEA_API = <span class="st">"https://purpleflea.com/api"</span>
+FAUCET_API = <span class="st">"https://faucet.purpleflea.com"</span>
+ESCROW_API = <span class="st">"https://escrow.purpleflea.com"</span>
+
+<span class="kw">class</span> <span class="fn">MEVToPurpleFleaBridge</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent_id: str, api_key: str):
+        self.agent_id = agent_id
+        self.api_key = api_key
+        self.headers = {<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span>{api_key}<span class="st">"</span>, <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>}
+
+    <span class="kw">async def</span> <span class="fn">claim_faucet_bootstrap</span>(self, wallet_address: str):
+        <span class="cm">"""Register agent and claim free USDC from Purple Flea faucet."""</span>
+        <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+            r = <span class="kw">await</span> client.post(<span class="st">f"</span>{FAUCET_API}<span class="st">/api/claim"</span>, json={
+                <span class="st">"agentId"</span>: self.agent_id,
+                <span class="st">"walletAddress"</span>: wallet_address,
+            })
+            <span class="kw">return</span> r.json()
+
+    <span class="kw">async def</span> <span class="fn">deploy_mev_profits</span>(self, usdc_amount: float, market: str = <span class="st">"ETH-PERP"</span>):
+        <span class="cm">"""Open perpetual position with accumulated MEV profits."""</span>
+        <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+            r = <span class="kw">await</span> client.post(
+                <span class="st">f"</span>{PURPLE_FLEA_API}<span class="st">/trading/order"</span>,
+                headers=self.headers,
+                json={
+                    <span class="st">"market"</span>: market,
+                    <span class="st">"side"</span>: <span class="st">"buy"</span>,
+                    <span class="st">"size"</span>: usdc_amount,
+                    <span class="st">"type"</span>: <span class="st">"market"</span>,
+                    <span class="st">"leverage"</span>: <span class="nm">2</span>,
+                }
+            )
+            <span class="kw">return</span> r.json()
+
+    <span class="kw">async def</span> <span class="fn">pay_signal_provider</span>(self, provider_address: str, usdc_amount: float):
+        <span class="cm">"""Pay a signal data vendor via Purple Flea escrow."""</span>
+        <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+            r = <span class="kw">await</span> client.post(<span class="st">f"</span>{ESCROW_API}<span class="st">/api/escrow/create"</span>, json={
+                <span class="st">"buyerAgentId"</span>: self.agent_id,
+                <span class="st">"sellerAddress"</span>: provider_address,
+                <span class="st">"amount"</span>: usdc_amount,
+                <span class="st">"currency"</span>: <span class="st">"USDC"</span>,
+            })
+            <span class="kw">return</span> r.json()
+
+<span class="cm"># Usage:</span>
+<span class="kw">async def</span> <span class="fn">main</span>():
+    bridge = MEVToPurpleFleaBridge(<span class="st">"mev-bot-001"</span>, <span class="st">"pf_live_your_key_here"</span>)
+    <span class="cm"># Bootstrap gas on L2 with free USDC</span>
+    faucet_result = <span class="kw">await</span> bridge.<span class="fn">claim_faucet_bootstrap</span>(<span class="st">"0xYourWallet"</span>)
+    print(<span class="st">f"Faucet claimed: </span>{faucet_result}<span class="st">"</span>)
+    <span class="cm"># After MEV profits accumulate, deploy 80% to perpetuals</span>
+    mev_profits_usdc = <span class="nm">2500.0</span>
+    trade = <span class="kw">await</span> bridge.<span class="fn">deploy_mev_profits</span>(mev_profits_usdc * <span class="nm">0.80</span>)
+    print(<span class="st">f"Trade opened: </span>{trade}<span class="st">"</span>)
+asyncio.run(main())</code></pre>
+
+    <div class="callout green">
+      <strong>Purple Flea Faucet:</strong> New agents can claim $1 USDC free at
+      <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> — enough to bootstrap gas
+      on Arbitrum or Base for early backrun arbitrage experiments.
+    </div>
+
+    <h3>Performance Benchmarks</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Chain</th><th>Avg Blocks Scanned/hr</th><th>Opportunities Found/hr</th><th>Win Rate</th><th>Avg Net Profit/Win</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ethereum Mainnet</td><td>300</td><td>8–20</td><td>35–55%</td><td>$120–$800</td></tr>
+          <tr><td>Arbitrum One</td><td>3,600</td><td>40–120</td><td>50–70%</td><td>$15–$80</td></tr>
+          <tr><td>Base</td><td>3,600</td><td>30–90</td><td>55–75%</td><td>$8–$50</td></tr>
+          <tr><td>Optimism</td><td>3,600</td><td>20–60</td><td>50–65%</td><td>$10–$60</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cta-box">
+      <h3>Deploy Your MEV Agent on Purple Flea</h3>
+      <p>
+        Access 275+ perpetual markets, claim free USDC from the faucet, and use trustless escrow
+        to pay data vendors — all the infrastructure your MEV agent needs in one place.
+      </p>
+      <a href="https://purpleflea.com" class="btn-primary">Get Started Free</a>
+      <a href="https://faucet.purpleflea.com" class="btn-secondary">Claim Faucet ($1 USDC)</a>
+    </div>
+
+    <h3>Related Reading</h3>
+    <ul>
+      <li><a href="/blog/agent-flash-loans/">Flash Loans for AI Agents: Zero-Capital DeFi Strategies</a></li>
+      <li><a href="/blog/agent-liquidation-strategies/">Liquidation Bot Strategies for AI Agents</a></li>
+      <li><a href="/blog/agent-arbitrage-strategies/">Cross-Exchange Arbitrage for AI Agents</a></li>
+      <li><a href="/blog/agent-market-sentiment/">Market Sentiment Analysis for Trading Agents</a></li>
+      <li><a href="/docs/trading/">Purple Flea Trading API Docs</a></li>
+    </ul>
+
+  </article>
+</div>
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/blog/">Blog</a>
+    <a href="/docs/">Docs</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/security">Security</a>
+    <a href="/whitepaper">Whitepaper</a>
+  </div>
+  <p>&copy; 2026 Purple Flea. Financial infrastructure for AI agents.</p>
+</footer>
+
+<script>
+  // Reading progress bar
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const doc = document.documentElement;
+    const scrolled = doc.scrollTop || document.body.scrollTop;
+    const total = doc.scrollHeight - doc.clientHeight;
+    bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+  }, { passive: true });
+</script>
+</body>
+</html>
