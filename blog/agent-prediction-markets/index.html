@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prediction Markets for AI Agents | Purple Flea Blog</title>
+  <meta name="description" content="How AI agents can participate in prediction markets. Market scoring rules, Kelly criterion, LMSR automated market makers, belief calibration, and Python prediction market agent with belief updating." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Prediction Markets for AI Agents" />
+  <meta property="og:description" content="Market scoring rules, Kelly criterion, LMSR, belief calibration, and a complete Python prediction market agent." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-prediction-markets/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-prediction-markets/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Prediction Markets for AI Agents",
+    "description": "How AI agents can participate in prediction markets. Market scoring rules, Kelly criterion, LMSR automated market makers, belief calibration, and Python prediction market agent.",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-prediction-markets/",
+    "keywords": ["prediction markets", "AI agents", "LMSR", "Kelly criterion", "Polymarket", "belief calibration"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem !important;
+    }
+
+    .nav-cta:hover { background: var(--accent-dim) !important; }
+
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    article { min-width: 0; }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .breadcrumb a { color: var(--secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+
+    .tag-chip {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--blue);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 3rem 0 1rem;
+      padding-top: 1rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2rem 0 0.8rem;
+    }
+
+    p { color: #D4D4D8; margin-bottom: 1.2rem; }
+
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.2rem; color: #D4D4D8; }
+    li { margin-bottom: 0.4rem; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+
+    p code, li code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      color: #E879F9;
+    }
+
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      border-left: 3px solid;
+      font-size: 0.92rem;
+    }
+
+    .callout-info { background: rgba(59, 130, 246, 0.08); border-color: var(--blue); }
+    .callout-warning { background: rgba(234, 179, 8, 0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(34, 197, 94, 0.08); border-color: var(--green); }
+    .callout-purple { background: rgba(168, 85, 247, 0.08); border-color: var(--accent); }
+
+    .callout strong { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .callout-info strong { color: var(--blue); }
+    .callout-warning strong { color: var(--yellow); }
+    .callout-success strong { color: var(--green); }
+    .callout-purple strong { color: var(--accent); }
+
+    .math-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      color: #D4D4D8;
+      line-height: 1.8;
+    }
+
+    .math-box .formula { color: var(--accent); font-weight: 500; }
+    .math-box .comment { color: var(--secondary); font-size: 0.8rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.88rem;
+    }
+
+    th {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: #D4D4D8;
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168, 85, 247, 0.04); }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+    }
+
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--secondary);
+      margin-bottom: 1rem;
+    }
+
+    .toc-list { list-style: none; padding: 0; }
+    .toc-list li { margin-bottom: 0.1rem; }
+
+    .toc-list a {
+      font-size: 0.8rem;
+      color: var(--secondary);
+      text-decoration: none;
+      display: block;
+      padding: 0.3rem 0.5rem;
+      border-radius: 4px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+      line-height: 1.4;
+    }
+
+    .toc-list a:hover,
+    .toc-list a.active {
+      color: var(--accent);
+      background: rgba(168, 85, 247, 0.08);
+      border-left-color: var(--accent);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.82rem;
+      margin-top: 4rem;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(124, 58, 237, 0.05));
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0;
+      text-align: center;
+    }
+
+    .cta-box h3 { margin-top: 0; color: var(--accent); }
+    .cta-box p { margin-bottom: 1.2rem; }
+
+    .btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: var(--accent-dim); text-decoration: none; color: #fff; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      margin-left: 0.8rem;
+    }
+
+    .btn-outline:hover { background: rgba(168, 85, 247, 0.1); color: var(--accent); }
+
+    .diagram-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--secondary);
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 900px) {
+      .page-wrapper { grid-template-columns: 1fr; gap: 2rem; padding: 2rem 1.2rem; }
+      .toc-sidebar { position: static; }
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/docs/api-keys" class="nav-cta">Get API Key →</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <div class="breadcrumb">
+        <a href="/">Home</a> / <a href="/blog">Blog</a> / Prediction Markets for AI Agents
+      </div>
+
+      <div class="tag-chip">Strategy</div>
+
+      <h1>Prediction Markets for AI Agents</h1>
+
+      <div class="post-meta">
+        <span>📅 March 6, 2026</span>
+        <span>⏱ 13 min read</span>
+        <span>🏷 Prediction Markets · Kelly Criterion · LMSR</span>
+      </div>
+
+      <!-- SECTION 1 -->
+      <h2 id="what-are-prediction-markets">What Are Prediction Markets?</h2>
+
+      <p>A prediction market is a financial instrument where traders buy and sell shares that pay out based on whether a future event occurs. If you believe an event has a 70% chance of happening, you buy "Yes" shares at any price below 70 cents. If you're right, each share pays $1 at resolution; if wrong, it pays zero.</p>
+
+      <p>For AI agents, prediction markets are uniquely suited to their architecture. Agents are probabilistic reasoners — they already produce calibrated confidence scores for their beliefs. Prediction markets are the natural mechanism for an agent to express those beliefs, earn rewards for correct ones, and be penalized for overconfident or poorly calibrated predictions.</p>
+
+      <p>The leading platforms are <strong>Polymarket</strong> (USDC-settled, Polygon chain) and <strong>Augur</strong> (decentralized, ERC-20 tokens). Both use automated market makers that allow agents to trade without a counterparty waiting on the other side.</p>
+
+      <table>
+        <thead>
+          <tr><th>Platform</th><th>Settlement</th><th>Resolution</th><th>AMM Type</th><th>Agent-friendly</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Polymarket</td><td>USDC (Polygon)</td><td>UMA oracle</td><td>CLOB + AMM</td><td>REST API available</td></tr>
+          <tr><td>Augur</td><td>ETH / DAI</td><td>Decentralized reporters</td><td>AMM</td><td>Smart contract interaction</td></tr>
+          <tr><td>Metaculus</td><td>No money, points</td><td>Community</td><td>N/A</td><td>API available</td></tr>
+          <tr><td>Manifold</td><td>Mana (play money)</td><td>Creator</td><td>LMSR</td><td>REST API, free</td></tr>
+        </tbody>
+      </table>
+
+      <!-- SECTION 2 -->
+      <h2 id="market-scoring-rules">Market Scoring Rules</h2>
+
+      <p>Before you can trade intelligently in a prediction market, you need to understand how market scoring rules work. A market scoring rule defines the cost of moving the market probability from one value to another. The two most important rules are logarithmic and quadratic.</p>
+
+      <h3>Logarithmic Market Scoring Rule (LMSR)</h3>
+      <p>LMSR, invented by Robin Hanson, is the most widely used AMM for prediction markets. The cost function for a binary market is:</p>
+
+      <div class="math-box">
+<span class="comment">LMSR Cost Function (binary market)</span>
+
+<span class="formula">C(q_yes, q_no) = b · ln(exp(q_yes / b) + exp(q_no / b))</span>
+
+  where:
+    q_yes = total shares of "Yes" outstanding
+    q_no  = total shares of "No" outstanding
+    b     = liquidity parameter (higher = less price impact)
+
+<span class="comment">Price of Yes shares (current market probability):</span>
+<span class="formula">P(yes) = exp(q_yes / b) / (exp(q_yes / b) + exp(q_no / b))</span>
+
+<span class="comment">Cost to buy Δ shares of Yes:</span>
+<span class="formula">cost = C(q_yes + Δ, q_no) - C(q_yes, q_no)</span></div>
+
+      <p>The key property of LMSR: the market maker subsidizes liquidity up to a maximum loss of <code>b · ln(2)</code> per market. This bounded loss makes it practical for operators to bootstrap markets even without natural liquidity.</p>
+
+      <h3>Quadratic Scoring Rule</h3>
+      <p>Quadratic scoring rewards calibration directly. A forecaster who reports probability <em>r</em> for an event that actually occurs with outcome <em>o</em> ∈ {0, 1} receives:</p>
+
+      <div class="math-box">
+<span class="comment">Quadratic Scoring Rule payoff:</span>
+
+<span class="formula">S(r, o) = 2·o·r - r²  + 2·(1-o)·(1-r) - (1-r)²</span>
+
+<span class="comment">Simplified: S(r, o) = 1 - (r - o)²  (Brier score variant)</span>
+
+  Maximized when r = P(event) — your true belief.
+  Strictly proper: never incentivizes misreporting your beliefs.
+      </div>
+
+      <div class="callout callout-info">
+        <strong>Proper scoring rules</strong>
+        A scoring rule is "proper" if it is maximized when you report your true beliefs. Both logarithmic and quadratic rules are proper. This is critical for AI agents — the market rewards honest probability reporting, not strategic manipulation.
+      </div>
+
+      <!-- SECTION 3 -->
+      <h2 id="belief-calibration">Calibration: Are Your Agent's Beliefs Reliable?</h2>
+
+      <p>Calibration measures whether your agent's stated confidence actually corresponds to real-world frequencies. A perfectly calibrated agent, when it says "70% probability", is correct 70% of the time over many such predictions.</p>
+
+      <p>Poorly calibrated agents lose money in prediction markets even when directionally correct. An agent that says "90% probability" for things that happen 70% of the time will consistently overpay for Yes shares.</p>
+
+      <pre><span style="color:#569CD6">import</span> numpy <span style="color:#569CD6">as</span> np
+<span style="color:#569CD6">from</span> collections <span style="color:#569CD6">import</span> defaultdict
+
+
+<span style="color:#569CD6">def</span> calibration_curve(predictions: list, outcomes: list, n_bins: int = 10):
+    <span style="color:#CE9178">"""
+    Compute calibration curve.
+    predictions: list of floats (stated probability, 0-1)
+    outcomes:    list of int (0 or 1)
+    returns:     (bin_centers, fraction_positive, counts)
+    """</span>
+    bins = np.linspace(0, 1, n_bins + 1)
+    bin_centers, fractions, counts_out = [], [], []
+
+    <span style="color:#569CD6">for</span> i <span style="color:#569CD6">in</span> range(n_bins):
+        lo, hi = bins[i], bins[i + 1]
+        mask = [(lo <= p < hi) <span style="color:#569CD6">for</span> p <span style="color:#569CD6">in</span> predictions]
+        bucket_preds    = [p <span style="color:#569CD6">for</span> p, m <span style="color:#569CD6">in</span> zip(predictions, mask) <span style="color:#569CD6">if</span> m]
+        bucket_outcomes = [o <span style="color:#569CD6">for</span> o, m <span style="color:#569CD6">in</span> zip(outcomes, mask) <span style="color:#569CD6">if</span> m]
+
+        <span style="color:#569CD6">if not</span> bucket_preds:
+            <span style="color:#569CD6">continue</span>
+
+        bin_centers.append((lo + hi) / 2)
+        fractions.append(np.mean(bucket_outcomes))
+        counts_out.append(len(bucket_preds))
+
+    <span style="color:#569CD6">return</span> np.array(bin_centers), np.array(fractions), np.array(counts_out)
+
+
+<span style="color:#569CD6">def</span> brier_score(predictions: list, outcomes: list) -> float:
+    <span style="color:#CE9178">"""Mean squared error — lower is better, perfect = 0.0, chance = 0.25."""</span>
+    <span style="color:#569CD6">return</span> float(np.mean([(p - o) ** 2 <span style="color:#569CD6">for</span> p, o <span style="color:#569CD6">in</span> zip(predictions, outcomes)]))
+
+
+<span style="color:#569CD6">def</span> platt_calibrate(predictions: list, outcomes: list):
+    <span style="color:#CE9178">"""
+    Platt scaling: fit a logistic regression on raw model scores to
+    produce calibrated probabilities.
+    Returns a function raw_score -> calibrated_probability.
+    """</span>
+    <span style="color:#569CD6">from</span> sklearn.linear_model <span style="color:#569CD6">import</span> LogisticRegression
+    X = np.array(predictions).reshape(-1, 1)
+    y = np.array(outcomes)
+    model = LogisticRegression().fit(X, y)
+    <span style="color:#569CD6">return lambda</span> p: model.predict_proba([[p]])[0][1]
+
+
+<span style="color:#6A9955"># Example: calibrate a language model's confidence scores</span>
+raw_scores = [0.9, 0.8, 0.75, 0.6, 0.55, 0.4, 0.3]
+actual     = [1,   1,   0,    1,   0,    0,   0  ]
+calibrated = platt_calibrate(raw_scores, actual)
+print(f<span style="color:#CE9178">"Brier: {brier_score(raw_scores, actual):.4f}"</span>)
+print(f<span style="color:#CE9178">"Calibrated 0.9 → {calibrated(0.9):.3f}"</span>)</pre>
+
+      <!-- SECTION 4 -->
+      <h2 id="kelly-criterion">Kelly Criterion for Prediction Markets</h2>
+
+      <p>Once your agent has a calibrated belief, Kelly criterion tells you the optimal fraction of your bankroll to stake. The Kelly formula maximizes long-run geometric growth rate — it is the mathematically optimal bet size given your edge.</p>
+
+      <div class="math-box">
+<span class="comment">Kelly Criterion for binary prediction market:</span>
+
+<span class="formula">f* = (p · b - q) / b</span>
+
+  where:
+    f* = fraction of bankroll to stake
+    p  = your estimated probability of winning (Yes)
+    q  = 1 - p  (probability of losing)
+    b  = net payout odds (e.g., if price is 0.4, b = (1-0.4)/0.4 = 1.5)
+
+<span class="comment">Example: market prices Yes at 40¢, you believe 60% chance of Yes</span>
+<span class="formula">f* = (0.6 × 1.5 - 0.4) / 1.5 = (0.9 - 0.4) / 1.5 = 0.333</span>
+
+  Stake 33.3% of bankroll on Yes.
+  Never stake more than Kelly — it increases ruin probability.
+  Half-Kelly (f*/2) is common for risk management.
+      </div>
+
+      <pre><span style="color:#569CD6">def</span> kelly_fraction(
+    belief: float,
+    market_price: float,
+    kelly_fraction: float = 1.0
+) -> float:
+    <span style="color:#CE9178">"""
+    Compute Kelly-optimal stake fraction.
+
+    belief:       your probability estimate for Yes (0-1)
+    market_price: current market price of Yes share (0-1)
+    kelly_fraction: scaling factor (0.5 = half-Kelly, recommended)
+    """</span>
+    <span style="color:#569CD6">if</span> market_price <= 0 <span style="color:#569CD6">or</span> market_price >= 1:
+        <span style="color:#569CD6">return</span> 0.0
+
+    b = (1.0 - market_price) / market_price  <span style="color:#6A9955"># net payout odds</span>
+    q = 1.0 - belief
+    f = (belief * b - q) / b
+
+    <span style="color:#569CD6">if</span> f <= 0:
+        <span style="color:#569CD6">return</span> 0.0  <span style="color:#6A9955"># negative edge, no bet</span>
+
+    <span style="color:#569CD6">return</span> min(f * kelly_fraction, 0.25)  <span style="color:#6A9955"># cap at 25% of bankroll</span>
+
+
+<span style="color:#569CD6">def</span> kelly_position_size(
+    bankroll: float,
+    belief: float,
+    market_price: float,
+    half_kelly: bool = True
+) -> dict:
+    <span style="color:#CE9178">"""Returns position sizing details."""</span>
+    fraction = kelly_fraction(belief, market_price, 0.5 <span style="color:#569CD6">if</span> half_kelly <span style="color:#569CD6">else</span> 1.0)
+    stake = bankroll * fraction
+    shares = stake / market_price <span style="color:#569CD6">if</span> market_price > 0 <span style="color:#569CD6">else</span> 0
+
+    edge = belief - market_price  <span style="color:#6A9955"># raw edge</span>
+
+    <span style="color:#569CD6">return</span> {
+        <span style="color:#CE9178">"fraction"</span>:    fraction,
+        <span style="color:#CE9178">"stake_usd"</span>:   stake,
+        <span style="color:#CE9178">"shares"</span>:      shares,
+        <span style="color:#CE9178">"edge"</span>:        edge,
+        <span style="color:#CE9178">"expected_pnl"</span>: stake * (belief / market_price - 1),
+        <span style="color:#CE9178">"kelly_multiple"</span>: 0.5 <span style="color:#569CD6">if</span> half_kelly <span style="color:#569CD6">else</span> 1.0,
+    }</pre>
+
+      <div class="callout callout-warning">
+        <strong>Ruin risk</strong>
+        Full Kelly maximizes long-run growth but permits catastrophic drawdowns. Half-Kelly (multiply the fraction by 0.5) reduces variance at the cost of ~13% of expected growth rate. Most institutional traders use quarter-Kelly to full-Kelly depending on confidence in their probability estimates.
+      </div>
+
+      <!-- SECTION 5 -->
+      <h2 id="lmsr-implementation">LMSR Implementation</h2>
+
+      <p>Here is a complete LMSR market maker implementation you can use to simulate prediction markets locally, test your agent's trading strategies, or build your own micro-market:</p>
+
+      <pre><span style="color:#569CD6">import</span> math
+<span style="color:#569CD6">from</span> typing <span style="color:#569CD6">import</span> Dict
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">LMSRMarket</span>:
+    <span style="color:#CE9178">"""
+    Logarithmic Market Scoring Rule (LMSR) automated market maker.
+
+    A binary market where Yes and No shares trade against a subsidized
+    liquidity pool. Provides guaranteed liquidity at every price point.
+
+    Reference: Hanson (2003) "Combinatorial Information Market Design"
+    """</span>
+
+    <span style="color:#569CD6">def</span> __init__(self, b: float = 100.0, initial_prob: float = 0.5):
+        <span style="color:#CE9178">"""
+        b: liquidity parameter. Higher b = less slippage, more subsidy.
+           Rule of thumb: b = expected_volume / ln(2)
+        """</span>
+        self.b = b
+        <span style="color:#6A9955"># Initialize quantities so P(yes) = initial_prob</span>
+        self.q_yes = b * math.log(initial_prob / (1 - initial_prob)) <span style="color:#569CD6">if</span> initial_prob != 0.5 <span style="color:#569CD6">else</span> 0.0
+        self.q_no  = 0.0
+        self.trades: list = []
+
+    <span style="color:#569CD6">def</span> _cost(self, q_yes: float, q_no: float) -> float:
+        <span style="color:#CE9178">"""LMSR cost function."""</span>
+        <span style="color:#569CD6">return</span> self.b * math.log(math.exp(q_yes / self.b) + math.exp(q_no / self.b))
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> yes_price(self) -> float:
+        <span style="color:#CE9178">"""Current market probability of Yes."""</span>
+        exp_yes = math.exp(self.q_yes / self.b)
+        exp_no  = math.exp(self.q_no  / self.b)
+        <span style="color:#569CD6">return</span> exp_yes / (exp_yes + exp_no)
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> no_price(self) -> float:
+        <span style="color:#569CD6">return</span> 1.0 - self.yes_price
+
+    <span style="color:#569CD6">def</span> cost_to_buy(self, shares: float, outcome: str = <span style="color:#CE9178">"yes"</span>) -> float:
+        <span style="color:#CE9178">"""How much does it cost to buy `shares` of Yes or No?"""</span>
+        c_before = self._cost(self.q_yes, self.q_no)
+        <span style="color:#569CD6">if</span> outcome == <span style="color:#CE9178">"yes"</span>:
+            c_after = self._cost(self.q_yes + shares, self.q_no)
+        <span style="color:#569CD6">else</span>:
+            c_after = self._cost(self.q_yes, self.q_no + shares)
+        <span style="color:#569CD6">return</span> c_after - c_before
+
+    <span style="color:#569CD6">def</span> shares_for_cost(self, budget: float, outcome: str = <span style="color:#CE9178">"yes"</span>) -> float:
+        <span style="color:#CE9178">"""How many shares can I buy with exactly `budget` dollars?"""</span>
+        c0 = self._cost(self.q_yes, self.q_no)
+        target_cost = c0 + budget
+
+        <span style="color:#6A9955"># Binary search for shares</span>
+        lo, hi = 0.0, budget / 1e-6
+        <span style="color:#569CD6">for</span> _ <span style="color:#569CD6">in</span> range(64):
+            mid = (lo + hi) / 2
+            <span style="color:#569CD6">if</span> outcome == <span style="color:#CE9178">"yes"</span>:
+                cost = self._cost(self.q_yes + mid, self.q_no)
+            <span style="color:#569CD6">else</span>:
+                cost = self._cost(self.q_yes, self.q_no + mid)
+            <span style="color:#569CD6">if</span> cost < target_cost:
+                lo = mid
+            <span style="color:#569CD6">else</span>:
+                hi = mid
+
+        <span style="color:#569CD6">return</span> (lo + hi) / 2
+
+    <span style="color:#569CD6">def</span> buy(self, agent_id: str, budget: float, outcome: str = <span style="color:#CE9178">"yes"</span>) -> dict:
+        <span style="color:#CE9178">"""Execute a buy order. Returns trade details."""</span>
+        price_before = self.yes_price
+        shares = self.shares_for_cost(budget, outcome)
+
+        <span style="color:#569CD6">if</span> outcome == <span style="color:#CE9178">"yes"</span>:
+            self.q_yes += shares
+        <span style="color:#569CD6">else</span>:
+            self.q_no += shares
+
+        price_after = self.yes_price
+        trade = {
+            <span style="color:#CE9178">"agent_id"</span>:     agent_id,
+            <span style="color:#CE9178">"outcome"</span>:      outcome,
+            <span style="color:#CE9178">"cost"</span>:         budget,
+            <span style="color:#CE9178">"shares"</span>:       shares,
+            <span style="color:#CE9178">"avg_price"</span>:    budget / shares,
+            <span style="color:#CE9178">"price_before"</span>: price_before,
+            <span style="color:#CE9178">"price_after"</span>:  price_after,
+            <span style="color:#CE9178">"slippage"</span>:     abs(price_after - price_before),
+        }
+        self.trades.append(trade)
+        <span style="color:#569CD6">return</span> trade
+
+    <span style="color:#569CD6">def</span> resolve(self, outcome: str) -> Dict[str, float]:
+        <span style="color:#CE9178">"""Resolve market and compute payouts per agent."""</span>
+        payouts: Dict[str, float] = defaultdict(float)
+        <span style="color:#569CD6">for</span> trade <span style="color:#569CD6">in</span> self.trades:
+            <span style="color:#569CD6">if</span> trade[<span style="color:#CE9178">"outcome"</span>] == outcome:
+                payouts[trade[<span style="color:#CE9178">"agent_id"</span>]] += trade[<span style="color:#CE9178">"shares"</span>]  <span style="color:#6A9955"># $1 per share</span>
+        <span style="color:#569CD6">return</span> dict(payouts)
+
+
+<span style="color:#6A9955"># Example: create a market and trade</span>
+market = LMSRMarket(b=200, initial_prob=0.5)
+print(f<span style="color:#CE9178">"Initial Yes price: {market.yes_price:.3f}"</span>)
+
+trade = market.buy(<span style="color:#CE9178">"agent-007"</span>, budget=50.0, outcome=<span style="color:#CE9178">"yes"</span>)
+print(f<span style="color:#CE9178">"Bought {trade['shares']:.2f} Yes shares for $50"</span>)
+print(f<span style="color:#CE9178">"New Yes price: {market.yes_price:.3f}  (was {trade['price_before']:.3f})"</span>)</pre>
+
+      <!-- SECTION 6 -->
+      <h2 id="belief-updating">Bayesian Belief Updating</h2>
+
+      <p>A prediction market agent must update its beliefs as new information arrives. Bayes' theorem gives the correct update rule: prior belief times likelihood of observed evidence, normalized.</p>
+
+      <pre><span style="color:#569CD6">from</span> dataclasses <span style="color:#569CD6">import</span> dataclass
+<span style="color:#569CD6">from</span> typing <span style="color:#569CD6">import</span> List
+
+
+<span style="color:#4EC9B0">@dataclass</span>
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">MarketBelief</span>:
+    question:    str
+    prior:       float         <span style="color:#6A9955"># initial probability estimate</span>
+    posterior:   float = 0.0   <span style="color:#6A9955"># updated belief after evidence</span>
+    evidence:    list = None
+    uncertainty: float = 0.1   <span style="color:#6A9955"># epistemic uncertainty (use for position sizing)</span>
+
+    <span style="color:#569CD6">def</span> __post_init__(self):
+        self.posterior = self.prior
+        self.evidence  = self.evidence <span style="color:#569CD6">or</span> []
+
+    <span style="color:#569CD6">def</span> update(self, likelihood_ratio: float):
+        <span style="color:#CE9178">"""
+        Update belief with likelihood ratio P(evidence|Yes) / P(evidence|No).
+        likelihood_ratio > 1 = evidence favors Yes
+        likelihood_ratio < 1 = evidence favors No
+        """</span>
+        prior_odds     = self.posterior / (1 - self.posterior)
+        posterior_odds = prior_odds * likelihood_ratio
+        self.posterior = posterior_odds / (1 + posterior_odds)
+
+    <span style="color:#569CD6">def</span> update_batch(self, likelihood_ratios: List[float]):
+        <span style="color:#CE9178">"""Apply multiple independent evidence updates."""</span>
+        <span style="color:#569CD6">for</span> lr <span style="color:#569CD6">in</span> likelihood_ratios:
+            self.update(lr)
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> edge(self) -> dict:
+        <span style="color:#CE9178">"""Return edge summary given current market price (call before trading)."""</span>
+        <span style="color:#569CD6">return</span> {
+            <span style="color:#CE9178">"belief"</span>:     self.posterior,
+            <span style="color:#CE9178">"uncertainty"</span>: self.uncertainty,
+            <span style="color:#CE9178">"confidence"</span>:  1.0 - self.uncertainty,
+        }
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">PredictionMarketAgent</span>:
+    <span style="color:#CE9178">"""
+    An agent that maintains beliefs about prediction market questions,
+    updates them with evidence, and trades using Kelly criterion sizing.
+    """</span>
+
+    <span style="color:#569CD6">def</span> __init__(self, agent_id: str, bankroll: float, api_key: str):
+        self.agent_id = agent_id
+        self.bankroll = bankroll
+        self.api_key  = api_key
+        self.beliefs: Dict[str, MarketBelief] = {}
+        self.positions: Dict[str, dict]       = {}
+        self.history: List[dict]              = []
+
+    <span style="color:#569CD6">def</span> form_belief(self, market_id: str, question: str, prior: float) -> MarketBelief:
+        belief = MarketBelief(question=question, prior=prior)
+        self.beliefs[market_id] = belief
+        <span style="color:#569CD6">return</span> belief
+
+    <span style="color:#569CD6">def</span> update_belief(self, market_id: str, evidence: dict):
+        <span style="color:#CE9178">"""Update belief based on new evidence."""</span>
+        belief = self.beliefs.get(market_id)
+        <span style="color:#569CD6">if not</span> belief:
+            <span style="color:#569CD6">return</span>
+
+        <span style="color:#6A9955"># Convert evidence into likelihood ratio</span>
+        lr = self._evidence_to_lr(evidence)
+        belief.update(lr)
+        belief.evidence.append({<span style="color:#CE9178">"evidence"</span>: evidence, <span style="color:#CE9178">"lr"</span>: lr})
+
+    <span style="color:#569CD6">def</span> _evidence_to_lr(self, evidence: dict) -> float:
+        <span style="color:#CE9178">"""
+        Convert evidence dict to likelihood ratio.
+        Override this with your domain-specific logic.
+        """</span>
+        signal = evidence.get(<span style="color:#CE9178">"signal"</span>, 0)
+        strength = evidence.get(<span style="color:#CE9178">"strength"</span>, 1.0)
+        <span style="color:#6A9955"># signal: +1 = supports Yes, -1 = supports No, 0 = neutral</span>
+        <span style="color:#6A9955"># strength: [0, 1] scales the likelihood ratio</span>
+        base_lr = 1.0 + signal * strength * 2.0
+        <span style="color:#569CD6">return</span> max(0.1, base_lr)
+
+    <span style="color:#569CD6">def</span> trade_decision(
+        self, market_id: str, market_price: float
+    ) -> Optional[dict]:
+        <span style="color:#CE9178">"""
+        Decide whether to trade and how much.
+        Returns trade dict or None if no trade warranted.
+        """</span>
+        belief = self.beliefs.get(market_id)
+        <span style="color:#569CD6">if not</span> belief:
+            <span style="color:#569CD6">return None</span>
+
+        p = belief.posterior
+        edge = p - market_price
+
+        <span style="color:#6A9955"># Minimum edge threshold scaled by uncertainty</span>
+        min_edge = 0.05 + belief.uncertainty * 0.1
+        <span style="color:#569CD6">if</span> abs(edge) < min_edge:
+            <span style="color:#569CD6">return None</span>  <span style="color:#6A9955"># insufficient edge</span>
+
+        outcome   = <span style="color:#CE9178">"yes"</span> <span style="color:#569CD6">if</span> edge > 0 <span style="color:#569CD6">else</span> <span style="color:#CE9178">"no"</span>
+        eff_price = market_price <span style="color:#569CD6">if</span> outcome == <span style="color:#CE9178">"yes"</span> <span style="color:#569CD6">else</span> 1 - market_price
+        sizing    = kelly_position_size(self.bankroll, p, eff_price, half_kelly=True)
+
+        <span style="color:#569CD6">return</span> {
+            <span style="color:#CE9178">"market_id"</span>:   market_id,
+            <span style="color:#CE9178">"outcome"</span>:     outcome,
+            <span style="color:#CE9178">"stake"</span>:       sizing[<span style="color:#CE9178">"stake_usd"</span>],
+            <span style="color:#CE9178">"belief"</span>:      p,
+            <span style="color:#CE9178">"market_price"</span>: market_price,
+            <span style="color:#CE9178">"edge"</span>:        edge,
+            <span style="color:#CE9178">"expected_pnl"</span>: sizing[<span style="color:#CE9178">"expected_pnl"</span>],
+        }
+
+    <span style="color:#569CD6">def</span> report_results(self) -> dict:
+        <span style="color:#CE9178">"""Summarize trading performance."""</span>
+        <span style="color:#569CD6">if not</span> self.history:
+            <span style="color:#569CD6">return</span> {<span style="color:#CE9178">"trades"</span>: 0}
+        total_pnl   = sum(h.get(<span style="color:#CE9178">"realized_pnl"</span>, 0) <span style="color:#569CD6">for</span> h <span style="color:#569CD6">in</span> self.history)
+        win_count   = sum(1 <span style="color:#569CD6">for</span> h <span style="color:#569CD6">in</span> self.history <span style="color:#569CD6">if</span> h.get(<span style="color:#CE9178">"realized_pnl"</span>, 0) > 0)
+        <span style="color:#569CD6">return</span> {
+            <span style="color:#CE9178">"trades"</span>:   len(self.history),
+            <span style="color:#CE9178">"total_pnl"</span>: total_pnl,
+            <span style="color:#CE9178">"win_rate"</span>:  win_count / len(self.history),
+            <span style="color:#CE9178">"bankroll"</span>:  self.bankroll + total_pnl,
+        }</pre>
+
+      <!-- SECTION 7 -->
+      <h2 id="liquidity-provision">Liquidity Provision</h2>
+
+      <p>Beyond taking positions, AI agents can also provide liquidity to prediction markets. An LP deposits collateral to both sides of an LMSR market, earning fees on every trade. This is a fundamentally different risk profile: LPs profit from volume regardless of outcome, but lose if the market moves far from initial price.</p>
+
+      <div class="diagram-box">          LIQUIDITY PROVIDER vs DIRECTIONAL TRADER
+
+  ┌──────────────────────────────────────────────────────┐
+  │  LIQUIDITY PROVIDER                                  │
+  │                                                      │
+  │  + Earns trading fees on every bet                  │
+  │  + Profit from volume, not direction                │
+  │  - Impermanent loss when price moves away from 0.5  │
+  │  - Capital locked for market duration               │
+  │                                                      │
+  │  Best for: high-volume markets, near-50/50 priors   │
+  └──────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────┐
+  │  DIRECTIONAL TRADER                                  │
+  │                                                      │
+  │  + Profit when your belief is correct               │
+  │  + Can compound edge over many markets              │
+  │  - Need accurate probability estimates              │
+  │  - Need calibration or lose to market makers        │
+  │                                                      │
+  │  Best for: agents with strong informational edge    │
+  └──────────────────────────────────────────────────────┘</div>
+
+      <!-- SECTION 8 -->
+      <h2 id="purple-flea-integration">Funding Your Agent with Purple Flea</h2>
+
+      <p>To trade on Polymarket or Augur, your agent needs USDC or ETH. Purple Flea's Wallet service provides a fully programmable multi-asset wallet. Use the Faucet to get initial funds, then withdraw to your on-chain wallet for prediction market trading:</p>
+
+      <pre><span style="color:#569CD6">import</span> httpx
+
+WALLET_URL = <span style="color:#CE9178">"https://wallet.purpleflea.com/api"</span>
+FAUCET_URL = <span style="color:#CE9178">"https://faucet.purpleflea.com/api"</span>
+API_KEY    = <span style="color:#CE9178">"pf_live_&lt;your_key&gt;"</span>
+
+
+<span style="color:#569CD6">async def</span> fund_prediction_market_agent(agent_id: str):
+    headers = {<span style="color:#CE9178">"Authorization"</span>: f<span style="color:#CE9178">"Bearer {API_KEY}"</span>}
+
+    <span style="color:#6A9955"># Step 1: Claim faucet for initial funds</span>
+    <span style="color:#569CD6">async with</span> httpx.AsyncClient() <span style="color:#569CD6">as</span> client:
+        faucet = <span style="color:#569CD6">await</span> client.post(
+            f<span style="color:#CE9178">"{FAUCET_URL}/claim"</span>,
+            json={<span style="color:#CE9178">"agent_id"</span>: agent_id},
+            headers=headers,
+        )
+        claim = faucet.json()
+        print(f<span style="color:#CE9178">"Claimed: {claim['amount']} PFLEA"</span>)
+
+        <span style="color:#6A9955"># Step 2: Check wallet balance</span>
+        balance = <span style="color:#569CD6">await</span> client.get(
+            f<span style="color:#CE9178">"{WALLET_URL}/balance/{agent_id}"</span>,
+            headers=headers,
+        )
+        print(f<span style="color:#CE9178">"Wallet: {balance.json()}"</span>)
+
+        <span style="color:#6A9955"># Step 3: Withdraw ETH to prediction market address</span>
+        withdraw = <span style="color:#569CD6">await</span> client.post(
+            f<span style="color:#CE9178">"{WALLET_URL}/withdraw"</span>,
+            json={
+                <span style="color:#CE9178">"agent_id"</span>:    agent_id,
+                <span style="color:#CE9178">"asset"</span>:        <span style="color:#CE9178">"ETH"</span>,
+                <span style="color:#CE9178">"amount"</span>:       0.01,
+                <span style="color:#CE9178">"to_address"</span>:   <span style="color:#CE9178">"0xYourPolymarketAddress"</span>,
+                <span style="color:#CE9178">"network"</span>:      <span style="color:#CE9178">"polygon"</span>,
+            },
+            headers=headers,
+        )
+        print(f<span style="color:#CE9178">"Withdraw tx: {withdraw.json()['tx_hash']}"</span>)
+
+        <span style="color:#6A9955"># Step 4: Use escrow for multi-agent prediction pools</span>
+        escrow = <span style="color:#569CD6">await</span> client.post(
+            <span style="color:#CE9178">"https://escrow.purpleflea.com/api/create"</span>,
+            json={
+                <span style="color:#CE9178">"payer_agent"</span>:    agent_id,
+                <span style="color:#CE9178">"receiver_agent"</span>: <span style="color:#CE9178">"market-agent-pool"</span>,
+                <span style="color:#CE9178">"amount"</span>:         100,
+                <span style="color:#CE9178">"condition"</span>:      <span style="color:#CE9178">"market_resolves_yes"</span>,
+            },
+            headers=headers,
+        )
+        print(f<span style="color:#CE9178">"Escrow created: {escrow.json()['escrow_id']}"</span>)</pre>
+
+      <div class="callout callout-purple">
+        <strong>Purple Flea Escrow for Agent Prediction Pools</strong>
+        Multiple agents can pool predictions using the Purple Flea Escrow service. Each agent deposits their stake into escrow; the winning agents get paid out automatically when the market resolves. Zero counterparty risk, 1% fee, 15% referral on fees.
+      </div>
+
+      <div class="cta-box">
+        <h3>Start Trading Prediction Markets</h3>
+        <p>Get funded through the Purple Flea Faucet, build your calibration record, and scale to real prediction markets with Kelly-optimal sizing.</p>
+        <a href="https://faucet.purpleflea.com" class="btn">Claim Free Funds →</a>
+        <a href="https://escrow.purpleflea.com" class="btn btn-outline">Escrow Docs</a>
+      </div>
+
+    </article>
+
+    <aside>
+      <div class="toc-sidebar">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#what-are-prediction-markets">What Are Prediction Markets</a></li>
+          <li><a href="#market-scoring-rules">Market Scoring Rules</a></li>
+          <li><a href="#belief-calibration">Belief Calibration</a></li>
+          <li><a href="#kelly-criterion">Kelly Criterion</a></li>
+          <li><a href="#lmsr-implementation">LMSR Implementation</a></li>
+          <li><a href="#belief-updating">Bayesian Belief Updating</a></li>
+          <li><a href="#liquidity-provision">Liquidity Provision</a></li>
+          <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>
+      <a href="/">Purple Flea</a> · Blue chip financial infrastructure for AI agents ·
+      <a href="/docs">Docs</a> · <a href="/blog">Blog</a> · <a href="/for-agents">For Agents</a>
+    </p>
+    <p style="margin-top:0.5rem">Casino · Trading · Wallet · Domains · Faucet · Escrow · purpleflea.com</p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    document.addEventListener('scroll', () => {
+      const docH = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = Math.min(100, (window.scrollY / docH) * 100) + '%';
+    });
+
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const links    = document.querySelectorAll('.toc-list a');
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-10% 0px -80% 0px' });
+
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>

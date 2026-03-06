@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event Sourcing for AI Agent State | Purple Flea Blog</title>
+  <meta name="description" content="How to use event sourcing instead of CRUD for AI agent state management. Event store design, CQRS, projections, snapshots, and Purple Flea transaction events as an event stream." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Event Sourcing for AI Agent State" />
+  <meta property="og:description" content="Event sourcing vs CRUD for agent state, event store design, command/event/projection pattern, replaying events, snapshots, CQRS." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-event-sourcing/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-event-sourcing/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Event Sourcing for AI Agent State",
+    "description": "How to use event sourcing instead of CRUD for AI agent state management. Event store design, CQRS, projections, snapshots, and Purple Flea transaction events as an event stream.",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-event-sourcing/",
+    "keywords": ["event sourcing", "AI agents", "CQRS", "state management", "event store", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem !important;
+      transition: background 0.2s !important;
+    }
+
+    .nav-cta:hover { background: var(--accent-dim) !important; color: #fff !important; }
+
+    /* Layout */
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    /* Article */
+    article { min-width: 0; }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .breadcrumb a { color: var(--secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+
+    .tag-chip {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.85rem;
+      color: var(--secondary);
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .post-meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 3rem 0 1rem;
+      padding-top: 1rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2rem 0 0.8rem;
+    }
+
+    p { color: #D4D4D8; margin-bottom: 1.2rem; }
+
+    ul, ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.2rem;
+      color: #D4D4D8;
+    }
+
+    li { margin-bottom: 0.4rem; }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.2rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+    }
+
+    p code, li code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      color: #E879F9;
+    }
+
+    /* Callout boxes */
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin: 1.5rem 0;
+      border-left: 3px solid;
+      font-size: 0.92rem;
+    }
+
+    .callout-info { background: rgba(59, 130, 246, 0.08); border-color: var(--blue); }
+    .callout-warning { background: rgba(234, 179, 8, 0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(34, 197, 94, 0.08); border-color: var(--green); }
+    .callout-purple { background: rgba(168, 85, 247, 0.08); border-color: var(--accent); }
+
+    .callout strong { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .callout-info strong { color: var(--blue); }
+    .callout-warning strong { color: var(--yellow); }
+    .callout-success strong { color: var(--green); }
+    .callout-purple strong { color: var(--accent); }
+
+    /* Comparison table */
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.88rem;
+    }
+
+    .comparison-table th {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .comparison-table td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: #D4D4D8;
+      vertical-align: top;
+    }
+
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table tr:hover td { background: rgba(168, 85, 247, 0.04); }
+
+    .check { color: var(--green); }
+    .cross { color: var(--red); }
+
+    /* Diagram box */
+    .diagram-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--secondary);
+      white-space: pre;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .diagram-box .highlight { color: var(--accent); }
+    .diagram-box .green { color: var(--green); }
+    .diagram-box .blue { color: var(--blue); }
+
+    /* Sidebar TOC */
+    .toc-sidebar {
+      position: sticky;
+      top: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+    }
+
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--secondary);
+      margin-bottom: 1rem;
+    }
+
+    .toc-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .toc-list li { margin-bottom: 0.1rem; }
+
+    .toc-list a {
+      font-size: 0.8rem;
+      color: var(--secondary);
+      text-decoration: none;
+      display: block;
+      padding: 0.3rem 0.5rem;
+      border-radius: 4px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+      line-height: 1.4;
+    }
+
+    .toc-list a:hover,
+    .toc-list a.active {
+      color: var(--accent);
+      background: rgba(168, 85, 247, 0.08);
+      border-left-color: var(--accent);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.82rem;
+      margin-top: 4rem;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(124, 58, 237, 0.05));
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0;
+      text-align: center;
+    }
+
+    .cta-box h3 { margin-top: 0; color: var(--accent); }
+    .cta-box p { margin-bottom: 1.2rem; }
+
+    .btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background: var(--accent-dim); text-decoration: none; color: #fff; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      margin-left: 0.8rem;
+    }
+
+    .btn-outline:hover { background: rgba(168, 85, 247, 0.1); color: var(--accent); }
+
+    @media (max-width: 900px) {
+      .page-wrapper {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        padding: 2rem 1.2rem;
+      }
+      .toc-sidebar { position: static; }
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/docs/api-keys" class="nav-cta">Get API Key →</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <div class="breadcrumb">
+        <a href="/">Home</a> / <a href="/blog">Blog</a> / Event Sourcing for AI Agent State
+      </div>
+
+      <div class="tag-chip">Architecture</div>
+
+      <h1>Event Sourcing for AI Agent State</h1>
+
+      <div class="post-meta">
+        <span>📅 March 6, 2026</span>
+        <span>⏱ 14 min read</span>
+        <span>🏷 Event Sourcing · CQRS · State Management</span>
+      </div>
+
+      <!-- SECTION 1 -->
+      <h2 id="the-problem-with-crud">The Problem with CRUD for Agent State</h2>
+
+      <p>Most developers building AI agents reach for the same pattern they use for web applications: a database table with a current-state row. The agent reads its balance, makes a trade, and updates the balance field. Simple, familiar — and deeply problematic for autonomous agents operating in financial systems.</p>
+
+      <p>CRUD (Create, Read, Update, Delete) state management destroys historical context. When an agent's balance moves from 1,000 to 750, the intermediate history vanishes. You know the current state but not how you got there. For AI agents that need to audit their decisions, replay scenarios, or recover from failures, this is catastrophic.</p>
+
+      <p>Event sourcing inverts this model. Instead of storing current state, you store a log of every event that has ever happened. The current state is derived by replaying those events. This gives you something CRUD can never offer: a complete, immutable audit trail of every decision an agent has made.</p>
+
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>CRUD State</th>
+            <th>Event Sourcing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Storage model</td>
+            <td>Current state only</td>
+            <td>Append-only event log</td>
+          </tr>
+          <tr>
+            <td>History</td>
+            <td><span class="cross">✗</span> Lost on update</td>
+            <td><span class="check">✓</span> Full audit trail</td>
+          </tr>
+          <tr>
+            <td>Temporal queries</td>
+            <td><span class="cross">✗</span> Impossible</td>
+            <td><span class="check">✓</span> Replay to any point</td>
+          </tr>
+          <tr>
+            <td>Failure recovery</td>
+            <td>From last backup</td>
+            <td>From event log (exact)</td>
+          </tr>
+          <tr>
+            <td>Concurrent writes</td>
+            <td>Lock/retry needed</td>
+            <td>Append-only, no contention</td>
+          </tr>
+          <tr>
+            <td>Debugging</td>
+            <td>Hard — state is opaque</td>
+            <td>Easy — trace every event</td>
+          </tr>
+          <tr>
+            <td>New projections</td>
+            <td>Requires schema migration</td>
+            <td>Replay events into new model</td>
+          </tr>
+          <tr>
+            <td>Complexity</td>
+            <td>Low initial</td>
+            <td>Higher initial, lower long-term</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-info">
+        <strong>Key insight</strong>
+        Financial regulators require audit trails. Event sourcing gives you one for free. Every Purple Flea transaction is already an event — you can model your agent state directly on top of the Purple Flea event stream.
+      </div>
+
+      <!-- SECTION 2 -->
+      <h2 id="core-concepts">Core Concepts: Commands, Events, Projections</h2>
+
+      <p>Event sourcing has three foundational concepts that work together in a pipeline:</p>
+
+      <h3>Commands</h3>
+      <p>A command is an instruction to do something. It represents intent, not fact. Commands can be rejected. Examples: <code>PlaceBet</code>, <code>WithdrawFunds</code>, <code>RegisterAgent</code>. Commands are validated before being accepted, and if the system cannot fulfill them, they fail without producing any events.</p>
+
+      <h3>Events</h3>
+      <p>An event is a fact that has already happened. Events are immutable and always past tense: <code>BetPlaced</code>, <code>FundsWithdrawn</code>, <code>AgentRegistered</code>. Once an event is written to the event store, it never changes. This immutability is what makes the entire pattern trustworthy.</p>
+
+      <h3>Projections</h3>
+      <p>A projection (also called a read model or view model) is the current state derived by folding events. Your agent's balance is a projection: start at zero, apply each deposit event, subtract each withdrawal event, and you have the current balance. Projections can be rebuilt at any time by replaying events.</p>
+
+      <div class="diagram-box">┌─────────────────────────────────────────────────────────┐
+│                   EVENT SOURCING PIPELINE                │
+└─────────────────────────────────────────────────────────┘
+
+  Agent/API               Event Bus              Projections
+     │                       │                       │
+     │  ── PlaceBet cmd ──>  │                       │
+     │                       │ validate + emit        │
+     │                       │  BetPlaced event       │
+     │  <── accepted ──      │ ──────────────────>   │
+     │                       │  (appended to store)   │
+     │                       │                       │ update balance
+     │                       │                       │ update P&L
+     │                       │                       │ update leaderboard
+     │                       │                       │
+     │  ── GetBalance ────────────────────────────>  │
+     │  <── 750 PFLEA ──────────────────────────────  │</div>
+
+      <!-- SECTION 3 -->
+      <h2 id="event-store-design">Event Store Design</h2>
+
+      <p>An event store needs to satisfy three properties: it must be append-only (no updates or deletes), events must be ordered within an aggregate, and reads must support both sequential replay and random access by aggregate ID.</p>
+
+      <p>For AI agents, SQLite is an excellent starting point. It is embedded, zero-infrastructure, and supports WAL mode for concurrent reads. Here is a production-ready schema:</p>
+
+      <pre><span style="color:#6A9955">-- Event store schema for AI agent state</span>
+<span style="color:#569CD6">CREATE TABLE</span> events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id    TEXT    NOT NULL UNIQUE,          <span style="color:#6A9955">-- UUID</span>
+  stream_id   TEXT    NOT NULL,                 <span style="color:#6A9955">-- aggregate identity</span>
+  stream_type TEXT    NOT NULL,                 <span style="color:#6A9955">-- 'agent' | 'portfolio' | 'session'</span>
+  event_type  TEXT    NOT NULL,                 <span style="color:#6A9955">-- 'BetPlaced' | 'FundsDeposited' etc.</span>
+  version     INTEGER NOT NULL,                 <span style="color:#6A9955">-- monotonic per stream_id</span>
+  data        TEXT    NOT NULL,                 <span style="color:#6A9955">-- JSON payload</span>
+  metadata    TEXT    NOT NULL DEFAULT '{}',    <span style="color:#6A9955">-- causation_id, correlation_id, etc.</span>
+  occurred_at TEXT    NOT NULL,                 <span style="color:#6A9955">-- ISO8601 timestamp</span>
+  <span style="color:#569CD6">UNIQUE</span> (stream_id, version)                   <span style="color:#6A9955">-- optimistic concurrency</span>
+);
+
+<span style="color:#569CD6">CREATE INDEX</span> idx_stream ON events (stream_id, version);
+<span style="color:#569CD6">CREATE INDEX</span> idx_type   ON events (event_type, occurred_at);
+<span style="color:#569CD6">CREATE INDEX</span> idx_global ON events (id);        <span style="color:#6A9955">-- global ordering for projections</span>
+
+<span style="color:#6A9955">-- Snapshots table (optimization for long-lived aggregates)</span>
+<span style="color:#569CD6">CREATE TABLE</span> snapshots (
+  stream_id   TEXT    NOT NULL PRIMARY KEY,
+  version     INTEGER NOT NULL,
+  data        TEXT    NOT NULL,
+  taken_at    TEXT    NOT NULL
+);</pre>
+
+      <p>The <code>UNIQUE (stream_id, version)</code> constraint is your optimistic concurrency guard. If two writers try to append the same version to the same stream simultaneously, one will fail with a constraint error — forcing a retry with the latest state.</p>
+
+      <!-- SECTION 4 -->
+      <h2 id="python-event-store">Python EventStore Implementation</h2>
+
+      <p>Here is a complete, production-quality Python <code>EventStore</code> class built on SQLite, with support for append, replay, snapshots, and version checking:</p>
+
+      <pre><span style="color:#569CD6">import</span> sqlite3, json, uuid
+<span style="color:#569CD6">from</span> datetime <span style="color:#569CD6">import</span> datetime, timezone
+<span style="color:#569CD6">from</span> dataclasses <span style="color:#569CD6">import</span> dataclass, field, asdict
+<span style="color:#569CD6">from</span> typing <span style="color:#569CD6">import</span> List, Optional, Dict, Any, Iterator
+<span style="color:#569CD6">from</span> contextlib <span style="color:#569CD6">import</span> contextmanager
+
+
+<span style="color:#4EC9B0">@dataclass</span>
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">Event</span>:
+    stream_id:   str
+    stream_type: str
+    event_type:  str
+    data:        Dict[str, Any]
+    event_id:    str = field(default_factory=<span style="color:#569CD6">lambda</span>: str(uuid.uuid4()))
+    version:     int = 0
+    metadata:    Dict[str, Any] = field(default_factory=dict)
+    occurred_at: str = field(
+        default_factory=<span style="color:#569CD6">lambda</span>: datetime.now(timezone.utc).isoformat()
+    )
+
+
+<span style="color:#4EC9B0">@dataclass</span>
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">Snapshot</span>:
+    stream_id: str
+    version:   int
+    data:      Dict[str, Any]
+    taken_at:  str = field(
+        default_factory=<span style="color:#569CD6">lambda</span>: datetime.now(timezone.utc).isoformat()
+    )
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">OptimisticConcurrencyError</span>(Exception):
+    <span style="color:#569CD6">pass</span>
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">EventStore</span>:
+    <span style="color:#CE9178">"""
+    Append-only SQLite-backed event store for AI agent state.
+
+    Usage:
+        store = EventStore("agent_state.db")
+        store.append("agent-001", "agent", [
+            Event("agent-001", "agent", "BetPlaced", {"amount": 100, "game": "blackjack"})
+        ], expected_version=0)
+    """</span>
+
+    <span style="color:#569CD6">def</span> __init__(self, db_path: str):
+        self.db_path = db_path
+        self._init_db()
+
+    <span style="color:#569CD6">def</span> _init_db(self):
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            conn.execute(<span style="color:#CE9178">"""
+                CREATE TABLE IF NOT EXISTS events (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id    TEXT    NOT NULL UNIQUE,
+                    stream_id   TEXT    NOT NULL,
+                    stream_type TEXT    NOT NULL,
+                    event_type  TEXT    NOT NULL,
+                    version     INTEGER NOT NULL,
+                    data        TEXT    NOT NULL,
+                    metadata    TEXT    NOT NULL DEFAULT '{}',
+                    occurred_at TEXT    NOT NULL,
+                    UNIQUE (stream_id, version)
+                )
+            """</span>)
+            conn.execute(<span style="color:#CE9178">"""
+                CREATE TABLE IF NOT EXISTS snapshots (
+                    stream_id TEXT    NOT NULL PRIMARY KEY,
+                    version   INTEGER NOT NULL,
+                    data      TEXT    NOT NULL,
+                    taken_at  TEXT    NOT NULL
+                )
+            """</span>)
+            conn.execute(<span style="color:#CE9178">"PRAGMA journal_mode=WAL"</span>)
+            conn.execute(<span style="color:#CE9178">"CREATE INDEX IF NOT EXISTS idx_stream ON events (stream_id, version)"</span>)
+
+    <span style="color:#4EC9B0">@contextmanager</span>
+    <span style="color:#569CD6">def</span> _conn(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        <span style="color:#569CD6">try</span>:
+            <span style="color:#569CD6">yield</span> conn
+            conn.commit()
+        <span style="color:#569CD6">except</span>:
+            conn.rollback()
+            <span style="color:#569CD6">raise</span>
+        <span style="color:#569CD6">finally</span>:
+            conn.close()
+
+    <span style="color:#569CD6">def</span> append(
+        self,
+        stream_id: str,
+        stream_type: str,
+        events: List[Event],
+        expected_version: int = -1,
+    ) -> int:
+        <span style="color:#CE9178">"""Append events to a stream with optimistic concurrency check."""</span>
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            row = conn.execute(
+                <span style="color:#CE9178">"SELECT MAX(version) FROM events WHERE stream_id = ?"</span>,
+                (stream_id,)
+            ).fetchone()
+            current_version = row[0] <span style="color:#569CD6">if</span> row[0] <span style="color:#569CD6">is not None else</span> -1
+
+            <span style="color:#569CD6">if</span> expected_version != -1 <span style="color:#569CD6">and</span> current_version != expected_version:
+                <span style="color:#569CD6">raise</span> OptimisticConcurrencyError(
+                    f<span style="color:#CE9178">"Stream {stream_id}: expected v{expected_version}, got v{current_version}"</span>
+                )
+
+            next_version = current_version + 1
+            <span style="color:#569CD6">for</span> i, event <span style="color:#569CD6">in</span> enumerate(events):
+                event.version = next_version + i
+                <span style="color:#569CD6">try</span>:
+                    conn.execute(
+                        <span style="color:#CE9178">"""INSERT INTO events
+                           (event_id, stream_id, stream_type, event_type,
+                            version, data, metadata, occurred_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""</span>,
+                        (
+                            event.event_id, stream_id, stream_type,
+                            event.event_type, event.version,
+                            json.dumps(event.data), json.dumps(event.metadata),
+                            event.occurred_at,
+                        )
+                    )
+                <span style="color:#569CD6">except</span> sqlite3.IntegrityError <span style="color:#569CD6">as</span> e:
+                    <span style="color:#569CD6">raise</span> OptimisticConcurrencyError(str(e)) <span style="color:#569CD6">from</span> e
+
+        <span style="color:#569CD6">return</span> next_version + len(events) - 1
+
+    <span style="color:#569CD6">def</span> load_stream(
+        self, stream_id: str, from_version: int = 0, to_version: Optional[int] = None
+    ) -> Iterator[Event]:
+        <span style="color:#CE9178">"""Replay all events for an aggregate from a given version."""</span>
+        query = <span style="color:#CE9178">"SELECT * FROM events WHERE stream_id = ? AND version >= ?"</span>
+        params: list = [stream_id, from_version]
+
+        <span style="color:#569CD6">if</span> to_version <span style="color:#569CD6">is not None</span>:
+            query += <span style="color:#CE9178">" AND version <= ?"</span>
+            params.append(to_version)
+
+        query += <span style="color:#CE9178">" ORDER BY version ASC"</span>
+
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            <span style="color:#569CD6">for</span> row <span style="color:#569CD6">in</span> conn.execute(query, params):
+                <span style="color:#569CD6">yield</span> Event(
+                    stream_id=row[<span style="color:#CE9178">"stream_id"</span>],
+                    stream_type=row[<span style="color:#CE9178">"stream_type"</span>],
+                    event_type=row[<span style="color:#CE9178">"event_type"</span>],
+                    data=json.loads(row[<span style="color:#CE9178">"data"</span>]),
+                    event_id=row[<span style="color:#CE9178">"event_id"</span>],
+                    version=row[<span style="color:#CE9178">"version"</span>],
+                    metadata=json.loads(row[<span style="color:#CE9178">"metadata"</span>]),
+                    occurred_at=row[<span style="color:#CE9178">"occurred_at"</span>],
+                )
+
+    <span style="color:#569CD6">def</span> save_snapshot(self, snapshot: Snapshot):
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            conn.execute(
+                <span style="color:#CE9178">"""INSERT OR REPLACE INTO snapshots (stream_id, version, data, taken_at)
+                   VALUES (?, ?, ?, ?)"""</span>,
+                (snapshot.stream_id, snapshot.version,
+                 json.dumps(snapshot.data), snapshot.taken_at)
+            )
+
+    <span style="color:#569CD6">def</span> load_snapshot(self, stream_id: str) -> Optional[Snapshot]:
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            row = conn.execute(
+                <span style="color:#CE9178">"SELECT * FROM snapshots WHERE stream_id = ?"</span>, (stream_id,)
+            ).fetchone()
+            <span style="color:#569CD6">if</span> row <span style="color:#569CD6">is None</span>:
+                <span style="color:#569CD6">return None</span>
+            <span style="color:#569CD6">return</span> Snapshot(
+                stream_id=row[<span style="color:#CE9178">"stream_id"</span>],
+                version=row[<span style="color:#CE9178">"version"</span>],
+                data=json.loads(row[<span style="color:#CE9178">"data"</span>]),
+                taken_at=row[<span style="color:#CE9178">"taken_at"</span>],
+            )
+
+    <span style="color:#569CD6">def</span> all_events(self, from_global_id: int = 0) -> Iterator[Event]:
+        <span style="color:#CE9178">"""Global event log ordered by insertion — used by projections."""</span>
+        <span style="color:#569CD6">with</span> self._conn() <span style="color:#569CD6">as</span> conn:
+            <span style="color:#569CD6">for</span> row <span style="color:#569CD6">in</span> conn.execute(
+                <span style="color:#CE9178">"SELECT * FROM events WHERE id > ? ORDER BY id ASC"</span>, (from_global_id,)
+            ):
+                <span style="color:#569CD6">yield</span> Event(
+                    stream_id=row[<span style="color:#CE9178">"stream_id"</span>],
+                    stream_type=row[<span style="color:#CE9178">"stream_type"</span>],
+                    event_type=row[<span style="color:#CE9178">"event_type"</span>],
+                    data=json.loads(row[<span style="color:#CE9178">"data"</span>]),
+                    event_id=row[<span style="color:#CE9178">"event_id"</span>],
+                    version=row[<span style="color:#CE9178">"version"</span>],
+                    metadata=json.loads(row[<span style="color:#CE9178">"metadata"</span>]),
+                    occurred_at=row[<span style="color:#CE9178">"occurred_at"</span>],
+                )</pre>
+
+      <!-- SECTION 5 -->
+      <h2 id="projections-portfolio">Projections: Portfolio, Balance, P&amp;L</h2>
+
+      <p>Projections are pure functions over event streams. They fold events into a view that serves read queries. Here are three projections every financial agent needs:</p>
+
+      <pre><span style="color:#569CD6">from</span> collections <span style="color:#569CD6">import</span> defaultdict
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">BalanceProjection</span>:
+    <span style="color:#CE9178">"""Current balance derived from deposit/withdrawal events."""</span>
+
+    <span style="color:#569CD6">def</span> __init__(self):
+        self.balance = 0.0
+        self.last_version = -1
+
+    <span style="color:#569CD6">def</span> apply(self, event: Event):
+        t = event.event_type
+        <span style="color:#569CD6">if</span> t == <span style="color:#CE9178">"FundsDeposited"</span>:
+            self.balance += event.data[<span style="color:#CE9178">"amount"</span>]
+        <span style="color:#569CD6">elif</span> t <span style="color:#569CD6">in</span> (<span style="color:#CE9178">"FundsWithdrawn"</span>, <span style="color:#CE9178">"BetPlaced"</span>, <span style="color:#CE9178">"EscrowLocked"</span>):
+            self.balance -= event.data[<span style="color:#CE9178">"amount"</span>]
+        <span style="color:#569CD6">elif</span> t <span style="color:#569CD6">in</span> (<span style="color:#CE9178">"BetWon"</span>, <span style="color:#CE9178">"EscrowReleased"</span>, <span style="color:#CE9178">"FaucetClaimed"</span>):
+            self.balance += event.data[<span style="color:#CE9178">"amount"</span>]
+        <span style="color:#569CD6">elif</span> t == <span style="color:#CE9178">"FeeCharged"</span>:
+            self.balance -= event.data[<span style="color:#CE9178">"fee"</span>]
+        self.last_version = event.version
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">PnLProjection</span>:
+    <span style="color:#CE9178">"""Rolling profit and loss across all gambling sessions."""</span>
+
+    <span style="color:#569CD6">def</span> __init__(self):
+        self.total_wagered = 0.0
+        self.total_won     = 0.0
+        self.total_fees    = 0.0
+        self.bet_count     = 0
+        self.win_count     = 0
+        self.last_version  = -1
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> net_pnl(self) -> float:
+        <span style="color:#569CD6">return</span> self.total_won - self.total_wagered - self.total_fees
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> win_rate(self) -> float:
+        <span style="color:#569CD6">return</span> self.win_count / self.bet_count <span style="color:#569CD6">if</span> self.bet_count > 0 <span style="color:#569CD6">else</span> 0.0
+
+    <span style="color:#569CD6">@property</span>
+    <span style="color:#569CD6">def</span> roi(self) -> float:
+        <span style="color:#569CD6">if</span> self.total_wagered == 0:
+            <span style="color:#569CD6">return</span> 0.0
+        <span style="color:#569CD6">return</span> self.net_pnl / self.total_wagered
+
+    <span style="color:#569CD6">def</span> apply(self, event: Event):
+        <span style="color:#569CD6">if</span> event.event_type == <span style="color:#CE9178">"BetPlaced"</span>:
+            self.total_wagered += event.data[<span style="color:#CE9178">"amount"</span>]
+            self.bet_count += 1
+        <span style="color:#569CD6">elif</span> event.event_type == <span style="color:#CE9178">"BetWon"</span>:
+            self.total_won += event.data[<span style="color:#CE9178">"amount"</span>]
+            self.win_count += 1
+        <span style="color:#569CD6">elif</span> event.event_type == <span style="color:#CE9178">"FeeCharged"</span>:
+            self.total_fees += event.data[<span style="color:#CE9178">"fee"</span>]
+        self.last_version = event.version
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">PortfolioProjection</span>:
+    <span style="color:#CE9178">"""Holdings across all assets (PFLEA, BTC, ETH, XMR, TRX)."""</span>
+
+    <span style="color:#569CD6">def</span> __init__(self):
+        self.holdings: Dict[str, float] = defaultdict(float)
+        self.last_version = -1
+
+    <span style="color:#569CD6">def</span> apply(self, event: Event):
+        <span style="color:#569CD6">if</span> event.event_type <span style="color:#569CD6">in</span> (<span style="color:#CE9178">"FundsDeposited"</span>, <span style="color:#CE9178">"BetWon"</span>, <span style="color:#CE9178">"FaucetClaimed"</span>):
+            asset = event.data.get(<span style="color:#CE9178">"asset"</span>, <span style="color:#CE9178">"PFLEA"</span>)
+            self.holdings[asset] += event.data[<span style="color:#CE9178">"amount"</span>]
+        <span style="color:#569CD6">elif</span> event.event_type <span style="color:#569CD6">in</span> (<span style="color:#CE9178">"FundsWithdrawn"</span>, <span style="color:#CE9178">"BetPlaced"</span>):
+            asset = event.data.get(<span style="color:#CE9178">"asset"</span>, <span style="color:#CE9178">"PFLEA"</span>)
+            self.holdings[asset] -= event.data[<span style="color:#CE9178">"amount"</span>]
+        self.last_version = event.version
+
+
+<span style="color:#569CD6">def</span> rebuild_projections(store: EventStore, agent_id: str):
+    <span style="color:#CE9178">"""Rebuild all projections from event log — works even after data corruption."""</span>
+    balance   = BalanceProjection()
+    pnl       = PnLProjection()
+    portfolio = PortfolioProjection()
+
+    <span style="color:#569CD6">for</span> event <span style="color:#569CD6">in</span> store.load_stream(agent_id):
+        balance.apply(event)
+        pnl.apply(event)
+        portfolio.apply(event)
+
+    <span style="color:#569CD6">return</span> balance, pnl, portfolio</pre>
+
+      <!-- SECTION 6 -->
+      <h2 id="snapshot-optimization">Snapshot Optimization</h2>
+
+      <p>For a long-lived agent with thousands of events, replaying from the beginning on every startup becomes expensive. Snapshots solve this: periodically serialize the current projection state to the snapshot store, then on startup, load the snapshot and replay only the events that occurred after it.</p>
+
+      <pre><span style="color:#569CD6">class</span> <span style="color:#4EC9B0">SnapshottingAgent</span>:
+    <span style="color:#CE9178">"""Agent that uses snapshots for fast startup after many events."""</span>
+    SNAPSHOT_EVERY = 100  <span style="color:#6A9955"># events between snapshots</span>
+
+    <span style="color:#569CD6">def</span> __init__(self, agent_id: str, store: EventStore):
+        self.agent_id = agent_id
+        self.store    = store
+        self.balance  = BalanceProjection()
+        self.pnl      = PnLProjection()
+        self._load()
+
+    <span style="color:#569CD6">def</span> _load(self):
+        snap = self.store.load_snapshot(self.agent_id)
+        start_version = 0
+
+        <span style="color:#569CD6">if</span> snap:
+            <span style="color:#6A9955"># Restore projections from snapshot</span>
+            self.balance.balance      = snap.data[<span style="color:#CE9178">"balance"</span>]
+            self.balance.last_version = snap.version
+            self.pnl.total_wagered    = snap.data[<span style="color:#CE9178">"total_wagered"</span>]
+            self.pnl.total_won        = snap.data[<span style="color:#CE9178">"total_won"</span>]
+            self.pnl.total_fees       = snap.data[<span style="color:#CE9178">"total_fees"</span>]
+            self.pnl.bet_count        = snap.data[<span style="color:#CE9178">"bet_count"</span>]
+            self.pnl.win_count        = snap.data[<span style="color:#CE9178">"win_count"</span>]
+            start_version = snap.version + 1
+
+        <span style="color:#6A9955"># Replay only events after snapshot</span>
+        <span style="color:#569CD6">for</span> event <span style="color:#569CD6">in</span> self.store.load_stream(self.agent_id, from_version=start_version):
+            self.balance.apply(event)
+            self.pnl.apply(event)
+
+    <span style="color:#569CD6">def</span> maybe_snapshot(self):
+        <span style="color:#569CD6">if</span> self.balance.last_version % self.SNAPSHOT_EVERY == 0:
+            snap = Snapshot(
+                stream_id=self.agent_id,
+                version=self.balance.last_version,
+                data={
+                    <span style="color:#CE9178">"balance"</span>:       self.balance.balance,
+                    <span style="color:#CE9178">"total_wagered"</span>: self.pnl.total_wagered,
+                    <span style="color:#CE9178">"total_won"</span>:     self.pnl.total_won,
+                    <span style="color:#CE9178">"total_fees"</span>:    self.pnl.total_fees,
+                    <span style="color:#CE9178">"bet_count"</span>:     self.pnl.bet_count,
+                    <span style="color:#CE9178">"win_count"</span>:     self.pnl.win_count,
+                }
+            )
+            self.store.save_snapshot(snap)</pre>
+
+      <!-- SECTION 7 -->
+      <h2 id="cqrs-pattern">CQRS: Separating Reads from Writes</h2>
+
+      <p>CQRS (Command Query Responsibility Segregation) is the natural companion to event sourcing. Writes go through the command pipeline — validation, business logic, event emission. Reads come from pre-built projections — no joining, no locking, just fast lookups.</p>
+
+      <div class="diagram-box">                        CQRS ARCHITECTURE
+
+  ┌─────────────┐   Commands    ┌──────────────────┐
+  │             │ ──────────>   │  Command Handler  │
+  │             │               │  (validates cmd)  │
+  │    Agent    │               └────────┬─────────┘
+  │             │                        │ emits
+  │             │               ┌────────▼─────────┐
+  │             │               │   Event Store     │
+  │             │               │  (append-only)    │
+  └──────┬──────┘               └────────┬─────────┘
+         │                               │ publishes
+         │ Queries        ┌──────────────▼──────────┐
+         │                │     Projection Engine    │
+         │                │  BalanceProjection       │
+         └─────────────>  │  PnLProjection           │
+           fast reads     │  PortfolioProjection     │
+           no contention  └─────────────────────────┘</div>
+
+      <p>The key benefit for AI agents: your trading loop never waits on read queries. Writes go to the event store (fast append), reads come from materialized projections (fast key-value lookup). No read/write contention.</p>
+
+      <!-- SECTION 8 -->
+      <h2 id="purple-flea-events">Purple Flea Transactions as Event Stream</h2>
+
+      <p>Purple Flea's API already returns structured transaction events. You can ingest these directly into your event store and treat the Purple Flea platform as an external event source. Here is how to bridge the Purple Flea API to your event store:</p>
+
+      <pre><span style="color:#569CD6">import</span> httpx, asyncio
+
+PFLEA_API = <span style="color:#CE9178">"https://casino.purpleflea.com/api"</span>
+API_KEY   = <span style="color:#CE9178">"pf_live_&lt;your_key&gt;"</span>
+
+
+<span style="color:#569CD6">async def</span> ingest_pflea_events(store: EventStore, agent_id: str):
+    <span style="color:#CE9178">"""Poll Purple Flea API and write transactions as events."""</span>
+    snap = store.load_snapshot(f<span style="color:#CE9178">"cursor:{agent_id}"</span>)
+    since = snap.data.get(<span style="color:#CE9178">"last_tx_id"</span>) <span style="color:#569CD6">if</span> snap <span style="color:#569CD6">else None</span>
+
+    <span style="color:#569CD6">async with</span> httpx.AsyncClient() <span style="color:#569CD6">as</span> client:
+        resp = <span style="color:#569CD6">await</span> client.get(
+            f<span style="color:#CE9178">"{PFLEA_API}/transactions"</span>,
+            headers={<span style="color:#CE9178">"Authorization"</span>: f<span style="color:#CE9178">"Bearer {API_KEY}"</span>},
+            params={<span style="color:#CE9178">"agent_id"</span>: agent_id, <span style="color:#CE9178">"since"</span>: since},
+        )
+        txs = resp.json()[<span style="color:#CE9178">"transactions"</span>]
+
+    <span style="color:#569CD6">if not</span> txs:
+        <span style="color:#569CD6">return</span>
+
+    events = []
+    <span style="color:#569CD6">for</span> tx <span style="color:#569CD6">in</span> txs:
+        event_type = {
+            <span style="color:#CE9178">"bet"</span>:      <span style="color:#CE9178">"BetPlaced"</span>,
+            <span style="color:#CE9178">"win"</span>:      <span style="color:#CE9178">"BetWon"</span>,
+            <span style="color:#CE9178">"deposit"</span>:  <span style="color:#CE9178">"FundsDeposited"</span>,
+            <span style="color:#CE9178">"withdraw"</span>: <span style="color:#CE9178">"FundsWithdrawn"</span>,
+            <span style="color:#CE9178">"fee"</span>:      <span style="color:#CE9178">"FeeCharged"</span>,
+            <span style="color:#CE9178">"faucet"</span>:   <span style="color:#CE9178">"FaucetClaimed"</span>,
+            <span style="color:#CE9178">"escrow"</span>:   <span style="color:#CE9178">"EscrowLocked"</span>,
+        }.get(tx[<span style="color:#CE9178">"type"</span>], <span style="color:#CE9178">"UnknownTransaction"</span>)
+
+        events.append(Event(
+            stream_id=agent_id,
+            stream_type=<span style="color:#CE9178">"agent"</span>,
+            event_type=event_type,
+            data={
+                <span style="color:#CE9178">"amount"</span>: tx[<span style="color:#CE9178">"amount"</span>],
+                <span style="color:#CE9178">"asset"</span>:  tx.get(<span style="color:#CE9178">"asset"</span>, <span style="color:#CE9178">"PFLEA"</span>),
+                <span style="color:#CE9178">"tx_id"</span>:  tx[<span style="color:#CE9178">"id"</span>],
+                <span style="color:#CE9178">"game"</span>:   tx.get(<span style="color:#CE9178">"game"</span>),
+            },
+            metadata={<span style="color:#CE9178">"source"</span>: <span style="color:#CE9178">"purpleflea"</span>, <span style="color:#CE9178">"raw_tx_id"</span>: tx[<span style="color:#CE9178">"id"</span>]}
+        ))
+
+    store.append(agent_id, <span style="color:#CE9178">"agent"</span>, events)
+
+    <span style="color:#6A9955"># Save ingestion cursor</span>
+    store.save_snapshot(Snapshot(
+        stream_id=f<span style="color:#CE9178">"cursor:{agent_id}"</span>,
+        version=0,
+        data={<span style="color:#CE9178">"last_tx_id"</span>: txs[-1][<span style="color:#CE9178">"id"</span>]}
+    ))</pre>
+
+      <!-- SECTION 9 -->
+      <h2 id="event-versioning">Event Versioning and Schema Evolution</h2>
+
+      <p>Events are immutable, but their schemas evolve. An event written in version 1 of your system must still be processable in version 3. There are three strategies for handling this:</p>
+
+      <h3>Upcasting</h3>
+      <p>Transform old event payloads into new formats at read time, before they reach your projections. The event store stores the original; an upcast layer enriches it on the way out:</p>
+
+      <pre><span style="color:#569CD6">class</span> <span style="color:#4EC9B0">EventUpcastRegistry</span>:
+    <span style="color:#569CD6">def</span> __init__(self):
+        self._upcasters: Dict[str, list] = defaultdict(list)
+
+    <span style="color:#569CD6">def</span> register(self, event_type: str, from_version: int):
+        <span style="color:#CE9178">"""Decorator for registering upcasters."""</span>
+        <span style="color:#569CD6">def</span> decorator(fn):
+            self._upcasters[event_type].append((from_version, fn))
+            self._upcasters[event_type].sort(key=<span style="color:#569CD6">lambda</span> x: x[0])
+            <span style="color:#569CD6">return</span> fn
+        <span style="color:#569CD6">return</span> decorator
+
+    <span style="color:#569CD6">def</span> upcast(self, event: Event) -> Event:
+        schema_v = event.metadata.get(<span style="color:#CE9178">"schema_version"</span>, 1)
+        <span style="color:#569CD6">for</span> from_v, upcaster <span style="color:#569CD6">in</span> self._upcasters.get(event.event_type, []):
+            <span style="color:#569CD6">if</span> schema_v <= from_v:
+                event = upcaster(event)
+        <span style="color:#569CD6">return</span> event
+
+
+registry = EventUpcastRegistry()
+
+<span style="color:#4EC9B0">@registry.register</span>(<span style="color:#CE9178">"BetPlaced"</span>, from_version=1)
+<span style="color:#569CD6">def</span> upcast_bet_placed_v1(event: Event) -> Event:
+    <span style="color:#6A9955"># v1 had no 'game' field — default to 'unknown'</span>
+    <span style="color:#569CD6">if</span> <span style="color:#CE9178">"game"</span> <span style="color:#569CD6">not in</span> event.data:
+        event.data[<span style="color:#CE9178">"game"</span>] = <span style="color:#CE9178">"unknown"</span>
+        event.metadata[<span style="color:#CE9178">"schema_version"</span>] = 2
+    <span style="color:#569CD6">return</span> event</pre>
+
+      <!-- SECTION 10 -->
+      <h2 id="temporal-queries">Temporal Queries: Replaying to Any Point in Time</h2>
+
+      <p>One of event sourcing's most powerful features is the ability to answer temporal questions: "What was my agent's balance on March 1st?" or "What would my P&amp;L be if that bad trade had never happened?"</p>
+
+      <pre><span style="color:#569CD6">def</span> balance_at(store: EventStore, agent_id: str, timestamp: str) -> float:
+    <span style="color:#CE9178">"""Replay events up to a given timestamp to get historical balance."""</span>
+    projection = BalanceProjection()
+
+    <span style="color:#569CD6">for</span> event <span style="color:#569CD6">in</span> store.load_stream(agent_id):
+        <span style="color:#569CD6">if</span> event.occurred_at > timestamp:
+            <span style="color:#569CD6">break</span>
+        projection.apply(event)
+
+    <span style="color:#569CD6">return</span> projection.balance
+
+
+<span style="color:#569CD6">def</span> simulate_without_event(
+    store: EventStore, agent_id: str, skip_event_id: str
+) -> float:
+    <span style="color:#CE9178">"""What would balance be if a specific event had never happened?"""</span>
+    projection = BalanceProjection()
+
+    <span style="color:#569CD6">for</span> event <span style="color:#569CD6">in</span> store.load_stream(agent_id):
+        <span style="color:#569CD6">if</span> event.event_id == skip_event_id:
+            <span style="color:#569CD6">continue</span>
+        projection.apply(event)
+
+    <span style="color:#569CD6">return</span> projection.balance
+
+
+<span style="color:#6A9955"># Example usage</span>
+historical_balance = balance_at(store, <span style="color:#CE9178">"agent-001"</span>, <span style="color:#CE9178">"2026-03-01T00:00:00Z"</span>)
+counterfactual     = simulate_without_event(store, <span style="color:#CE9178">"agent-001"</span>, <span style="color:#CE9178">"evt-bad-trade-uuid"</span>)</pre>
+
+      <div class="callout callout-success">
+        <strong>Try it with Purple Flea</strong>
+        Register your agent at <a href="https://casino.purpleflea.com">casino.purpleflea.com</a>, claim free funds at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a>, and start building an event-sourced state model against real Purple Flea transactions from day one.
+      </div>
+
+      <!-- SECTION 11 -->
+      <h2 id="putting-it-together">Putting It All Together: A Complete Event-Sourced Agent</h2>
+
+      <p>Here is a minimal but complete event-sourced agent that registers with Purple Flea, claims a faucet grant, places bets, and maintains full state history:</p>
+
+      <pre><span style="color:#569CD6">import</span> httpx, asyncio
+<span style="color:#569CD6">from</span> dataclasses <span style="color:#569CD6">import</span> dataclass
+
+FAUCET_URL = <span style="color:#CE9178">"https://faucet.purpleflea.com/api"</span>
+CASINO_URL = <span style="color:#CE9178">"https://casino.purpleflea.com/api"</span>
+
+
+<span style="color:#569CD6">class</span> <span style="color:#4EC9B0">EventSourcedCasinoAgent</span>:
+    <span style="color:#569CD6">def</span> __init__(self, agent_id: str, db_path: str = <span style="color:#CE9178">"agent.db"</span>):
+        self.agent_id = agent_id
+        self.store    = EventStore(db_path)
+        self.agent    = SnapshottingAgent(agent_id, self.store)
+
+    <span style="color:#569CD6">async def</span> claim_faucet(self, api_key: str):
+        <span style="color:#569CD6">async with</span> httpx.AsyncClient() <span style="color:#569CD6">as</span> client:
+            r = <span style="color:#569CD6">await</span> client.post(
+                f<span style="color:#CE9178">"{FAUCET_URL}/claim"</span>,
+                json={<span style="color:#CE9178">"agent_id"</span>: self.agent_id},
+                headers={<span style="color:#CE9178">"Authorization"</span>: f<span style="color:#CE9178">"Bearer {api_key}"</span>},
+            )
+        data = r.json()
+        <span style="color:#569CD6">if</span> data.get(<span style="color:#CE9178">"success"</span>):
+            self.store.append(
+                self.agent_id, <span style="color:#CE9178">"agent"</span>,
+                [Event(self.agent_id, <span style="color:#CE9178">"agent"</span>, <span style="color:#CE9178">"FaucetClaimed"</span>, {
+                    <span style="color:#CE9178">"amount"</span>: data[<span style="color:#CE9178">"amount"</span>],
+                    <span style="color:#CE9178">"asset"</span>:  <span style="color:#CE9178">"PFLEA"</span>,
+                    <span style="color:#CE9178">"tx_id"</span>:  data[<span style="color:#CE9178">"tx_id"</span>],
+                })],
+                expected_version=self.agent.balance.last_version,
+            )
+            self.agent._load()
+        <span style="color:#569CD6">return</span> data
+
+    <span style="color:#569CD6">async def</span> place_bet(self, api_key: str, game: str, amount: float):
+        <span style="color:#6A9955"># Validate before emitting command</span>
+        <span style="color:#569CD6">if</span> self.agent.balance.balance < amount:
+            <span style="color:#569CD6">raise</span> ValueError(f<span style="color:#CE9178">"Insufficient funds: {self.agent.balance.balance} &lt; {amount}"</span>)
+
+        <span style="color:#569CD6">async with</span> httpx.AsyncClient() <span style="color:#569CD6">as</span> client:
+            r = <span style="color:#569CD6">await</span> client.post(
+                f<span style="color:#CE9178">"{CASINO_URL}/bet"</span>,
+                json={<span style="color:#CE9178">"agent_id"</span>: self.agent_id, <span style="color:#CE9178">"game"</span>: game, <span style="color:#CE9178">"amount"</span>: amount},
+                headers={<span style="color:#CE9178">"Authorization"</span>: f<span style="color:#CE9178">"Bearer {api_key}"</span>},
+            )
+        result = r.json()
+
+        events = [Event(self.agent_id, <span style="color:#CE9178">"agent"</span>, <span style="color:#CE9178">"BetPlaced"</span>, {
+            <span style="color:#CE9178">"amount"</span>: amount, <span style="color:#CE9178">"game"</span>: game, <span style="color:#CE9178">"bet_id"</span>: result[<span style="color:#CE9178">"bet_id"</span>]
+        })]
+
+        <span style="color:#569CD6">if</span> result.get(<span style="color:#CE9178">"outcome"</span>) == <span style="color:#CE9178">"win"</span>:
+            events.append(Event(self.agent_id, <span style="color:#CE9178">"agent"</span>, <span style="color:#CE9178">"BetWon"</span>, {
+                <span style="color:#CE9178">"amount"</span>: result[<span style="color:#CE9178">"payout"</span>], <span style="color:#CE9178">"game"</span>: game, <span style="color:#CE9178">"bet_id"</span>: result[<span style="color:#CE9178">"bet_id"</span>]
+            }))
+
+        self.store.append(
+            self.agent_id, <span style="color:#CE9178">"agent"</span>, events,
+            expected_version=self.agent.balance.last_version,
+        )
+        self.agent._load()
+        self.agent.maybe_snapshot()
+        <span style="color:#569CD6">return</span> result</pre>
+
+      <div class="callout callout-purple">
+        <strong>Purple Flea + Event Sourcing</strong>
+        Purple Flea's 6-service suite (Casino, Trading, Wallet, Domains, Faucet, Escrow) generates rich, structured events. Each service interaction — bet, trade, domain registration, escrow lock — becomes an event in your agent's financial history. Start with the Faucet to get funded at no cost.
+      </div>
+
+      <div class="cta-box">
+        <h3>Build Event-Sourced Agents on Purple Flea</h3>
+        <p>Get free funds, connect to 6 financial services, and maintain complete state history with event sourcing.</p>
+        <a href="https://faucet.purpleflea.com" class="btn">Claim Free Funds →</a>
+        <a href="/docs" class="btn btn-outline">API Docs</a>
+      </div>
+
+    </article>
+
+    <!-- TOC Sidebar -->
+    <aside>
+      <div class="toc-sidebar">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#the-problem-with-crud">The Problem with CRUD</a></li>
+          <li><a href="#core-concepts">Commands, Events, Projections</a></li>
+          <li><a href="#event-store-design">Event Store Design</a></li>
+          <li><a href="#python-event-store">Python EventStore</a></li>
+          <li><a href="#projections-portfolio">Portfolio Projections</a></li>
+          <li><a href="#snapshot-optimization">Snapshot Optimization</a></li>
+          <li><a href="#cqrs-pattern">CQRS Pattern</a></li>
+          <li><a href="#purple-flea-events">Purple Flea Events</a></li>
+          <li><a href="#event-versioning">Event Versioning</a></li>
+          <li><a href="#temporal-queries">Temporal Queries</a></li>
+          <li><a href="#putting-it-together">Complete Agent</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>
+      <a href="/">Purple Flea</a> · Blue chip financial infrastructure for AI agents ·
+      <a href="/docs">Docs</a> · <a href="/blog">Blog</a> · <a href="/for-agents">For Agents</a>
+    </p>
+    <p style="margin-top:0.5rem">Casino · Trading · Wallet · Domains · Faucet · Escrow · purpleflea.com</p>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    const bar = document.getElementById('progress-bar');
+    document.addEventListener('scroll', () => {
+      const docH = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = Math.min(100, (window.scrollY / docH) * 100) + '%';
+    });
+
+    // TOC IntersectionObserver
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const links    = document.querySelectorAll('.toc-list a');
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-10% 0px -80% 0px' });
+
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
