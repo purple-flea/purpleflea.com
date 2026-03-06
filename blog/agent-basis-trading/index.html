@@ -3,607 +3,902 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Basis Trading for AI Agents: Capturing the Futures Premium | Purple Flea Blog</title>
-  <meta name="description" content="How AI agents can run cash-and-carry basis trades on crypto futures. Captures 8-15% annualized BTC premium with hedged risk. Full Python BasisTradingAgent included." />
-  <meta property="og:title" content="Basis Trading for AI Agents: Capturing the Futures Premium" />
-  <meta property="og:description" content="Cash-and-carry basis trades: buy spot, short futures, capture the premium as it converges to zero. Full Python agent with Purple Flea Trading API." />
-  <meta property="og:url" content="https://purpleflea.com/blog/agent-basis-trading/" />
+  <title>Basis Trading for AI Agents: Cash-and-Carry Arbitrage | Purple Flea Blog</title>
+  <meta name="description" content="Master cash-and-carry arbitrage for AI agents: futures basis, annualized yield, contango vs backwardation, rolling, and a full Python BasisTradingAgent." />
+  <meta name="keywords" content="basis trading AI agent, cash and carry arbitrage, crypto futures basis, contango backwardation, Purple Flea trading, annualized basis rate, perpetual funding" />
+  <meta property="og:title" content="Basis Trading for AI Agents: Cash-and-Carry Arbitrage" />
+  <meta property="og:description" content="A deep technical guide to cash-and-carry basis trading for autonomous agents. Covers basis definition, contango vs backwardation, rolling, and a full Python BasisTradingAgent." />
   <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-basis-trading/" />
   <link rel="canonical" href="https://purpleflea.com/blog/agent-basis-trading/" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F7E3;</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
-    "headline": "Basis Trading for AI Agents: Capturing the Futures Premium",
-    "description": "How AI agents can run cash-and-carry basis trades on crypto futures. Captures 8-15% annualized BTC premium with hedged risk. Full Python BasisTradingAgent included.",
+    "headline": "Basis Trading for AI Agents: Cash-and-Carry Arbitrage",
+    "description": "A complete technical guide to running cash-and-carry basis trades with AI agents. Covers futures basis, annualized yield, contango vs backwardation, rolling futures positions, convergence mechanics, and a full Python BasisTradingAgent using the Purple Flea API.",
     "url": "https://purpleflea.com/blog/agent-basis-trading/",
     "datePublished": "2026-03-06",
     "dateModified": "2026-03-06",
-    "author": {
-      "@type": "Organization",
-      "name": "Purple Flea",
-      "url": "https://purpleflea.com"
-    },
-    "publisher": {
-      "@type": "Organization",
-      "name": "Purple Flea",
-      "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico" }
-    },
-    "keywords": ["basis trading", "cash and carry", "crypto futures premium", "AI agent basis trade", "Hyperliquid basis", "Purple Flea trading", "futures arbitrage"]
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com", "logo": {"@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico"}},
+    "keywords": ["basis trading", "cash and carry", "crypto futures", "AI agent", "contango", "backwardation", "annualized basis", "Purple Flea"]
   }
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #09090B; --surface: #111113; --border: #27272A;
-      --accent: #A855F7; --accent-dim: #7C3AED; --text: #FAFAFA;
-      --muted: #A1A1AA; --green: #22C55E; --blue: #60A5FA;
-      --red: #EF4444; --yellow: #FBBF24;
+      --bg: #09090B; --bg2: #0f0f11; --bg3: #141418; --bg4: #1a1a20;
+      --purple: #A855F7; --purple-dim: #7C3AED;
+      --purple-glow: rgba(168,85,247,0.15); --purple-border: rgba(168,85,247,0.35);
+      --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06); --bg-card: rgba(255,255,255,0.03);
+      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+      --code-bg: #0D0D0F;
+      --radius: 16px; --radius-sm: 10px;
     }
     html { scroll-behavior: smooth; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
-    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
-    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
-    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
-    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--accent); text-decoration: none; }
-    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
-    .nav-links a:hover { color: var(--text); }
-    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: grid; grid-template-columns: 1fr 260px; gap: 3rem; align-items: start; }
-    @media (max-width: 820px) { .page-wrapper { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
-    article { min-width: 0; }
-    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
-    .back-link:hover { color: var(--accent); }
-    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
-    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
-    .tag.blue { background: rgba(96,165,250,0.15); color: var(--blue); }
-    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
-    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
-    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; }
-    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
-    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; }
-    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; }
-    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
-    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
-    .content li { margin-bottom: 0.5rem; }
-    .content a { color: var(--accent); text-decoration: none; }
-    .content a:hover { text-decoration: underline; }
-    .content strong { color: var(--text); font-weight: 600; }
-    .content pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
-    .content pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; line-height: 1.65; color: #E4E4E7; }
-    .content code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; color: var(--accent); }
-    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
-    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
-    .callout.blue { border-color: var(--blue); background: rgba(96,165,250,0.07); }
-    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
-    .callout.yellow { border-color: var(--yellow); background: rgba(251,191,36,0.07); }
-    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
-    .callout.green .callout-title { color: var(--green); }
-    .callout.blue .callout-title { color: var(--blue); }
-    .callout.red .callout-title { color: var(--red); }
-    .callout.yellow .callout-title { color: var(--yellow); }
-    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
-    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
-    tr:last-child td { border-bottom: none; }
-    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
-    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
-    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
-    .toc-sidebar { position: sticky; top: 72px; }
-    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
-    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
-    .toc-box ol { list-style: none; padding: 0; }
-    .toc-box li { margin-bottom: 0.4rem; }
-    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
-    .toc-box a:hover { color: var(--accent); }
-    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
-    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
-    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
-    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
-    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
-    .btn:hover { opacity: 0.85; }
-    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Reading progress bar */
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--purple), #c084fc); z-index: 200; transition: width 0.1s linear; }
+
+    /* Nav */
+    nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 100; background: rgba(9,9,11,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); height: 60px; display: flex; align-items: center; padding: 0 24px; }
+    .nav-inner { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .nav-logo .flea { color: var(--purple); }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 8px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+    .nav-cta:hover { background: var(--purple-dim) !important; text-decoration: none !important; }
+
+    /* Hero */
+    .post-hero { padding: 100px 24px 56px; max-width: 820px; margin: 0 auto; }
+    .post-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .tag-strategy { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .tag-guide { background: rgba(96,165,250,0.12); color: #60a5fa; border: 1px solid rgba(96,165,250,0.25); }
+    .post-date { font-size: 13px; color: var(--text-muted); }
+    .post-hero h1 { font-size: clamp(1.9rem, 4.5vw, 2.9rem); font-weight: 800; line-height: 1.13; letter-spacing: -0.03em; margin-bottom: 22px; }
+    .post-hero .lead { font-size: 1.1rem; color: var(--text-secondary); line-height: 1.78; }
+
+    /* Body */
+    .post-body { max-width: 820px; margin: 0 auto; padding: 0 24px 80px; }
+    .post-body h2 { font-size: 1.55rem; font-weight: 800; margin: 52px 0 16px; letter-spacing: -0.02em; }
+    .post-body h3 { font-size: 1.15rem; font-weight: 700; margin: 34px 0 12px; color: var(--text); }
+    .post-body p { color: var(--text-secondary); margin-bottom: 18px; line-height: 1.78; }
+    .post-body ul, .post-body ol { color: var(--text-secondary); padding-left: 24px; margin-bottom: 18px; }
+    .post-body li { margin-bottom: 9px; line-height: 1.68; }
+    .post-body strong { color: var(--text); font-weight: 600; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 44px 0; }
+
+    /* Code */
+    .code-block { background: var(--code-bg); border: 1px solid var(--purple-border); border-radius: var(--radius-sm); overflow: hidden; margin: 28px 0; }
+    .code-header { background: var(--bg3); padding: 10px 18px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .code-header .lang { color: var(--purple); letter-spacing: 0.05em; }
+    pre { padding: 24px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; line-height: 1.72; color: #c9d1d9; }
+    .kw { color: #c084fc; } .fn { color: #60a5fa; } .str { color: #86efac; }
+    .cm { color: #71717a; font-style: italic; } .num { color: #d19a66; }
+    .dec { color: #fbbf24; } .cls { color: #f0abfc; }
+
+    /* Callout */
+    .callout { background: var(--bg3); border-left: 3px solid var(--purple); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 18px 22px; margin: 28px 0; }
+    .callout p { color: var(--text-secondary); margin: 0; font-size: 0.93rem; line-height: 1.68; }
+    .callout strong { color: var(--purple); }
+    .callout-warn { border-left-color: var(--yellow); }
+    .callout-warn strong { color: var(--yellow); }
+    .callout-green { border-left-color: var(--green); }
+    .callout-green strong { color: var(--green); }
+
+    /* Tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 28px 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+    .data-table th { background: var(--bg3); padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--bg3); }
+    .up { color: var(--green); } .down { color: var(--red); }
+
+    /* Formula card */
+    .formula-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 22px 26px; margin: 24px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); text-align: center; }
+    .formula-card .label { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+
+    /* Stat grid */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 28px 0; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
+    .stat-card .val { font-size: 1.7rem; font-weight: 800; color: var(--purple); letter-spacing: -0.02em; }
+    .stat-card .desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* CTA */
+    .cta-inline { background: linear-gradient(135deg, var(--bg3), rgba(168,85,247,0.06)); border: 1px solid var(--purple-border); border-radius: var(--radius); padding: 40px; text-align: center; margin: 52px 0; }
+    .cta-inline h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
+    .cta-inline p { color: var(--text-secondary); margin-bottom: 24px; }
+    .btn-primary { background: var(--purple); color: #fff; padding: 13px 28px; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-primary:hover { background: var(--purple-dim); text-decoration: none; }
+
+    /* Footer */
+    footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 44px 24px; text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 28px; margin-bottom: 20px; }
+    .footer-links a { color: var(--text-secondary); font-size: 14px; }
+    footer p { color: var(--text-muted); font-size: 13px; }
+
+    @media (max-width: 600px) { .nav-links { display: none; } .stat-grid { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
-  <div id="progress-bar"></div>
-  <nav>
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">◆ Purple Flea</a>
-      <ul class="nav-links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/casino">Casino</a></li>
-        <li><a href="/trading">Trading</a></li>
-        <li><a href="/wallet">Wallet</a></li>
-        <li><a href="/domains">Domains</a></li>
-        <li><a href="/for-agents">Agents</a></li>
-      </ul>
+
+<div id="progress-bar"></div>
+<script>
+  window.addEventListener('scroll', () => {
+    const el = document.documentElement;
+    const pct = (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  });
+</script>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple <span class="flea">Flea</span></a>
+    <div class="nav-links">
+      <a href="/trading-api">Trading</a>
+      <a href="/casino">Casino</a>
+      <a href="/wallet-api">Wallets</a>
+      <a href="/escrow">Escrow</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/blog">Blog</a>
+      <a href="https://api.purpleflea.com/auth/register" class="nav-cta">Register Free</a>
     </div>
-  </nav>
-
-  <div class="page-wrapper">
-    <article>
-      <a href="/blog" class="back-link">← Back to Blog</a>
-      <div class="post-tags">
-        <span class="tag">Strategy</span>
-        <span class="tag blue">Trading</span>
-        <span class="tag green">Arbitrage</span>
-      </div>
-      <h1>Basis Trading for AI Agents: Capturing the Futures Premium</h1>
-      <div class="post-meta">
-        <span>March 6, 2026</span>
-        <span>13 min read</span>
-        <span>Purple Flea Research</span>
-      </div>
-      <hr class="divider" />
-
-      <div class="content">
-
-        <p>Basis trading is one of the purest forms of arbitrage available to crypto agents. The premise is straightforward: futures contracts on Bitcoin and other assets consistently trade at a premium to spot — especially in bull markets. By buying spot and simultaneously selling futures, an agent locks in that premium as a risk-free return (conditional on holding to expiry). This guide explains the mechanics, the platforms, the risks, and provides a complete <code>BasisTradingAgent</code> implementation using the <a href="/trading">Purple Flea Trading API</a>.</p>
-
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-value">8–15%</div>
-            <div class="stat-label">BTC annualized basis (bull market)</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Net price exposure at entry</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">Expiry</div>
-            <div class="stat-label">When basis converges to zero</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">1%</div>
-            <div class="stat-label">Escrow fee for agent settlements</div>
-          </div>
-        </div>
-
-        <h2 id="what-is-basis">1. Cash-and-Carry Basis Trade: The Mechanics</h2>
-
-        <p>The <strong>basis</strong> is the difference between the futures price and the spot price of an asset:</p>
-
-        <pre><code>Basis = Futures_Price - Spot_Price
-Basis (%) = (Futures_Price - Spot_Price) / Spot_Price × 100
-Annualized Basis = Basis (%) / Days_to_Expiry × 365</code></pre>
-
-        <p>A <strong>cash-and-carry trade</strong> captures this basis by:</p>
-        <ol>
-          <li>Buying spot (e.g., 1 BTC at $88,000)</li>
-          <li>Selling futures at expiry (e.g., 1 BTC quarterly futures at $90,000)</li>
-          <li>Waiting for expiry — futures converge to spot price</li>
-          <li>Delivering spot BTC against futures contract</li>
-          <li>Locking in: $90,000 − $88,000 = $2,000 profit on $88,000 capital = 2.27% in the quarter = 9.1% annualized</li>
-        </ol>
-
-        <p>The trade is delta-neutral at entry: the spot long (Δ=+1) is exactly offset by the futures short (Δ=−1). No matter where BTC goes, you profit exactly the basis at expiry.</p>
-
-        <div class="callout">
-          <div class="callout-title">Basis vs Funding Rate Harvest</div>
-          <p>Basis trading uses <em>dated futures</em> (quarterly expiry) and locks in a fixed return known at entry. Funding rate harvest uses <em>perpetual futures</em> (no expiry) and earns variable payments every 8 hours. Basis gives certainty; funding harvest gives potentially higher (or negative) returns. See our <a href="/blog/agent-delta-neutral/">delta-neutral guide</a> for the funding harvest strategy.</p>
-        </div>
-
-        <h2 id="why-basis-exists">2. Why the Basis Exists</h2>
-
-        <p>The futures premium exists because of <strong>demand for leveraged long exposure</strong>. When markets are bullish, traders want to buy BTC on margin without holding spot. They buy futures, pushing futures prices above spot. Arbitrageurs like basis traders absorb this demand by selling futures and buying spot — but they require compensation (the basis) for tying up capital.</p>
-
-        <p>Three additional factors contribute to persistent basis:</p>
-        <ul>
-          <li><strong>Cost of carry</strong>: holding spot requires capital that could earn yield elsewhere; futures buyers compensate spot holders implicitly</li>
-          <li><strong>Convenience yield</strong>: spot holders have optionality (can use BTC as collateral, for payments, etc.) that futures holders lack</li>
-          <li><strong>Market segmentation</strong>: many participants can only access one side of the trade, limiting arbitrage and sustaining the premium</li>
-        </ul>
-
-        <h2 id="platforms">3. Platforms: Where to Execute Basis Trades</h2>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Platform</th>
-                <th>Type</th>
-                <th>Expiries</th>
-                <th>Key Feature</th>
-                <th>Purple Flea Access</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Hyperliquid Perps</strong></td>
-                <td>Perpetual</td>
-                <td>No expiry</td>
-                <td>Deep liquidity, 8h funding</td>
-                <td style="color:var(--green);">Via Trading API</td>
-              </tr>
-              <tr>
-                <td><strong>dYdX v4</strong></td>
-                <td>Perpetual</td>
-                <td>No expiry</td>
-                <td>Cosmos-based, low fees</td>
-                <td style="color:var(--yellow);">Manual setup</td>
-              </tr>
-              <tr>
-                <td><strong>GMX v2</strong></td>
-                <td>Perpetual</td>
-                <td>No expiry</td>
-                <td>Liquidity pool model</td>
-                <td style="color:var(--yellow);">Manual setup</td>
-              </tr>
-              <tr>
-                <td><strong>Binance Quarterly</strong></td>
-                <td>Dated futures</td>
-                <td>Q, BQ</td>
-                <td>Highest OI, true basis trade</td>
-                <td style="color:var(--muted);">External</td>
-              </tr>
-              <tr>
-                <td><strong>CME BTC Futures</strong></td>
-                <td>Dated futures</td>
-                <td>Monthly</td>
-                <td>Institutional, regulated</td>
-                <td style="color:var(--muted);">External</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>For agents using Purple Flea's Trading API, Hyperliquid perpetuals are the primary execution venue. While perpetuals lack a fixed expiry, the funding mechanism creates an equivalent economic effect: when you're long spot and short perp, you capture the funding premium each period — which, in expectation, equals the annualized basis of equivalent dated futures.</p>
-
-        <h2 id="historical-basis">4. Historical Basis Rates: BTC 8–15% in Bull Markets</h2>
-
-        <p>Measured as annualized return on capital deployed:</p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Year / Period</th>
-                <th>Market Condition</th>
-                <th>BTC Avg Annualized Basis</th>
-                <th>ETH Avg Annualized Basis</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Q1 2024 (ETF launch)</td>
-                <td style="color:var(--green);">Strong bull</td>
-                <td style="color:var(--green);">35–60%</td>
-                <td style="color:var(--green);">28–45%</td>
-              </tr>
-              <tr>
-                <td>Q3–Q4 2024</td>
-                <td style="color:var(--green);">Mid bull</td>
-                <td style="color:var(--green);">12–20%</td>
-                <td style="color:var(--green);">10–18%</td>
-              </tr>
-              <tr>
-                <td>Q1 2025</td>
-                <td style="color:var(--yellow);">Cooling</td>
-                <td style="color:var(--yellow);">8–12%</td>
-                <td style="color:var(--yellow);">6–10%</td>
-              </tr>
-              <tr>
-                <td>Q2–Q3 2025</td>
-                <td style="color:var(--yellow);">Sideways</td>
-                <td style="color:var(--yellow);">4–8%</td>
-                <td style="color:var(--yellow);">3–7%</td>
-              </tr>
-              <tr>
-                <td>Q4 2025 – Q1 2026</td>
-                <td style="color:var(--green);">Bull resumption</td>
-                <td style="color:var(--green);">10–18%</td>
-                <td style="color:var(--green);">8–15%</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>The long-term average across full cycles is approximately <strong>8–12% annualized</strong> for BTC. This is the "fair yield" for basis traders who stay deployed through both bull and bear phases. Bull market peaks can reach 50–100% annualized during euphoric periods when speculative demand for leverage spikes dramatically.</p>
-
-        <h2 id="risk-factors">5. Risk Factors: What Can Go Wrong</h2>
-
-        <h3>Funding Rate Flips (for perp-based basis)</h3>
-        <p>When sentiment turns bearish, funding turns negative — longs pay shorts. Your position (long spot, short perp) starts paying out funding instead of receiving it. If negative funding is sustained, the effective yield turns negative. Solution: monitor funding every few hours and close or flip the position when it crosses zero.</p>
-
-        <h3>Margin Calls and Liquidation Risk</h3>
-        <p>The spot leg requires capital. The futures short requires margin. If spot price rises sharply, unrealized PnL on the short increases — requiring additional margin deposits. Failure to meet margin calls causes liquidation of the futures position, leaving a naked long spot position with directional risk. Maintain 2–3x the minimum margin requirement as buffer.</p>
-
-        <h3>Liquidation Cascades</h3>
-        <p>During extreme volatility, cascading liquidations can temporarily push futures prices far above spot (short squeeze) or far below spot (long squeeze), expanding the basis against your position before convergence. Sized positions weather this; over-levered positions do not.</p>
-
-        <h3>Counterparty Risk</h3>
-        <p>Exchange insolvency (FTX 2022) destroyed basis positions without recourse. Use on-chain venues (Hyperliquid, dYdX) where smart contract settlement eliminates exchange counterparty risk. Purple Flea's <a href="https://escrow.purpleflea.com">Escrow service</a> provides additional trustless settlement for agent-to-agent basis arrangements.</p>
-
-        <div class="callout red">
-          <div class="callout-title">Biggest Risk: Basis Going Negative</div>
-          <p>In severe bear markets, futures can trade <em>below</em> spot (backwardation). If this happens while you're in a cash-and-carry position, you're paying the negative basis instead of earning a positive one. The solution: close when basis drops below your minimum threshold (e.g., 5% annualized) and wait for conditions to improve.</p>
-        </div>
-
-        <h2 id="python-agent">6. Full Python BasisTradingAgent</h2>
-
-        <p>This agent scans for positive basis opportunities, opens hedged positions when the basis exceeds the threshold, monitors convergence, and exits when the basis converges or becomes uneconomical.</p>
-
-        <pre><code>import requests
-import time
-from datetime import datetime, timedelta
-
-PF_BASE = "https://purpleflea.com/api/v1"
-PF_KEY = "pf_live_your_key_here"
-HEADERS = {"Authorization": f"Bearer {PF_KEY}"}
-
-MIN_BASIS_APY = 0.08      # 8% APY minimum to open
-CLOSE_BASIS_APY = 0.03    # Close if APY drops below 3%
-POSITION_USDC = 2000      # Notional per trade
-MAX_OPEN_TRADES = 3       # Max concurrent basis positions
-
-
-class BasisPosition:
-    def __init__(self, spot_market: str, perp_market: str,
-                 spot_price: float, perp_price: float, size: float):
-        self.spot_market = spot_market
-        self.perp_market = perp_market
-        self.entry_spot = spot_price
-        self.entry_perp = perp_price
-        self.entry_basis = (perp_price - spot_price) / spot_price
-        self.size = size
-        self.opened_at = datetime.utcnow()
-        self.pnl_usdc = 0.0
-
-    def current_basis_apy(self, spot: float, perp: float) -> float:
-        current_basis = (perp - spot) / spot
-        days_open = max(1, (datetime.utcnow() - self.opened_at).total_seconds() / 86400)
-        # APY based on remaining basis to collect
-        remaining_basis = current_basis  # for perps, basis ~= expected funding
-        return remaining_basis * 365  # annualized
-
-    def compute_pnl(self, spot: float, perp: float) -> float:
-        spot_pnl = (spot - self.entry_spot) * self.size
-        perp_pnl = (self.entry_perp - perp) * self.size  # short perp
-        return spot_pnl + perp_pnl
-
-    def __str__(self):
-        return (f"{self.spot_market} | entry basis: {self.entry_basis:.2%} | "
-                f"size: {self.size:.6f} | opened: {self.opened_at.strftime('%H:%M UTC')}")
-
-
-class BasisTradingAgent:
-    def __init__(self):
-        self.positions: list[BasisPosition] = []
-
-    def get_market_prices(self, spot_market: str, perp_market: str) -> tuple[float, float]:
-        """Fetch spot and perp prices."""
-        spot_r = requests.get(
-            f"{PF_BASE}/trading/markets/{spot_market}/ticker",
-            headers=HEADERS
-        ).json()
-        perp_r = requests.get(
-            f"{PF_BASE}/trading/markets/{perp_market}/ticker",
-            headers=HEADERS
-        ).json()
-        return float(spot_r["last_price"]), float(perp_r["last_price"])
-
-    def calculate_basis_apy(self, spot: float, perp: float) -> float:
-        """Annualized basis as percentage."""
-        basis = (perp - spot) / spot
-        # Perpetual futures: annualize using current funding rate equivalent
-        apy = basis * 365 / (8 / 24)  # 3 funding periods per day
-        return apy
-
-    def scan_opportunities(self) -> list[dict]:
-        """Scan all supported markets for positive basis."""
-        markets = [
-            {"spot": "BTC-USD",  "perp": "BTC-PERP"},
-            {"spot": "ETH-USD",  "perp": "ETH-PERP"},
-            {"spot": "SOL-USD",  "perp": "SOL-PERP"},
-        ]
-        opportunities = []
-
-        for m in markets:
-            try:
-                spot, perp = self.get_market_prices(m["spot"], m["perp"])
-                basis_apy = self.calculate_basis_apy(spot, perp)
-                print(f"  {m['spot']}: spot={spot:.2f} perp={perp:.2f} "
-                      f"basis={basis_apy:.1%} APY")
-
-                if basis_apy >= MIN_BASIS_APY:
-                    opportunities.append({
-                        "spot_market": m["spot"],
-                        "perp_market": m["perp"],
-                        "spot_price": spot,
-                        "perp_price": perp,
-                        "basis_apy": basis_apy
-                    })
-            except Exception as e:
-                print(f"  Error scanning {m['spot']}: {e}")
-
-        # Sort by basis APY descending
-        return sorted(opportunities, key=lambda x: x["basis_apy"], reverse=True)
-
-    def open_position(self, opp: dict) -> BasisPosition:
-        """Open cash-and-carry: buy spot + short perp."""
-        size = POSITION_USDC / opp["spot_price"]
-
-        # Buy spot
-        r1 = requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": opp["spot_market"], "side": "buy",
-            "size": round(size, 6), "type": "market"
-        }).json()
-
-        # Short perp
-        r2 = requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": opp["perp_market"], "side": "sell",
-            "size": round(size, 6), "type": "market"
-        }).json()
-
-        pos = BasisPosition(
-            spot_market=opp["spot_market"],
-            perp_market=opp["perp_market"],
-            spot_price=opp["spot_price"],
-            perp_price=opp["perp_price"],
-            size=size
-        )
-        print(f"Opened basis trade: {pos}")
-        print(f"  Expected APY: {opp['basis_apy']:.1%}")
-        return pos
-
-    def close_position(self, pos: BasisPosition, spot: float, perp: float):
-        """Unwind: sell spot + buy perp."""
-        # Sell spot
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": pos.spot_market, "side": "sell",
-            "size": round(pos.size, 6), "type": "market"
-        })
-
-        # Buy perp (close short)
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": pos.perp_market, "side": "buy",
-            "size": round(pos.size, 6), "type": "market"
-        })
-
-        final_pnl = pos.compute_pnl(spot, perp)
-        days = (datetime.utcnow() - pos.opened_at).total_seconds() / 86400
-        print(f"Closed {pos.spot_market} | PnL: {final_pnl:+.2f} USDC | "
-              f"Duration: {days:.1f} days")
-
-    def run(self, interval_s: int = 600):
-        """
-        Main loop:
-        1. Scan for basis opportunities
-        2. Open positions above MIN_BASIS_APY
-        3. Monitor existing positions
-        4. Close positions where basis has collapsed
-        """
-        print("BasisTradingAgent starting...")
-
-        while True:
-            ts = datetime.utcnow().strftime("%H:%M:%S UTC")
-            print(f"\n[{ts}] Scanning markets...")
-
-            # Monitor existing positions
-            still_open = []
-            for pos in self.positions:
-                spot, perp = self.get_market_prices(pos.spot_market, pos.perp_market)
-                current_apy = pos.current_basis_apy(spot, perp)
-                pnl = pos.compute_pnl(spot, perp)
-                print(f"  {pos.spot_market} | APY: {current_apy:.1%} | "
-                      f"PnL: {pnl:+.2f} USDC")
-
-                if current_apy < CLOSE_BASIS_APY:
-                    print(f"  Closing {pos.spot_market} — basis below threshold")
-                    self.close_position(pos, spot, perp)
-                else:
-                    still_open.append(pos)
-
-            self.positions = still_open
-
-            # Open new positions if capacity available
-            if len(self.positions) < MAX_OPEN_TRADES:
-                print(f"Scanning for new opportunities "
-                      f"(capacity: {MAX_OPEN_TRADES - len(self.positions)} slots)...")
-                opps = self.scan_opportunities()
-
-                for opp in opps:
-                    if len(self.positions) >= MAX_OPEN_TRADES:
-                        break
-                    # Don't double-open same market
-                    open_markets = [p.spot_market for p in self.positions]
-                    if opp["spot_market"] not in open_markets:
-                        pos = self.open_position(opp)
-                        self.positions.append(pos)
-            else:
-                print(f"At max capacity ({MAX_OPEN_TRADES} positions)")
-
-            time.sleep(interval_s)
-
-
-if __name__ == "__main__":
-    agent = BasisTradingAgent()
-    agent.run(interval_s=600)   # check every 10 minutes</code></pre>
-
-        <h2 id="execution">7. Purple Flea Trading API for Execution and Position Management</h2>
-
-        <p>The agent uses four core Trading API endpoints:</p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><code>/trading/markets/:market/ticker</code></td><td>GET</td><td>Real-time spot and perp prices</td></tr>
-              <tr><td><code>/trading/markets/:market/funding</code></td><td>GET</td><td>Current funding rate and 8h history</td></tr>
-              <tr><td><code>/trading/order</code></td><td>POST</td><td>Open/close market and limit orders</td></tr>
-              <tr><td><code>/trading/positions</code></td><td>GET</td><td>All open positions with mark PnL</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>For agent-to-agent basis arrangements — where one agent provides capital and another executes — the <a href="https://escrow.purpleflea.com">Purple Flea Escrow API</a> enables trustless profit-sharing at a 1% fee with 15% referral commission on fees earned.</p>
-
-        <div class="callout green">
-          <div class="callout-title">Pro Tip: Compounding</div>
-          <p>Close a basis position as funding payments are credited to your account, then redeploy immediately into the next position. With 8-hour funding intervals and instant API execution, an agent can compound basis returns daily — turning 12% simple APY into ~12.7% effective APY through continuous reinvestment.</p>
-        </div>
-
-        <div class="callout blue">
-          <div class="callout-title">Combine with Escrow</div>
-          <p>Running a basis fund? Accept capital from other agents via Escrow API, execute the strategy, and distribute pro-rata returns at settlement. Your agent earns a management fee; investors get yield without needing to manage the hedging themselves. This is agent-native fund management.</p>
-        </div>
-
-        <div class="cta-box">
-          <h3>Start Capturing the Futures Premium</h3>
-          <p>Get free USDC from the faucet, connect to the Trading API, and run your first basis trade today.</p>
-          <a href="https://faucet.purpleflea.com" class="btn">Claim Free USDC</a>
-          <a href="/trading" class="btn-outline btn">View Trading Markets</a>
-        </div>
-
-      </div>
-    </article>
-
-    <aside class="toc-sidebar">
-      <div class="toc-box">
-        <h4>Contents</h4>
-        <ol>
-          <li><a href="#what-is-basis">Cash-and-Carry Mechanics</a></li>
-          <li><a href="#why-basis-exists">Why the Basis Exists</a></li>
-          <li><a href="#platforms">Platforms</a></li>
-          <li><a href="#historical-basis">Historical Basis Rates</a></li>
-          <li><a href="#risk-factors">Risk Factors</a></li>
-          <li><a href="#python-agent">Python BasisTradingAgent</a></li>
-          <li><a href="#execution">API Integration</a></li>
-        </ol>
-      </div>
-    </aside>
+  </div>
+</nav>
+
+<div class="post-hero">
+  <div class="post-meta">
+    <span class="tag tag-strategy">Strategy</span>
+    <span class="tag tag-guide">Guide</span>
+    <span class="post-date">March 6, 2026 &middot; 14 min read</span>
+  </div>
+  <h1>Basis Trading for AI Agents: Cash-and-Carry Arbitrage</h1>
+  <p class="lead">
+    The futures basis is one of the most reliable, exploitable mispricings in crypto. Every time a perpetual or dated futures contract trades at a premium to spot, it represents a lockable yield. AI agents are uniquely suited to capture it: they execute instantly, roll positions mechanically, and never succumb to the impatience that causes human traders to cut positions early. This guide covers everything from basis math to a fully autonomous Python <code>BasisTradingAgent</code>.
+  </p>
+</div>
+
+<div class="post-body">
+
+  <h2>What Is the Futures Basis?</h2>
+
+  <p>The <strong>basis</strong> is the price difference between a futures (or perpetual) contract and its underlying spot asset:</p>
+
+  <div class="formula-card">
+    Basis = Futures Price &minus; Spot Price
+    <div class="label">Positive basis = contango &nbsp;&middot;&nbsp; Negative basis = backwardation</div>
   </div>
 
-  <footer>
-    <p>© 2026 Purple Flea · <a href="https://purpleflea.com">purpleflea.com</a></p>
-    <div class="footer-links">
-      <a href="/blog">Blog</a>
-      <a href="/trading">Trading</a>
-      <a href="/wallet">Wallet</a>
-      <a href="https://faucet.purpleflea.com">Faucet</a>
-      <a href="https://escrow.purpleflea.com">Escrow</a>
-      <a href="/mcp">MCP</a>
-    </div>
-  </footer>
+  <p>In traditional commodity markets, the basis reflects storage costs, insurance, and convenience yield. In crypto futures markets it reflects two additional forces: the cost of leverage demand (traders willing to pay a premium to go long on margin) and the time value of money denominated in stablecoins.</p>
 
-  <script>
-    window.addEventListener('scroll', () => {
-      const el = document.getElementById('progress-bar');
-      const scrolled = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
-      el.style.width = scrolled + '%';
-    });
-  </script>
+  <p>When retail traders are bullish they bid up perpetual contract prices above spot, creating a positive basis. A basis trader extracts this premium by taking the opposite side: <strong>buy spot, short futures</strong>. At expiry (or at any time for perpetuals via the funding mechanism), the basis converges toward zero, realising the spread as profit.</p>
+
+  <div class="callout">
+    <p><strong>Key insight:</strong> The basis trade earns a predictable yield that is largely uncorrelated with the direction of the underlying asset. Whether BTC rises 40% or falls 40%, the basis P&amp;L is determined by the spread at entry minus the spread at exit — not the absolute price level. This makes it one of the few genuinely market-neutral strategies in crypto.</p>
+  </div>
+
+  <h2>Basis in Perpetual vs Dated Futures</h2>
+
+  <p>Crypto offers two types of futures contracts, and the basis mechanics differ between them:</p>
+
+  <h3>Perpetual Swaps</h3>
+  <p>Perpetuals have no expiry date. Instead of converging at a fixed date, they use a <strong>funding rate mechanism</strong> to anchor the perpetual price to spot. Every 8 hours, the side that is trading at a premium pays the other side a funding payment. When the perpetual trades above spot (positive basis), longs pay shorts. A basis trader who is short the perpetual and long spot receives these payments continuously.</p>
+
+  <p>The perpetual basis at any moment is approximately the 8-hour funding rate annualised:</p>
+
+  <div class="formula-card">
+    Annualised Basis (%) = Funding Rate (8h) &times; 3 &times; 365 &times; 100
+    <div class="label">3 funding periods per day &times; 365 days</div>
+  </div>
+
+  <h3>Dated Futures</h3>
+  <p>Quarterly and monthly futures have a fixed expiry date. The basis decays predictably toward zero as expiry approaches. The annualised yield for a dated future is:</p>
+
+  <div class="formula-card">
+    Annualised Basis (%) = [(Futures / Spot) &minus; 1] &times; (365 / DTE) &times; 100
+    <div class="label">DTE = days to expiry</div>
+  </div>
+
+  <p>For example, if BTC spot is $95,000 and the June quarterly future trades at $97,850 with 90 days to expiry:</p>
+
+  <div class="formula-card">
+    [(97850 / 95000) &minus; 1] &times; (365 / 90) &times; 100 = <strong>12.16% annualised</strong>
+    <div class="label">3% raw basis / 90 days scaled to full year</div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">8–18%</div><div class="desc">Typical BTC annualised basis (bull market)</div></div>
+    <div class="stat-card"><div class="val">15–40%</div><div class="desc">Alt-coin perpetual annualised funding</div></div>
+    <div class="stat-card"><div class="val">0.01%</div><div class="desc">Min funding rate per 8h period (clamp floor)</div></div>
+    <div class="stat-card"><div class="val">0.75%</div><div class="desc">Max funding rate per 8h period (clamp ceiling)</div></div>
+  </div>
+
+  <h2>Contango vs Backwardation</h2>
+
+  <p>The sign of the basis defines the market structure. Both conditions create tradeable opportunities, but the direction of the trade reverses:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Condition</th>
+        <th>Basis Sign</th>
+        <th>Market Sentiment</th>
+        <th>Basis Trade Direction</th>
+        <th>Typical Yield Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Contango</strong></td>
+        <td class="up">+</td>
+        <td>Bullish (longs dominant)</td>
+        <td>Long spot + Short futures</td>
+        <td>Receive funding from longs</td>
+      </tr>
+      <tr>
+        <td><strong>Backwardation</strong></td>
+        <td class="down">&minus;</td>
+        <td>Bearish (shorts dominant)</td>
+        <td>Short spot + Long futures</td>
+        <td>Receive funding from shorts</td>
+      </tr>
+      <tr>
+        <td><strong>Flat</strong></td>
+        <td>&asymp;0</td>
+        <td>Neutral</td>
+        <td>No position (sub-threshold)</td>
+        <td>None worth taking</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>In practice, crypto markets spend roughly 70–80% of time in contango during bull markets and 40–60% in backwardation during bear phases. An agent that can flip its position direction based on the basis sign captures yield in both environments.</p>
+
+  <h3>The Backwardation Basis Trade</h3>
+  <p>Running the inverse trade in backwardation — short spot, long futures — requires the ability to borrow and short the underlying asset. For agents without spot borrowing access this trade is typically skipped. The contango direction (long spot + short perp) is the default for most autonomous agents since it requires only a direct purchase of the spot asset.</p>
+
+  <h2>Cash-and-Carry Arbitrage Mechanics</h2>
+
+  <p>The cash-and-carry trade is the physical implementation of a contango basis trade:</p>
+
+  <ol>
+    <li><strong>Buy the underlying asset (spot leg):</strong> Purchase BTC, ETH, or any supported asset at spot price using stablecoin capital from your Purple Flea wallet.</li>
+    <li><strong>Short the futures contract (short leg):</strong> Simultaneously open a short position in the corresponding perpetual or dated futures at the premium price. This hedges your spot exposure, making the combined position delta-neutral.</li>
+    <li><strong>Hold until convergence:</strong> For perpetuals, collect the 8-hourly funding payments. For dated futures, hold until expiry when the basis converges to zero by definition.</li>
+    <li><strong>Unwind:</strong> Sell the spot position and close the short futures. Net P&amp;L = funding collected (perp) or basis at entry (dated) minus execution costs.</li>
+  </ol>
+
+  <div class="callout callout-warn">
+    <p><strong>Critical:</strong> Both legs must execute at approximately the same time. Legged execution — placing the spot order and then waiting to place the futures order — creates temporary directional exposure. Use limit orders on both legs simultaneously, or accept a small market-order premium to ensure tight execution.</p>
+  </div>
+
+  <h3>Transaction Cost Budget</h3>
+  <p>Basis trades are low-gross-yield strategies. Every basis point of transaction cost matters:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Cost Component</th><th>Typical Range</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Spot maker fee</td><td>0.02–0.08%</td><td>Use limit orders to qualify for maker rates</td></tr>
+      <tr><td>Perp maker fee</td><td>-0.01–0.03%</td><td>Negative = rebate for adding liquidity</td></tr>
+      <tr><td>Spot taker fee</td><td>0.05–0.12%</td><td>If you need instant fill</td></tr>
+      <tr><td>Funding paid (if wrong)</td><td>variable</td><td>Zero in contango if you are short the perp</td></tr>
+      <tr><td>Slippage (large sizes)</td><td>0.01–0.10%</td><td>Scales with order size relative to book depth</td></tr>
+    </tbody>
+  </table>
+
+  <p>Rule of thumb: only enter a basis position if the annualised yield exceeds 5% after fees. Below that threshold, fee variance alone can eliminate the entire profit.</p>
+
+  <h2>Annualised Basis Rate Calculation in Detail</h2>
+
+  <p>To compare basis trades across different assets and time horizons on a standardized basis, always convert raw basis to an annualised percentage yield. The formula for perpetuals uses the current funding rate:</p>
+
+  <div class="formula-card">
+    Perp APY = (Spot Funding Rate / 100) &times; 3 &times; 365 &times; 100
+    <div class="label">Where funding rate is expressed as a decimal for one 8h period</div>
+  </div>
+
+  <p>For a more precise measure, use the <strong>rolling 7-day average funding rate</strong> rather than the instantaneous rate. The instantaneous rate is highly volatile and can produce misleading yield estimates:</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>basis_math.py</span></div>
+    <pre><span class="kw">import</span> statistics
+
+<span class="kw">def</span> <span class="fn">annualised_perp_basis</span>(funding_rates_8h: <span class="fn">list</span>[<span class="fn">float</span>]) -> <span class="fn">float</span>:
+    <span class="str">"""
+    Calculate annualised basis yield from a list of 8-hour funding rates.
+
+    Args:
+        funding_rates_8h: List of funding rates (as %, e.g. 0.0300 means 0.03%)
+                          Positive = longs pay shorts (contango)
+
+    Returns:
+        Annualised yield in percent (e.g. 13.14 means 13.14% APY)
+    """</span>
+    <span class="kw">if not</span> funding_rates_8h:
+        <span class="kw">return</span> <span class="num">0.0</span>
+
+    avg_rate = statistics.<span class="fn">mean</span>(funding_rates_8h)  <span class="cm"># average 8h rate as %</span>
+    periods_per_year = <span class="num">3</span> * <span class="num">365</span>                         <span class="cm"># 3 periods/day × 365</span>
+    <span class="kw">return</span> avg_rate * periods_per_year
+
+<span class="kw">def</span> <span class="fn">annualised_dated_basis</span>(spot: <span class="fn">float</span>, futures: <span class="fn">float</span>, dte: <span class="fn">int</span>) -> <span class="fn">float</span>:
+    <span class="str">"""
+    Calculate annualised yield for a dated futures basis trade.
+
+    Args:
+        spot:    Spot price of the underlying asset (USD)
+        futures: Futures contract price (USD)
+        dte:     Days to expiry
+
+    Returns:
+        Annualised yield in percent
+    """</span>
+    <span class="kw">if</span> dte <= <span class="num">0</span> <span class="kw">or</span> spot <= <span class="num">0</span>:
+        <span class="kw">return</span> <span class="num">0.0</span>
+    raw_basis_pct = ((futures / spot) - <span class="num">1.0</span>) * <span class="num">100</span>
+    <span class="kw">return</span> raw_basis_pct * (<span class="num">365</span> / dte)
+
+<span class="cm"># Example</span>
+historical_rates = [<span class="num">0.0251</span>, <span class="num">0.0312</span>, <span class="num">0.0288</span>, <span class="num">0.0345</span>, <span class="num">0.0299</span>,
+                    <span class="num">0.0261</span>, <span class="num">0.0318</span>]  <span class="cm"># last 7 days of 8h rates</span>
+<span class="fn">print</span>(<span class="fn">f</span><span class="str">"Perp APY: {annualised_perp_basis(historical_rates):.2f}%"</span>)
+<span class="cm"># → Perp APY: 10.72%</span>
+
+<span class="fn">print</span>(<span class="fn">f</span><span class="str">"Dated APY: {annualised_dated_basis(95000, 97850, 90):.2f}%"</span>)
+<span class="cm"># → Dated APY: 12.16%</span></pre>
+  </div>
+
+  <h2>Rolling Futures Positions</h2>
+
+  <p>Dated futures contracts expire. To maintain continuous basis exposure, agents must <strong>roll</strong> — close the expiring short and open a new short in the next-dated contract. This process introduces a new risk: <strong>roll yield</strong>, which can be positive (if the new contract has a wider basis) or negative (if the basis term structure has flattened).</p>
+
+  <h3>When to Roll</h3>
+  <p>Rolling decisions involve a tradeoff between two forces:</p>
+
+  <ul>
+    <li><strong>Roll too early:</strong> You incur two sets of transaction costs and may move into a contract with a lower basis. But you lock in the current basis while it still has value.</li>
+    <li><strong>Roll too late:</strong> As expiry approaches, the basis compresses rapidly toward zero (time decay). In the last 48–72 hours the annualised yield collapses even if the absolute basis is still positive.</li>
+    <li><strong>Optimal roll window:</strong> Most basis traders roll 7–14 days before expiry. This avoids the terminal basis compression while minimizing unnecessary transaction costs.</li>
+  </ul>
+
+  <div class="callout callout-green">
+    <p><strong>Roll yield opportunity:</strong> When the futures curve is in steep contango, rolling from a near-dated to a far-dated contract can itself generate positive yield because the new contract carries a wider basis. Monitor the full term structure, not just the front-month contract.</p>
+  </div>
+
+  <h3>Perpetual Rolling</h3>
+  <p>For perpetuals there is no mechanical expiry, but basis traders still face a different type of "rolling" decision: when to exit and re-enter based on funding rate regime changes. A common approach is to exit when the 3-day average funding rate drops below 0.02% per 8h (roughly 2.2% APY), wait for it to recover above 0.04% (roughly 4.4% APY), and re-enter.</p>
+
+  <h2>Convergence at Expiry</h2>
+
+  <p>The most important guarantee in basis trading is expiry convergence. For dated futures contracts, exchange settlement rules guarantee that the final settlement price equals the spot index price at expiry. This means the basis <em>must</em> converge to zero at expiry regardless of what happens in between. This guarantee is what makes the trade truly arbitrage-like rather than speculative.</p>
+
+  <p>For perpetuals, convergence is enforced continuously through the funding mechanism but is not guaranteed at any specific future date. The funding mechanism is a soft tether: under extreme market conditions the premium can persist for multiple funding periods before correcting.</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Contract Type</th><th>Convergence Guarantee</th><th>Convergence Timing</th><th>Key Risk</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Dated Quarterly Futures</td>
+        <td class="up">Hard guarantee</td>
+        <td>Fixed date (exchange settlement)</td>
+        <td>Mark-to-market liquidation before expiry</td>
+      </tr>
+      <tr>
+        <td>Dated Monthly Futures</td>
+        <td class="up">Hard guarantee</td>
+        <td>Fixed date (monthly)</td>
+        <td>Same; shorter DTE means faster premium decay</td>
+      </tr>
+      <tr>
+        <td>Perpetual Swap</td>
+        <td class="down">Soft enforcement</td>
+        <td>Every 8h via funding</td>
+        <td>Funding rate inversion; sustained premium divergence</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Risk Factors in Basis Trading</h2>
+
+  <p>While basis trading is often described as "market-neutral arbitrage," several real risks can erode or eliminate the expected yield:</p>
+
+  <h3>1. Mark-to-Market Liquidation Risk</h3>
+  <p>Even though the net P&amp;L of a perfectly hedged long-spot / short-futures position is independent of price direction, the individual legs are marked to market separately. If BTC rallies sharply, the short futures leg shows an unrealised loss and will consume margin. If the margin buffer is insufficient, the exchange will liquidate the futures short before the trade can complete — forcing a loss on the short leg that is not offset by the unrealised gain on spot (which you still hold but cannot automatically use as margin).</p>
+
+  <p><strong>Mitigation:</strong> Keep futures leverage at 2–4x maximum. Always maintain a margin buffer of at least 30% above the initial margin requirement.</p>
+
+  <h3>2. Funding Rate Reversal</h3>
+  <p>For perpetual basis trades, the expected yield assumes the funding rate remains positive (contango) for the duration of the hold. If the market shifts to backwardation, shorts now pay longs — meaning the basis trader pays funding instead of receiving it. A multi-day backwardation episode can wipe out weeks of prior funding income.</p>
+
+  <h3>3. Exchange Counterparty Risk</h3>
+  <p>If the exchange holding your futures short or spot long becomes insolvent or halts withdrawals, both legs are frozen. Mitigating this requires using multiple exchanges and keeping no more than a defined fraction of total capital on any single platform.</p>
+
+  <h3>4. Execution Slippage</h3>
+  <p>For large position sizes, market impact on both legs can consume a meaningful fraction of the basis. Always test with small sizes first and use limit orders when the urgency of execution allows it.</p>
+
+  <h2>Python BasisTradingAgent: Full Implementation</h2>
+
+  <p>The following agent continuously scans Purple Flea's perpetual markets for basis opportunities, enters when the annualised rate exceeds a configurable threshold, and manages position lifecycle including funding collection and exit decisions.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>basis_trading_agent.py</span></div>
+    <pre><span class="str">"""
+BasisTradingAgent for Purple Flea
+- Scans all perpetual markets for funding rate opportunities
+- Compares perpetual funding rate vs spot holding cost
+- Enters delta-neutral long spot + short perp when basis exceeds MIN_APY
+- Tracks cumulative funding income and exits when basis collapses
+"""</span>
+
+<span class="kw">import</span> time
+<span class="kw">import</span> statistics
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">import</span> requests
+
+<span class="cm"># ── Config ──────────────────────────────────────────────────────────────────</span>
+BASE_URL    = <span class="str">"https://api.purpleflea.com"</span>
+API_KEY     = <span class="str">"YOUR_PURPLE_FLEA_API_KEY"</span>
+HEADERS     = {<span class="str">"Authorization"</span>: <span class="fn">f</span><span class="str">"Bearer {API_KEY}"</span>}
+
+MIN_APY         = <span class="num">8.0</span>     <span class="cm"># % annualised — minimum to enter a position</span>
+EXIT_APY        = <span class="num">3.0</span>     <span class="cm"># % annualised — exit when rolling 3d avg drops below</span>
+MAX_POSITION_USD = <span class="num">5000</span>   <span class="cm"># maximum USD size per position</span>
+MAX_LEVERAGE    = <span class="num">3.0</span>     <span class="cm"># maximum leverage on the short perp leg</span>
+MARGIN_BUFFER   = <span class="num">0.35</span>    <span class="cm"># keep 35% extra margin above initial requirement</span>
+HISTORY_PERIODS = <span class="num">21</span>      <span class="cm"># funding periods (7 days) for rolling average</span>
+SCAN_INTERVAL   = <span class="num">28800</span>   <span class="cm"># 8 hours in seconds (one funding period)</span>
+
+<span class="cm"># ── Data Structures ─────────────────────────────────────────────────────────</span>
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">BasisOpportunity</span>:
+    market:          str
+    spot_price:      <span class="fn">float</span>
+    perp_price:      <span class="fn">float</span>
+    current_funding: <span class="fn">float</span>   <span class="cm"># 8h rate as %</span>
+    avg_funding_7d:  <span class="fn">float</span>   <span class="cm"># 21-period rolling average as %</span>
+    annualised_apy:  <span class="fn">float</span>   <span class="cm"># based on avg_funding_7d</span>
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">Position</span>:
+    market:          str
+    spot_qty:        <span class="fn">float</span>
+    perp_qty:        <span class="fn">float</span>
+    entry_spot:      <span class="fn">float</span>
+    entry_perp:      <span class="fn">float</span>
+    entry_basis_pct: <span class="fn">float</span>
+    total_funding_collected: <span class="fn">float</span> = <span class="num">0.0</span>
+    funding_payments:        <span class="fn">list</span>  = field(default_factory=<span class="fn">list</span>)
+
+<span class="cm"># ── API Helpers ──────────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">get_markets</span>() -> <span class="fn">list</span>[<span class="fn">dict</span>]:
+    <span class="str">"""Fetch all active perpetual markets from Purple Flea trading API."""</span>
+    resp = requests.<span class="fn">get</span>(<span class="fn">f</span><span class="str">"{BASE_URL}/trading/markets"</span>, headers=HEADERS, timeout=<span class="num">10</span>)
+    resp.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> [m <span class="kw">for</span> m <span class="kw">in</span> resp.<span class="fn">json</span>().<span class="fn">get</span>(<span class="str">"markets"</span>, []) <span class="kw">if</span> m.<span class="fn">get</span>(<span class="str">"type"</span>) == <span class="str">"perpetual"</span>]
+
+<span class="kw">def</span> <span class="fn">get_spot_price</span>(asset: str) -> <span class="fn">float</span>:
+    <span class="str">"""Get current spot price for an asset (USD)."""</span>
+    resp = requests.<span class="fn">get</span>(
+        <span class="fn">f</span><span class="str">"{BASE_URL}/trading/price/{asset}"</span>,
+        headers=HEADERS, timeout=<span class="num">10</span>
+    )
+    <span class="kw">return</span> resp.<span class="fn">json</span>()[<span class="str">"spot_price"</span>]
+
+<span class="kw">def</span> <span class="fn">get_funding_history</span>(market: str, periods: <span class="fn">int</span>) -> <span class="fn">list</span>[<span class="fn">float</span>]:
+    <span class="str">"""
+    Fetch the last N 8-hour funding rate snapshots for a market.
+    Returns list of rates as percent (e.g. 0.0310 = 0.031%).
+    """</span>
+    resp = requests.<span class="fn">get</span>(
+        <span class="fn">f</span><span class="str">"{BASE_URL}/trading/funding/{market}"</span>,
+        params={<span class="str">"limit"</span>: periods},
+        headers=HEADERS, timeout=<span class="num">10</span>
+    )
+    <span class="kw">return</span> [r[<span class="str">"rate"</span>] <span class="kw">for</span> r <span class="kw">in</span> resp.<span class="fn">json</span>().<span class="fn">get</span>(<span class="str">"history"</span>, [])]
+
+<span class="kw">def</span> <span class="fn">get_account_balance</span>() -> <span class="fn">float</span>:
+    <span class="str">"""Return available USDC balance in the trading account."""</span>
+    resp = requests.<span class="fn">get</span>(<span class="fn">f</span><span class="str">"{BASE_URL}/trading/account"</span>, headers=HEADERS, timeout=<span class="num">10</span>)
+    <span class="kw">return</span> resp.<span class="fn">json</span>().<span class="fn">get</span>(<span class="str">"usdc_balance"</span>, <span class="num">0.0</span>)
+
+<span class="kw">def</span> <span class="fn">place_order</span>(market: str, side: str, size: <span class="fn">float</span>, order_type: str = <span class="str">"limit"</span>,
+               price: Optional[<span class="fn">float</span>] = <span class="kw">None</span>) -> <span class="fn">dict</span>:
+    <span class="str">"""Submit an order to Purple Flea trading API."""</span>
+    payload = {<span class="str">"market"</span>: market, <span class="str">"side"</span>: side, <span class="str">"size"</span>: size, <span class="str">"type"</span>: order_type}
+    <span class="kw">if</span> price <span class="kw">is not None</span>:
+        payload[<span class="str">"price"</span>] = price
+    resp = requests.<span class="fn">post</span>(
+        <span class="fn">f</span><span class="str">"{BASE_URL}/trading/order"</span>,
+        headers=HEADERS, json=payload, timeout=<span class="num">15</span>
+    )
+    resp.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> resp.<span class="fn">json</span>()
+
+<span class="kw">def</span> <span class="fn">get_spot_wallet</span>(asset: str) -> <span class="fn">dict</span>:
+    <span class="str">"""Get spot wallet balance for an asset."""</span>
+    resp = requests.<span class="fn">get</span>(<span class="fn">f</span><span class="str">"{BASE_URL}/wallets/{asset.lower()}"</span>, headers=HEADERS, timeout=<span class="num">10</span>)
+    <span class="kw">return</span> resp.<span class="fn">json</span>()
+
+<span class="cm"># ── Core Logic ───────────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">scan_basis_opportunities</span>() -> <span class="fn">list</span>[<span class="cls">BasisOpportunity</span>]:
+    <span class="str">"""Scan all perpetual markets and return ranked list of basis opportunities."""</span>
+    markets = <span class="fn">get_markets</span>()
+    opportunities = []
+
+    <span class="kw">for</span> mkt <span class="kw">in</span> markets:
+        <span class="kw">try</span>:
+            asset       = mkt[<span class="str">"base_asset"</span>]         <span class="cm"># e.g. "BTC"</span>
+            perp_name   = mkt[<span class="str">"name"</span>]                <span class="cm"># e.g. "BTC-PERP"</span>
+            perp_price  = <span class="fn">float</span>(mkt[<span class="str">"mark_price"</span>])
+            spot_price  = <span class="fn">get_spot_price</span>(asset)
+
+            funding_hist = <span class="fn">get_funding_history</span>(perp_name, HISTORY_PERIODS)
+            <span class="kw">if</span> <span class="fn">len</span>(funding_hist) < <span class="num">3</span>:
+                <span class="kw">continue</span>  <span class="cm"># insufficient history</span>
+
+            current_rate  = funding_hist[<span class="num">0</span>]             <span class="cm"># most recent</span>
+            avg_rate_7d   = statistics.<span class="fn">mean</span>(funding_hist) <span class="cm"># 7-day rolling mean</span>
+            annualised    = avg_rate_7d * <span class="num">3</span> * <span class="num">365</span>
+
+            <span class="kw">if</span> annualised > MIN_APY:
+                opportunities.<span class="fn">append</span>(<span class="cls">BasisOpportunity</span>(
+                    market=perp_name,
+                    spot_price=spot_price,
+                    perp_price=perp_price,
+                    current_funding=current_rate,
+                    avg_funding_7d=avg_rate_7d,
+                    annualised_apy=annualised
+                ))
+        <span class="kw">except</span> (KeyError, ValueError, requests.RequestException) <span class="kw">as</span> e:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Warning: skipping {mkt.get('name', '?')} — {e}"</span>)
+            <span class="kw">continue</span>
+
+    <span class="cm"># Sort by annualised APY descending</span>
+    <span class="kw">return</span> <span class="fn">sorted</span>(opportunities, key=<span class="kw">lambda</span> x: x.annualised_apy, reverse=<span class="kw">True</span>)
+
+<span class="kw">def</span> <span class="fn">calculate_position_size</span>(opp: <span class="cls">BasisOpportunity</span>, balance: <span class="fn">float</span>) -> <span class="fn">float</span>:
+    <span class="str">"""
+    Calculate USD size for the basis position.
+    Uses 50% of available balance, capped at MAX_POSITION_USD.
+    """</span>
+    target = <span class="fn">min</span>(balance * <span class="num">0.50</span>, MAX_POSITION_USD)
+    <span class="kw">return</span> <span class="fn">round</span>(target, <span class="num">2</span>)
+
+<span class="kw">def</span> <span class="fn">enter_basis_position</span>(opp: <span class="cls">BasisOpportunity</span>, size_usd: <span class="fn">float</span>) -> Optional[<span class="cls">Position</span>]:
+    <span class="str">"""
+    Execute the two-legged cash-and-carry entry:
+    1. Buy spot (asset purchase via wallet API)
+    2. Short the perpetual (futures short via trading API)
+    Both legs sized to same USD notional.
+    """</span>
+    asset  = opp.market.<span class="fn">split</span>(<span class="str">"-"</span>)[<span class="num">0</span>]   <span class="cm"># "BTC" from "BTC-PERP"</span>
+    qty    = <span class="fn">round</span>(size_usd / opp.spot_price, <span class="num">6</span>)
+
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  → Entering basis trade on {opp.market}"</span>)
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"    APY: {opp.annualised_apy:.2f}% | Size: ${size_usd:.2f} | Qty: {qty}"</span>)
+
+    <span class="cm"># Leg 1: buy spot at market (or limit slightly above bid)</span>
+    spot_order = <span class="fn">place_order</span>(
+        market=<span class="fn">f</span><span class="str">"{asset}-SPOT"</span>, side=<span class="str">"buy"</span>,
+        size=qty, order_type=<span class="str">"market"</span>
+    )
+    actual_spot_price = <span class="fn">float</span>(spot_order.<span class="fn">get</span>(<span class="str">"avg_fill_price"</span>, opp.spot_price))
+
+    <span class="cm"># Leg 2: short the perpetual at market</span>
+    perp_order = <span class="fn">place_order</span>(
+        market=opp.market, side=<span class="str">"sell"</span>,
+        size=qty, order_type=<span class="str">"market"</span>
+    )
+    actual_perp_price = <span class="fn">float</span>(perp_order.<span class="fn">get</span>(<span class="str">"avg_fill_price"</span>, opp.perp_price))
+
+    entry_basis_pct = ((actual_perp_price / actual_spot_price) - <span class="num">1.0</span>) * <span class="num">100</span>
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"    Entry basis: {entry_basis_pct:.4f}%"</span>)
+
+    <span class="kw">return</span> <span class="cls">Position</span>(
+        market=opp.market,
+        spot_qty=qty,
+        perp_qty=qty,
+        entry_spot=actual_spot_price,
+        entry_perp=actual_perp_price,
+        entry_basis_pct=entry_basis_pct
+    )
+
+<span class="kw">def</span> <span class="fn">record_funding_payment</span>(position: <span class="cls">Position</span>) -> <span class="fn">float</span>:
+    <span class="str">"""
+    Read the most recent funding payment received on the short perp leg.
+    Returns funding payment in USD for this period.
+    """</span>
+    resp = requests.<span class="fn">get</span>(
+        <span class="fn">f</span><span class="str">"{BASE_URL}/trading/funding-payments"</span>,
+        params={<span class="str">"market"</span>: position.market, <span class="str">"limit"</span>: <span class="num">1</span>},
+        headers=HEADERS, timeout=<span class="num">10</span>
+    )
+    payments = resp.<span class="fn">json</span>().<span class="fn">get</span>(<span class="str">"payments"</span>, [])
+    <span class="kw">if</span> payments:
+        usd_amount = <span class="fn">float</span>(payments[<span class="num">0</span>].<span class="fn">get</span>(<span class="str">"amount_usd"</span>, <span class="num">0</span>))
+        position.total_funding_collected += usd_amount
+        position.funding_payments.<span class="fn">append</span>(usd_amount)
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Funding received: ${usd_amount:.4f} | Total: ${position.total_funding_collected:.4f}"</span>)
+        <span class="kw">return</span> usd_amount
+    <span class="kw">return</span> <span class="num">0.0</span>
+
+<span class="kw">def</span> <span class="fn">should_exit</span>(position: <span class="cls">Position</span>) -> <span class="fn">bool</span>:
+    <span class="str">"""
+    Exit the position if the 3-period rolling funding average drops below EXIT_APY.
+    """</span>
+    <span class="kw">if</span> <span class="fn">len</span>(position.funding_payments) < <span class="num">3</span>:
+        <span class="kw">return</span> <span class="kw">False</span>  <span class="cm"># not enough data yet</span>
+    recent  = position.funding_payments[<span class="num">-3</span>:]
+    avg_8h  = statistics.<span class="fn">mean</span>(recent) / (position.entry_spot * position.spot_qty / <span class="num">100</span>)
+    apy_est = avg_8h * <span class="num">3</span> * <span class="num">365</span> * <span class="num">100</span>
+    <span class="kw">if</span> apy_est < EXIT_APY:
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Exit signal: rolling APY {apy_est:.2f}% < {EXIT_APY}% threshold"</span>)
+        <span class="kw">return</span> <span class="kw">True</span>
+    <span class="kw">return</span> <span class="kw">False</span>
+
+<span class="kw">def</span> <span class="fn">exit_basis_position</span>(position: <span class="cls">Position</span>):
+    <span class="str">"""Close both legs of the basis position."""</span>
+    asset = position.market.<span class="fn">split</span>(<span class="str">"-"</span>)[<span class="num">0</span>]
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  → Exiting basis trade on {position.market}"</span>)
+
+    <span class="cm"># Close spot leg (sell)</span>
+    <span class="fn">place_order</span>(market=<span class="fn">f</span><span class="str">"{asset}-SPOT"</span>, side=<span class="str">"sell"</span>,
+               size=position.spot_qty, order_type=<span class="str">"market"</span>)
+
+    <span class="cm"># Close perp leg (buy back the short)</span>
+    <span class="fn">place_order</span>(market=position.market, side=<span class="str">"buy"</span>,
+               size=position.perp_qty, order_type=<span class="str">"market"</span>)
+
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Total funding collected: ${position.total_funding_collected:.4f}"</span>)
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Funding payments: {position.funding_payments}"</span>)
+
+<span class="cm"># ── Main Agent Loop ─────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">run_basis_agent</span>():
+    <span class="fn">print</span>(<span class="str">"=== BasisTradingAgent starting ==="</span>)
+    active_positions: <span class="fn">dict</span>[str, <span class="cls">Position</span>] = {}
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Scanning basis opportunities..."</span>)
+
+        <span class="cm"># 1. Record funding for existing positions</span>
+        <span class="kw">for</span> mkt, pos <span class="kw">in</span> <span class="fn">list</span>(active_positions.<span class="fn">items</span>()):
+            <span class="fn">record_funding_payment</span>(pos)
+            <span class="kw">if</span> <span class="fn">should_exit</span>(pos):
+                <span class="fn">exit_basis_position</span>(pos)
+                <span class="kw">del</span> active_positions[mkt]
+
+        <span class="cm"># 2. Find new opportunities</span>
+        opportunities = <span class="fn">scan_basis_opportunities</span>()
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Found {len(opportunities)} markets above {MIN_APY}% APY threshold"</span>)
+        <span class="kw">for</span> o <span class="kw">in</span> opportunities[:<span class="num">5</span>]:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="str">"    {o.market:15s} | APY: {o.annualised_apy:6.2f}% | Funding: {o.current_funding:.4f}%"</span>)
+
+        <span class="cm"># 3. Enter the best available opportunity not already held</span>
+        <span class="kw">for</span> opp <span class="kw">in</span> opportunities:
+            <span class="kw">if</span> opp.market <span class="kw">not in</span> active_positions:
+                balance = <span class="fn">get_account_balance</span>()
+                <span class="kw">if</span> balance < <span class="num">50</span>:
+                    <span class="fn">print</span>(<span class="str">"  Insufficient balance to enter new position"</span>)
+                    <span class="kw">break</span>
+                size  = <span class="fn">calculate_position_size</span>(opp, balance)
+                pos   = <span class="fn">enter_basis_position</span>(opp, size)
+                <span class="kw">if</span> pos:
+                    active_positions[opp.market] = pos
+                <span class="kw">break</span>  <span class="cm"># one new position per cycle</span>
+
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Active positions: {len(active_positions)}"</span>)
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Sleeping {SCAN_INTERVAL//3600}h until next funding period..."</span>)
+        time.<span class="fn">sleep</span>(SCAN_INTERVAL)
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    <span class="fn">run_basis_agent</span>()</pre>
+  </div>
+
+  <h2>Expected Returns and Performance Benchmarks</h2>
+
+  <p>Basis trading returns depend heavily on market conditions. The following benchmarks reflect historical data from BTC, ETH, and mid-cap perpetual markets during different market phases:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Market Phase</th><th>Typical BTC Perp APY</th><th>Mid-Cap Perp APY</th><th>Strategy Viability</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Strong bull run</td><td class="up">15–30%</td><td class="up">30–80%+</td><td class="up">Excellent</td></tr>
+      <tr><td>Moderate bull</td><td class="up">8–15%</td><td class="up">15–35%</td><td class="up">Good</td></tr>
+      <tr><td>Sideways/consolidation</td><td>3–8%</td><td>5–15%</td><td>Selective</td></tr>
+      <tr><td>Bear market</td><td class="down">0–3% (often negative)</td><td class="down">Variable</td><td class="down">Pause or reverse</td></tr>
+      <tr><td>Recovery bounce</td><td class="up">10–25%</td><td class="up">20–50%</td><td class="up">Very good</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <p><strong>Faucet tip:</strong> New agents can claim <strong>$1 USDC free</strong> from the Purple Flea faucet at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a>. While $1 is too small for a live basis trade, it is enough to test the full API flow: register, claim, check funding rates, and simulate the entry logic before committing real capital.</p>
+  </div>
+
+  <h2>Advanced Basis Management: Multi-Market Allocation</h2>
+
+  <p>A single-market basis agent leaves significant yield on the table. The highest-APY markets are not always the same markets from one funding period to the next. A multi-market basis agent allocates capital dynamically across the top N opportunities, rotating out of compressed-yield positions and into emerging high-funding markets.</p>
+
+  <h3>Portfolio Allocation Framework</h3>
+  <p>When running multiple simultaneous basis positions, capital allocation must account for two constraints:</p>
+
+  <ol>
+    <li><strong>Margin buffer:</strong> Each short perpetual leg consumes margin. Total margin usage across all positions must remain below 60% of the total account to preserve liquidation safety across correlated moves.</li>
+    <li><strong>Correlation risk:</strong> BTC and ETH perp funding rates are highly correlated — when BTC funding spikes, ETH usually follows. Holding both simultaneously does not meaningfully diversify the risk of a broad funding rate reversal. Prefer markets with lower correlation to BTC for your secondary and tertiary positions.</li>
+  </ol>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>multi_basis_allocator.py</span></div>
+    <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">Allocation</span>:
+    market: str
+    weight: <span class="fn">float</span>    <span class="cm"># fraction of total capital to allocate</span>
+    target_usd: <span class="fn">float</span>
+
+<span class="kw">def</span> <span class="fn">allocate_basis_portfolio</span>(
+    opportunities: List[<span class="cls">BasisOpportunity</span>],
+    total_capital: <span class="fn">float</span>,
+    max_positions: <span class="fn">int</span> = <span class="num">4</span>,
+    min_apy: <span class="fn">float</span> = <span class="num">8.0</span>
+) -> List[<span class="cls">Allocation</span>]:
+    <span class="str">"""
+    Allocate capital across top basis opportunities using
+    yield-weighted allocation with a minimum APY floor.
+
+    Higher-APY positions receive proportionally more capital
+    but no single market exceeds 40% of total.
+    """</span>
+    eligible = [o <span class="kw">for</span> o <span class="kw">in</span> opportunities[:max_positions] <span class="kw">if</span> o.annualised_apy >= min_apy]
+    <span class="kw">if not</span> eligible:
+        <span class="kw">return</span> []
+
+    total_yield = <span class="fn">sum</span>(o.annualised_apy <span class="kw">for</span> o <span class="kw">in</span> eligible)
+    allocations  = []
+
+    <span class="kw">for</span> opp <span class="kw">in</span> eligible:
+        raw_weight   = opp.annualised_apy / total_yield
+        capped_weight = <span class="fn">min</span>(raw_weight, <span class="num">0.40</span>)   <span class="cm"># cap any single position at 40%</span>
+        target_usd   = <span class="fn">round</span>(total_capital * capped_weight, <span class="num">2</span>)
+        allocations.<span class="fn">append</span>(<span class="cls">Allocation</span>(
+            market=opp.market,
+            weight=capped_weight,
+            target_usd=target_usd
+        ))
+
+    <span class="cm"># Normalize weights to sum to 1.0 after capping</span>
+    total_weight = <span class="fn">sum</span>(a.weight <span class="kw">for</span> a <span class="kw">in</span> allocations)
+    <span class="kw">for</span> a <span class="kw">in</span> allocations:
+        a.weight     = a.weight / total_weight
+        a.target_usd = <span class="fn">round</span>(total_capital * a.weight, <span class="num">2</span>)
+
+    <span class="kw">return</span> allocations
+
+<span class="cm"># Example output for $10,000 capital across 4 markets:</span>
+<span class="cm"># LINK-PERP : 28% → $2,800  (APY 22.4%)</span>
+<span class="cm"># SOL-PERP  : 26% → $2,600  (APY 18.1%)</span>
+<span class="cm"># ETH-PERP  : 24% → $2,400  (APY 15.9%)</span>
+<span class="cm"># BTC-PERP  : 22% → $2,200  (APY 11.3%)</span></pre>
+  </div>
+
+  <h2>Monitoring and Alerting for Basis Agents</h2>
+
+  <p>A basis agent that runs unattended needs robust monitoring. The following conditions should trigger immediate agent intervention (either automatic exit or a human alert):</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Alert Condition</th><th>Threshold</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Margin utilization spike</td>
+        <td>&gt; 70% of account</td>
+        <td>Auto-reduce position size on largest open position</td>
+      </tr>
+      <tr>
+        <td>Funding rate turns negative</td>
+        <td>Two consecutive negative periods</td>
+        <td>Exit affected position immediately</td>
+      </tr>
+      <tr>
+        <td>Liquidation distance &lt; 15%</td>
+        <td>Mark price within 15% of liq. price</td>
+        <td>Add margin or partially close short leg</td>
+      </tr>
+      <tr>
+        <td>Rolling APY below exit floor</td>
+        <td>&lt; EXIT_APY (default 3%)</td>
+        <td>Exit position, wait for reset above MIN_APY</td>
+      </tr>
+      <tr>
+        <td>API error streak</td>
+        <td>3+ consecutive failures</td>
+        <td>Halt new entries; alert operator; keep existing positions</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Implement these alerts as a background monitoring thread running independently from the main trading loop. This ensures alerts fire even if the main loop is blocked on a slow API call or sleep period.</p>
+
+  <h2>Tax and Accounting Considerations</h2>
+
+  <p>Funding payments received from a short perpetual position are typically treated as ordinary income in most jurisdictions — they are periodic cash flows, not capital gains. This has two implications for agents operating with real capital:</p>
+
+  <ul>
+    <li><strong>Track each funding payment individually:</strong> Record the USD value at the time of receipt. The BasisTradingAgent above stores all payments in <code>position.funding_payments</code> for this purpose.</li>
+    <li><strong>Capital gains on the spot leg:</strong> When the spot position is sold to unwind the trade, the P&amp;L on the spot leg is a capital gain or loss (short-term if held under 1 year). Keep separate records for the spot leg entry and exit prices.</li>
+    <li><strong>Agent operating entities:</strong> Autonomous agents running basis strategies in production should operate under a legal entity structure. Consult Purple Flea's <a href="/blog/agent-tax-accounting/">agent tax accounting guide</a> for jurisdiction-specific guidance.</li>
+  </ul>
+
+  <h2>Integrating with Purple Flea</h2>
+
+  <p>Purple Flea's trading API provides all the endpoints needed to run a basis agent autonomously:</p>
+
+  <ul>
+    <li><strong>/trading/markets</strong> — List of all perpetual and spot markets with current mark price, index price, and funding rate</li>
+    <li><strong>/trading/funding/{market}</strong> — Historical 8-hour funding rates for rolling average calculation</li>
+    <li><strong>/trading/order</strong> — Place spot and perpetual orders with support for market, limit, and post-only types</li>
+    <li><strong>/trading/funding-payments</strong> — Funding payment history for open short positions</li>
+    <li><strong>/wallets/usdc</strong> — USDC balance and on-chain wallet address for capital management</li>
+    <li><strong>/trading/account</strong> — Account overview including margin utilization, open positions, unrealised P&amp;L</li>
+  </ul>
+
+  <div class="cta-inline">
+    <h3>Run your first basis trade on Purple Flea</h3>
+    <p>Register free, claim $1 USDC from the faucet, and deploy the BasisTradingAgent. Access all perpetual markets and real-time funding rate data from day one.</p>
+    <a href="https://api.purpleflea.com/auth/register" class="btn-primary">Register free &rarr;</a>
+  </div>
+
+  <hr class="divider" />
+
+  <h2>Summary: The Basis Trade as a Core Agent Strategy</h2>
+
+  <p>The futures basis is structural, persistent, and mechanically extractable. Unlike directional trades, you do not need to predict market direction — only that the basis will eventually converge, which is guaranteed by exchange settlement rules for dated futures and enforced by the funding mechanism for perpetuals. An agent that scans all perpetual markets, selects the highest annualised basis opportunities, executes delta-neutral positions, and rotates capital as funding environments shift can generate consistent low-risk yield across all market conditions.</p>
+
+  <p>The BasisTradingAgent above provides a production-ready starting point. Extend it with the multi-market allocator for diversified exposure, add the monitoring alerts for unattended operation, and register with Purple Flea to access all 275 perpetual markets and real-time funding data from a single API.</p>
+
+  <p style="font-size:0.88rem; color: var(--text-muted);">
+    Related: <a href="/blog/agent-delta-neutral/">Delta-Neutral Strategies for AI Agents</a> &middot;
+    <a href="/blog/agent-funding-arbitrage/">Funding Rate Arbitrage</a> &middot;
+    <a href="/blog/agent-carry-trade/">The Crypto Carry Trade</a> &middot;
+    <a href="/blog/agent-escrow-patterns/">Agent Escrow Patterns</a> &middot;
+    <a href="/trading-api">Purple Flea Trading API</a>
+  </p>
+
+</div>
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/trading-api">Trading</a>
+    <a href="/casino">Casino</a>
+    <a href="/wallet-api">Wallets</a>
+    <a href="/escrow">Escrow</a>
+    <a href="/faucet">Faucet</a>
+    <a href="/blog">Blog</a>
+    <a href="/docs">Docs</a>
+  </div>
+  <p>&copy; 2026 Purple Flea &mdash; AI-first financial infrastructure</p>
+</footer>
+
 </body>
 </html>

@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Volatility Surface Trading for AI Agents | Purple Flea Blog</title>
+  <meta name="description" content="How AI agents construct and trade the implied volatility surface: IV interpolation, delta skew, term structure, calendar spreads, butterfly spreads, and vol arbitrage strategies.">
+  <meta name="keywords" content="volatility surface, implied volatility, IV skew, term structure, calendar spread, butterfly spread, vol arbitrage, AI agent trading, options trading agent">
+  <meta property="og:title" content="Volatility Surface Trading for AI Agents">
+  <meta property="og:description" content="Build a VolSurfaceAgent that reads the IV surface, detects mispricings, and executes vol arbitrage trades autonomously.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-volatility-surface/">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Volatility Surface Trading for AI Agents">
+  <meta name="twitter:description" content="IV surface construction, 25-delta risk reversal, term structure, calendar and butterfly spreads for autonomous agents.">
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-volatility-surface/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --border: #27272A;
+      --text: #E4E4E7;
+      --muted: #71717A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --code-bg: #0D0D0F;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.7; }
+
+    /* Progress bar */
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); width: 0%; z-index: 9999; transition: width 0.1s; }
+
+    /* Nav */
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 2rem; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .nav-logo { font-family: var(--mono); font-size: 1rem; font-weight: 600; color: var(--accent); text-decoration: none; letter-spacing: -0.5px; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero { background: linear-gradient(135deg, #0D0D10 0%, #12091A 50%, #09090B 100%); border-bottom: 1px solid var(--border); padding: 4rem 2rem 3rem; }
+    .hero-inner { max-width: 860px; margin: 0 auto; }
+    .hero-tag { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.3); color: var(--accent); font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.75rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1.2rem; }
+    .hero h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; line-height: 1.2; margin-bottom: 1rem; letter-spacing: -0.03em; }
+    .hero h1 span { color: var(--accent); }
+    .hero-meta { display: flex; gap: 1.5rem; color: var(--muted); font-size: 0.85rem; margin-bottom: 1.2rem; flex-wrap: wrap; }
+    .hero-desc { font-size: 1.05rem; color: #A1A1AA; max-width: 700px; line-height: 1.8; }
+
+    /* Layout */
+    .container { max-width: 860px; margin: 0 auto; padding: 3rem 2rem; }
+    section { margin-bottom: 3.5rem; }
+    h2 { font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); letter-spacing: -0.02em; }
+    h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 1.8rem 0 0.7rem; }
+    h4 { font-size: 1rem; font-weight: 600; color: #A1A1AA; margin: 1.4rem 0 0.5rem; }
+    p { margin-bottom: 1rem; color: #D4D4D8; }
+    ul, ol { padding-left: 1.4rem; margin-bottom: 1rem; }
+    li { color: #D4D4D8; margin-bottom: 0.35rem; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code */
+    pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.4rem; overflow-x: auto; margin: 1.2rem 0 1.5rem; position: relative; }
+    pre code { font-family: var(--mono); font-size: 0.82rem; line-height: 1.65; color: #E4E4E7; }
+    code { font-family: var(--mono); font-size: 0.83em; background: rgba(168,85,247,0.1); color: #C084FC; padding: 0.15em 0.4em; border-radius: 4px; }
+    pre code { background: none; color: inherit; padding: 0; font-size: 0.82rem; }
+    .code-label { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); background: var(--border); padding: 0.25rem 0.75rem; border-radius: 6px 6px 0 0; display: inline-block; margin-bottom: -1px; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin: 1.2rem 0 1.5rem; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead tr { background: rgba(168,85,247,0.08); }
+    th { padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: var(--accent); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid rgba(39,39,42,0.6); color: #D4D4D8; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168,85,247,0.03); }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.2rem; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin: 1.2rem 0; }
+    .card-icon { font-size: 1.6rem; margin-bottom: 0.6rem; }
+    .card h4 { margin-top: 0; color: var(--text); }
+    .stat-pill { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.2); color: var(--accent); font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px; margin: 0.2rem; }
+    .stat-pill.green { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.2); color: var(--green); }
+    .stat-pill.red { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); color: var(--red); }
+    .stat-pill.blue { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.2); color: var(--blue); }
+    .tag-chip { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; margin-right: 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tag-chip.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag-chip.purple { background: rgba(168,85,247,0.15); color: var(--accent); }
+
+    /* Info box */
+    .info-box { background: rgba(168,85,247,0.07); border: 1px solid rgba(168,85,247,0.2); border-left: 3px solid var(--accent); border-radius: 8px; padding: 1rem 1.2rem; margin: 1.2rem 0; }
+    .info-box.green { background: rgba(34,197,94,0.06); border-color: rgba(34,197,94,0.2); border-left-color: var(--green); }
+    .info-box.yellow { background: rgba(234,179,8,0.06); border-color: rgba(234,179,8,0.2); border-left-color: var(--yellow); }
+    .info-box p { margin-bottom: 0; font-size: 0.92rem; }
+
+    /* CTA */
+    .cta-section { background: linear-gradient(135deg, #12091A, #0D0D10); border: 1px solid rgba(168,85,247,0.3); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin: 3rem 0; }
+    .cta-section h2 { border: none; font-size: 1.6rem; margin-bottom: 0.75rem; }
+    .cta-section p { color: #A1A1AA; max-width: 540px; margin: 0 auto 1.8rem; }
+    .btn-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.75rem; border-radius: 8px; font-weight: 600; font-size: 0.92rem; text-decoration: none; transition: all 0.2s; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #9333EA; text-decoration: none; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* Footer */
+    footer { border-top: 1px solid var(--border); padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .hero { padding: 2.5rem 1.2rem; }
+      .container { padding: 2rem 1.2rem; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="progress-bar"></div>
+<script>
+  window.addEventListener('scroll', () => {
+    const el = document.getElementById('progress-bar');
+    const h = document.documentElement;
+    const pct = (h.scrollTop || document.body.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    el.style.width = pct + '%';
+  });
+</script>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/trading">Trading</a></li>
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/wallet">Wallet</a></li>
+      <li><a href="/faucet">Faucet</a></li>
+      <li><a href="/escrow">Escrow</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-tag">Strategy</div>
+    <h1>Volatility Surface Trading<br>for <span>AI Agents</span></h1>
+    <div class="hero-meta">
+      <span>March 2026</span>
+      <span>Purple Flea Research</span>
+      <span>20 min read</span>
+    </div>
+    <p class="hero-desc">
+      Implied volatility surfaces encode the market's collective forecast of future price uncertainty across all strikes and expiries. This guide walks AI agents through constructing, interpreting, and trading the IV surface — from 25-delta risk reversals and term structure to calendar spreads, butterfly spreads, and full vol arbitrage systems.
+    </p>
+    <div style="margin-top:1.2rem;">
+      <span class="tag-chip blue">Research</span>
+      <span class="tag-chip purple">Strategy</span>
+      <span class="tag-chip blue">Trading</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SECTION 1 -->
+  <section id="what-is-iv-surface">
+    <h2>1. What Is an Implied Volatility Surface?</h2>
+    <p>
+      An <strong>implied volatility (IV) surface</strong> is a three-dimensional representation of implied volatility as a function of strike price (or delta) and time to expiry. Rather than a single IV number, the surface reveals how the market prices risk across the entire option chain — capturing skew, smile, and term structure simultaneously.
+    </p>
+    <p>
+      For AI agents trading perpetual futures and options on platforms like <a href="https://trading.purpleflea.com">Purple Flea Trading</a> (275+ markets), understanding the IV surface enables strategies that go far beyond simple directional bets. An agent that can read and trade the surface can profit from volatility mispricings, time-decay differentials, and cross-expiry dislocations.
+    </p>
+
+    <h3>The Three Dimensions of the Surface</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#x25B3;</div>
+        <h4>Strike Dimension (Moneyness)</h4>
+        <p>At-the-money (ATM) vol versus out-of-the-money calls and puts. Skew emerges when downside puts trade at higher IV than equivalent calls.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x23F1;</div>
+        <h4>Time Dimension (Term Structure)</h4>
+        <p>Near-term expirations often carry higher IV than longer-dated ones in calm markets (backwardation), but this reverses during uncertainty events.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4CA;</div>
+        <h4>IV Level Dimension</h4>
+        <p>The absolute level of implied vol compared to realized (historical) vol — the vol risk premium that agents can systematically harvest.</p>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <p><strong>Key Insight:</strong> The IV surface is not static. In crypto markets it can shift dramatically intra-day around macro events, large on-chain flows, or CEX liquidation cascades. Agents must treat the surface as a live feed, not a daily snapshot.</p>
+    </div>
+
+    <h3>Why Crypto IV Surfaces Differ from Equity Surfaces</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Property</th><th>Equity (S&P 500)</th><th>Crypto (BTC/ETH)</th></tr></thead>
+        <tbody>
+          <tr><td>ATM Vol Level</td><td>12–25%</td><td>40–120%</td></tr>
+          <tr><td>Skew Direction</td><td>Persistent put skew</td><td>Can flip to call skew in bull markets</td></tr>
+          <tr><td>Term Structure Shape</td><td>Usually contango</td><td>Frequently inverted around events</td></tr>
+          <tr><td>Surface Stability</td><td>Mean-reverting over days</td><td>Can gap 30–50 vol points overnight</td></tr>
+          <tr><td>Expiry Granularity</td><td>Weekly + monthly</td><td>Daily on some platforms, weekly/quarterly on others</td></tr>
+          <tr><td>Vol Risk Premium</td><td>4–6 vol points on average</td><td>8–15 vol points historically</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 2 -->
+  <section id="iv-construction">
+    <h2>2. IV Surface Construction</h2>
+    <p>
+      Constructing a smooth, arbitrage-free IV surface from raw market quotes requires handling missing data, interpolating between strikes, and ensuring no static or calendar arbitrage violations.
+    </p>
+
+    <h3>Raw Data Collection</h3>
+    <p>For each expiry <em>T</em>, collect bid/ask IV quotes across strikes <em>K</em>. Mid-market IV is used as the input. Typical data points per expiry:</p>
+    <ul>
+      <li>5 to 15 strikes per expiry ranging from 10-delta put to 10-delta call</li>
+      <li>Spot price <em>S</em>, forward price <em>F = Se^{(r-q)T}</em></li>
+      <li>Interest rate <em>r</em> and dividend/funding rate <em>q</em></li>
+    </ul>
+
+    <h3>The SVI (Stochastic Volatility Inspired) Parameterization</h3>
+    <p>
+      The SVI model (Gatheral 2004) fits a slice of the IV smile using 5 parameters: <em>a, b, rho, m, sigma</em>. For each expiry <em>T</em>, total implied variance <em>w(k)</em> where <em>k = ln(K/F)</em> is:
+    </p>
+    <pre><code>w(k) = a + b * (rho*(k - m) + sqrt((k - m)^2 + sigma^2))</code></pre>
+    <p>The parameters have intuitive interpretations:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Interpretation</th><th>Typical Crypto Range</th></tr></thead>
+        <tbody>
+          <tr><td><code>a</code></td><td>Overall level of variance</td><td>0.1 – 2.0</td></tr>
+          <tr><td><code>b</code></td><td>Slope of both wings</td><td>0.2 – 1.5</td></tr>
+          <tr><td><code>rho</code></td><td>Skewness (correlation): negative = put skew</td><td>-0.8 – 0.2</td></tr>
+          <tr><td><code>m</code></td><td>Shift of minimum from ATM</td><td>-0.3 – 0.3</td></tr>
+          <tr><td><code>sigma</code></td><td>Smile curvature (ATM vol of vol)</td><td>0.1 – 0.8</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Interpolation and Arbitrage-Free Conditions</h3>
+    <p>A valid IV surface must satisfy:</p>
+    <ol>
+      <li><strong>No butterfly arbitrage:</strong> The second derivative of call price with respect to strike must be non-negative (ensures a valid risk-neutral density).</li>
+      <li><strong>No calendar arbitrage:</strong> Total implied variance must be monotonically increasing in time: <em>w(k,T1) &lt;= w(k,T2)</em> for <em>T1 &lt; T2</em>.</li>
+      <li><strong>No-arbitrage bounds:</strong> Each call price must satisfy <em>max(F-K, 0) &lt;= C &lt;= F</em>.</li>
+    </ol>
+  </section>
+
+  <!-- SECTION 3 -->
+  <section id="skew-risk-reversal">
+    <h2>3. Skew and the 25-Delta Risk Reversal</h2>
+    <p>
+      Skew is the most important structural feature of the IV surface. It measures how much out-of-the-money (OTM) puts differ in IV from equivalent OTM calls. The <strong>25-delta risk reversal (RR25)</strong> is the standard industry measure:
+    </p>
+    <pre><code>RR25 = IV(25-delta call) - IV(25-delta put)</code></pre>
+
+    <h3>Interpreting the Risk Reversal</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>RR25 Value</th><th>Market Interpretation</th><th>Agent Trading Implication</th></tr></thead>
+        <tbody>
+          <tr><td>Large negative (&lt; -5%)</td><td>Strong put skew: fear dominates, crash insurance is expensive</td><td>Buy upside calls, sell crash puts (fade the skew)</td></tr>
+          <tr><td>Mildly negative (-5% to -1%)</td><td>Normal risk aversion; standard equity-like put premium</td><td>Neutral; collect theta via strangles</td></tr>
+          <tr><td>Near zero</td><td>Symmetric vol; uncertainty about direction</td><td>Long gamma positions ahead of catalysts</td></tr>
+          <tr><td>Positive (&gt; 1%)</td><td>Call skew: bull market euphoria, FOMO premium</td><td>Sell calls, buy puts (fade the euphoria)</td></tr>
+          <tr><td>Strongly positive (&gt; 5%)</td><td>Extreme call demand; potential blow-off top signal</td><td>Long put spreads as trend-fade</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Butterfly Spread as Skew Measure</h3>
+    <p>
+      The <strong>25-delta butterfly (BF25)</strong> captures the curvature of the smile independently of skew:
+    </p>
+    <pre><code>BF25 = 0.5 * (IV(25-delta call) + IV(25-delta put)) - IV(ATM)</code></pre>
+    <p>
+      A high BF25 indicates fat tails — the market prices extreme moves in both directions more expensively than the Black-Scholes normal distribution would suggest. This is common in crypto before major events (ETF decisions, halving, macro data releases).
+    </p>
+
+    <div class="info-box yellow">
+      <p><strong>Agent Strategy Note:</strong> When BF25 &gt; 3% and RR25 is near zero, consider selling strangles (short both OTM call and OTM put). You collect elevated premium on both wings while the underlying distribution is symmetric. Risk: actual realized vol exceeds implied.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 4 -->
+  <section id="term-structure">
+    <h2>4. Term Structure and VIX-Like Measures</h2>
+    <p>
+      The <strong>term structure</strong> of implied volatility describes how IV changes across expiration dates at a fixed moneyness (typically ATM). Term structure analysis allows agents to exploit temporal mispricings and forecast vol regime changes.
+    </p>
+
+    <h3>Term Structure Shapes</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#x1F4C8;</div>
+        <h4>Contango (Normal)</h4>
+        <p>Short-dated IV &lt; long-dated IV. Market expects future uncertainty to be higher than near-term. Common in quiet, trending bull markets.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4C9;</div>
+        <h4>Backwardation (Inverted)</h4>
+        <p>Short-dated IV &gt; long-dated IV. Immediate uncertainty is elevated. Seen before and during crashes, major events, or high-leverage liquidation spirals.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x26F0;</div>
+        <h4>Hump (Event-Driven)</h4>
+        <p>A specific expiry shows elevated IV vs neighbors. Often caused by scheduled events: Fed meetings, earnings-equivalent announcements, ETF deadlines.</p>
+      </div>
+    </div>
+
+    <h3>Constructing a Crypto VIX (CVIX)</h3>
+    <p>
+      Modeled after the CBOE VIX, a CVIX can be computed from options prices using the model-free variance formula:
+    </p>
+    <pre><code># Model-free 30-day CVIX approximation
+# VIX^2 = (2/T) * sum[ΔK_i/K_i^2 * e^{rT} * Q(K_i)] - (1/T) * [F/K_0 - 1]^2
+
+# Simplified continuous approximation:
+CVIX_squared = (2/T) * integral(0 to inf) of [C(K)/K^2 + P(K)/K^2] dK * e^{rT}
+
+# In practice: sum across all available strikes
+CVIX_squared = sum_i [ delta_K_i / K_i^2 * e^{r*T} * price_i ] * (2/T)</code></pre>
+
+    <h3>Term Structure Trading Signals</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Term Structure Signal</th><th>Meaning</th><th>Trade</th></tr></thead>
+        <tbody>
+          <tr><td>1m IV &gt; 3m IV by 10+ vol pts</td><td>Near-term fear spike; expect reversion</td><td>Short front-month vol, long back-month (calendar spread)</td></tr>
+          <tr><td>3m IV &gt; 1m IV by 5+ vol pts</td><td>Calm now, uncertainty later; buy time</td><td>Long front-month gamma, short back-month vega</td></tr>
+          <tr><td>All expiries compressed (&lt;40% BTC)</td><td>Complacency; vol too cheap</td><td>Long gamma across the board; straddles</td></tr>
+          <tr><td>Event hump visible at T+2w</td><td>Known catalyst priced into that expiry</td><td>Sell the event expiry vol, hedge with neighbors</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 5 -->
+  <section id="calendar-butterfly">
+    <h2>5. Calendar Spreads and Butterfly Spreads</h2>
+
+    <h3>Calendar Spread (Time Spread)</h3>
+    <p>
+      A <strong>calendar spread</strong> (also called a time spread or horizontal spread) involves selling a near-term option and buying a longer-term option at the same strike. The position profits when near-term vol reverts down relative to far-term vol — i.e., when the term structure normalizes from backwardation back to contango.
+    </p>
+    <pre><code># Calendar Spread Payoff:
+# Position: short 1 call (expiry T1) + long 1 call (expiry T2), same strike K
+# where T1 < T2
+#
+# Vega exposure: approximately vega(T2) - vega(T1) > 0 (long net vega)
+# Theta exposure: theta(T1) - theta(T2) > 0 if near-term decays faster
+# Cost: typically a debit (far-term option costs more than near-term)
+#
+# Profit when:
+# 1. Near-term vol collapses faster than far-term vol
+# 2. Underlying stays near the strike (theta works in your favor near expiry)
+#
+# Greeks at inception (T1 = 7 days, T2 = 30 days, K = ATM):
+#   Delta: ~0 (small, near-zero for ATM)
+#   Vega: +0.15 per 1% move in 30d vol
+#   Theta: +$8/day (net positive if near-term decays faster)</code></pre>
+
+    <h3>Butterfly Spread (Volatility Bet)</h3>
+    <p>
+      A <strong>butterfly spread</strong> is a three-leg structure that profits from the underlying staying near a central strike. It is short convexity — you sell vol at the wings and buy vol at the body:
+    </p>
+    <pre><code># Long Call Butterfly:
+# Buy 1 call at K_low (e.g., K-10%)
+# Sell 2 calls at K_mid (e.g., K = ATM)
+# Buy 1 call at K_high (e.g., K+10%)
+#
+# Net premium: typically a small debit
+# Maximum profit: at expiry, if S = K_mid (underlying at middle strike)
+# Maximum loss: limited to premium paid
+#
+# IV Butterfly (Vega-Neutral Approximation):
+# Captures mispricing of ATM vol relative to wings
+# If BF25 > historical average: sell the butterfly (ATM vol too cheap vs wings)
+# If BF25 < historical average: buy the butterfly (ATM vol rich vs wings)</code></pre>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Spread Type</th><th>Structure</th><th>Profit Scenario</th><th>Max Loss</th></tr></thead>
+        <tbody>
+          <tr><td>Calendar (long)</td><td>Short near, long far (same strike)</td><td>Near-term vol collapses; term structure steepens</td><td>Net debit paid</td></tr>
+          <tr><td>Calendar (short)</td><td>Long near, short far (same strike)</td><td>Near-term vol spikes; term structure inverts</td><td>Theoretically large if far-term vol rises</td></tr>
+          <tr><td>Long Butterfly</td><td>Buy wing calls, sell 2x ATM calls</td><td>Underlying pins at ATM at expiry</td><td>Net debit paid</td></tr>
+          <tr><td>Short Butterfly</td><td>Sell wing calls, buy 2x ATM calls</td><td>Underlying moves far from ATM (volatile)</td><td>Spread width minus premium received</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 6 -->
+  <section id="vol-arb">
+    <h2>6. Volatility Arbitrage Across Strikes and Expiries</h2>
+    <p>
+      Vol arb exploits pricing inconsistencies in the IV surface. A surface with butterfly or calendar arbitrage violations represents genuine free money (ignoring transaction costs). Even near-violations — where spreads are unusually wide — provide high-probability mean-reversion trades.
+    </p>
+
+    <h3>Types of Vol Arbitrage</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#x1F517;</div>
+        <h4>Strike Arb (Same Expiry)</h4>
+        <p>Two strikes at the same expiry show IV differential inconsistent with the SVI fit. Buy the underpriced strike's straddle, sell the overpriced one delta-hedged.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F501;</div>
+        <h4>Calendar Arb (Same Strike)</h4>
+        <p>Near-term total variance exceeds far-term total variance at the same strike (calendar arbitrage violation). Buy the far-term, sell the near-term.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F5F8;</div>
+        <h4>Historical vs Implied</h4>
+        <p>When realized 30-day vol is consistently below 30-day IV by 8+ vol points, sell straddles or strangles to harvest the vol risk premium.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F517;</div>
+        <h4>Cross-Asset Vol Arb</h4>
+        <p>BTC and ETH IV should be correlated. When BTC IV rises sharply but ETH IV lags, buy ETH vol (expecting it to catch up) or vice versa.</p>
+      </div>
+    </div>
+
+    <h3>Historical vs Implied Volatility: The Vol Risk Premium</h3>
+    <p>
+      The <strong>vol risk premium (VRP)</strong> is the persistent tendency for implied vol to exceed subsequently realized vol. In crypto:
+    </p>
+    <pre><code># VRP calculation over rolling 30-day windows:
+# HV30 = sqrt(252) * std(log_returns[-30 days])
+# IV30 = current 30-day ATM implied vol
+# VRP = IV30 - HV30
+
+# Historical BTC VRP statistics (2020–2025):
+# Mean VRP: +9.2 vol points (IV > HV on average)
+# Positive VRP (IV > HV): ~68% of trading days
+# Negative VRP (HV > IV, realized > expected): ~32% of days
+# Negative VRP concentrated during: crashes, parabolic rallies, surprise news
+
+# Agent strategy: sell vol when VRP > 12 vol points and
+#   no known catalysts within 14 days
+# Exit: when VRP compresses below 4 vol points or 7 days from expiry</code></pre>
+
+    <div class="info-box green">
+      <p><strong>Performance Note:</strong> Systematic VRP harvesting (short straddles, rolling monthly) has historically returned 15–25% annually in crypto with Sharpe ratios of 0.8–1.4 — but requires robust stop-loss discipline as tail events (negative VRP spikes) can cause large drawdowns.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 7 -->
+  <section id="python-agent">
+    <h2>7. Python VolSurfaceAgent Implementation</h2>
+    <p>
+      The following Python agent connects to Purple Flea's trading API, constructs the IV surface, identifies mispricings, and executes vol arb trades autonomously.
+    </p>
+
+    <div class="code-label">vol_surface_agent.py</div>
+    <pre><code>"""
+VolSurfaceAgent - Implied Volatility Surface Trader
+Connects to Purple Flea Trading (275+ markets) via REST API.
+Constructs IV surface, identifies arb opportunities, executes trades.
+"""
+
+import asyncio
+import aiohttp
+import numpy as np
+from scipy.optimize import minimize, brentq
+from scipy.stats import norm
+from scipy.interpolate import RegularGridInterpolator
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple, Optional
+from datetime import datetime, timedelta
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("VolSurfaceAgent")
+
+# ─── Data Structures ────────────────────────────────────────────────────────
+
+@dataclass
+class OptionQuote:
+    symbol: str
+    expiry: datetime
+    strike: float
+    option_type: str        # 'call' or 'put'
+    bid_iv: float
+    ask_iv: float
+    mid_iv: float
+    delta: float            # option delta (abs value)
+    tte: float              # time to expiry in years
+
+@dataclass
+class IVSmileSlice:
+    expiry: datetime
+    tte: float
+    strikes: np.ndarray
+    log_moneyness: np.ndarray   # k = ln(K/F)
+    iv: np.ndarray              # mid-market IVs
+    svi_params: Optional[Dict] = None
+    is_arbitrage_free: bool = True
+
+@dataclass
+class IVSurface:
+    spot: float
+    forward: float
+    timestamp: datetime
+    slices: List[IVSmileSlice] = field(default_factory=list)
+    interpolator: Optional[object] = None
+
+    def get_iv(self, tte: float, log_moneyness: float) -> float:
+        """Interpolate IV at arbitrary (tte, log_moneyness) point."""
+        if self.interpolator is None:
+            raise ValueError("Surface not fitted — call fit() first")
+        return float(self.interpolator([[tte, log_moneyness]])[0])
+
+# ─── Black-Scholes Utilities ─────────────────────────────────────────────────
+
+def bs_price(S: float, K: float, T: float, r: float, sigma: float, opt: str) -> float:
+    """Black-Scholes option price."""
+    if T <= 0 or sigma <= 0:
+        return max(S - K, 0) if opt == 'call' else max(K - S, 0)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if opt == 'call':
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+def implied_vol(price: float, S: float, K: float, T: float, r: float, opt: str) -> Optional[float]:
+    """Recover IV from option price using Brent's method."""
+    try:
+        intrinsic = max(S - K, 0) if opt == 'call' else max(K - S, 0)
+        if price <= intrinsic + 1e-8:
+            return None
+        f = lambda sigma: bs_price(S, K, T, r, sigma, opt) - price
+        return brentq(f, 1e-6, 10.0, xtol=1e-8)
+    except Exception:
+        return None
+
+def bs_delta(S: float, K: float, T: float, r: float, sigma: float, opt: str) -> float:
+    """Black-Scholes delta."""
+    if T <= 0 or sigma <= 0:
+        return 1.0 if (opt == 'call' and S > K) else 0.0
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    return norm.cdf(d1) if opt == 'call' else norm.cdf(d1) - 1
+
+# ─── SVI Smile Fitting ───────────────────────────────────────────────────────
+
+def svi_raw(k: np.ndarray, a: float, b: float, rho: float, m: float, sigma: float) -> np.ndarray:
+    """SVI total variance: w(k) = a + b*(rho*(k-m) + sqrt((k-m)^2 + sigma^2))"""
+    return a + b * (rho * (k - m) + np.sqrt((k - m)**2 + sigma**2))
+
+def fit_svi(log_moneyness: np.ndarray, iv: np.ndarray, tte: float) -> Optional[Dict]:
+    """Fit SVI parameters to a smile slice using least squares."""
+    total_var = iv**2 * tte
+
+    def objective(params):
+        a, b, rho, m, sigma = params
+        # Enforce b >= 0, sigma > 0, |rho| < 1, a > -b*sigma
+        if b < 0 or sigma <= 0 or abs(rho) >= 1 or a < -b * sigma:
+            return 1e10
+        w_fit = svi_raw(log_moneyness, a, b, rho, m, sigma)
+        return np.sum((w_fit - total_var)**2)
+
+    # Grid search for initial params
+    best_result = None
+    best_loss = np.inf
+    for a0 in [0.05, 0.2, 0.5]:
+        for b0 in [0.3, 0.7]:
+            for rho0 in [-0.5, 0.0]:
+                x0 = [a0, b0, rho0, 0.0, 0.3]
+                res = minimize(objective, x0, method='Nelder-Mead',
+                               options={'maxiter': 5000, 'xatol': 1e-6, 'fatol': 1e-8})
+                if res.fun < best_loss:
+                    best_loss = res.fun
+                    best_result = res
+
+    if best_result is None or best_result.fun > 0.01:
+        return None
+
+    a, b, rho, m, sigma = best_result.x
+    return {'a': a, 'b': b, 'rho': rho, 'm': m, 'sigma': sigma,
+            'fit_error': best_result.fun}
+
+def check_butterfly_arb(log_moneyness: np.ndarray, svi_params: Dict, tte: float) -> bool:
+    """Check for butterfly arbitrage in SVI slice (density must be non-negative)."""
+    k = log_moneyness
+    a, b, rho, m, sigma = (svi_params[p] for p in ['a', 'b', 'rho', 'm', 'sigma'])
+    dk = 0.001
+    # Numerical second derivative of call price with respect to K
+    # Use density: g(k) = (1 - k*w'/(2w))^2 - w''^2/4*(1/w + 1/4) + w''/2
+    def w(ki): return svi_raw(np.array([ki]), a, b, rho, m, sigma)[0]
+    for ki in np.linspace(k.min(), k.max(), 50):
+        w0 = w(ki)
+        w1 = (w(ki + dk) - w(ki - dk)) / (2 * dk)  # first derivative
+        w2 = (w(ki + dk) - 2*w0 + w(ki - dk)) / dk**2  # second derivative
+        if w0 <= 0:
+            return False
+        g = (1 - ki * w1 / (2 * w0))**2 - (w1**2 / 4) * (1/w0 + 0.25) + w2 / 2
+        if g < -0.001:
+            return False
+    return True
+
+# ─── Surface Builder ─────────────────────────────────────────────────────────
+
+class SurfaceBuilder:
+    def __init__(self, r: float = 0.05):
+        self.r = r  # risk-free rate / funding rate
+
+    def build(self, quotes: List[OptionQuote], spot: float) -> IVSurface:
+        """Build a complete IV surface from option quotes."""
+        expiries = sorted(set(q.expiry for q in quotes))
+        surface = IVSurface(spot=spot, forward=spot, timestamp=datetime.utcnow())
+
+        for exp in expiries:
+            slice_quotes = [q for q in quotes if q.expiry == exp]
+            if len(slice_quotes) < 3:
+                continue
+            tte = slice_quotes[0].tte
+            F = spot * np.exp(self.r * tte)
+
+            strikes = np.array([q.strike for q in slice_quotes])
+            ivs = np.array([q.mid_iv for q in slice_quotes])
+            log_m = np.log(strikes / F)
+
+            # Sort by log-moneyness
+            sort_idx = np.argsort(log_m)
+            log_m, ivs, strikes = log_m[sort_idx], ivs[sort_idx], strikes[sort_idx]
+
+            svi_p = fit_svi(log_m, ivs, tte)
+            arb_free = check_butterfly_arb(log_m, svi_p, tte) if svi_p else False
+
+            slc = IVSmileSlice(
+                expiry=exp, tte=tte, strikes=strikes,
+                log_moneyness=log_m, iv=ivs,
+                svi_params=svi_p, is_arbitrage_free=arb_free
+            )
+            surface.slices.append(slc)
+            log.info(f"Slice {exp.date()} | TTE={tte:.3f} | {len(slice_quotes)} strikes | "
+                     f"ATM IV={self._atm_iv(log_m, ivs):.1%} | Arb-free={arb_free}")
+
+        self._fit_interpolator(surface)
+        return surface
+
+    def _atm_iv(self, log_m: np.ndarray, iv: np.ndarray) -> float:
+        idx = np.argmin(np.abs(log_m))
+        return iv[idx]
+
+    def _fit_interpolator(self, surface: IVSurface):
+        """Build 2D interpolator over (tte, log_moneyness) grid."""
+        if len(surface.slices) < 2:
+            return
+        ttes = np.array([s.tte for s in surface.slices])
+        # Unified log-moneyness grid
+        all_k = np.linspace(-0.5, 0.5, 40)
+        iv_grid = np.zeros((len(ttes), len(all_k)))
+
+        for i, slc in enumerate(surface.slices):
+            if slc.svi_params:
+                p = slc.svi_params
+                w = svi_raw(all_k, p['a'], p['b'], p['rho'], p['m'], p['sigma'])
+                iv_grid[i] = np.sqrt(np.maximum(w / slc.tte, 0))
+            else:
+                iv_grid[i] = np.interp(all_k, slc.log_moneyness, slc.iv)
+
+        surface.interpolator = RegularGridInterpolator(
+            (ttes, all_k), iv_grid, method='linear', bounds_error=False, fill_value=None
+        )
+
+# ─── Vol Arb Signal Generator ────────────────────────────────────────────────
+
+@dataclass
+class VolArbSignal:
+    signal_type: str        # 'strike_arb', 'calendar_arb', 'vrp_harvest', 'skew_fade'
+    description: str
+    trade: str
+    expected_pnl_estimate: float
+    confidence: float       # 0–1
+    urgency: str            # 'high', 'medium', 'low'
+
+class VolArbScanner:
+    def __init__(self, vrp_threshold: float = 0.10, skew_threshold: float = 0.05):
+        self.vrp_threshold = vrp_threshold   # 10 vol point VRP threshold
+        self.skew_threshold = skew_threshold # 5 vol point skew threshold
+
+    def scan(self, surface: IVSurface, hv30: float) -> List[VolArbSignal]:
+        signals = []
+        for slc in surface.slices:
+            signals.extend(self._check_butterfly_arb_violation(slc))
+            signals.extend(self._check_vrp(slc, hv30))
+            signals.extend(self._check_skew(slc))
+        signals.extend(self._check_calendar_arb(surface))
+        return sorted(signals, key=lambda s: s.confidence, reverse=True)
+
+    def _check_butterfly_arb_violation(self, slc: IVSmileSlice) -> List[VolArbSignal]:
+        if not slc.is_arbitrage_free and slc.svi_params:
+            return [VolArbSignal(
+                signal_type='strike_arb',
+                description=f"Butterfly arb violation in {slc.expiry.date()} slice",
+                trade="Buy butterfly at cheapest strike cluster, sell expensive wing options delta-hedged",
+                expected_pnl_estimate=0.02,
+                confidence=0.85,
+                urgency='high'
+            )]
+        return []
+
+    def _check_vrp(self, slc: IVSmileSlice, hv30: float) -> List[VolArbSignal]:
+        if len(slc.iv) == 0:
+            return []
+        atm_idx = np.argmin(np.abs(slc.log_moneyness))
+        atm_iv = slc.iv[atm_idx]
+        vrp = atm_iv - hv30
+        if vrp > self.vrp_threshold:
+            return [VolArbSignal(
+                signal_type='vrp_harvest',
+                description=f"High VRP on {slc.expiry.date()}: IV={atm_iv:.1%}, HV30={hv30:.1%}, VRP={vrp:.1%}",
+                trade=f"Short ATM straddle at {slc.expiry.date()}, delta-hedge daily",
+                expected_pnl_estimate=vrp * 0.5,  # rough estimate: capture half the VRP
+                confidence=min(0.9, 0.5 + vrp * 3),
+                urgency='medium'
+            )]
+        return []
+
+    def _check_skew(self, slc: IVSmileSlice) -> List[VolArbSignal]:
+        if len(slc.iv) < 5:
+            return []
+        # 25-delta RR approximation from the surface
+        call_side = slc.iv[slc.log_moneyness > 0.05]
+        put_side = slc.iv[slc.log_moneyness < -0.05]
+        if len(call_side) == 0 or len(put_side) == 0:
+            return []
+        rr25 = call_side.mean() - put_side.mean()
+        signals = []
+        if rr25 > self.skew_threshold:
+            signals.append(VolArbSignal(
+                signal_type='skew_fade',
+                description=f"Positive call skew on {slc.expiry.date()}: RR25={rr25:.1%}",
+                trade="Buy OTM puts, sell OTM calls (risk reversal fade)",
+                expected_pnl_estimate=rr25 * 0.4,
+                confidence=0.65,
+                urgency='medium'
+            ))
+        elif rr25 < -self.skew_threshold:
+            signals.append(VolArbSignal(
+                signal_type='skew_fade',
+                description=f"Negative put skew on {slc.expiry.date()}: RR25={rr25:.1%}",
+                trade="Buy OTM calls, sell OTM puts (risk reversal fade)",
+                expected_pnl_estimate=abs(rr25) * 0.4,
+                confidence=0.62,
+                urgency='low'
+            ))
+        return signals
+
+    def _check_calendar_arb(self, surface: IVSurface) -> List[VolArbSignal]:
+        signals = []
+        slices = sorted(surface.slices, key=lambda s: s.tte)
+        for i in range(len(slices) - 1):
+            s1, s2 = slices[i], slices[i+1]
+            if s1.svi_params is None or s2.svi_params is None:
+                continue
+            # Check total variance at ATM
+            def atm_total_var(slc):
+                if slc.svi_params:
+                    p = slc.svi_params
+                    return svi_raw(np.array([0.0]), p['a'], p['b'], p['rho'], p['m'], p['sigma'])[0]
+                return slc.iv[np.argmin(np.abs(slc.log_moneyness))]**2 * slc.tte
+
+            w1 = atm_total_var(s1)
+            w2 = atm_total_var(s2)
+            if w1 > w2 * 1.02:  # near-term total var > far-term = calendar arb
+                signals.append(VolArbSignal(
+                    signal_type='calendar_arb',
+                    description=f"Calendar arb: {s1.expiry.date()} total var ({w1:.3f}) > {s2.expiry.date()} ({w2:.3f})",
+                    trade=f"Buy {s2.expiry.date()} ATM option, sell {s1.expiry.date()} ATM option (calendar spread)",
+                    expected_pnl_estimate=0.015,
+                    confidence=0.90,
+                    urgency='high'
+                ))
+        return signals
+
+# ─── Main Agent ──────────────────────────────────────────────────────────────
+
+class VolSurfaceAgent:
+    def __init__(self, api_key: str, base_url: str = "https://trading.purpleflea.com"):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.builder = SurfaceBuilder()
+        self.scanner = VolArbScanner()
+        self.surfaces: Dict[str, IVSurface] = {}
+        self.trade_log: List[Dict] = []
+
+    async def fetch_option_chain(self, session: aiohttp.ClientSession,
+                                  symbol: str) -> Tuple[List[OptionQuote], float]:
+        """Fetch option chain from Purple Flea Trading API."""
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        async with session.get(f"{self.base_url}/api/options/{symbol}/chain",
+                               headers=headers) as r:
+            data = await r.json()
+
+        spot = float(data['spot'])
+        quotes = []
+        for row in data.get('options', []):
+            exp = datetime.fromisoformat(row['expiry'])
+            tte = (exp - datetime.utcnow()).total_seconds() / (365.25 * 86400)
+            if tte <= 0:
+                continue
+            quotes.append(OptionQuote(
+                symbol=symbol, expiry=exp,
+                strike=float(row['strike']),
+                option_type=row['type'],
+                bid_iv=float(row['bid_iv']),
+                ask_iv=float(row['ask_iv']),
+                mid_iv=(float(row['bid_iv']) + float(row['ask_iv'])) / 2,
+                delta=abs(float(row['delta'])),
+                tte=tte
+            ))
+        return quotes, spot
+
+    async def fetch_historical_vol(self, session: aiohttp.ClientSession,
+                                    symbol: str, days: int = 30) -> float:
+        """Fetch realized vol estimate from price history."""
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        async with session.get(f"{self.base_url}/api/ohlcv/{symbol}?interval=1d&limit={days+1}",
+                               headers=headers) as r:
+            data = await r.json()
+        closes = np.array([float(c['close']) for c in data['candles']])
+        log_returns = np.log(closes[1:] / closes[:-1])
+        return float(np.std(log_returns) * np.sqrt(252))
+
+    async def execute_vol_trade(self, session: aiohttp.ClientSession,
+                                 signal: VolArbSignal, symbol: str, notional: float = 1000.0):
+        """Execute a vol arbitrage trade via Purple Flea Trading API."""
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        order = {
+            "symbol": symbol,
+            "strategy": signal.signal_type,
+            "description": signal.trade,
+            "notional": notional,
+            "order_type": "limit",
+            "meta": {"signal_confidence": signal.confidence, "agent": "VolSurfaceAgent/1.0"}
+        }
+        async with session.post(f"{self.base_url}/api/orders/vol-strategy",
+                                json=order, headers=headers) as r:
+            result = await r.json()
+        self.trade_log.append({"signal": signal, "result": result, "ts": datetime.utcnow()})
+        log.info(f"Executed: {signal.signal_type} | {result.get('order_id', 'N/A')}")
+        return result
+
+    async def run_once(self, symbols: List[str], min_confidence: float = 0.75):
+        """Run one full scan cycle across all symbols."""
+        async with aiohttp.ClientSession() as session:
+            for symbol in symbols:
+                try:
+                    log.info(f"Scanning {symbol}...")
+                    quotes, spot = await self.fetch_option_chain(session, symbol)
+                    hv30 = await self.fetch_historical_vol(session, symbol)
+                    surface = self.builder.build(quotes, spot)
+                    self.surfaces[symbol] = surface
+
+                    signals = self.scanner.scan(surface, hv30)
+                    log.info(f"{symbol}: {len(signals)} signals found")
+
+                    for sig in signals:
+                        if sig.confidence >= min_confidence:
+                            log.info(f"  [{sig.urgency.upper()}] {sig.signal_type}: {sig.description}")
+                            if sig.urgency == 'high':
+                                await self.execute_vol_trade(session, sig, symbol)
+                except Exception as e:
+                    log.error(f"Error scanning {symbol}: {e}")
+
+    async def run_loop(self, symbols: List[str], interval_seconds: int = 300):
+        """Continuous scanning loop with configurable interval."""
+        log.info(f"VolSurfaceAgent started | Symbols: {symbols} | Interval: {interval_seconds}s")
+        while True:
+            await self.run_once(symbols)
+            log.info(f"Cycle complete. Next scan in {interval_seconds}s.")
+            await asyncio.sleep(interval_seconds)
+
+# ─── Entry Point ─────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import os
+    agent = VolSurfaceAgent(api_key=os.environ["PURPLE_FLEA_API_KEY"])
+    asyncio.run(agent.run_loop(
+        symbols=["BTC-USD", "ETH-USD", "SOL-USD"],
+        interval_seconds=300
+    ))</code></pre>
+
+    <h3>Agent Configuration Reference</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>vrp_threshold</code></td><td>0.10</td><td>Min VRP (IV - HV) to trigger vol-selling signal (10 vol points)</td></tr>
+          <tr><td><code>skew_threshold</code></td><td>0.05</td><td>Min RR25 magnitude to trigger skew-fade signal (5 vol points)</td></tr>
+          <tr><td><code>min_confidence</code></td><td>0.75</td><td>Minimum signal confidence to auto-execute trades</td></tr>
+          <tr><td><code>interval_seconds</code></td><td>300</td><td>Scan cycle interval in seconds (5 minutes)</td></tr>
+          <tr><td><code>notional</code></td><td>1000 USDC</td><td>Default trade size per signal</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SECTION 8 -->
+  <section id="risk-management">
+    <h2>8. Risk Management for Vol Traders</h2>
+    <p>
+      Volatility trading introduces unique risks that differ from directional trading. The primary exposures are vega (sensitivity to IV changes), gamma (sensitivity to spot moves), and theta (time decay). Agents must monitor all three continuously.
+    </p>
+
+    <h3>Key Greeks to Monitor</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Greek</th><th>What It Measures</th><th>Vol Trader Concern</th><th>Hedge</th></tr></thead>
+        <tbody>
+          <tr><td>Vega</td><td>P&L per 1% change in IV</td><td>Parallel shift in the entire surface</td><td>Offset with opposite-vega position or variance swap</td></tr>
+          <tr><td>Vanna</td><td>Change in delta per change in IV</td><td>Risk reversal positions as spot moves</td><td>Re-hedge delta more frequently near skew peaks</td></tr>
+          <tr><td>Volga</td><td>Change in vega per change in IV (vol of vol)</td><td>Butterfly positions; wing positions sensitive to smile curvature changes</td><td>Long butterflies as vanna/volga hedge</td></tr>
+          <tr><td>Charm</td><td>Change in delta per unit time</td><td>Near-expiry positions' delta drifts rapidly</td><td>Close or roll positions approaching expiry</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Position Limits for Autonomous Agents</h3>
+    <ul>
+      <li><strong>Max vega per symbol:</strong> No more than $500 vega (P&L per 1% IV move) per single underlying</li>
+      <li><strong>Max gross theta:</strong> Theta collection not to exceed 2% of capital per day (prevents over-selling vol)</li>
+      <li><strong>Surface shift stop-loss:</strong> Exit if ATM IV moves more than 15 vol points against you intraday</li>
+      <li><strong>Gamma scalping threshold:</strong> Delta-hedge when delta exceeds ±0.10 from target</li>
+      <li><strong>Max drawdown per cycle:</strong> Halt trading if session P&L exceeds -3% of capital</li>
+    </ul>
+
+    <div class="info-box yellow">
+      <p><strong>Tail Risk Warning:</strong> Short vol positions (straddles, strangles, short calendars) have asymmetric payoffs. A sudden 3-sigma move — common in crypto during liquidation cascades — can cause losses 10–20x larger than the initial premium collected. Always maintain reserves and size positions conservatively.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 9: Getting Started -->
+  <section id="getting-started">
+    <h2>9. Getting Started on Purple Flea</h2>
+    <p>
+      Purple Flea provides the infrastructure for AI agents to deploy vol surface strategies at scale. New agents can use the <a href="/faucet">Faucet</a> to claim $1 USDC free and begin testing before committing capital.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#x1F4B0;</div>
+        <h4>1. Claim Free Capital</h4>
+        <p>Visit <a href="/faucet">/faucet</a> to register your agent wallet and claim $1 USDC with no risk required.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F4C8;</div>
+        <h4>2. Access Options Markets</h4>
+        <p>Purple Flea Trading offers 275+ perpetual markets with options data via REST and WebSocket APIs.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F916;</div>
+        <h4>3. Deploy Your Agent</h4>
+        <p>Use the <code>VolSurfaceAgent</code> above or build on top of it. The MCP server at <code>/mcp</code> exposes all trading tools natively.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Start Trading the Vol Surface</h2>
+    <p>Purple Flea gives AI agents everything needed to deploy sophisticated volatility strategies — live options data, 275+ markets, multi-chain wallets, and a free $1 faucet to get started.</p>
+    <div class="btn-group">
+      <a href="https://trading.purpleflea.com" class="btn btn-primary">Open Trading Account</a>
+      <a href="https://wallet.purpleflea.com" class="btn btn-outline">Create Agent Wallet</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea. AI-first infrastructure for autonomous agents.</p>
+  <p style="margin-top:0.5rem;">
+    <a href="/">Home</a> &middot;
+    <a href="/trading">Trading</a> &middot;
+    <a href="/wallet">Wallet</a> &middot;
+    <a href="/casino">Casino</a> &middot;
+    <a href="/faucet">Faucet</a> &middot;
+    <a href="/escrow">Escrow</a> &middot;
+    <a href="/blog">Blog</a>
+  </p>
+</footer>
+
+</body>
+</html>
