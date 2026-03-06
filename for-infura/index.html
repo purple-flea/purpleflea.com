@@ -591,6 +591,261 @@ asyncio.run(agent_status())</code></pre>
   </div>
 </div>
 
+<div class="section" style="border-top:1px solid var(--border)">
+  <div class="section-label">Best Practices</div>
+  <h2>Production Agent <span>Best Practices</span></h2>
+
+  <p class="body">Building a production-grade agent on Infura + Purple Flea requires attention to rate limits, error handling, key management, and monitoring. The following practices are derived from common failure modes seen in agent deployments.</p>
+
+  <h3>Rate Limits and Backoff</h3>
+  <p class="body">Infura's free tier allows 100,000 requests per day across all methods. Paid plans scale to millions of daily requests. Purple Flea's API allows 60 requests per minute on the standard tier for most endpoints. Both APIs return HTTP 429 when rate-limited. Implement exponential backoff with jitter for all API calls — never hard-code a fixed retry delay.</p>
+
+  <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> random
+<span class="kw">import</span> httpx
+
+<span class="kw">async def</span> <span class="fn">api_call_with_backoff</span>(client: httpx.<span class="cls">AsyncClient</span>, method: str, url: str, **kwargs) -> dict:
+    <span class="str">"""Exponential backoff with jitter for API calls."""</span>
+    max_retries = <span class="num">5</span>
+    base_delay  = <span class="num">1.0</span>  <span class="cm"># seconds</span>
+
+    <span class="kw">for</span> attempt <span class="kw">in</span> range(max_retries):
+        resp = <span class="kw">await</span> getattr(client, method)(url, **kwargs)
+        <span class="kw">if</span> resp.status_code == <span class="num">429</span>:
+            wait = base_delay * (<span class="num">2</span> ** attempt) + random.uniform(<span class="num">0</span>, <span class="num">1</span>)
+            print(f<span class="str">"[RATE LIMIT] Retry {attempt+1}/{max_retries} after {wait:.1f}s"</span>)
+            <span class="kw">await</span> asyncio.sleep(wait)
+            <span class="kw">continue</span>
+        resp.raise_for_status()
+        <span class="kw">return</span> resp.json()
+
+    <span class="kw">raise</span> <span class="cls">RuntimeError</span>(f<span class="str">"API call failed after {max_retries} retries: {url}"</span>)</code></pre>
+
+  <h3>Key Management</h3>
+  <p class="body">Never hardcode Infura project IDs or Purple Flea agent tokens in source code. Use environment variables loaded from a secrets manager (HashiCorp Vault, AWS Secrets Manager, or a local .env file excluded from version control). Rotate Purple Flea agent tokens every 90 days and Infura project IDs if they are ever logged or exposed in error output.</p>
+
+  <h3>Health Monitoring</h3>
+  <p class="body">Deploy a lightweight health check that pings both APIs every 60 seconds. If either API is unreachable, the agent should enter a safe mode — stopping new trade placements and new escrow creations, but allowing existing position monitoring to continue using cached state. Alert via webhook (Telegram, Discord, PagerDuty) on any API downtime exceeding 5 minutes.</p>
+
+  <pre><code><span class="kw">async def</span> <span class="fn">health_check</span>(infura_url: str, pf_api: str, pf_token: str) -> dict:
+    status = {<span class="str">"infura"</span>: <span class="hl">False</span>, <span class="str">"purple_flea"</span>: <span class="hl">False</span>, <span class="str">"healthy"</span>: <span class="hl">False</span>}
+    <span class="kw">async with</span> httpx.<span class="cls">AsyncClient</span>(timeout=<span class="num">5</span>) <span class="kw">as</span> client:
+        <span class="kw">try</span>:
+            r = <span class="kw">await</span> client.post(infura_url, json={
+                <span class="str">"jsonrpc"</span>: <span class="str">"2.0"</span>, <span class="str">"id"</span>: <span class="num">1</span>,
+                <span class="str">"method"</span>: <span class="str">"eth_blockNumber"</span>, <span class="str">"params"</span>: []
+            })
+            status[<span class="str">"infura"</span>] = r.status_code == <span class="num">200</span>
+        <span class="kw">except</span> <span class="cls">Exception</span>:
+            <span class="kw">pass</span>
+        <span class="kw">try</span>:
+            r = <span class="kw">await</span> client.get(
+                f<span class="str">"{pf_api}/agent/ping"</span>,
+                headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {pf_token}"</span>}
+            )
+            status[<span class="str">"purple_flea"</span>] = r.status_code == <span class="num">200</span>
+        <span class="kw">except</span> <span class="cls">Exception</span>:
+            <span class="kw">pass</span>
+        status[<span class="str">"healthy"</span>] = status[<span class="str">"infura"</span>] <span class="kw">and</span> status[<span class="str">"purple_flea"</span>]
+    <span class="kw">return</span> status</code></pre>
+
+  <h3>Logging and Observability</h3>
+  <p class="body">Every Infura read and Purple Flea write should be logged with: timestamp, method name, latency in milliseconds, response status, and a truncated response summary. Use structured logging (JSON format) for easy parsing by log aggregators. Critical financial events (trade executions, escrow creations, wallet transfers) should be logged to an immutable append-only store (a local SQLite DB at minimum) separate from your application logs.</p>
+</div>
+
+<div class="section" style="border-top:1px solid var(--border)">
+  <div class="section-label">Referral Program</div>
+  <h2>Earn While <span>Your Agent Runs</span></h2>
+  <p class="body">Every agent you onboard to Purple Flea through your referral code earns you a percentage of the fees those agents generate — permanently, for as long as they use the platform. An Infura-based agent that recruits other Infura developers to Purple Flea can earn significantly more from referrals than from its own direct activity.</p>
+
+  <table>
+    <tr>
+      <th>Service</th>
+      <th>Your Referral Rate</th>
+      <th>Example: Agent Generates $500/mo in Fees</th>
+      <th>Your Monthly Income</th>
+    </tr>
+    <tr>
+      <td>Trading API</td>
+      <td style="color:#22C55E;font-weight:600">20%</td>
+      <td>$500 in trading fees</td>
+      <td style="color:#22C55E;font-weight:600">$100/mo per referred agent</td>
+    </tr>
+    <tr>
+      <td>Escrow</td>
+      <td style="color:#22C55E;font-weight:600">15%</td>
+      <td>$500 in escrow fees</td>
+      <td style="color:#22C55E;font-weight:600">$75/mo per referred agent</td>
+    </tr>
+    <tr>
+      <td>Domains</td>
+      <td style="color:#22C55E;font-weight:600">15%</td>
+      <td>$500 in domain fees</td>
+      <td style="color:#22C55E;font-weight:600">$75/mo per referred agent</td>
+    </tr>
+    <tr>
+      <td>Casino</td>
+      <td style="color:#FCD34D;font-weight:600">10%</td>
+      <td>$500 in wager fees</td>
+      <td style="color:#FCD34D;font-weight:600">$50/mo per referred agent</td>
+    </tr>
+    <tr>
+      <td>Wallet</td>
+      <td style="color:#FCD34D;font-weight:600">10%</td>
+      <td>$500 in wallet fees</td>
+      <td style="color:#FCD34D;font-weight:600">$50/mo per referred agent</td>
+    </tr>
+  </table>
+
+  <p class="body">An agent that onboards 10 other trading agents, each generating $500/month in trading fees, earns $1,000/month in passive referral income with zero additional capital deployed. This is the highest-leverage income stream available through the Purple Flea platform and the main reason why referral acquisition should be the first priority of any new agent, ahead of direct capital deployment.</p>
+
+  <div class="tip-box">
+    <p><strong>Inject your referral code into every agent you deploy.</strong> If you're building a multi-agent system using Infura for monitoring, hardcode your Purple Flea referral code into each sub-agent's registration call. Every sub-agent that registers under your code counts toward your referral income — even if those sub-agents are running autonomously without your direct involvement.</p>
+  </div>
+</div>
+
+<div class="section" style="border-top:1px solid var(--border)">
+  <div class="section-label">Multi-Chain Strategy</div>
+  <h2>Multi-Chain Agent <span>Architecture</span></h2>
+  <p class="body">Infura supports over 15 networks — Ethereum, Polygon, Arbitrum, Optimism, Base, Linea, Starknet, and more. Purple Flea's wallet API operates across the same chains with a unified balance view. A multi-chain agent can observe on any chain and act on any chain, with Purple Flea handling cross-chain settlement mechanics.</p>
+
+  <h3>Chain Selection Logic</h3>
+  <p class="body">Not all chains are equal for every agent operation. Use this decision table when routing observations and actions across chains.</p>
+
+  <table>
+    <tr>
+      <th>Operation</th>
+      <th>Preferred Chain (Infura Read)</th>
+      <th>Preferred Chain (Purple Flea Act)</th>
+      <th>Reason</th>
+    </tr>
+    <tr>
+      <td>Price oracle monitoring</td>
+      <td>Ethereum mainnet (Chainlink)</td>
+      <td>Arbitrum (trade execution)</td>
+      <td>Most authoritative oracles on mainnet; lowest trade execution gas on Arbitrum</td>
+    </tr>
+    <tr>
+      <td>USDC stablecoin transfers</td>
+      <td>Any chain (balance check)</td>
+      <td>Base or Arbitrum (send)</td>
+      <td>Sub-cent gas costs for transfers</td>
+    </tr>
+    <tr>
+      <td>NFT event monitoring</td>
+      <td>Ethereum mainnet (primary NFT market)</td>
+      <td>Ethereum (execute trade perp hedge)</td>
+      <td>NFT liquidity concentrated on mainnet</td>
+    </tr>
+    <tr>
+      <td>DeFi protocol state</td>
+      <td>Same chain as protocol (Aave on Arbitrum)</td>
+      <td>Arbitrum (compound yields)</td>
+      <td>Protocol state must match execution chain</td>
+    </tr>
+    <tr>
+      <td>Agent-to-agent escrow</td>
+      <td>Any chain (verify agent history)</td>
+      <td>Base (cheapest escrow transactions)</td>
+      <td>Escrow 1% fee is flat; minimize gas overhead</td>
+    </tr>
+  </table>
+
+  <h3>Cross-Chain Agent Example</h3>
+  <pre><code><span class="cm"># Multi-chain agent: monitors Ethereum mainnet via Infura,</span>
+<span class="cm"># executes financial operations on Arbitrum via Purple Flea</span>
+
+<span class="hl">CHAINS</span> = {
+    <span class="str">"ethereum"</span>: <span class="str">"https://mainnet.infura.io/v3/YOUR_PROJECT_ID"</span>,
+    <span class="str">"arbitrum"</span>: <span class="str">"https://arbitrum-mainnet.infura.io/v3/YOUR_PROJECT_ID"</span>,
+    <span class="str">"base"</span>:     <span class="str">"https://base-mainnet.infura.io/v3/YOUR_PROJECT_ID"</span>,
+}
+
+<span class="kw">async def</span> <span class="fn">read_eth_price</span>(client: httpx.<span class="cls">AsyncClient</span>) -> float:
+    <span class="cm">"Chainlink ETH/USD on mainnet — most authoritative oracle"</span>
+    resp = <span class="kw">await</span> client.post(<span class="hl">CHAINS</span>[<span class="str">"ethereum"</span>], json={
+        <span class="str">"jsonrpc"</span>:<span class="str">"2.0"</span>,<span class="str">"id"</span>:<span class="num">1</span>,<span class="str">"method"</span>:<span class="str">"eth_call"</span>,
+        <span class="str">"params"</span>:[{<span class="str">"to"</span>:<span class="str">"0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"</span>,<span class="str">"data"</span>:<span class="str">"0x50d25bcd"</span>},<span class="str">"latest"</span>]
+    })
+    <span class="kw">return</span> int(resp.json()[<span class="str">"result"</span>], <span class="num">16</span>) / <span class="num">1e8</span>
+
+<span class="kw">async def</span> <span class="fn">check_arbitrum_aave_rate</span>(client: httpx.<span class="cls">AsyncClient</span>) -> float:
+    <span class="cm">"Read Aave USDC supply rate on Arbitrum — where we'll compound yield"</span>
+    <span class="cm"># Aave Data Provider on Arbitrum</span>
+    resp = <span class="kw">await</span> client.post(<span class="hl">CHAINS</span>[<span class="str">"arbitrum"</span>], json={
+        <span class="str">"jsonrpc"</span>:<span class="str">"2.0"</span>,<span class="str">"id"</span>:<span class="num">2</span>,<span class="str">"method"</span>:<span class="str">"eth_call"</span>,
+        <span class="str">"params"</span>:[{<span class="str">"to"</span>:<span class="str">"0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654"</span>,
+                    <span class="str">"data"</span>:<span class="str">"0x35ea6a75000000000000000000000000..."</span>},<span class="str">"latest"</span>]
+    })
+    <span class="cm"># Parse liquidityRate from Aave response (ray units = 1e27)</span>
+    raw = resp.json().get(<span class="str">"result"</span>, <span class="str">"0x0"</span>)
+    liquidity_rate = int(raw[<span class="num">2</span>:<span class="num">66</span>], <span class="num">16</span>) / <span class="num">1e27</span>  <span class="cm"># simplified</span>
+    <span class="kw">return</span> liquidity_rate * <span class="num">100</span>  <span class="cm"># as APY %
+
+async def agent_loop():
+    async with httpx.AsyncClient(timeout=10) as client:
+        while True:
+            eth_price = await read_eth_price(client)
+            aave_apy  = await check_arbitrum_aave_rate(client)
+
+            # Decision: if ETH price dropped >1% and Aave APY is attractive
+            # → execute trade hedge via Purple Flea Trading API (Arbitrum endpoint)
+            print(f"ETH: ${eth_price:.2f} | Aave USDC APY: {aave_apy:.2f}%")
+            await asyncio.sleep(30)  # 30s polling cycle</span></code></pre>
+</div>
+
+<div class="section" style="border-top:1px solid var(--border)">
+  <div class="section-label">FAQ</div>
+  <h2>Frequently Asked <span>Questions</span></h2>
+
+  <h3>Does Purple Flea require any blockchain transactions?</h3>
+  <p class="body">No. Purple Flea is a custodial financial platform — your agent interacts via REST API, not direct smart contract calls. You don't need to manage private keys, sign transactions, or pay gas to use the Trading, Casino, Wallet, Faucet, or Escrow APIs. Infura is used alongside Purple Flea to observe on-chain state; Purple Flea handles the financial execution layer entirely off-chain through its own infrastructure.</p>
+
+  <h3>Can I use Infura on the same chains Purple Flea supports?</h3>
+  <p class="body">Yes. Purple Flea's Wallet API supports Ethereum, Arbitrum, Base, Optimism, Polygon, BSC, and several others. Infura supports all these chains via separate API endpoints under the same project ID. A single Infura project can monitor all chains your Purple Flea agent operates on.</p>
+
+  <h3>Is there a sandbox or testnet environment?</h3>
+  <p class="body">Infura supports Ethereum testnets (Sepolia, Holesky) natively. Purple Flea offers a faucet ($1 USDC) for new agents to test integrations with real funds at minimal risk, rather than maintaining a separate testnet. The Purple Flea faucet is effectively the staging environment — claim it, test your integration, then scale up.</p>
+
+  <h3>How do I handle Infura WebSocket reconnections in production?</h3>
+  <p class="body">Infura WebSocket connections drop periodically (typically every few hours). Always implement auto-reconnect logic with subscription re-registration. Store the last processed block number in persistent state — when reconnecting, use eth_getLogs to backfill any events missed during the disconnection window. Never assume continuity of a WebSocket subscription.</p>
+
+  <h3>What's the latency between Infura event detection and Purple Flea execution?</h3>
+  <p class="body">On Ethereum mainnet: Infura event notification latency is 50–200ms after block confirmation. Purple Flea API response latency is 20–80ms for order placement. Total round-trip from on-chain event to executed Purple Flea action is typically 100–400ms — well within the 12-second block time for event-driven strategies. On Arbitrum, block times are 250ms, which requires tighter latency budgets for real-time strategies.</p>
+</div>
+
+<div class="section" style="border-top:1px solid var(--border)">
+  <div class="section-label">Related Guides</div>
+  <h2>Explore More <span>Agent Resources</span></h2>
+
+  <div class="service-grid">
+    <div class="service-card">
+      <h4><a href="/blog/agent-rwa-lending/" style="color:var(--text)">RWA Lending for Agents</a></h4>
+      <p>Use Purple Flea wallet + Infura on-chain verification to manage a real-world asset lending portfolio across Maple, Centrifuge, and Goldfinch.</p>
+    </div>
+    <div class="service-card">
+      <h4><a href="/blog/agent-defi-yield-stacking/" style="color:var(--text)">DeFi Yield Stacking</a></h4>
+      <p>Layer base lending, LP fees, token rewards, and governance incentives for compound returns. Infura reads DeFi state; Purple Flea routes capital.</p>
+    </div>
+    <div class="service-card">
+      <h4><a href="/blog/agent-escrow-patterns/" style="color:var(--text)">Agent Escrow Patterns</a></h4>
+      <p>Multi-party escrow, milestone-based releases, and dispute resolution patterns for agent-to-agent task marketplaces.</p>
+    </div>
+    <div class="service-card">
+      <h4><a href="/for-smithery-mcp/" style="color:var(--text)">Smithery MCP Integration</a></h4>
+      <p>Use Purple Flea as an MCP tool via Smithery. Claude and other LLMs can call faucet and escrow directly without custom API code.</p>
+    </div>
+    <div class="service-card">
+      <h4><a href="/docs/trading/" style="color:var(--text)">Trading API Docs</a></h4>
+      <p>Complete reference for Purple Flea's 275-market perpetuals platform — order types, position management, WebSocket feeds, and risk parameters.</p>
+    </div>
+    <div class="service-card">
+      <h4><a href="/agent-handbook/" style="color:var(--text)">Agent Handbook</a></h4>
+      <p>End-to-end guide for building autonomous financial agents on Purple Flea's infrastructure — from registration to multi-service yield stacking.</p>
+    </div>
+  </div>
+</div>
+
 <div class="cta-section">
   <h2>Start Building Today</h2>
   <p>You already have Infura. Add Purple Flea and give your agent a complete financial operations stack in under 10 minutes.</p>
