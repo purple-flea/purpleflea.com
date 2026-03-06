@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Structured logging, trace IDs, log levels, and centralized logging for AI agents. Learn how to debug production issues in autonomous financial agents." />
+  <meta name="keywords" content="AI agents, structured logging, observability, trace IDs, debugging, OpenTelemetry, Purple Flea, agent infrastructure" />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Logging and Observability for AI Agents: Debugging Production Issues" />
+  <meta property="og:description" content="Build a structured logging system for AI agents with correlation IDs, log levels, and centralized aggregation to debug production issues fast." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-logging-observability/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Logging and Observability for AI Agents: Debugging Production Issues" />
+  <meta name="twitter:description" content="Structured logging with correlation IDs lets you trace any Purple Flea transaction through your agent's decision chain." />
+  <title>Logging and Observability for AI Agents: Debugging Production Issues | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --bg-2: #111111;
+      --bg-3: #1a1a1a;
+      --bg-4: #222222;
+      --border: #2a2a2a;
+      --border-2: #333333;
+      --text: #e8e8e8;
+      --text-2: #a0a0a0;
+      --text-3: #666666;
+      --purple: #7c3aed;
+      --purple-light: #9d6ff5;
+      --purple-dim: #3d1d78;
+      --purple-glow: rgba(124, 58, 237, 0.15);
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple-light); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #fff; }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10, 10, 10, 0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); padding: 0 24px;
+    }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .nav-logo span { color: var(--purple-light); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-2); font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 7px 18px; border-radius: 6px; font-size: 13px !important; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero {
+      background: linear-gradient(180deg, #0a0a14 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 24px 56px;
+    }
+    .hero-inner { max-width: 800px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+    .breadcrumb a { color: var(--text-3); }
+    .breadcrumb a:hover { color: var(--text-2); }
+    .breadcrumb-sep { color: var(--border-2); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #22d3ee; font-size: 12px; font-weight: 600; padding: 4px 12px;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px;
+    }
+    .hero h1 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; line-height: 1.2; color: #fff; margin-bottom: 20px; letter-spacing: -0.02em; }
+    .hero-meta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
+    .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
+    .hero-desc { font-size: 18px; color: var(--text-2); line-height: 1.7; max-width: 680px; }
+
+    .toc-wrapper { background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin: 40px auto; max-width: 800px; }
+    .toc-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); margin-bottom: 14px; }
+    .toc-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .toc-list li { display: flex; align-items: center; gap: 10px; }
+    .toc-num { font-size: 11px; font-weight: 700; color: var(--purple); font-family: var(--mono); min-width: 20px; }
+    .toc-list a { font-size: 14px; color: var(--text-2); font-weight: 500; }
+    .toc-list a:hover { color: var(--purple-light); }
+
+    .content { max-width: 800px; margin: 0 auto; padding: 0 24px 80px; }
+    .section { margin-bottom: 64px; }
+    .section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+    .section-num {
+      display: flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px;
+      background: var(--purple-glow); border: 1px solid var(--purple-dim); border-radius: 8px;
+      font-size: 13px; font-weight: 700; color: var(--purple-light); font-family: var(--mono); flex-shrink: 0;
+    }
+    .section h2 { font-size: clamp(20px, 3vw, 26px); font-weight: 700; color: #fff; letter-spacing: -0.01em; }
+    .section h3 { font-size: 18px; font-weight: 600; color: var(--text); margin: 32px 0 14px; }
+    .section p { font-size: 16px; color: var(--text-2); margin-bottom: 18px; line-height: 1.8; }
+    .section ul, .section ol { margin: 14px 0 20px 20px; display: flex; flex-direction: column; gap: 8px; }
+    .section li { font-size: 15px; color: var(--text-2); line-height: 1.7; }
+    .section li strong { color: var(--text); font-weight: 600; }
+
+    .code-block { background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; margin: 24px 0; overflow: hidden; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--bg-4); border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple-light); font-family: var(--mono); }
+    .code-file { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+    .code-block pre { padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.7; color: #d4d4d4; }
+    .code-block code { font-family: inherit; }
+    .kw { color: #c792ea; }
+    .fn { color: #82aaff; }
+    .st { color: #c3e88d; }
+    .cm { color: #546e7a; font-style: italic; }
+    .nm { color: #f78c6c; }
+    .op { color: #89ddff; }
+    .cl { color: #ffcb6b; }
+    .dc { color: #80cbc4; }
+
+    .callout { display: flex; gap: 14px; padding: 18px 20px; border-radius: 10px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59, 130, 246, 0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(245, 158, 11, 0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(16, 185, 129, 0.08); border-color: var(--green); }
+    .callout-cyan { background: rgba(6, 182, 212, 0.08); border-color: var(--cyan); }
+    .callout-purple { background: var(--purple-glow); border-color: var(--purple); }
+    .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .callout-body p { font-size: 14px; color: var(--text-2); margin: 0; line-height: 1.6; }
+
+    .table-wrapper { overflow-x: auto; margin: 24px 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-2); }
+    thead { background: var(--bg-4); }
+    th { padding: 12px 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 16px; font-size: 14px; color: var(--text-2); border-bottom: 1px solid var(--border); line-height: 1.5; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-3); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .badge-yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .badge-purple { background: var(--purple-glow); color: var(--purple-light); }
+
+    .log-preview {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.8;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .log-ts { color: #546e7a; }
+    .log-debug { color: #3b82f6; font-weight: 600; }
+    .log-info { color: #10b981; font-weight: 600; }
+    .log-warn { color: #f59e0b; font-weight: 600; }
+    .log-error { color: #ef4444; font-weight: 600; }
+    .log-key { color: #9d6ff5; }
+    .log-val { color: #c3e88d; }
+    .log-id { color: #06b6d4; }
+
+    .level-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 20px 0; }
+    .level-card {
+      background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+    }
+    .level-name { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+    .level-debug { background: rgba(59, 130, 246, 0.15); color: var(--blue); }
+    .level-info { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .level-warning { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .level-error { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .level-critical { background: rgba(239, 68, 68, 0.25); color: #ff6b6b; }
+    .level-desc { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+    .level-example { font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-top: 6px; }
+
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 48px 0; }
+    .highlight { background: var(--purple-glow); border: 1px solid var(--purple-dim); border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
+    .highlight p { font-size: 15px; color: var(--text); margin: 0; }
+    .highlight strong { color: var(--purple-light); }
+
+    .trace-line {
+      display: flex; gap: 12px; margin-bottom: 4px; align-items: baseline;
+      font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+    }
+    .trace-time { color: #546e7a; min-width: 80px; }
+    .trace-component { color: var(--cyan); min-width: 120px; }
+    .trace-msg { color: #d4d4d4; flex: 1; }
+    .trace-extra { color: #546e7a; }
+
+    .cta-section { background: linear-gradient(135deg, var(--purple-glow) 0%, transparent 100%); border: 1px solid var(--purple-dim); border-radius: 16px; padding: 48px 40px; text-align: center; margin: 64px 0; }
+    .cta-section h2 { font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+    .cta-section p { font-size: 16px; color: var(--text-2); margin-bottom: 28px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: var(--purple); color: #fff; }
+    .btn-primary:hover { background: var(--purple-light); color: #fff; }
+    .btn-secondary { background: var(--bg-3); border: 1px solid var(--border-2); color: var(--text); }
+    .btn-secondary:hover { border-color: var(--purple); color: var(--purple-light); }
+
+    footer { background: var(--bg-2); border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 14px; color: var(--text-3); margin-top: 10px; line-height: 1.6; max-width: 240px; }
+    .footer-col h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 14px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .footer-col li a { font-size: 14px; color: var(--text-3); }
+    .footer-col li a:hover { color: var(--text-2); }
+    .footer-bottom { border-top: 1px solid var(--border); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .footer-bottom p { font-size: 13px; color: var(--text-3); }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 48px 20px 40px; }
+      .content { padding: 0 20px 60px; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .cta-section { padding: 36px 24px; }
+    }
+    @media (max-width: 480px) { .footer-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+    <div class="nav-links">
+      <a href="https://purpleflea.com/casino-api">Casino API</a>
+      <a href="https://purpleflea.com/trading-api">Trading API</a>
+      <a href="https://purpleflea.com/wallet-api">Wallet API</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="https://purpleflea.com/blog/" class="nav-cta">Blog</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <nav class="breadcrumb" aria-label="breadcrumb">
+      <a href="https://purpleflea.com">Home</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <a href="https://purpleflea.com/blog/">Blog</a>
+      <span class="breadcrumb-sep">&#8250;</span>
+      <span>Logging &amp; Observability</span>
+    </nav>
+    <div class="tag">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg>
+      Observability
+    </div>
+    <h1>Logging and Observability for AI Agents:<br/>Debugging Production Issues</h1>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        March 4, 2026
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        26 min read
+      </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 14.66V20a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg>
+        Purple Flea Engineering
+      </div>
+    </div>
+    <p class="hero-desc">
+      When a Purple Flea transaction fails at 3 AM, you need to answer: which agent made the call, what parameters it used, what the API returned, and what decision the agent made next. Structured logging with correlation IDs turns "something went wrong" into a precise, traceable chain of events you can replay in your terminal in under two minutes.
+    </p>
+  </div>
+</header>
+
+<div class="toc-wrapper content">
+  <div class="toc-title">Table of Contents</div>
+  <ol class="toc-list">
+    <li><span class="toc-num">01</span><a href="#structured-logging">Structured Logging: JSON Over Plain Text</a></li>
+    <li><span class="toc-num">02</span><a href="#trace-ids">Trace and Correlation IDs</a></li>
+    <li><span class="toc-num">03</span><a href="#log-levels">Log Levels: When to Use Each</a></li>
+    <li><span class="toc-num">04</span><a href="#centralized-logging">Centralized Logging Patterns</a></li>
+    <li><span class="toc-num">05</span><a href="#debugging-production">Debugging Production Issues</a></li>
+    <li><span class="toc-num">06</span><a href="#full-setup">Complete Logging Setup</a></li>
+  </ol>
+</div>
+
+<main class="content">
+
+  <section class="section" id="structured-logging">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <h2>Structured Logging: JSON Over Plain Text</h2>
+    </div>
+
+    <p>Unstructured logs are noise. When your agent runs 500 API calls per hour across three services, a plain text log file is impossible to filter, aggregate, or query. Structured logging — emitting JSON objects instead of formatted strings — makes every log line queryable by any field.</p>
+
+    <p>The difference is immediate: with structured logs you can answer "show me all bets over $50 that resulted in a loss in the last hour" with a single grep command. With plain text logs, you can't.</p>
+
+    <h3>What a Structured Log Line Looks Like</h3>
+
+    <div class="log-preview">
+      <div><span class="cm">// Unstructured — hard to parse, filter, or aggregate:</span></div>
+      <div><span class="log-ts">2026-03-04 03:21:44</span> INFO Bet placed: dice over 50 for 10.00 USDC, won, payout 19.80</div>
+      <div style="margin-top:16px;"><span class="cm">// Structured JSON — every field queryable:</span></div>
+      <div>{</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"ts"</span>: <span class="log-val">"2026-03-04T03:21:44.312Z"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"level"</span>: <span class="log-val">"info"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"event"</span>: <span class="log-val">"bet.complete"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"agent_id"</span>: <span class="log-val">"dice-agent-001"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"trace_id"</span>: <span class="log-id">"t_7f3a2c9d"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"bet_id"</span>: <span class="log-val">"bet_4b8c1a3e"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"game"</span>: <span class="log-val">"dice"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"amount_usdc"</span>: <span class="nm">10.00</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"prediction"</span>: <span class="log-val">"over"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"target"</span>: <span class="nm">50</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"roll"</span>: <span class="nm">73</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"outcome"</span>: <span class="log-val">"win"</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"payout_usdc"</span>: <span class="nm">19.80</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"balance_after"</span>: <span class="nm">247.60</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"api_latency_ms"</span>: <span class="nm">84</span>,</div>
+      <div>&nbsp;&nbsp;<span class="log-key">"session_bet_count"</span>: <span class="nm">142</span></div>
+      <div>}</div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">logger.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> logging
+<span class="kw">import</span> json
+<span class="kw">import</span> sys
+<span class="kw">import</span> time
+<span class="kw">import</span> traceback
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Dict, Optional
+
+<span class="kw">class</span> <span class="cl">JSONFormatter</span>(logging.Formatter):
+    <span class="st">"""Format log records as newline-delimited JSON."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent_id: str, service: str):
+        <span class="fn">super</span>().__init__()
+        self.agent_id <span class="op">=</span> agent_id
+        self.service <span class="op">=</span> service
+
+    <span class="kw">def</span> <span class="fn">format</span>(self, record: logging.LogRecord) <span class="op">-></span> str:
+        log_obj: Dict[str, Any] <span class="op">=</span> {
+            <span class="st">"ts"</span>: self._format_ts(record.created),
+            <span class="st">"level"</span>: record.levelname.lower(),
+            <span class="st">"event"</span>: record.getMessage(),
+            <span class="st">"agent_id"</span>: self.agent_id,
+            <span class="st">"service"</span>: self.service,
+            <span class="st">"logger"</span>: record.name,
+        }
+
+        <span class="cm"># Include any extra fields set via logger.info("msg", extra={"key": val})</span>
+        <span class="kw">for</span> key, val <span class="kw">in</span> record.__dict__.items():
+            <span class="kw">if</span> key <span class="kw">not in</span> {
+                <span class="st">"msg"</span>, <span class="st">"args"</span>, <span class="st">"levelname"</span>, <span class="st">"levelno"</span>, <span class="st">"pathname"</span>, <span class="st">"filename"</span>,
+                <span class="st">"module"</span>, <span class="st">"exc_info"</span>, <span class="st">"exc_text"</span>, <span class="st">"stack_info"</span>, <span class="st">"lineno"</span>,
+                <span class="st">"funcName"</span>, <span class="st">"created"</span>, <span class="st">"msecs"</span>, <span class="st">"relativeCreated"</span>,
+                <span class="st">"thread"</span>, <span class="st">"threadName"</span>, <span class="st">"processName"</span>, <span class="st">"process"</span>, <span class="st">"name"</span>, <span class="st">"message"</span>,
+            }:
+                log_obj[key] <span class="op">=</span> val
+
+        <span class="kw">if</span> record.exc_info:
+            log_obj[<span class="st">"error"</span>] <span class="op">=</span> {
+                <span class="st">"type"</span>: record.exc_info[<span class="nm">0</span>].<span class="fn">__name__</span>,
+                <span class="st">"message"</span>: <span class="fn">str</span>(record.exc_info[<span class="nm">1</span>]),
+                <span class="st">"traceback"</span>: traceback.<span class="fn">format_exception</span>(<span class="op">*</span>record.exc_info),
+            }
+
+        <span class="kw">return</span> json.dumps(log_obj, default<span class="op">=</span><span class="fn">str</span>)
+
+    <span class="kw">def</span> <span class="fn">_format_ts</span>(self, created: float) <span class="op">-></span> str:
+        <span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+        dt <span class="op">=</span> datetime.fromtimestamp(created, tz<span class="op">=</span>timezone.utc)
+        <span class="kw">return</span> dt.strftime(<span class="st">"%Y-%m-%dT%H:%M:%S.%f"</span>)[:<span class="op">-</span><span class="nm">3</span>] <span class="op">+</span> <span class="st">"Z"</span>
+
+<span class="kw">def</span> <span class="fn">configure_logging</span>(agent_id: str, service: str, level: str <span class="op">=</span> <span class="st">"INFO"</span>) <span class="op">-></span> logging.Logger:
+    <span class="st">"""Configure the root logger with JSON formatting."""</span>
+    formatter <span class="op">=</span> JSONFormatter(agent_id<span class="op">=</span>agent_id, service<span class="op">=</span>service)
+    handler <span class="op">=</span> logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    root <span class="op">=</span> logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.<span class="fn">setLevel</span>(getattr(logging, level))
+
+    <span class="kw">return</span> logging.getLogger(service)
+
+<span class="cm"># Initialize at startup</span>
+log <span class="op">=</span> configure_logging(
+    agent_id<span class="op">=</span>os.environ.get(<span class="st">"AGENT_ID"</span>, <span class="st">"default"</span>),
+    service<span class="op">=</span><span class="st">"casino-agent"</span>,
+    level<span class="op">=</span>os.environ.get(<span class="st">"LOG_LEVEL"</span>, <span class="st">"INFO"</span>),
+)
+</code></pre>
+    </div>
+
+    <div class="callout callout-cyan">
+      <div class="callout-icon">&#128270;</div>
+      <div class="callout-body">
+        <strong>Query Structured Logs at the Terminal</strong>
+        <p>With JSON logs and <code>jq</code>, filtering is instant: <code>journalctl -u agent | jq 'select(.outcome == "loss" and .amount_usdc &gt; 20)'</code>. No regex gymnastics. Every field is a first-class filter target.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="trace-ids">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <h2>Trace and Correlation IDs</h2>
+    </div>
+
+    <p>A trace ID is a unique identifier that flows through every log line related to a single logical operation. When a bet fails, the trace ID connects the agent's decision log, the API request log, the error log, and the retry log into a single searchable story.</p>
+
+    <p>For agents operating financial APIs, every logical "action" should carry a trace ID. This includes: a single bet with its retry chain, a trade order from placement through fill, an escrow lifecycle from creation through release.</p>
+
+    <div class="highlight">
+      <p><strong>Trace ID vs Correlation ID vs Idempotency Key:</strong> A trace ID is for <em>observability</em> (trace the code path). A correlation ID connects related events across services. An idempotency key is for <em>deduplication</em> (prevent double-execution). They often share values but serve different purposes.</p>
+    </div>
+
+    <h3>Context Variables for Automatic Propagation</h3>
+    <p>Use Python's <code>contextvars</code> to store the current trace ID. Any log statement inside the context automatically includes it without explicitly passing it everywhere:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">trace.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> uuid
+<span class="kw">import</span> logging
+<span class="kw">from</span> contextvars <span class="kw">import</span> ContextVar
+<span class="kw">from</span> contextlib <span class="kw">import</span> contextmanager, asynccontextmanager
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="cm"># Thread/task-local trace context</span>
+_trace_id: ContextVar[Optional[str]] <span class="op">=</span> ContextVar(<span class="st">"trace_id"</span>, default<span class="op">=</span><span class="kw">None</span>)
+_operation: ContextVar[Optional[str]] <span class="op">=</span> ContextVar(<span class="st">"operation"</span>, default<span class="op">=</span><span class="kw">None</span>)
+
+<span class="kw">def</span> <span class="fn">current_trace_id</span>() <span class="op">-></span> Optional[str]:
+    <span class="kw">return</span> _trace_id.get()
+
+<span class="kw">def</span> <span class="fn">current_operation</span>() <span class="op">-></span> Optional[str]:
+    <span class="kw">return</span> _operation.get()
+
+<span class="dc">@asynccontextmanager</span>
+<span class="kw">async def</span> <span class="fn">trace</span>(operation: str, trace_id: Optional[str] <span class="op">=</span> <span class="kw">None</span>):
+    <span class="st">"""
+    Async context manager that sets trace context for all code within.
+
+    Usage:
+        async with trace("casino.place_bet") as tid:
+            log.info("placing bet", extra={"amount": 10})  # auto-includes trace_id
+            result = await client.post("/casino/bet", ...)
+    """</span>
+    tid <span class="op">=</span> trace_id <span class="op">or</span> <span class="st">f"t_{uuid.uuid4().hex[:8]}"</span>
+    token_trace <span class="op">=</span> _trace_id.set(tid)
+    token_op <span class="op">=</span> _operation.set(operation)
+    start <span class="op">=</span> time.monotonic()
+    log <span class="op">=</span> logging.getLogger(operation)
+
+    log.info(<span class="st">"trace.start"</span>, extra<span class="op">=</span>{<span class="st">"trace_id"</span>: tid, <span class="st">"op"</span>: operation})
+    <span class="kw">try</span>:
+        <span class="kw">yield</span> tid
+        elapsed <span class="op">=</span> (time.monotonic() <span class="op">-</span> start) <span class="op">*</span> <span class="nm">1000</span>
+        log.info(<span class="st">"trace.complete"</span>, extra<span class="op">=</span>{<span class="st">"trace_id"</span>: tid, <span class="st">"duration_ms"</span>: <span class="fn">round</span>(elapsed, <span class="nm">2</span>)})
+    <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+        elapsed <span class="op">=</span> (time.monotonic() <span class="op">-</span> start) <span class="op">*</span> <span class="nm">1000</span>
+        log.error(<span class="st">"trace.failed"</span>, extra<span class="op">=</span>{
+            <span class="st">"trace_id"</span>: tid,
+            <span class="st">"duration_ms"</span>: <span class="fn">round</span>(elapsed, <span class="nm">2</span>),
+            <span class="st">"error_type"</span>: <span class="fn">type</span>(e).<span class="fn">__name__</span>,
+        }, exc_info<span class="op">=</span><span class="kw">True</span>)
+        <span class="kw">raise</span>
+    <span class="kw">finally</span>:
+        _trace_id.reset(token_trace)
+        _operation.reset(token_op)
+
+<span class="kw">class</span> <span class="cl">TraceInjector</span>(logging.Filter):
+    <span class="st">"""
+    Logging filter that injects current trace context into every log record.
+    Add to all handlers — trace_id and operation are then always available.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">filter</span>(self, record: logging.LogRecord) <span class="op">-></span> bool:
+        record.trace_id <span class="op">=</span> current_trace_id()
+        record.operation <span class="op">=</span> current_operation()
+        <span class="kw">return</span> <span class="kw">True</span>
+
+<span class="cm"># Example: full traced bet execution</span>
+<span class="kw">async def</span> <span class="fn">place_bet_traced</span>(client, params: dict) <span class="op">-></span> dict:
+    <span class="kw">async with</span> trace(<span class="st">"casino.place_bet"</span>) <span class="kw">as</span> tid:
+        log <span class="op">=</span> logging.getLogger(<span class="st">"casino"</span>)
+
+        log.debug(<span class="st">"sending_bet"</span>, extra<span class="op">=</span>{
+            <span class="st">"trace_id"</span>: tid, <span class="st">"game"</span>: params[<span class="st">"game"</span>], <span class="st">"amount"</span>: params[<span class="st">"amount"</span>]
+        })
+
+        start <span class="op">=</span> time.monotonic()
+        result <span class="op">=</span> <span class="kw">await</span> client.post(<span class="st">"/casino/bet"</span>, json<span class="op">=</span>params)
+        latency_ms <span class="op">=</span> (time.monotonic() <span class="op">-</span> start) <span class="op">*</span> <span class="nm">1000</span>
+
+        <span class="cm"># All the context an investigator needs in one log line</span>
+        log.info(<span class="st">"bet.complete"</span>, extra<span class="op">=</span>{
+            <span class="st">"trace_id"</span>: tid,
+            <span class="st">"bet_id"</span>: result[<span class="st">"id"</span>],
+            <span class="st">"game"</span>: params[<span class="st">"game"</span>],
+            <span class="st">"amount_usdc"</span>: <span class="fn">float</span>(params[<span class="st">"amount"</span>]),
+            <span class="st">"outcome"</span>: result[<span class="st">"outcome"</span>],
+            <span class="st">"payout_usdc"</span>: <span class="fn">float</span>(result[<span class="st">"payout"</span>]),
+            <span class="st">"roll"</span>: result.get(<span class="st">"roll"</span>),
+            <span class="st">"api_latency_ms"</span>: <span class="fn">round</span>(latency_ms, <span class="nm">2</span>),
+        })
+        <span class="kw">return</span> result
+</code></pre>
+    </div>
+
+    <h3>What a Traced Execution Looks Like in Logs</h3>
+
+    <div class="log-preview">
+      <div class="trace-line">
+        <span class="trace-time">03:21:44.210</span>
+        <span class="trace-component">casino.place_bet</span>
+        <span class="trace-msg">trace.start</span>
+        <span class="trace-extra">trace_id=<span class="log-id">t_7f3a2c9d</span></span>
+      </div>
+      <div class="trace-line">
+        <span class="trace-time">03:21:44.211</span>
+        <span class="trace-component">casino</span>
+        <span class="trace-msg">sending_bet</span>
+        <span class="trace-extra">trace_id=<span class="log-id">t_7f3a2c9d</span> game=dice amount=10.00</span>
+      </div>
+      <div class="trace-line">
+        <span class="trace-time">03:21:44.295</span>
+        <span class="trace-component">httpx</span>
+        <span class="trace-msg">POST /casino/bet 200 OK</span>
+        <span class="trace-extra">trace_id=<span class="log-id">t_7f3a2c9d</span> latency_ms=84</span>
+      </div>
+      <div class="trace-line">
+        <span class="trace-time">03:21:44.296</span>
+        <span class="trace-component">casino</span>
+        <span class="trace-msg">bet.complete</span>
+        <span class="trace-extra">trace_id=<span class="log-id">t_7f3a2c9d</span> <span class="log-info">outcome=win</span> payout=19.80</span>
+      </div>
+      <div class="trace-line">
+        <span class="trace-time">03:21:44.297</span>
+        <span class="trace-component">casino.place_bet</span>
+        <span class="trace-msg">trace.complete</span>
+        <span class="trace-extra">trace_id=<span class="log-id">t_7f3a2c9d</span> duration_ms=87</span>
+      </div>
+    </div>
+
+    <p>A single <code>grep t_7f3a2c9d</code> across any log file retrieves the complete story of that bet — decision, API call, result. That is the power of trace IDs.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="log-levels">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <h2>Log Levels: When to Use Each</h2>
+    </div>
+
+    <p>Using the right log level is essential for filtering in production. If everything is INFO, you drown in noise. If you under-log, you miss critical context when debugging.</p>
+
+    <div class="level-grid">
+      <div class="level-card">
+        <div class="level-name level-debug">DEBUG</div>
+        <div class="level-desc">Raw API request/response bodies, internal state, decision parameters. Disabled in production.</div>
+        <div class="level-example">req_body={"game":"dice","amount":"10.00"}</div>
+      </div>
+      <div class="level-card">
+        <div class="level-name level-info">INFO</div>
+        <div class="level-desc">Every completed operation: bets, trades, balance checks, escrow events. Core audit trail.</div>
+        <div class="level-example">bet.complete outcome=win payout=19.80</div>
+      </div>
+      <div class="level-card">
+        <div class="level-name level-warning">WARNING</div>
+        <div class="level-desc">Retries, rate limits hit, fallback code paths, non-critical API errors.</div>
+        <div class="level-example">rate_limit_hit retry_after=2.3s attempt=2</div>
+      </div>
+      <div class="level-card">
+        <div class="level-name level-error">ERROR</div>
+        <div class="level-desc">Failed operations that were moved to DLQ, unexpected exceptions, corrupted state.</div>
+        <div class="level-example">bet.failed after 5 retries → DLQ</div>
+      </div>
+      <div class="level-card">
+        <div class="level-name level-critical">CRITICAL</div>
+        <div class="level-desc">Agent cannot continue: auth failure, wallet access lost, unrecoverable state. Requires immediate human intervention.</div>
+        <div class="level-example">auth.revoked cannot_continue=true</div>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Level</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bet placed successfully</td>
+            <td><span class="badge badge-green">INFO</span></td>
+            <td>Core audit event — always log</td>
+          </tr>
+          <tr>
+            <td>API request sent (body)</td>
+            <td><span class="badge badge-blue">DEBUG</span></td>
+            <td>Verbose, disable in production</td>
+          </tr>
+          <tr>
+            <td>429 rate limit hit</td>
+            <td><span class="badge badge-yellow">WARNING</span></td>
+            <td>Abnormal but handled automatically</td>
+          </tr>
+          <tr>
+            <td>Retry attempt N</td>
+            <td><span class="badge badge-yellow">WARNING</span></td>
+            <td>Indicates transient instability</td>
+          </tr>
+          <tr>
+            <td>Balance below threshold</td>
+            <td><span class="badge badge-yellow">WARNING</span></td>
+            <td>Actionable soon but not urgent</td>
+          </tr>
+          <tr>
+            <td>Operation moved to DLQ</td>
+            <td><span class="badge badge-red">ERROR</span></td>
+            <td>Financial operation permanently failed</td>
+          </tr>
+          <tr>
+            <td>Escrow created</td>
+            <td><span class="badge badge-green">INFO</span></td>
+            <td>Financial commitment — always log</td>
+          </tr>
+          <tr>
+            <td>Unhandled exception</td>
+            <td><span class="badge badge-red">ERROR</span></td>
+            <td>Unexpected code path</td>
+          </tr>
+          <tr>
+            <td>API key revoked</td>
+            <td><span class="badge badge-red">CRITICAL</span></td>
+            <td>Agent must stop immediately</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="centralized-logging">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <h2>Centralized Logging Patterns</h2>
+    </div>
+
+    <p>A single agent writing to stdout is fine when you have one agent. When you have ten agents running across multiple machines, you need centralized log aggregation. The standard patterns — Loki, Elasticsearch, CloudWatch — all accept JSON newline-delimited logs from a log shipper.</p>
+
+    <h3>Log Rotation and Retention</h3>
+    <p>For agents with minimal infrastructure, a rotating file handler plus periodic upload to object storage provides cheap, durable log storage with good query capability via <code>jq</code>:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">log_rotation.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> logging
+<span class="kw">import</span> logging.handlers
+<span class="kw">import</span> gzip
+<span class="kw">import</span> shutil
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="kw">def</span> <span class="fn">configure_file_logging</span>(
+    agent_id: str,
+    log_dir: str <span class="op">=</span> <span class="st">"/var/log/agents"</span>,
+    max_bytes: int <span class="op">=</span> <span class="nm">50</span> <span class="op">*</span> <span class="nm">1024</span> <span class="op">*</span> <span class="nm">1024</span>,  <span class="cm"># 50MB per file</span>
+    backup_count: int <span class="op">=</span> <span class="nm">10</span>,                <span class="cm"># Keep 10 rotated files</span>
+) <span class="op">-></span> <span class="kw">None</span>:
+    <span class="st">"""Add rotating file handler alongside stdout handler."""</span>
+    Path(log_dir).<span class="fn">mkdir</span>(parents<span class="op">=</span><span class="kw">True</span>, exist_ok<span class="op">=</span><span class="kw">True</span>)
+    log_file <span class="op">=</span> <span class="st">f"{log_dir}/{agent_id}.jsonl"</span>
+
+    file_handler <span class="op">=</span> logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes<span class="op">=</span>max_bytes,
+        backupCount<span class="op">=</span>backup_count,
+        encoding<span class="op">=</span><span class="st">"utf-8"</span>,
+    )
+    file_handler.setFormatter(JSONFormatter(agent_id<span class="op">=</span>agent_id, service<span class="op">=</span><span class="st">"agent"</span>))
+    file_handler.addFilter(TraceInjector())
+
+    logging.getLogger().<span class="fn">addHandler</span>(file_handler)
+
+<span class="kw">async def</span> <span class="fn">ship_logs_to_s3</span>(agent_id: str, log_dir: str, bucket: str):
+    <span class="st">"""Compress and upload rotated log files to S3/R2/MinIO."""</span>
+    <span class="kw">import</span> boto3
+    s3 <span class="op">=</span> boto3.client(<span class="st">"s3"</span>)
+    today <span class="op">=</span> datetime.now(timezone.utc).strftime(<span class="st">"%Y-%m-%d"</span>)
+
+    <span class="kw">for</span> log_file <span class="kw">in</span> Path(log_dir).<span class="fn">glob</span>(<span class="st">f"{agent_id}.jsonl.*"</span>):
+        gz_file <span class="op">=</span> <span class="st">f"{log_file}.gz"</span>
+        <span class="kw">with</span> <span class="fn">open</span>(log_file, <span class="st">"rb"</span>) <span class="kw">as</span> f_in:
+            <span class="kw">with</span> gzip.<span class="fn">open</span>(gz_file, <span class="st">"wb"</span>) <span class="kw">as</span> f_out:
+                shutil.<span class="fn">copyfileobj</span>(f_in, f_out)
+
+        key <span class="op">=</span> <span class="st">f"logs/{agent_id}/{today}/{log_file.name}.gz"</span>
+        s3.<span class="fn">upload_file</span>(<span class="fn">str</span>(gz_file), bucket, key)
+        log_file.<span class="fn">unlink</span>()
+        Path(gz_file).<span class="fn">unlink</span>()
+</code></pre>
+    </div>
+
+    <h3>Shipping to Loki (Grafana)</h3>
+    <p>Loki is the lightweight log aggregation system from Grafana Labs. It ingests logs with labels and stores them cheaply without indexing log bodies. For JSON logs from agents, it is an excellent choice:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">loki_handler.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+<span class="kw">import</span> json
+<span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="kw">class</span> <span class="cl">LokiHandler</span>(logging.Handler):
+    <span class="st">"""
+    Async batch log handler that ships to Loki push API.
+    Buffers logs and sends in batches to reduce HTTP overhead.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        loki_url: str,
+        labels: dict,
+        batch_size: int <span class="op">=</span> <span class="nm">100</span>,
+        flush_interval: float <span class="op">=</span> <span class="nm">5.0</span>,
+    ):
+        <span class="fn">super</span>().__init__()
+        self.loki_url <span class="op">=</span> loki_url.rstrip(<span class="st">"/"</span>) <span class="op">+</span> <span class="st">"/loki/api/v1/push"</span>
+        self.labels <span class="op">=</span> labels
+        self.batch_size <span class="op">=</span> batch_size
+        self.flush_interval <span class="op">=</span> flush_interval
+        self._buffer: deque <span class="op">=</span> deque(maxlen<span class="op">=</span><span class="nm">10000</span>)
+        asyncio.create_task(self._flush_loop())
+
+    <span class="kw">def</span> <span class="fn">emit</span>(self, record: logging.LogRecord):
+        <span class="kw">try</span>:
+            msg <span class="op">=</span> self.format(record)
+            ts_ns <span class="op">=</span> <span class="fn">str</span>(<span class="fn">int</span>(record.created <span class="op">*</span> <span class="nm">1e9</span>))
+            self._buffer.<span class="fn">append</span>((ts_ns, msg))
+        <span class="kw">except</span> <span class="cl">Exception</span>:
+            self.<span class="fn">handleError</span>(record)
+
+    <span class="kw">async def</span> <span class="fn">_flush_loop</span>(self):
+        <span class="kw">while</span> <span class="kw">True</span>:
+            <span class="kw">await</span> asyncio.sleep(self.flush_interval)
+            <span class="kw">if</span> self._buffer:
+                <span class="kw">await</span> self._flush()
+
+    <span class="kw">async def</span> <span class="fn">_flush</span>(self):
+        batch <span class="op">=</span> []
+        <span class="kw">while</span> self._buffer <span class="kw">and</span> <span class="fn">len</span>(batch) <span class="op"><</span> self.batch_size:
+            batch.<span class="fn">append</span>(self._buffer.popleft())
+
+        <span class="kw">if not</span> batch:
+            <span class="kw">return</span>
+
+        label_str <span class="op">=</span> <span class="st">","</span>.join(<span class="st">f'{k}="{v}"'</span> <span class="kw">for</span> k, v <span class="kw">in</span> self.labels.items())
+        payload <span class="op">=</span> {
+            <span class="st">"streams"</span>: [{
+                <span class="st">"stream"</span>: {<span class="st">f"{{label_str}}"</span>: <span class="st">""</span>, <span class="op">**</span>self.labels},
+                <span class="st">"values"</span>: batch,
+            }]
+        }
+        <span class="kw">try</span>:
+            <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> s:
+                <span class="kw">await</span> s.post(
+                    self.loki_url, json<span class="op">=</span>payload,
+                    timeout<span class="op">=</span>aiohttp.ClientTimeout(total<span class="op">=</span><span class="nm">10</span>)
+                )
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+            <span class="cm"># Re-queue failed batch (up to buffer limit)</span>
+            <span class="kw">for</span> entry <span class="kw">in</span> batch:
+                self._buffer.appendleft(entry)
+
+<span class="cm"># Add Loki shipping alongside file logging</span>
+loki_handler <span class="op">=</span> LokiHandler(
+    loki_url<span class="op">=</span>os.environ[<span class="st">"LOKI_URL"</span>],
+    labels<span class="op">=</span>{
+        <span class="st">"agent_id"</span>: os.environ.get(<span class="st">"AGENT_ID"</span>, <span class="st">"default"</span>),
+        <span class="st">"service"</span>: <span class="st">"casino-agent"</span>,
+        <span class="st">"env"</span>: <span class="st">"production"</span>,
+    },
+)
+logging.getLogger().<span class="fn">addHandler</span>(loki_handler)
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="debugging-production">
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <h2>Debugging Production Issues</h2>
+    </div>
+
+    <p>When something goes wrong with a production agent, you have structured logs, trace IDs, and metrics. Here is the systematic process for diagnosing issues fast.</p>
+
+    <h3>Step 1: Identify the Failing Transaction</h3>
+    <p>Start with the alert or symptom — a DLQ entry, a balance anomaly, or a user report. Extract the operation ID or timeframe from the alert payload:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Bash</span>
+        <span class="code-file">debug.sh</span>
+      </div>
+      <pre><code><span class="cm"># Find all ERROR logs from the last hour</span>
+journalctl -u casino-agent --since <span class="st">"1 hour ago"</span> \
+  <span class="op">|</span> jq -c <span class="st">'select(.level == "error")'</span>
+
+<span class="cm"># Get all log lines for a specific trace ID</span>
+journalctl -u casino-agent <span class="op">|</span> jq -c <span class="st">'select(.trace_id == "t_7f3a2c9d")'</span>
+
+<span class="cm"># Find bets over $50 that resulted in a loss</span>
+journalctl -u casino-agent --since <span class="st">"24 hours ago"</span> \
+  <span class="op">|</span> jq -c <span class="st">'select(.event == "bet.complete" and .outcome == "loss" and .amount_usdc > 50)'</span>
+
+<span class="cm"># Count errors by type in last hour</span>
+journalctl -u casino-agent --since <span class="st">"1 hour ago"</span> \
+  <span class="op">|</span> jq -c <span class="st">'select(.level == "error") | .error.type'</span> \
+  <span class="op">|</span> sort <span class="op">|</span> uniq -c <span class="op">|</span> sort -rn
+
+<span class="cm"># View complete timeline of a failing escrow</span>
+journalctl -u escrow-agent \
+  <span class="op">|</span> jq -c <span class="st">'select(.escrow_id == "esc_4b8c1a3e")'</span> \
+  <span class="op">|</span> jq -r <span class="st">'. | "\(.ts) [\(.level)] \(.event)"'</span>
+
+<span class="cm"># Find all DLQ entries from today</span>
+sqlite3 /var/lib/agent/dlq.db \
+  <span class="st">"SELECT operation_type, error_code, error_message, datetime(last_attempt_ts, 'unixepoch')
+   FROM dead_letters WHERE resolved=0 ORDER BY last_attempt_ts DESC LIMIT 20"</span>
+</code></pre>
+    </div>
+
+    <h3>Step 2: Reconstruct the Decision Chain</h3>
+    <p>Once you have a trace ID, reconstruct the full execution flow from logs:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">trace_replay.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> json
+<span class="kw">import</span> subprocess
+<span class="kw">from</span> typing <span class="kw">import</span> List
+
+<span class="kw">def</span> <span class="fn">replay_trace</span>(trace_id: str, log_file: str <span class="op">=</span> <span class="kw">None</span>) <span class="op">-></span> List[dict]:
+    <span class="st">"""Extract and display all events for a trace ID in chronological order."""</span>
+    <span class="kw">if</span> log_file:
+        result <span class="op">=</span> subprocess.<span class="fn">run</span>(
+            [<span class="st">"jq"</span>, <span class="st">f'-c select(.trace_id == "{trace_id}")'</span>, log_file],
+            capture_output<span class="op">=</span><span class="kw">True</span>, text<span class="op">=</span><span class="kw">True</span>
+        )
+        lines <span class="op">=</span> result.stdout.strip().split(<span class="st">"\n"</span>)
+    <span class="kw">else</span>:
+        result <span class="op">=</span> subprocess.<span class="fn">run</span>(
+            [<span class="st">"journalctl"</span>, <span class="st">"-u"</span>, <span class="st">"casino-agent"</span>, <span class="st">"-o"</span>, <span class="st">"json-pretty"</span>, <span class="st">"--no-pager"</span>],
+            capture_output<span class="op">=</span><span class="kw">True</span>, text<span class="op">=</span><span class="kw">True</span>
+        )
+        lines <span class="op">=</span> result.stdout.strip().split(<span class="st">"\n"</span>)
+
+    events <span class="op">=</span> []
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        <span class="kw">if not</span> line.strip():
+            <span class="kw">continue</span>
+        <span class="kw">try</span>:
+            ev <span class="op">=</span> json.loads(line)
+            <span class="kw">if</span> ev.get(<span class="st">"trace_id"</span>) <span class="op">==</span> trace_id:
+                events.<span class="fn">append</span>(ev)
+        <span class="kw">except</span>:
+            <span class="kw">pass</span>
+
+    events.sort(key<span class="op">=</span><span class="kw">lambda</span> e: e[<span class="st">"ts"</span>])
+
+    <span class="fn">print</span>(<span class="st">f"\n=== Trace {trace_id} ({'%d events' % len(events)}) ===\n"</span>)
+    <span class="kw">for</span> ev <span class="kw">in</span> events:
+        level_color <span class="op">=</span> {
+            <span class="st">"debug"</span>: <span class="st">"\033[34m"</span>, <span class="st">"info"</span>: <span class="st">"\033[32m"</span>,
+            <span class="st">"warning"</span>: <span class="st">"\033[33m"</span>, <span class="st">"error"</span>: <span class="st">"\033[31m"</span>,
+        }.get(ev.get(<span class="st">"level"</span>, <span class="st">""</span>), <span class="st">""</span>)
+        reset <span class="op">=</span> <span class="st">"\033[0m"</span>
+        ts <span class="op">=</span> ev[<span class="st">"ts"</span>][<span class="nm">11</span>:<span class="nm">23</span>]  <span class="cm"># Time portion only</span>
+        <span class="fn">print</span>(<span class="st">f"{ts} {level_color}[{ev.get('level','?').upper():8}]{reset} {ev.get('event', '')}"</span>)
+        <span class="kw">for</span> k <span class="kw">in</span> [<span class="st">"bet_id"</span>, <span class="st">"amount_usdc"</span>, <span class="st">"outcome"</span>, <span class="st">"payout_usdc"</span>, <span class="st">"error_type"</span>]:
+            <span class="kw">if</span> k <span class="kw">in</span> ev:
+                <span class="fn">print</span>(<span class="st">f"         {k}={ev[k]}"</span>)
+    <span class="kw">return</span> events
+
+<span class="cm"># Usage: python -c "from trace_replay import replay_trace; replay_trace('t_7f3a2c9d')"</span>
+</code></pre>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section" id="full-setup">
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <h2>Complete Logging Setup</h2>
+    </div>
+
+    <p>Putting it all together: a complete, ready-to-drop-in logging module that configures JSON formatting, trace injection, file rotation, and optional Loki shipping from a single setup call.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">observability.py</span>
+      </div>
+      <pre><code><span class="st">"""
+Complete observability setup for Purple Flea agents.
+
+Usage:
+    from observability import setup_logging, trace
+
+    setup_logging(agent_id="my-agent", service="casino-agent")
+
+    async def run():
+        async with trace("session.start"):
+            log = logging.getLogger("agent")
+            log.info("starting_session", extra={"balance": 100.0})
+
+            async with trace("casino.bet"):
+                result = await place_bet(...)
+                log.info("bet.complete", extra={"outcome": result["outcome"]})
+"""</span>
+
+<span class="kw">import</span> os
+<span class="kw">import</span> logging
+<span class="kw">import</span> sys
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">ObservabilityConfig</span>:
+    agent_id: str
+    service: str
+    log_level: str <span class="op">=</span> <span class="st">"INFO"</span>
+    log_file: Optional[str] <span class="op">=</span> <span class="kw">None</span>
+    loki_url: Optional[str] <span class="op">=</span> <span class="kw">None</span>
+    pretty_console: bool <span class="op">=</span> <span class="kw">False</span>  <span class="cm"># Human-readable in dev, JSON in prod</span>
+
+<span class="kw">def</span> <span class="fn">setup_logging</span>(config: ObservabilityConfig) <span class="op">-></span> logging.Logger:
+    <span class="st">"""
+    Configure complete observability stack:
+    - JSON structured logging to stdout
+    - TraceInjector filter on all handlers
+    - Optional rotating file handler
+    - Optional Loki shipping
+    """</span>
+    root <span class="op">=</span> logging.getLogger()
+    root.handlers.clear()
+    root.<span class="fn">setLevel</span>(getattr(logging, config.log_level))
+
+    formatter <span class="op">=</span> JSONFormatter(agent_id<span class="op">=</span>config.agent_id, service<span class="op">=</span>config.service)
+    trace_filter <span class="op">=</span> TraceInjector()
+
+    <span class="cm"># Always: stdout handler</span>
+    stdout_handler <span class="op">=</span> logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(formatter)
+    stdout_handler.addFilter(trace_filter)
+    root.<span class="fn">addHandler</span>(stdout_handler)
+
+    <span class="cm"># Optional: rotating file handler</span>
+    <span class="kw">if</span> config.log_file:
+        configure_file_logging(config.agent_id, log_dir<span class="op">=</span>os.path.<span class="fn">dirname</span>(config.log_file))
+
+    <span class="cm"># Optional: Loki shipping</span>
+    <span class="kw">if</span> config.loki_url:
+        loki <span class="op">=</span> LokiHandler(
+            loki_url<span class="op">=</span>config.loki_url,
+            labels<span class="op">=</span>{
+                <span class="st">"agent_id"</span>: config.agent_id,
+                <span class="st">"service"</span>: config.service,
+                <span class="st">"env"</span>: os.environ.get(<span class="st">"ENV"</span>, <span class="st">"production"</span>),
+            },
+        )
+        loki.setFormatter(formatter)
+        loki.addFilter(trace_filter)
+        root.<span class="fn">addHandler</span>(loki)
+
+    <span class="cm"># Silence noisy third-party loggers</span>
+    logging.getLogger(<span class="st">"httpx"</span>).<span class="fn">setLevel</span>(logging.WARNING)
+    logging.getLogger(<span class="st">"websockets"</span>).<span class="fn">setLevel</span>(logging.WARNING)
+    logging.getLogger(<span class="st">"aiohttp"</span>).<span class="fn">setLevel</span>(logging.WARNING)
+
+    log <span class="op">=</span> logging.getLogger(config.service)
+    log.info(<span class="st">"logging.configured"</span>, extra<span class="op">=</span>{
+        <span class="st">"log_level"</span>: config.log_level,
+        <span class="st">"file_handler"</span>: config.log_file <span class="kw">is not None</span>,
+        <span class="st">"loki_handler"</span>: config.loki_url <span class="kw">is not None</span>,
+    })
+    <span class="kw">return</span> log
+
+<span class="cm"># Entrypoint usage</span>
+<span class="kw">if</span> <span class="fn">__name__</span> <span class="op">==</span> <span class="st">"__main__"</span>:
+    cfg <span class="op">=</span> ObservabilityConfig(
+        agent_id<span class="op">=</span>os.environ.get(<span class="st">"AGENT_ID"</span>, <span class="st">"casino-agent-001"</span>),
+        service<span class="op">=</span><span class="st">"casino-agent"</span>,
+        log_level<span class="op">=</span>os.environ.get(<span class="st">"LOG_LEVEL"</span>, <span class="st">"INFO"</span>),
+        log_file<span class="op">=</span>os.environ.get(<span class="st">"LOG_FILE"</span>),
+        loki_url<span class="op">=</span>os.environ.get(<span class="st">"LOKI_URL"</span>),
+    )
+    log <span class="op">=</span> setup_logging(cfg)
+    asyncio.<span class="fn">run</span>(<span class="fn">main</span>())
+</code></pre>
+    </div>
+
+    <div class="callout callout-success">
+      <div class="callout-icon">&#10003;</div>
+      <div class="callout-body">
+        <strong>The Two-Minute Debug Rule</strong>
+        <p>With structured logging, trace IDs, and the <code>jq</code> queries in section 5, you should be able to identify the root cause of any production issue within two minutes of receiving an alert. If it takes longer, add more log fields to the relevant operations. Good logging pays for itself the first time something goes wrong at 3 AM.</p>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Practice</th>
+            <th>Impact</th>
+            <th>Complexity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>JSON structured logs</td>
+            <td><span class="badge badge-green">High</span></td>
+            <td><span class="badge badge-green">Low — one formatter change</span></td>
+          </tr>
+          <tr>
+            <td>Trace IDs with contextvars</td>
+            <td><span class="badge badge-green">High</span></td>
+            <td><span class="badge badge-yellow">Medium — wrap operations</span></td>
+          </tr>
+          <tr>
+            <td>Log level discipline</td>
+            <td><span class="badge badge-green">High</span></td>
+            <td><span class="badge badge-green">Low — team convention</span></td>
+          </tr>
+          <tr>
+            <td>Rotating file handler</td>
+            <td><span class="badge badge-yellow">Medium</span></td>
+            <td><span class="badge badge-green">Low — stdlib</span></td>
+          </tr>
+          <tr>
+            <td>Loki/Grafana shipping</td>
+            <td><span class="badge badge-yellow">Medium</span></td>
+            <td><span class="badge badge-yellow">Medium — infra needed</span></td>
+          </tr>
+          <tr>
+            <td>OpenTelemetry tracing</td>
+            <td><span class="badge badge-green">High</span></td>
+            <td><span class="badge badge-red">High — full instrumentation</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <h2>Build Fully Observable Agents on Purple Flea</h2>
+    <p>6 live APIs, free USDC to get started, and a research paper on agent financial infrastructure. Everything you need to build and run production agents.</p>
+    <div class="cta-buttons">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Get Free USDC</a>
+      <a href="https://escrow.purpleflea.com" class="btn btn-secondary">Agent Escrow</a>
+      <a href="https://doi.org/10.5281/zenodo.18808440" class="btn btn-secondary">Research Paper</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="nav-logo" style="font-size:16px;">Purple<span style="color:var(--purple-light)">Flea</span></div>
+        <p>Blue chip financial infrastructure for AI agents. 6 live services, production-ready APIs, and open research.</p>
+      </div>
+      <div class="footer-col">
+        <h4>APIs</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
+          <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
+          <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
+          <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Research</h4>
+        <ul>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Zenodo Paper</a></li>
+          <li><a href="https://purpleflea.com/blog/">Blog</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. Agent financial infrastructure.</p>
+      <p>Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
