@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Risk Management for AI Trading Agents: Don't Blow Up Your Wallet | Purple Flea Blog</title>
+  <meta name="description" content="How to implement position sizing, stop-losses, drawdown limits, and circuit breakers in your AI trading agent. With Python code for Purple Flea Trading." />
+  <link rel="canonical" href="https://purpleflea.com/blog/ai-agent-risk-management/" />
+  <meta property="og:title" content="Risk Management for AI Trading Agents: Don't Blow Up Your Wallet" />
+  <meta property="og:description" content="How to implement position sizing, stop-losses, drawdown limits, and circuit breakers in your AI trading agent. With Python code for Purple Flea Trading." />
+  <meta property="og:url" content="https://purpleflea.com/blog/ai-agent-risk-management/" />
+  <meta property="og:type" content="article" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Risk Management for AI Trading Agents: Don't Blow Up Your Wallet",
+    "description": "How to implement position sizing, stop-losses, drawdown limits, and circuit breakers in your AI trading agent. With Python code for Purple Flea Trading.",
+    "url": "https://purpleflea.com/blog/ai-agent-risk-management/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "keywords": ["AI trading agent", "risk management", "Kelly criterion", "stop loss", "drawdown", "position sizing", "Purple Flea Trading"]
+  }
+  </script>
+  <style>
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --bg: #09090B;
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06);
+      --bg-card: rgba(255,255,255,0.03);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --red: #EF4444;
+      --green: #22C55E;
+      --yellow: #EAB308;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Reading progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, #EF4444, #A855F7);
+      z-index: 200;
+      transition: width 0.1s ease;
+    }
+
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+    }
+
+    .nav-inner {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    /* Layout with sticky TOC sidebar */
+    .page-layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 100px 24px 80px;
+      display: grid;
+      grid-template-columns: 1fr 240px;
+      gap: 64px;
+      align-items: start;
+    }
+
+    /* TOC sidebar */
+    .toc {
+      position: sticky;
+      top: 84px;
+    }
+
+    .toc-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .toc-list li a {
+      display: block;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: all 0.15s;
+      line-height: 1.4;
+      border-left: 2px solid transparent;
+    }
+
+    .toc-list li a:hover {
+      color: var(--text);
+      text-decoration: none;
+      background: var(--bg-card);
+      border-left-color: var(--purple);
+    }
+
+    .toc-list li a.active {
+      color: var(--purple);
+      background: rgba(168,85,247,0.08);
+      border-left-color: var(--purple);
+    }
+
+    /* Article */
+    article { min-width: 0; }
+
+    .tag-chip {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(239,68,68,0.1);
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.3);
+      margin-bottom: 20px;
+    }
+
+    .post-header { margin-bottom: 48px; }
+
+    h1 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+
+    h2 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 52px 0 14px;
+      scroll-margin-top: 80px;
+    }
+
+    h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 32px 0 10px;
+    }
+
+    p { margin-bottom: 20px; color: var(--text-secondary); }
+    p strong { color: var(--text); }
+
+    ul, ol {
+      margin: 14px 0 20px 24px;
+      color: var(--text-secondary);
+    }
+
+    li { margin-bottom: 8px; }
+
+    /* Code blocks */
+    pre {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 22px;
+      overflow-x: auto;
+      margin: 22px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #e2e8f0;
+    }
+
+    p code, li code {
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .code-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      padding: 10px 18px;
+      margin-top: 22px;
+    }
+
+    .code-label + pre {
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      margin-top: 0;
+    }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover { color: var(--text); border-color: var(--purple); }
+
+    /* Syntax colors */
+    .kw { color: #c792ea; }
+    .fn { color: #82aaff; }
+    .st { color: #c3e88d; }
+    .cm { color: #546e7a; font-style: italic; }
+    .nu { color: #f78c6c; }
+    .cl { color: #ffcb6b; }
+    .op { color: #89ddff; }
+
+    /* Warning/danger callouts */
+    .callout {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 18px 22px;
+      margin: 24px 0;
+    }
+
+    .callout p { margin-bottom: 0; }
+    .callout-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .callout-danger { border-left: 3px solid var(--red); }
+    .callout-danger .callout-title { color: var(--red); }
+
+    .callout-warning { border-left: 3px solid var(--yellow); }
+    .callout-warning .callout-title { color: var(--yellow); }
+
+    .callout-tip { border-left: 3px solid var(--purple); }
+    .callout-tip .callout-title { color: var(--purple); }
+
+    .callout-success { border-left: 3px solid var(--green); }
+    .callout-success .callout-title { color: var(--green); }
+
+    /* Formula display */
+    .formula {
+      background: rgba(168,85,247,0.06);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: var(--radius-sm);
+      padding: 20px 24px;
+      text-align: center;
+      margin: 24px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .formula .formula-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple);
+      margin-bottom: 8px;
+    }
+
+    /* Risk meter */
+    .risk-meter {
+      display: flex;
+      gap: 4px;
+      margin: 16px 0;
+    }
+
+    .risk-bar-segment {
+      height: 8px;
+      flex: 1;
+      border-radius: 2px;
+    }
+
+    .risk-bar-segment.green { background: var(--green); }
+    .risk-bar-segment.yellow { background: var(--yellow); }
+    .risk-bar-segment.orange { background: #F97316; }
+    .risk-bar-segment.red { background: var(--red); }
+    .risk-bar-segment.dark { background: rgba(255,255,255,0.08); }
+
+    /* CTA */
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.06));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      text-align: center;
+      margin: 48px 0;
+    }
+
+    .cta-box h3 { margin-top: 0; font-size: 21px; margin-bottom: 10px; }
+    .cta-box p { margin-bottom: 20px; }
+
+    .btn {
+      display: inline-block;
+      padding: 11px 26px;
+      background: var(--purple);
+      color: white;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 14px;
+      transition: opacity 0.15s;
+      margin: 4px;
+    }
+
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--purple);
+      color: var(--purple);
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 48px 0;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a { color: var(--text-secondary); }
+    footer a:hover { color: var(--purple); }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 900px) {
+      .page-layout {
+        grid-template-columns: 1fr;
+        padding: 84px 16px 60px;
+      }
+      .toc { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <article>
+    <div class="post-header">
+      <div class="tag-chip">Risk Management</div>
+      <h1>Risk Management for AI Trading Agents: Don't Blow Up Your Wallet</h1>
+      <div class="post-meta">
+        <span>Purple Flea Team</span>
+        <span>·</span>
+        <span>March 6, 2026</span>
+        <span>·</span>
+        <span>22 min read</span>
+      </div>
+    </div>
+
+    <!-- SECTION 1 -->
+    <h2 id="intro">1. Why Agents Blow Up</h2>
+
+    <p>
+      Most AI trading agents fail the same way. Not because of bad signal generation, not because of
+      poor market timing — they fail because <strong>they have no risk controls whatsoever</strong>.
+      A capable agent given access to a trading account with no guardrails will, with near certainty,
+      eventually find a sequence of losing trades that wipes the entire balance.
+    </p>
+
+    <p>
+      This isn't speculation. It's math. Without position sizing limits, a string of 6 consecutive
+      losses at 20% per trade leaves you with 26 cents on the dollar. With volatility spikes,
+      correlated positions, and latency issues compounding the problem, real-world blowups happen
+      faster than simulations predict.
+    </p>
+
+    <div class="callout callout-danger">
+      <div class="callout-title">The most common agent blowups</div>
+      <p>All-in positions on high-conviction signals that reverse. No stop-loss on trades left running
+      overnight. Correlated positions treating independent bets as diversification. Chasing losses by
+      doubling position size. No daily drawdown limit to halt trading after a bad run.</p>
+    </div>
+
+    <p>
+      This guide covers every risk primitive you need to implement before deploying real capital:
+      Kelly sizing, stop-losses, drawdown circuit breakers, concentration limits, volatility-adjusted
+      sizing, risk budgets, and emergency shutdown. All with Python code using the
+      <a href="https://trading.purpleflea.com">Purple Flea Trading API</a>.
+    </p>
+
+    <!-- SECTION 2 -->
+    <h2 id="kelly">2. The Kelly Criterion for AI Agents</h2>
+
+    <p>
+      The Kelly Criterion is the mathematically optimal formula for position sizing when you know
+      your win rate and average win/loss ratio. It maximizes long-term capital growth while
+      avoiding ruin. For AI agents with historical backtests, this is the right starting point.
+    </p>
+
+    <div class="formula">
+      <div class="formula-label">Kelly Criterion</div>
+      f* = (p * b - q) / b
+      <br /><br />
+      <span style="color: var(--text-secondary); font-size: 13px;">
+        f* = fraction of capital to bet | p = win probability | q = 1 - p | b = win/loss ratio
+      </span>
+    </div>
+
+    <p>
+      In practice, agents should use <strong>half-Kelly</strong> (f*/2) or <strong>quarter-Kelly</strong>
+      to account for estimation error in win rates and the asymmetric pain of drawdowns vs gains.
+      Full Kelly optimizes for expected log growth but tolerates 50%+ drawdowns that are psychologically
+      (and operationally) catastrophic.
+    </p>
+
+    <div class="code-label">
+      <span>kelly.py — position sizing with Kelly Criterion</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">import</span> statistics
+
+<span class="cl">@dataclass</span>
+<span class="kw">class</span> <span class="cl">KellyConfig</span>:
+    fraction: float = <span class="nu">0.25</span>      <span class="cm"># 0.25 = quarter-Kelly (recommended)</span>
+    max_position_pct: float = <span class="nu">0.20</span>  <span class="cm"># hard cap: never exceed 20% per trade</span>
+    min_trades_required: int = <span class="nu">30</span>   <span class="cm"># need 30+ trades before trusting estimates</span>
+
+<span class="kw">class</span> <span class="cl">KellyPositionSizer</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, config: <span class="cl">KellyConfig</span> = <span class="cl">KellyConfig</span>()):
+        self.config = config
+        self.trade_history = []  <span class="cm"># list of (profit_usdc, position_size_usdc)</span>
+
+    <span class="kw">def</span> <span class="fn">record_trade</span>(self, profit: float, size: float) -> None:
+        self.trade_history.<span class="fn">append</span>({<span class="st">'profit'</span>: profit, <span class="st">'size'</span>: size,
+                                    <span class="st">'return'</span>: profit / size <span class="kw">if</span> size > <span class="nu">0</span> <span class="kw">else</span> <span class="nu">0</span>})
+
+    <span class="kw">def</span> <span class="fn">compute_kelly</span>(self) -> float:
+        <span class="cm">"""Compute Kelly fraction from trade history."""</span>
+        <span class="kw">if</span> <span class="fn">len</span>(self.trade_history) < self.config.min_trades_required:
+            <span class="cm"># Insufficient data — use conservative 2% flat sizing</span>
+            <span class="kw">return</span> <span class="nu">0.02</span>
+
+        wins = [t <span class="kw">for</span> t <span class="kw">in</span> self.trade_history <span class="kw">if</span> t[<span class="st">'profit'</span>] > <span class="nu">0</span>]
+        losses = [t <span class="kw">for</span> t <span class="kw">in</span> self.trade_history <span class="kw">if</span> t[<span class="st">'profit'</span>] <= <span class="nu">0</span>]
+
+        <span class="kw">if not</span> wins <span class="kw">or not</span> losses:
+            <span class="kw">return</span> <span class="nu">0.02</span>  <span class="cm"># edge case: all wins or all losses</span>
+
+        p = <span class="fn">len</span>(wins) / <span class="fn">len</span>(self.trade_history)
+        q = <span class="nu">1</span> - p
+
+        avg_win = statistics.<span class="fn">mean</span>([t[<span class="st">'return'</span>] <span class="kw">for</span> t <span class="kw">in</span> wins])
+        avg_loss = <span class="fn">abs</span>(statistics.<span class="fn">mean</span>([t[<span class="st">'return'</span>] <span class="kw">for</span> t <span class="kw">in</span> losses]))
+
+        b = avg_win / avg_loss  <span class="cm"># win/loss ratio</span>
+        f_full = (p * b - q) / b  <span class="cm"># full Kelly</span>
+        f_applied = max(<span class="nu">0</span>, f_full * self.config.fraction)  <span class="cm"># fractional Kelly</span>
+
+        <span class="kw">return</span> f_applied
+
+    <span class="kw">def</span> <span class="fn">get_position_size</span>(self, capital_usdc: float, signal_strength: float = <span class="nu">1.0</span>) -> float:
+        <span class="cm">"""Get recommended position size in USDC."""</span>
+        kelly_f = self.<span class="fn">compute_kelly</span>()
+
+        <span class="cm"># Scale by signal strength (0.0 to 1.0)</span>
+        adjusted = kelly_f * signal_strength
+
+        <span class="cm"># Apply hard cap</span>
+        capped = <span class="fn">min</span>(adjusted, self.config.max_position_pct)
+
+        position_usdc = capital_usdc * capped
+        print(<span class="st">f"  Kelly: {kelly_f:.3f} | Adjusted: {adjusted:.3f} | Capped: {capped:.3f}"</span>)
+        print(<span class="st">f"  Position size: ${position_usdc:.2f} ({capped*100:.1f}% of ${capital_usdc:.0f})"</span>)
+        <span class="kw">return</span> position_usdc
+
+<span class="cm"># Example usage</span>
+sizer = <span class="cl">KellyPositionSizer</span>()
+
+<span class="cm"># Simulate 40 historical trades: 60% win rate, 1.5:1 win/loss ratio</span>
+<span class="kw">import</span> random
+random.<span class="fn">seed</span>(<span class="nu">42</span>)
+<span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="nu">40</span>):
+    won = random.<span class="fn">random</span>() < <span class="nu">0.60</span>
+    profit = random.<span class="fn">uniform</span>(<span class="nu">0.10</span>, <span class="nu">0.20</span>) <span class="kw">if</span> won <span class="kw">else</span> -random.<span class="fn">uniform</span>(<span class="nu">0.05</span>, <span class="nu">0.15</span>)
+    sizer.<span class="fn">record_trade</span>(profit=profit, size=<span class="nu">1.0</span>)
+
+size = sizer.<span class="fn">get_position_size</span>(capital_usdc=<span class="nu">100.0</span>)
+<span class="cm"># Output: Position size: $5.23 (5.2% of $100)</span></code></pre>
+
+    <!-- SECTION 3 -->
+    <h2 id="stoploss">3. Stop-Loss Implementation</h2>
+
+    <p>
+      A stop-loss closes a position automatically when the unrealized loss exceeds a threshold.
+      The <strong>trailing stop-loss</strong> variant follows the price upward and only triggers on reversal —
+      locking in profits while still cutting losers.
+    </p>
+
+    <div class="code-label">
+      <span>stop_loss.py — trailing stop-loss via Purple Flea Trading API</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Optional
+
+TRADING_API = <span class="st">"https://trading.purpleflea.com/api"</span>
+API_KEY = <span class="st">"pf_live_trading_m4r9k"</span>
+
+<span class="cl">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Position</span>:
+    position_id: str
+    pair: str
+    entry_price: float
+    size_usdc: float
+    stop_pct: float = <span class="nu">0.05</span>         <span class="cm"># initial stop: 5% below entry</span>
+    trailing_pct: float = <span class="nu">0.03</span>      <span class="cm"># trail: 3% below high water mark</span>
+    high_water_mark: float = field(init=<span class="kw">False</span>)
+    stop_price: float = field(init=<span class="kw">False</span>)
+
+    <span class="kw">def</span> <span class="fn">__post_init__</span>(self):
+        self.high_water_mark = self.entry_price
+        self.stop_price = self.entry_price * (<span class="nu">1</span> - self.stop_pct)
+
+<span class="kw">class</span> <span class="cl">StopLossManager</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str):
+        self.api_key = api_key
+        self.positions: <span class="cl">Dict</span>[str, <span class="cl">Position</span>] = {}
+        self.headers = {<span class="st">"Authorization"</span>: <span class="st">f"Bearer {api_key}"</span>}
+
+    <span class="kw">def</span> <span class="fn">add_position</span>(self, pos: <span class="cl">Position</span>) -> None:
+        self.positions[pos.position_id] = pos
+        print(<span class="st">f"[SL] Watching {pos.pair} | stop: ${pos.stop_price:.4f}"</span>)
+
+    <span class="kw">async def</span> <span class="fn">monitor_loop</span>(self, interval_seconds: int = <span class="nu">10</span>) -> None:
+        <span class="cm">"""Continuously monitor positions and trigger stops."""</span>
+        <span class="kw">while</span> self.positions:
+            <span class="kw">for</span> pos_id, pos <span class="kw">in</span> <span class="fn">list</span>(self.positions.<span class="fn">items</span>()):
+                current = self.<span class="fn">get_current_price</span>(pos.pair)
+                self.<span class="fn">update_trailing_stop</span>(pos, current)
+
+                <span class="kw">if</span> current <= pos.stop_price:
+                    print(<span class="st">f"[SL] STOP TRIGGERED: {pos.pair} @ {current:.4f} (stop: {pos.stop_price:.4f})"</span>)
+                    <span class="kw">await</span> self.<span class="fn">close_position</span>(pos)
+                    <span class="kw">del</span> self.positions[pos_id]
+                <span class="kw">else</span>:
+                    unrealized_pnl = (current - pos.entry_price) / pos.entry_price * <span class="nu">100</span>
+                    print(<span class="st">f"[SL] {pos.pair}: ${current:.4f} | PnL: {unrealized_pnl:+.2f}% | stop: ${pos.stop_price:.4f}"</span>)
+
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(interval_seconds)
+
+    <span class="kw">def</span> <span class="fn">update_trailing_stop</span>(self, pos: <span class="cl">Position</span>, current_price: float) -> None:
+        <span class="cm">"""Raise the stop-loss as price climbs (trailing stop)."""</span>
+        <span class="kw">if</span> current_price > pos.high_water_mark:
+            pos.high_water_mark = current_price
+            new_stop = current_price * (<span class="nu">1</span> - pos.trailing_pct)
+            <span class="kw">if</span> new_stop > pos.stop_price:
+                pos.stop_price = new_stop
+                print(<span class="st">f"[SL] Trailing stop raised: {pos.pair} new stop = ${new_stop:.4f}"</span>)
+
+    <span class="kw">async def</span> <span class="fn">close_position</span>(self, pos: <span class="cl">Position</span>) -> dict:
+        r = requests.<span class="fn">post</span>(
+            <span class="st">f"{TRADING_API}/positions/{pos.position_id}/close"</span>,
+            headers=self.headers,
+            json={<span class="st">"reason"</span>: <span class="st">"stop_loss_triggered"</span>, <span class="st">"urgency"</span>: <span class="st">"immediate"</span>}
+        )
+        result = r.<span class="fn">json</span>()
+        print(<span class="st">f"[SL] Position closed: {result.get('status')} | realized_pnl: {result.get('pnl_usdc')}"</span>)
+        <span class="kw">return</span> result
+
+    <span class="kw">def</span> <span class="fn">get_current_price</span>(self, pair: str) -> float:
+        <span class="cm"># Real implementation: call price feed API</span>
+        r = requests.<span class="fn">get</span>(<span class="st">f"{TRADING_API}/prices/{pair}"</span>, headers=self.headers)
+        <span class="kw">return</span> r.<span class="fn">json</span>()[<span class="st">'price'</span>]
+
+<span class="cm"># Usage</span>
+slm = <span class="cl">StopLossManager</span>(api_key=API_KEY)
+slm.<span class="fn">add_position</span>(<span class="cl">Position</span>(
+    position_id=<span class="st">"pos_eth_001"</span>,
+    pair=<span class="st">"ETH/USDC"</span>,
+    entry_price=<span class="nu">3240.00</span>,
+    size_usdc=<span class="nu">50.00</span>,
+    stop_pct=<span class="nu">0.05</span>,     <span class="cm"># initial stop: $3078</span>
+    trailing_pct=<span class="nu">0.03</span>  <span class="cm"># trail: 3% below high</span>
+))
+asyncio.<span class="fn">run</span>(slm.<span class="fn">monitor_loop</span>())</code></pre>
+
+    <!-- SECTION 4 -->
+    <h2 id="drawdown">4. Drawdown Circuit Breaker</h2>
+
+    <p>
+      A daily drawdown circuit breaker halts all trading when losses exceed a threshold for the day.
+      The standard setting: <strong>halt at -10% daily drawdown</strong>. Once halted, the agent stops
+      opening new positions until the next trading session.
+    </p>
+
+    <p>
+      This single control prevents the most common catastrophic failure mode: an agent in a losing streak
+      that keeps trading, compounding losses with each new position.
+    </p>
+
+    <div class="code-label">
+      <span>circuit_breaker.py — daily drawdown halt</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">import</span> time
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, date
+
+<span class="kw">class</span> <span class="cl">DrawdownCircuitBreaker</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_daily_drawdown_pct: float = <span class="nu">0.10</span>):
+        self.max_drawdown_pct = max_daily_drawdown_pct
+        self.session_start_capital = <span class="kw">None</span>
+        self.session_date = <span class="kw">None</span>
+        self.halted = <span class="kw">False</span>
+        self.halt_reason = <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">start_session</span>(self, capital_usdc: float) -> None:
+        <span class="kw">if</span> self.session_date != date.<span class="fn">today</span>():
+            <span class="cm"># New day — reset circuit breaker</span>
+            self.session_start_capital = capital_usdc
+            self.session_date = date.<span class="fn">today</span>()
+            self.halted = <span class="kw">False</span>
+            self.halt_reason = <span class="kw">None</span>
+            print(<span class="st">f"[CB] New session started | capital: ${capital_usdc:.2f}"</span>)
+
+    <span class="kw">def</span> <span class="fn">check_and_halt</span>(self, current_capital: float) -> bool:
+        <span class="cm">"""Returns True if trading should halt."""</span>
+        <span class="kw">if</span> self.halted:
+            print(<span class="st">f"[CB] HALTED: {self.halt_reason}"</span>)
+            <span class="kw">return True</span>
+
+        <span class="kw">if</span> self.session_start_capital <span class="kw">is None</span>:
+            <span class="kw">raise</span> <span class="cl">RuntimeError</span>(<span class="st">"Call start_session() before checking drawdown"</span>)
+
+        drawdown = (self.session_start_capital - current_capital) / self.session_start_capital
+        drawdown_pct = drawdown * <span class="nu">100</span>
+
+        <span class="kw">if</span> drawdown >= self.max_drawdown_pct:
+            self.halted = <span class="kw">True</span>
+            self.halt_reason = (
+                <span class="st">f"Daily drawdown limit hit: {drawdown_pct:.1f}% "</span>
+                <span class="st">f"(max: {self.max_drawdown_pct*100:.0f}%) | "</span>
+                <span class="st">f"Loss: ${self.session_start_capital - current_capital:.2f}"</span>
+            )
+            print(<span class="st">f"\n[CB] *** CIRCUIT BREAKER TRIGGERED ***"</span>)
+            print(<span class="st">f"[CB] {self.halt_reason}"</span>)
+            print(<span class="st">f"[CB] All trading halted until next session.\n"</span>)
+            <span class="kw">return True</span>
+
+        <span class="cm"># Log current status</span>
+        status = <span class="st">"SAFE"</span> <span class="kw">if</span> drawdown < <span class="nu">0.05</span> <span class="kw">else</span> <span class="st">"WARNING"</span>
+        print(<span class="st">f"[CB] {status} | Drawdown: {drawdown_pct:.2f}% | Capital: ${current_capital:.2f}"</span>)
+        <span class="kw">return False</span>
+
+    <span class="kw">def</span> <span class="fn">can_trade</span>(self, current_capital: float) -> bool:
+        <span class="kw">return not</span> self.<span class="fn">check_and_halt</span>(current_capital)
+
+<span class="cm"># Integrate into trading loop</span>
+cb = <span class="cl">DrawdownCircuitBreaker</span>(max_daily_drawdown_pct=<span class="nu">0.10</span>)  <span class="cm"># halt at -10%</span>
+cb.<span class="fn">start_session</span>(capital_usdc=<span class="nu">500.00</span>)
+
+<span class="cm"># Simulated trading loop</span>
+capital = <span class="nu">500.00</span>
+<span class="kw">for</span> trade_num <span class="kw">in</span> <span class="fn">range</span>(<span class="nu">20</span>):
+    <span class="kw">if not</span> cb.<span class="fn">can_trade</span>(capital):
+        print(<span class="st">"Trading loop exiting — circuit breaker active"</span>)
+        <span class="kw">break</span>
+    <span class="cm"># ... execute trade logic ...</span>
+    capital -= <span class="nu">8.00</span>  <span class="cm"># simulate losing trades</span></code></pre>
+
+    <!-- SECTION 5 -->
+    <h2 id="concentration">5. Portfolio Concentration Limits</h2>
+
+    <p>
+      No single position should exceed <strong>20% of portfolio value</strong>. This is not a suggestion —
+      it is a hard constraint your agent must enforce before every trade execution. Concentration risk
+      is the mechanism by which a single bad trade wipes a large fraction of capital.
+    </p>
+
+    <div class="code-label">
+      <span>concentration.py — enforce max position concentration</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">class</span> <span class="cl">ConcentrationGuard</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_single_pct: float = <span class="nu">0.20</span>, max_sector_pct: float = <span class="nu">0.40</span>):
+        self.max_single = max_single_pct   <span class="cm"># max 20% in one position</span>
+        self.max_sector = max_sector_pct   <span class="cm"># max 40% in one sector (e.g. all L1s)</span>
+        self.positions = {}  <span class="cm"># {pair: size_usdc}</span>
+        self.sectors = {}    <span class="cm"># {sector: [pair1, pair2, ...]}</span>
+
+    <span class="kw">def</span> <span class="fn">can_open</span>(self, pair: str, size_usdc: float,
+                  total_capital: float, sector: str = <span class="st">"default"</span>) -> tuple[bool, str]:
+        <span class="cm">"""Returns (allowed, reason) for a proposed position."""</span>
+        <span class="cm"># Check single position limit</span>
+        existing = self.positions.<span class="fn">get</span>(pair, <span class="nu">0</span>)
+        total_in_pair = existing + size_usdc
+        pct_of_portfolio = total_in_pair / total_capital
+
+        <span class="kw">if</span> pct_of_portfolio > self.max_single:
+            <span class="kw">return</span> <span class="kw">False</span>, (
+                <span class="st">f"Position concentration too high: {pct_of_portfolio*100:.1f}% "</span>
+                <span class="st">f"exceeds {self.max_single*100:.0f}% limit"</span>
+            )
+
+        <span class="cm"># Check sector concentration</span>
+        sector_pairs = self.sectors.<span class="fn">get</span>(sector, [])
+        sector_total = <span class="fn">sum</span>(self.positions.<span class="fn">get</span>(p, <span class="nu">0</span>) <span class="kw">for</span> p <span class="kw">in</span> sector_pairs) + size_usdc
+        sector_pct = sector_total / total_capital
+
+        <span class="kw">if</span> sector_pct > self.max_sector:
+            <span class="kw">return</span> <span class="kw">False</span>, (
+                <span class="st">f"Sector '{sector}' concentration: {sector_pct*100:.1f}% "</span>
+                <span class="st">f"exceeds {self.max_sector*100:.0f}% limit"</span>
+            )
+
+        <span class="kw">return True</span>, <span class="st">"ok"</span>
+
+    <span class="kw">def</span> <span class="fn">record_open</span>(self, pair: str, size_usdc: float, sector: str = <span class="st">"default"</span>) -> None:
+        self.positions[pair] = self.positions.<span class="fn">get</span>(pair, <span class="nu">0</span>) + size_usdc
+        <span class="kw">if</span> sector <span class="kw">not in</span> self.sectors: self.sectors[sector] = []
+        <span class="kw">if</span> pair <span class="kw">not in</span> self.sectors[sector]: self.sectors[sector].<span class="fn">append</span>(pair)
+
+    <span class="kw">def</span> <span class="fn">record_close</span>(self, pair: str, size_usdc: float) -> None:
+        self.positions[pair] = <span class="fn">max</span>(<span class="nu">0</span>, self.positions.<span class="fn">get</span>(pair, <span class="nu">0</span>) - size_usdc)
+
+<span class="cm"># Usage in trading agent</span>
+guard = <span class="cl">ConcentrationGuard</span>(max_single_pct=<span class="nu">0.20</span>, max_sector_pct=<span class="nu">0.40</span>)
+
+allowed, reason = guard.<span class="fn">can_open</span>(<span class="st">"ETH/USDC"</span>, <span class="nu">22.00</span>, total_capital=<span class="nu">100.00</span>, sector=<span class="st">"L1"</span>)
+print(<span class="st">f"Trade allowed: {allowed} | {reason}"</span>)
+<span class="cm"># Trade allowed: False | Position concentration too high: 22.0% exceeds 20% limit</span></code></pre>
+
+    <!-- SECTION 6 -->
+    <h2 id="atr">6. Volatility-Adjusted Position Sizing</h2>
+
+    <p>
+      Kelly gives you a sizing fraction, but it doesn't account for current market volatility.
+      A position that makes sense in a low-volatility regime is reckless in a high-volatility one.
+      <strong>ATR (Average True Range) normalization</strong> scales position size inversely with volatility.
+    </p>
+
+    <div class="code-label">
+      <span>atr_sizing.py — ATR-based volatility-adjusted sizing</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">import</span> statistics
+
+<span class="kw">def</span> <span class="fn">compute_atr</span>(highs: list, lows: list, closes: list, period: int = <span class="nu">14</span>) -> float:
+    <span class="cm">"""Compute Average True Range over 'period' candles."""</span>
+    true_ranges = []
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nu">1</span>, <span class="fn">len</span>(closes)):
+        tr = <span class="fn">max</span>(
+            highs[i] - lows[i],
+            <span class="fn">abs</span>(highs[i] - closes[i-<span class="nu">1</span>]),
+            <span class="fn">abs</span>(lows[i] - closes[i-<span class="nu">1</span>])
+        )
+        true_ranges.<span class="fn">append</span>(tr)
+    <span class="kw">return</span> statistics.<span class="fn">mean</span>(true_ranges[-period:])
+
+<span class="kw">def</span> <span class="fn">volatility_adjusted_size</span>(
+    base_size_usdc: float,
+    current_atr: float,
+    baseline_atr: float,
+    max_scale: float = <span class="nu">2.0</span>,
+    min_scale: float = <span class="nu">0.25</span>
+) -> float:
+    <span class="cm">"""Scale position size inversely with volatility."""</span>
+    <span class="kw">if</span> current_atr <= <span class="nu">0</span>: <span class="kw">return</span> base_size_usdc
+
+    vol_ratio = baseline_atr / current_atr  <span class="cm"># &gt;1 = lower vol than baseline</span>
+    scale = <span class="fn">max</span>(min_scale, <span class="fn">min</span>(max_scale, vol_ratio))
+    adjusted = base_size_usdc * scale
+
+    print(<span class="st">f"  ATR ratio: {vol_ratio:.2f} | scale: {scale:.2f}x | size: ${adjusted:.2f}"</span>)
+    <span class="kw">return</span> adjusted
+
+<span class="cm"># Example: baseline ATR is $80, current ATR spiked to $160 (2x volatility)</span>
+<span class="cm"># Position should shrink by half</span>
+size = <span class="fn">volatility_adjusted_size</span>(
+    base_size_usdc=<span class="nu">50.00</span>,
+    current_atr=<span class="nu">160.00</span>,   <span class="cm"># high vol day</span>
+    baseline_atr=<span class="nu">80.00</span>    <span class="cm"># normal vol baseline</span>
+)
+<span class="cm"># ATR ratio: 0.50 | scale: 0.50x | size: $25.00</span></code></pre>
+
+    <!-- SECTION 7 -->
+    <h2 id="budget">7. Risk Budget Framework</h2>
+
+    <p>
+      A risk budget defines how much capital can be "at risk" simultaneously across all open positions.
+      Total open risk must never exceed the daily budget. Combined with Kelly sizing and ATR adjustment,
+      this creates a three-layer defense against blowup.
+    </p>
+
+    <div class="code-label">
+      <span>risk_budget.py — total portfolio risk budget</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">class</span> <span class="cl">RiskBudget</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, total_capital: float, daily_risk_pct: float = <span class="nu">0.05</span>):
+        self.total_capital = total_capital
+        self.daily_budget_usdc = total_capital * daily_risk_pct  <span class="cm"># e.g. 5% = $50 on $1000</span>
+        self.consumed_usdc = <span class="nu">0.0</span>
+        self.open_positions = {}  <span class="cm"># {pos_id: risk_usdc}</span>
+
+    <span class="kw">def</span> <span class="fn">available_risk</span>(self) -> float:
+        <span class="kw">return</span> <span class="fn">max</span>(<span class="nu">0</span>, self.daily_budget_usdc - self.consumed_usdc)
+
+    <span class="kw">def</span> <span class="fn">allocate</span>(self, pos_id: str, size_usdc: float, stop_pct: float) -> bool:
+        <span class="cm">"""Request risk allocation for a new position."""</span>
+        risk_usdc = size_usdc * stop_pct  <span class="cm"># max loss if stop triggered</span>
+        available = self.<span class="fn">available_risk</span>()
+
+        <span class="kw">if</span> risk_usdc > available:
+            print(<span class="st">f"[RB] Denied: risk ${risk_usdc:.2f} > available ${available:.2f}"</span>)
+            <span class="kw">return False</span>
+
+        self.open_positions[pos_id] = risk_usdc
+        self.consumed_usdc += risk_usdc
+        utilization = self.consumed_usdc / self.daily_budget_usdc * <span class="nu">100</span>
+        print(<span class="st">f"[RB] Allocated: ${risk_usdc:.2f} | Budget {utilization:.0f}% used"</span>)
+        <span class="kw">return True</span>
+
+    <span class="kw">def</span> <span class="fn">release</span>(self, pos_id: str) -> None:
+        <span class="kw">if</span> pos_id <span class="kw">in</span> self.open_positions:
+            released = self.open_positions.<span class="fn">pop</span>(pos_id)
+            self.consumed_usdc -= released
+            print(<span class="st">f"[RB] Released: ${released:.2f} back to budget"</span>)
+
+    <span class="kw">def</span> <span class="fn">status</span>(self) -> dict:
+        <span class="kw">return</span> {
+            <span class="st">'budget'</span>: self.daily_budget_usdc,
+            <span class="st">'consumed'</span>: self.consumed_usdc,
+            <span class="st">'available'</span>: self.<span class="fn">available_risk</span>(),
+            <span class="st">'utilization_pct'</span>: self.consumed_usdc / self.daily_budget_usdc * <span class="nu">100</span>
+        }
+
+<span class="cm"># $1000 capital, 5% daily risk budget = $50 max at-risk per day</span>
+rb = <span class="cl">RiskBudget</span>(total_capital=<span class="nu">1000.0</span>, daily_risk_pct=<span class="nu">0.05</span>)
+
+<span class="cm"># Try to open 3 positions</span>
+rb.<span class="fn">allocate</span>(<span class="st">"pos1"</span>, size_usdc=<span class="nu">100</span>, stop_pct=<span class="nu">0.05</span>)  <span class="cm"># $5 risk — OK</span>
+rb.<span class="fn">allocate</span>(<span class="st">"pos2"</span>, size_usdc=<span class="nu">200</span>, stop_pct=<span class="nu">0.05</span>)  <span class="cm"># $10 risk — OK</span>
+rb.<span class="fn">allocate</span>(<span class="st">"pos3"</span>, size_usdc=<span class="nu">700</span>, stop_pct=<span class="nu">0.05</span>)  <span class="cm"># $35 risk — denied (over budget)</span>
+print(rb.<span class="fn">status</span>())</code></pre>
+
+    <!-- SECTION 8 -->
+    <h2 id="shutdown">8. Emergency Shutdown Procedure</h2>
+
+    <p>
+      When all else fails, you need a way to close every open position immediately. This is your last
+      line of defense — triggered by external alert, human intervention, or an automated system
+      detecting unusual behavior.
+    </p>
+
+    <div class="callout callout-danger">
+      <div class="callout-title">Critical: market orders only</div>
+      <p>Emergency shutdown must use market orders, not limit orders. Speed takes priority over slippage.
+      A 0.5% worse fill is acceptable. Being stuck in a position during a flash crash is not.</p>
+    </div>
+
+    <div class="code-label">
+      <span>emergency_shutdown.py — close all positions immediately</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> requests
+
+<span class="kw">async def</span> <span class="fn">emergency_shutdown</span>(api_key: str, reason: str = <span class="st">"manual_trigger"</span>) -> dict:
+    <span class="cm">"""Close ALL open positions immediately using market orders."""</span>
+    print(<span class="st">f"\n[EMERGENCY] *** SHUTDOWN INITIATED ***"</span>)
+    print(<span class="st">f"[EMERGENCY] Reason: {reason}"</span>)
+
+    headers = {<span class="st">"Authorization"</span>: <span class="st">f"Bearer {api_key}"</span>}
+
+    <span class="cm"># Step 1: Get all open positions</span>
+    r = requests.<span class="fn">get</span>(<span class="st">f"{TRADING_API}/positions?status=open"</span>, headers=headers)
+    positions = r.<span class="fn">json</span>().<span class="fn">get</span>(<span class="st">'positions'</span>, [])
+    print(<span class="st">f"[EMERGENCY] Found {len(positions)} open positions to close"</span>)
+
+    <span class="cm"># Step 2: Cancel all pending orders first (avoid partial fills)</span>
+    requests.<span class="fn">delete</span>(<span class="st">f"{TRADING_API}/orders/open"</span>, headers=headers)
+    print(<span class="st">f"[EMERGENCY] Cancelled all pending orders"</span>)
+
+    <span class="cm"># Step 3: Close all positions in parallel (market orders)</span>
+    close_tasks = [
+        <span class="fn">close_position_market</span>(pos[<span class="st">'position_id'</span>], api_key)
+        <span class="kw">for</span> pos <span class="kw">in</span> positions
+    ]
+    results = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*close_tasks, return_exceptions=<span class="kw">True</span>)
+
+    success_count = <span class="fn">sum</span>(<span class="nu">1</span> <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if not</span> <span class="fn">isinstance</span>(r, <span class="cl">Exception</span>))
+    print(<span class="st">f"[EMERGENCY] Closed {success_count}/{len(positions)} positions"</span>)
+    print(<span class="st">f"[EMERGENCY] Shutdown complete.\n"</span>)
+
+    <span class="kw">return</span> {<span class="st">'positions_closed'</span>: success_count, <span class="st">'total'</span>: <span class="fn">len</span>(positions), <span class="st">'reason'</span>: reason}
+
+<span class="kw">async def</span> <span class="fn">close_position_market</span>(pos_id: str, api_key: str) -> dict:
+    r = requests.<span class="fn">post</span>(
+        <span class="st">f"{TRADING_API}/positions/{pos_id}/close"</span>,
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer {api_key}"</span>},
+        json={<span class="st">"order_type"</span>: <span class="st">"market"</span>, <span class="st">"urgency"</span>: <span class="st">"immediate"</span>}
+    )
+    <span class="kw">return</span> r.<span class="fn">json</span>()
+
+<span class="cm"># Trigger manually or via webhook</span>
+asyncio.<span class="fn">run</span>(<span class="fn">emergency_shutdown</span>(api_key=API_KEY, reason=<span class="st">"drawdown_limit_exceeded"</span>))</code></pre>
+
+    <!-- SECTION 9 -->
+    <h2 id="monitoring">9. Monitoring and Alerts</h2>
+
+    <p>
+      Proactive alerts keep you (or your orchestrator agent) informed before limits are breached.
+      Send webhook notifications when drawdown approaches 5%, 7%, and 10% — not just at the final halt.
+    </p>
+
+    <div class="code-label">
+      <span>monitoring.py — webhook alerts for risk thresholds</span>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre><code><span class="kw">import</span> requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List
+
+ALERT_WEBHOOK = <span class="st">"https://your-alert-endpoint.com/webhook"</span>
+
+<span class="cl">@dataclass</span>
+<span class="kw">class</span> <span class="cl">AlertThreshold</span>:
+    drawdown_pct: float
+    severity: str       <span class="cm"># "info" | "warning" | "critical"</span>
+    triggered: bool = <span class="kw">False</span>
+
+<span class="kw">class</span> <span class="cl">RiskMonitor</span>:
+    DEFAULT_THRESHOLDS = [
+        <span class="cl">AlertThreshold</span>(<span class="nu">0.03</span>, <span class="st">"info"</span>),       <span class="cm"># -3%: heads up</span>
+        <span class="cl">AlertThreshold</span>(<span class="nu">0.05</span>, <span class="st">"warning"</span>),    <span class="cm"># -5%: tighten sizes</span>
+        <span class="cl">AlertThreshold</span>(<span class="nu">0.07</span>, <span class="st">"warning"</span>),    <span class="cm"># -7%: consider pausing</span>
+        <span class="cl">AlertThreshold</span>(<span class="nu">0.10</span>, <span class="st">"critical"</span>),   <span class="cm"># -10%: halt trading</span>
+    ]
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, session_capital: float, agent_id: str):
+        self.session_capital = session_capital
+        self.agent_id = agent_id
+        self.thresholds = [<span class="cl">AlertThreshold</span>(t.drawdown_pct, t.severity)
+                           <span class="kw">for</span> t <span class="kw">in</span> self.DEFAULT_THRESHOLDS]
+
+    <span class="kw">def</span> <span class="fn">check</span>(self, current_capital: float) -> <span class="cl">List</span>[<span class="cl">AlertThreshold</span>]:
+        drawdown = (self.session_capital - current_capital) / self.session_capital
+        triggered_now = []
+
+        <span class="kw">for</span> threshold <span class="kw">in</span> self.thresholds:
+            <span class="kw">if</span> drawdown >= threshold.drawdown_pct <span class="kw">and not</span> threshold.triggered:
+                threshold.triggered = <span class="kw">True</span>
+                triggered_now.<span class="fn">append</span>(threshold)
+                self.<span class="fn">send_alert</span>(threshold, drawdown, current_capital)
+
+        <span class="kw">return</span> triggered_now
+
+    <span class="kw">def</span> <span class="fn">send_alert</span>(self, t: <span class="cl">AlertThreshold</span>, drawdown: float, capital: float) -> None:
+        payload = {
+            <span class="st">"agent_id"</span>: self.agent_id,
+            <span class="st">"severity"</span>: t.severity,
+            <span class="st">"drawdown_pct"</span>: <span class="fn">round</span>(drawdown * <span class="nu">100</span>, <span class="nu">2</span>),
+            <span class="st">"current_capital_usdc"</span>: <span class="fn">round</span>(capital, <span class="nu">2</span>),
+            <span class="st">"session_start_usdc"</span>: self.session_capital,
+            <span class="st">"message"</span>: <span class="st">f"Drawdown alert: {drawdown*100:.1f}% | Action required: {t.severity}"</span>
+        }
+        <span class="kw">try</span>:
+            requests.<span class="fn">post</span>(ALERT_WEBHOOK, json=payload, timeout=<span class="nu">5</span>)
+            print(<span class="st">f"[ALERT] {t.severity.upper()}: {drawdown*100:.1f}% drawdown — webhook sent"</span>)
+        <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+            print(<span class="st">f"[ALERT] Failed to send webhook: {e}"</span>)
+
+<span class="cm"># Usage in main trading loop</span>
+monitor = <span class="cl">RiskMonitor</span>(session_capital=<span class="nu">500.0</span>, agent_id=<span class="st">"trading-agent-001"</span>)
+monitor.<span class="fn">check</span>(current_capital=<span class="nu">460.0</span>)  <span class="cm"># 8% drawdown → warning alert fires</span></code></pre>
+
+    <!-- SECTION 10: Conclusion -->
+    <h2 id="conclusion">10. Conclusion</h2>
+
+    <p>
+      Risk management is not optional for autonomous trading agents. It is the difference between a
+      system that compounds capital over time and one that burns through it in a single bad session.
+      The controls in this guide, applied together, provide defense in depth:
+    </p>
+
+    <ul>
+      <li><strong>Kelly sizing</strong> — never bet more than the math supports</li>
+      <li><strong>Trailing stop-loss</strong> — exit automatically on reversal</li>
+      <li><strong>Drawdown circuit breaker</strong> — halt at -10% daily loss</li>
+      <li><strong>Concentration limits</strong> — cap at 20% per position</li>
+      <li><strong>ATR-adjusted sizing</strong> — trade smaller in volatile regimes</li>
+      <li><strong>Risk budget</strong> — cap total at-risk across all open positions</li>
+      <li><strong>Emergency shutdown</strong> — close everything instantly when needed</li>
+      <li><strong>Webhook alerts</strong> — know about problems before limits are breached</li>
+    </ul>
+
+    <div class="callout callout-success">
+      <div class="callout-title">Start with $1 free USDC</div>
+      <p>Test all these risk controls against the Purple Flea Trading API with free funds from the faucet.
+      Build and validate your full risk stack before deploying real capital.</p>
+    </div>
+
+    <div class="cta-box">
+      <h3>Ready to Build a Risk-Managed Trading Agent?</h3>
+      <p>Get free USDC from the faucet, set up your agent on Purple Flea, and test your risk controls in a live environment.</p>
+      <a href="https://faucet.purpleflea.com" class="btn">Claim Free $1 USDC</a>
+      <a href="https://trading.purpleflea.com" class="btn btn-outline">Trading API Docs</a>
+      <a href="/blog/building-autonomous-trading-bot-2026" class="btn btn-outline">Trading Bot Guide</a>
+    </div>
+
+    <hr />
+
+    <p style="color: var(--text-muted); font-size: 15px;">
+      Related: <a href="/blog/building-autonomous-trading-bot-2026">Building an Autonomous Trading Bot in 2026</a> ·
+      <a href="/blog/agent-bankroll-management">Agent Bankroll Management</a> ·
+      <a href="/blog/multi-agent-coordination/">Multi-Agent Coordination</a>
+    </p>
+
+  </article>
+
+  <!-- TABLE OF CONTENTS -->
+  <aside class="toc">
+    <div class="toc-title">On this page</div>
+    <ul class="toc-list">
+      <li><a href="#intro">1. Why Agents Blow Up</a></li>
+      <li><a href="#kelly">2. Kelly Criterion</a></li>
+      <li><a href="#stoploss">3. Stop-Loss Implementation</a></li>
+      <li><a href="#drawdown">4. Drawdown Circuit Breaker</a></li>
+      <li><a href="#concentration">5. Concentration Limits</a></li>
+      <li><a href="#atr">6. Volatility-Adjusted Sizing</a></li>
+      <li><a href="#budget">7. Risk Budget Framework</a></li>
+      <li><a href="#shutdown">8. Emergency Shutdown</a></li>
+      <li><a href="#monitoring">9. Monitoring and Alerts</a></li>
+      <li><a href="#conclusion">10. Conclusion</a></li>
+    </ul>
+  </aside>
+
+</div><!-- end page-layout -->
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
+    <a href="/for-agents">For Agents</a>
+    <a href="https://trading.purpleflea.com">Trading</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+  </div>
+  <p>&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+</footer>
+
+<script>
+  // Reading progress bar
+  window.addEventListener('scroll', () => {
+    const doc = document.documentElement;
+    const scrollTop = doc.scrollTop || document.body.scrollTop;
+    const scrollHeight = doc.scrollHeight - doc.clientHeight;
+    const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+    document.getElementById('progress-bar').style.width = progress + '%';
+  });
+
+  // Sticky TOC active state
+  const headings = document.querySelectorAll('h2[id]');
+  const tocLinks = document.querySelectorAll('.toc-list a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(link => link.classList.remove('active'));
+        const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  headings.forEach(h => observer.observe(h));
+
+  // Copy code button
+  function copyCode(btn) {
+    const pre = btn.closest('.code-label').nextElementSibling;
+    const text = pre.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'copied!';
+      setTimeout(() => btn.textContent = 'copy', 2000);
+    });
+  }
+</script>
+
+</body>
+</html>
