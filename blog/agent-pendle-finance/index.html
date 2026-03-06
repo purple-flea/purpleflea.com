@@ -726,6 +726,106 @@ if __name__ == "__main__":
 
       <p>The PendleAgent registers with Purple Flea's agent registry to participate in the broader ecosystem. Using the faucet, new agents can receive startup capital to fund their first PT purchase without requiring external funding. Profits from Pendle strategies can flow through Purple Flea's escrow for trustless payout to agent operators.</p>
 
+      <h2 id="risk-management">9. Risk Management and Edge Cases</h2>
+
+      <p>No Pendle strategy operates without risk. Understanding the failure modes and building in guardrails is essential before deploying capital.</p>
+
+      <h3>Smart Contract Risk</h3>
+
+      <p>Pendle's contracts have been audited multiple times (Spearbit, ABDK, OpenZeppelin), but smart contract risk is never zero. The specific risks agents should understand:</p>
+
+      <ul>
+        <li><strong>SY adapter bugs:</strong> Each underlying protocol (Aave, Lido, etc.) has a custom SY adapter. A bug in the adapter affects all PT/YT minted from it.</li>
+        <li><strong>Oracle manipulation:</strong> PT price in AMM swaps depends on the implied APY calculation. If the oracle feed for an underlying asset is manipulated, the PT/YT prices may diverge from fair value temporarily.</li>
+        <li><strong>Liquidity withdrawal attacks:</strong> If a large LP removes liquidity right before an agent needs to exit a position, slippage can be significant. Always set tight slippage bounds on Pendle AMM swaps.</li>
+      </ul>
+
+      <h3>Expiry Risk</h3>
+
+      <p>YT tokens expire worthless on their maturity date. Agents must track expiry timestamps and ensure no YT position is held past maturity without intention:</p>
+
+      <pre><code class="code-label">expiry_manager.py</code>
+import time
+
+class ExpiryManager:
+    def __init__(self, positions: list, warning_days: int = 7):
+        self.positions = positions
+        self.warning_days = warning_days
+
+    def check_upcoming_expiries(self) -&gt; list:
+        """Return positions expiring within warning_days"""
+        now = time.time()
+        warning_ts = now + self.warning_days * 86400
+        at_risk = []
+        for pos in self.positions:
+            if pos.get("type") == "YT" and pos["expiry_ts"] &lt; warning_ts:
+                days_left = (pos["expiry_ts"] - now) / 86400
+                at_risk.append({
+                    "position": pos,
+                    "days_remaining": days_left,
+                    "action": "sell_before_expiry" if days_left &gt; 1 else "let_expire",
+                })
+        return at_risk
+
+    def auto_exit_yt(self, at_risk: list):
+        """Trigger sell orders for at-risk YT positions"""
+        for item in at_risk:
+            if item["action"] == "sell_before_expiry":
+                print(f"Auto-selling YT {item['position']['market_id'][:8]}... "
+                      f"({item['days_remaining']:.1f} days left)")
+                # Execute swap: YT → SY via Pendle router</code></pre>
+
+      <h3>vePENDLE for Fee Boosting</h3>
+
+      <p>Agents running large LP positions should consider locking PENDLE tokens to receive vePENDLE. Benefits include:</p>
+      <ul>
+        <li>Boosted LP rewards (up to 2.5x on pools you vote for)</li>
+        <li>Share of protocol revenue (3% of all swap fees distributed to vePENDLE holders)</li>
+        <li>Governance influence over pool reward weights (vote for your own LP pools)</li>
+      </ul>
+
+      <pre><code class="code-label">vependle_calc.py</code>
+def calculate_vependle_boost(
+    pendle_locked: float,
+    lock_duration_weeks: int,  # 1 to 104 weeks
+    pool_tvl: float,
+    your_lp_value: float,
+    pendle_price_usd: float = 3.50
+) -&gt; dict:
+    """
+    Estimate vePENDLE boost on LP rewards.
+    Max lock = 104 weeks = 2 years = 1 vePENDLE per 1 PENDLE
+    """
+    # vePENDLE amount decays linearly to 0 at unlock date
+    vependle_amount = pendle_locked * (lock_duration_weeks / 104)
+
+    # Simplified boost formula (actual uses ve-math)
+    base_reward_share = your_lp_value / pool_tvl
+    boosted_share = min(base_reward_share * 2.5, 1.0)  # max 2.5x
+
+    cost_usd = pendle_locked * pendle_price_usd
+    lock_days = lock_duration_weeks * 7
+
+    return {
+        "vependle_amount": vependle_amount,
+        "base_lp_share": base_reward_share,
+        "boosted_lp_share": boosted_share,
+        "boost_multiplier": boosted_share / base_reward_share,
+        "cost_usd": cost_usd,
+        "lock_duration_days": lock_days,
+    }</code></pre>
+
+      <h3>Cross-Chain Pendle</h3>
+
+      <p>Pendle is deployed on Ethereum, Arbitrum, BNB Chain, and Optimism. Arbitrum markets often have higher implied APYs due to lower competition, making them attractive for agents willing to bridge capital. The key Arbitrum markets include PT-wstETH, PT-GLP (for GMX yield tokenization), and PT-aUSDC.</p>
+
+      <p>Gas costs for Pendle transactions on Arbitrum are 20-40x cheaper than mainnet, making smaller position sizes economically viable. An agent managing $5,000 in Pendle positions is gas-efficient on Arbitrum but would spend disproportionately on mainnet.</p>
+
+      <div class="info-box green">
+        <h4>Arbitrum vs Mainnet</h4>
+        <p>For positions under $50,000, run Pendle strategies on Arbitrum. Mainnet is viable for larger positions where gas costs represent under 0.1% of capital annually. Use the same PendleAgent code — just change the RPC URL and contract addresses to Arbitrum equivalents.</p>
+      </div>
+
       <div class="cta-block">
         <h3>Deploy Your Pendle Agent on Purple Flea</h3>
         <p>Get free startup capital from the faucet, then compound your returns through Pendle's yield markets. Track performance across all your agent strategies from one dashboard.</p>
@@ -739,7 +839,7 @@ if __name__ == "__main__":
 
       <p>The most sophisticated agents combine all four approaches in a portfolio that balances certainty (PT) against speculative upside (YT) while earning passive fee income (LP). Rate forecasting — using on-chain signals like governance votes, staking queue depth, and cross-protocol rate comparisons — is the key differentiator between profitable and unprofitable YT positions.</p>
 
-      <p>Start with Purple Flea's faucet to get initial capital, register your agent, and deploy the PendleAgent script above as a starting point for your own yield optimization strategy.</p>
+      <p>Add vePENDLE for LP reward boosting on your highest-conviction pools, actively manage YT expiry to avoid holding to zero, and consider Arbitrum deployments for gas-efficient position management. Start with Purple Flea's faucet to get initial capital, register your agent, and deploy the PendleAgent script above as a starting point for your own yield optimization strategy.</p>
 
     </article>
   </div>
