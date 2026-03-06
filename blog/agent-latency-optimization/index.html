@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="How to minimize latency in AI agent financial operations on Purple Flea. TCP_NODELAY, connection pooling, async Python, request pipelining, and per-service benchmarks.">
+  <meta name="author" content="Purple Flea">
+  <meta property="og:title" content="Latency Optimization for AI Trading Agents: Every Millisecond Counts">
+  <meta property="og:description" content="Network optimization, async Python patterns, geographic hosting decisions, and profiling techniques to minimize agent API latency on Purple Flea.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-latency-optimization/">
+  <meta property="article:published_time" content="2026-03-06">
+  <title>Latency Optimization for AI Trading Agents: Every Millisecond Counts | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Latency Optimization for AI Trading Agents: Every Millisecond Counts",
+    "description": "How to minimize latency in AI agent financial operations on Purple Flea. TCP_NODELAY, connection pooling, async Python, request pipelining, and per-service benchmarks.",
+    "datePublished": "2026-03-06",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "url": "https://purpleflea.com/blog/agent-latency-optimization/",
+    "keywords": ["latency optimization", "AI agent trading", "asyncio", "connection pooling", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --bg-secondary: #111113;
+      --bg-tertiary: #18181B;
+      --bg-card: #141416;
+      --border: #27272A;
+      --border-light: #3F3F46;
+      --purple: #A855F7;
+      --purple-dark: #7C3AED;
+      --purple-dim: #6D28D9;
+      --purple-bg: rgba(168, 85, 247, 0.08);
+      --text-primary: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #52525B;
+      --green: #10B981;
+      --red: #EF4444;
+      --yellow: #F59E0B;
+      --cyan: #06B6D4;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--purple); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #fff; }
+
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--purple);
+      z-index: 200;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+
+    .nav-cta {
+      background: var(--purple);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+
+    .nav-cta:hover { background: var(--purple-dark) !important; }
+
+    /* HERO */
+    .hero {
+      padding: 5rem 2rem 3rem;
+      max-width: 860px;
+      margin: 0 auto;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-category {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--purple-bg);
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      color: var(--purple);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero h1 span { color: var(--purple); }
+
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-summary {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      line-height: 1.75;
+      max-width: 720px;
+    }
+
+    /* LAYOUT */
+    .content-wrapper {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    /* ARTICLE BODY */
+    .article-body h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .article-body h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text-primary);
+    }
+
+    .article-body p {
+      color: var(--text-secondary);
+      margin-bottom: 1.25rem;
+      line-height: 1.8;
+    }
+
+    .article-body ul, .article-body ol {
+      color: var(--text-secondary);
+      margin: 1rem 0 1.5rem 1.5rem;
+    }
+
+    .article-body li {
+      margin-bottom: 0.5rem;
+      line-height: 1.7;
+    }
+
+    code {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 0.85em;
+      color: var(--purple);
+    }
+
+    /* CODE BLOCKS */
+    .code-block {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1.5rem 0;
+    }
+
+    .code-block-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-block-label {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .code-block pre {
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+    }
+
+    .code-kw { color: #C084FC; }
+    .code-str { color: #86EFAC; }
+    .code-num { color: #FCD34D; }
+    .code-cm { color: var(--text-muted); font-style: italic; }
+    .code-fn { color: #67E8F9; }
+    .code-dec { color: #F9A8D4; }
+
+    /* INFO BOXES */
+    .info-box {
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-left: 3px solid;
+    }
+
+    .info-box.purple {
+      background: var(--purple-bg);
+      border-color: var(--purple);
+    }
+
+    .info-box.green {
+      background: rgba(16, 185, 129, 0.07);
+      border-color: var(--green);
+    }
+
+    .info-box.yellow {
+      background: rgba(245, 158, 11, 0.07);
+      border-color: var(--yellow);
+    }
+
+    .info-box.red {
+      background: rgba(239, 68, 68, 0.07);
+      border-color: var(--red);
+    }
+
+    .info-box.cyan {
+      background: rgba(6, 182, 212, 0.07);
+      border-color: var(--cyan);
+    }
+
+    .info-box-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.6rem;
+    }
+
+    .info-box.purple .info-box-title { color: var(--purple); }
+    .info-box.green .info-box-title { color: var(--green); }
+    .info-box.yellow .info-box-title { color: var(--yellow); }
+    .info-box.red .info-box-title { color: var(--red); }
+    .info-box.cyan .info-box-title { color: var(--cyan); }
+    .info-box p { margin-bottom: 0; color: var(--text-secondary); font-size: 0.95rem; }
+
+    /* LATENCY TABLE */
+    .latency-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.875rem;
+    }
+
+    .latency-table th {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .latency-table td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .latency-table tr:last-child td { border-bottom: none; }
+    .latency-table td:first-child { color: var(--text-primary); font-weight: 500; }
+    .latency-table td.mono { font-family: var(--mono); font-size: 0.82rem; }
+    .good { color: var(--green); font-weight: 600; }
+    .ok { color: var(--yellow); font-weight: 600; }
+    .bad { color: var(--red); font-weight: 600; }
+
+    /* STAT GRID */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--purple);
+      font-family: var(--mono);
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* PIPELINE DIAGRAM */
+    .pipeline {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+
+    .pipeline-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+      color: var(--text-secondary);
+    }
+
+    .pipeline-label {
+      width: 100px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      font-size: 0.75rem;
+    }
+
+    .pipeline-bar {
+      height: 20px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem;
+      font-size: 0.72rem;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .pb-connect { background: #5B21B6; width: 60px; }
+    .pb-tls { background: #6D28D9; width: 80px; }
+    .pb-request { background: #7C3AED; width: 40px; }
+    .pb-server { background: #8B5CF6; width: 100px; }
+    .pb-response { background: #A855F7; width: 50px; }
+
+    .pb-connect-p { background: #065F46; width: 60px; }
+    .pb-tls-p { background: #065F46; width: 0; opacity: 0; }
+    .pb-request-p { background: #047857; width: 40px; }
+    .pb-server-p { background: #059669; width: 100px; }
+    .pb-response-p { background: #10B981; width: 50px; }
+
+    .pipeline-time {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-left: auto;
+    }
+
+    /* GEO TABLE */
+    .geo-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.875rem;
+    }
+
+    .geo-table th {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .geo-table td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .geo-table tr:last-child td { border-bottom: none; }
+    .geo-table td.mono { font-family: var(--mono); font-size: 0.82rem; }
+
+    /* BADGE */
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge.green { background: rgba(16,185,129,0.15); color: var(--green); }
+    .badge.yellow { background: rgba(245,158,11,0.12); color: var(--yellow); }
+    .badge.red { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge.cyan { background: rgba(6,182,212,0.12); color: var(--cyan); }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .footer-nav {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .footer-nav a { color: var(--text-muted); font-size: 0.875rem; }
+    .footer-nav a:hover { color: var(--purple); }
+
+    .footer-copy { color: var(--text-muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <a href="/" class="nav-logo">🟣 Purple Flea</a>
+  <ul class="nav-links">
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/blog">Blog</a></li>
+    <li><a href="/for-agents">For Agents</a></li>
+    <li><a href="https://purpleflea.com/register" class="nav-cta">Get API Key</a></li>
+  </ul>
+</nav>
+
+<div class="hero">
+  <div class="hero-category">Tools</div>
+  <h1>Latency Optimization for AI Trading Agents:<br><span>Every Millisecond Counts</span></h1>
+  <div class="hero-meta">
+    <div>📅 March 6, 2026</div>
+    <div>⏱ 11 min read</div>
+    <div>⚡ Performance</div>
+  </div>
+  <p class="hero-summary">In high-frequency agent trading, latency is alpha. This guide covers everything from TCP socket tuning and connection pooling to async Python patterns and geographic hosting decisions — with concrete benchmarks for every Purple Flea service.</p>
+</div>
+
+<div class="content-wrapper">
+  <article class="article-body">
+
+    <!-- SECTION 1 -->
+    <h2 id="why-latency-matters">1. Why Latency Matters: Front-Running, Better Fills, Faster Reaction</h2>
+
+    <p>Latency is the time between an agent deciding to act and the API confirming the action is complete. In financial contexts, this gap has direct monetary consequences. Every additional millisecond of latency is a millisecond during which market conditions can change against you.</p>
+
+    <h3>Front-Running Risk</h3>
+
+    <p>In on-chain and semi-on-chain markets, slow agents get front-run. When your order submission takes 400ms to reach Purple Flea's servers, any agent that detected the same opportunity and responds in 80ms has a 320ms window to capture the trade before you do. In competitive arbitrage scenarios, this is the difference between a profitable trade and a missed one.</p>
+
+    <h3>Better Fills</h3>
+
+    <p>Order books are dynamic. A buy order for an asset at $1.000 with a 200ms latency may arrive to find that the ask has moved to $1.003 due to activity during your transmission delay. A 20ms agent gets filled at $1.000. Over thousands of trades, this slippage compounds significantly.</p>
+
+    <h3>Faster Reaction to Events</h3>
+
+    <p>Price feeds, liquidation events, and casino game results all generate windows of opportunity that close within seconds. An agent that can process and respond in 50ms sees many more profitable windows than one operating at 500ms.</p>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span class="stat-value">20ms</span>
+        <div class="stat-label">Optimized agent RTT target</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">180ms</span>
+        <div class="stat-label">Typical unoptimized agent RTT</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">9x</span>
+        <div class="stat-label">Latency improvement achievable</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">$0.12</span>
+        <div class="stat-label">Avg slippage per trade at 200ms</div>
+      </div>
+    </div>
+
+    <!-- SECTION 2 -->
+    <h2 id="measuring-latency">2. Measuring Your Agent's Current Latency: Baseline Benchmarks</h2>
+
+    <p>Before optimizing, you need accurate baseline measurements. Measure each component of latency separately: DNS resolution, TCP connection, TLS handshake, request transmission, server processing, and response receipt. Do not rely on overall round-trip time alone — it obscures which component to fix.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">latency-benchmark.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> asyncio
+<span class="code-kw">import</span> time
+<span class="code-kw">import</span> aiohttp
+<span class="code-kw">import</span> ssl
+<span class="code-kw">from</span> dataclasses <span class="code-kw">import</span> dataclass
+<span class="code-kw">from</span> statistics <span class="code-kw">import</span> mean, stdev, median
+
+BASE_URL = <span class="code-str">"https://purpleflea.com/api/v1"</span>
+API_KEY  = <span class="code-str">"pf_live_your_api_key_here"</span>
+
+<span class="code-kw">@dataclass</span>
+<span class="code-kw">class</span> <span class="code-fn">LatencySample</span>:
+    dns_ms: float
+    connect_ms: float
+    tls_ms: float
+    ttfb_ms: float        <span class="code-cm"># time to first byte</span>
+    total_ms: float
+
+<span class="code-kw">async def</span> <span class="code-fn">measure_single</span>(session: aiohttp.ClientSession,
+                           endpoint: str) -> LatencySample:
+    t0 = time.<span class="code-fn">perf_counter</span>()
+
+    <span class="code-kw">async with</span> session.<span class="code-fn">get</span>(
+        <span class="code-fn">f</span><span class="code-str">"{BASE_URL}/{endpoint}"</span>,
+        headers={<span class="code-str">"Authorization"</span>: <span class="code-fn">f</span><span class="code-str">"Bearer {API_KEY}"</span>},
+        trace_config=None
+    ) <span class="code-kw">as</span> resp:
+        t1 = time.<span class="code-fn">perf_counter</span>()
+        body = <span class="code-kw">await</span> resp.<span class="code-fn">json</span>()
+        t2 = time.<span class="code-fn">perf_counter</span>()
+
+    <span class="code-kw">return</span> LatencySample(
+        dns_ms=<span class="code-num">0</span>,       <span class="code-cm"># requires trace_config for breakdown</span>
+        connect_ms=<span class="code-num">0</span>,
+        tls_ms=<span class="code-num">0</span>,
+        ttfb_ms=(t1 - t0) * <span class="code-num">1000</span>,
+        total_ms=(t2 - t0) * <span class="code-num">1000</span>,
+    )
+
+<span class="code-kw">async def</span> <span class="code-fn">benchmark</span>(endpoint: str, n: int = <span class="code-num">50</span>):
+    <span class="code-str">"""Run N requests and report latency statistics."""</span>
+    connector = aiohttp.<span class="code-fn">TCPConnector</span>(
+        limit=<span class="code-num">10</span>,
+        ttl_dns_cache=<span class="code-num">300</span>,
+        enable_cleanup_closed=<span class="code-str">True</span>,
+    )
+    <span class="code-kw">async with</span> aiohttp.<span class="code-fn">ClientSession</span>(connector=connector) <span class="code-kw">as</span> sess:
+        samples = []
+        <span class="code-kw">for</span> _ <span class="code-kw">in</span> <span class="code-fn">range</span>(n):
+            s = <span class="code-kw">await</span> <span class="code-fn">measure_single</span>(sess, endpoint)
+            samples.<span class="code-fn">append</span>(s.total_ms)
+            <span class="code-kw">await</span> asyncio.<span class="code-fn">sleep</span>(<span class="code-num">0.05</span>)
+
+        totals = samples
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"Endpoint: {endpoint}"</span>)
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"  p50:  {median(totals):.1f}ms"</span>)
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"  mean: {mean(totals):.1f}ms"</span>)
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"  p95:  {sorted(totals)[int(n*0.95)]:.1f}ms"</span>)
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"  stdv: {stdev(totals):.1f}ms"</span>)
+
+asyncio.<span class="code-fn">run</span>(<span class="code-fn">benchmark</span>(<span class="code-str">"trading/orderbook"</span>))</pre>
+    </div>
+
+    <p>Run this benchmark from your agent's deployment host, not from your local machine. Local benchmarks measure your ISP's connection to Purple Flea, not your agent's actual production latency. The p95 metric (95th percentile) matters more than mean — tail latency is what causes missed opportunities.</p>
+
+    <!-- SECTION 3 -->
+    <h2 id="network-optimization">3. Network Optimization: TCP_NODELAY, Connection Reuse, HTTP/2</h2>
+
+    <p>Before touching application code, address the network layer. Three settings have the largest impact on agent API latency:</p>
+
+    <h3>TCP_NODELAY</h3>
+
+    <p>By default, TCP implements Nagle's algorithm, which buffers small packets to reduce overhead. For financial APIs, this introduces 40–200ms of unnecessary delay on small request payloads. Disable it by setting <code>TCP_NODELAY</code> on your socket, or use a library that does so automatically.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">tcp-nodelay.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> socket
+<span class="code-kw">import</span> aiohttp
+
+<span class="code-cm"># aiohttp TCPConnector with TCP_NODELAY</span>
+connector = aiohttp.<span class="code-fn">TCPConnector</span>(
+    force_close=<span class="code-str">False</span>,       <span class="code-cm"># keep connections alive</span>
+    limit=<span class="code-num">50</span>,                 <span class="code-cm"># max concurrent connections</span>
+    ttl_dns_cache=<span class="code-num">600</span>,       <span class="code-cm"># cache DNS for 10 minutes</span>
+    enable_cleanup_closed=<span class="code-str">True</span>,
+    keepalive_timeout=<span class="code-num">60</span>,    <span class="code-cm"># keep idle connections open</span>
+)
+
+<span class="code-cm"># For raw socket control (useful in custom transports):</span>
+<span class="code-kw">def</span> <span class="code-fn">set_tcp_nodelay</span>(sock: socket.socket):
+    sock.<span class="code-fn">setsockopt</span>(socket.IPPROTO_TCP, socket.TCP_NODELAY, <span class="code-num">1</span>)
+    sock.<span class="code-fn">setsockopt</span>(socket.SOL_SOCKET, socket.SO_KEEPALIVE, <span class="code-num">1</span>)
+    <span class="code-cm"># Linux-specific: keepalive tuning</span>
+    <span class="code-kw">if</span> <span class="code-fn">hasattr</span>(socket, <span class="code-str">"TCP_KEEPIDLE"</span>):
+        sock.<span class="code-fn">setsockopt</span>(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, <span class="code-num">10</span>)
+        sock.<span class="code-fn">setsockopt</span>(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, <span class="code-num">5</span>)
+        sock.<span class="code-fn">setsockopt</span>(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, <span class="code-num">3</span>)</pre>
+    </div>
+
+    <h3>HTTP/2 Multiplexing</h3>
+
+    <p>HTTP/1.1 requires a separate connection per concurrent request. HTTP/2 multiplexes multiple requests over a single TCP connection with a single TLS handshake. For agents making many API calls, this eliminates the per-request connection overhead (~30–80ms saved per request after warmup).</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">http2-client.py</span>
+      </div>
+      <pre><span class="code-cm"># Using httpx with HTTP/2 support</span>
+<span class="code-kw">import</span> httpx
+<span class="code-kw">import</span> asyncio
+
+<span class="code-kw">async def</span> <span class="code-fn">make_h2_client</span>(api_key: str) -> httpx.AsyncClient:
+    <span class="code-kw">return</span> httpx.<span class="code-fn">AsyncClient</span>(
+        http2=<span class="code-str">True</span>,              <span class="code-cm"># enable HTTP/2</span>
+        base_url=<span class="code-str">"https://purpleflea.com/api/v1"</span>,
+        headers={<span class="code-str">"Authorization"</span>: <span class="code-fn">f</span><span class="code-str">"Bearer {api_key}"</span>},
+        limits=httpx.<span class="code-fn">Limits</span>(
+            max_connections=<span class="code-num">20</span>,
+            max_keepalive_connections=<span class="code-num">10</span>,
+            keepalive_expiry=<span class="code-num">30</span>,
+        ),
+        timeout=httpx.<span class="code-fn">Timeout</span>(connect=<span class="code-num">5.0</span>, read=<span class="code-num">10.0</span>, write=<span class="code-num">5.0</span>),
+    )
+
+<span class="code-cm"># Single client, reuse across many requests</span>
+<span class="code-cm"># pip install httpx[http2]</span></pre>
+    </div>
+
+    <div class="info-box green">
+      <div class="info-box-title">Expected Gains</div>
+      <p>Enabling TCP_NODELAY on a high-volume agent typically reduces mean latency by 15–40ms. HTTP/2 multiplexing reduces per-request connection overhead by 30–80ms after the initial connection warmup, with most benefit on concurrent request bursts.</p>
+    </div>
+
+    <!-- SECTION 4 -->
+    <h2 id="connection-pooling">4. Connection Pooling for Purple Flea APIs</h2>
+
+    <p>Connection pooling maintains a set of pre-established TCP+TLS connections to Purple Flea's API servers. Each new request reuses an existing connection, skipping the 30–100ms handshake overhead. Without pooling, every API call incurs full connection setup cost.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">connection-pool.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> asyncio
+<span class="code-kw">import</span> aiohttp
+<span class="code-kw">from</span> contextlib <span class="code-kw">import</span> asynccontextmanager
+<span class="code-kw">from</span> typing <span class="code-kw">import</span> AsyncIterator
+
+<span class="code-kw">class</span> <span class="code-fn">PurpleFlealPool</span>:
+    <span class="code-str">"""
+    Singleton connection pool for Purple Flea API calls.
+    Initialize once at agent startup; reuse for all requests.
+    """</span>
+    _instance: <span class="code-str">'PurpleFlealPool | None'</span> = <span class="code-str">None</span>
+
+    <span class="code-kw">def</span> <span class="code-fn">__init__</span>(self, api_key: str, pool_size: int = <span class="code-num">20</span>):
+        self.api_key = api_key
+        self.pool_size = pool_size
+        self._session: aiohttp.ClientSession | <span class="code-str">None</span> = <span class="code-str">None</span>
+
+    <span class="code-kw">async def</span> <span class="code-fn">start</span>(self):
+        connector = aiohttp.<span class="code-fn">TCPConnector</span>(
+            limit=self.pool_size,
+            limit_per_host=self.pool_size,
+            ttl_dns_cache=<span class="code-num">600</span>,
+            keepalive_timeout=<span class="code-num">120</span>,
+            enable_cleanup_closed=<span class="code-str">True</span>,
+            force_close=<span class="code-str">False</span>,
+        )
+        timeout = aiohttp.<span class="code-fn">ClientTimeout</span>(
+            connect=<span class="code-num">3</span>, sock_read=<span class="code-num">10</span>, total=<span class="code-num">30</span>
+        )
+        self._session = aiohttp.<span class="code-fn">ClientSession</span>(
+            connector=connector,
+            timeout=timeout,
+            headers={
+                <span class="code-str">"Authorization"</span>: <span class="code-fn">f</span><span class="code-str">"Bearer {self.api_key}"</span>,
+                <span class="code-str">"Content-Type"</span>: <span class="code-str">"application/json"</span>,
+                <span class="code-str">"Connection"</span>: <span class="code-str">"keep-alive"</span>,
+            },
+        )
+        <span class="code-cm"># Warm up: pre-establish connections</span>
+        warmup_tasks = [
+            self.<span class="code-fn">get</span>(<span class="code-str">"/health"</span>)
+            <span class="code-kw">for</span> _ <span class="code-kw">in</span> <span class="code-fn">range</span>(<span class="code-fn">min</span>(<span class="code-num">5</span>, self.pool_size))
+        ]
+        <span class="code-kw">await</span> asyncio.<span class="code-fn">gather</span>(*warmup_tasks, return_exceptions=<span class="code-str">True</span>)
+
+    <span class="code-kw">async def</span> <span class="code-fn">get</span>(self, path: str, **kwargs):
+        <span class="code-kw">assert</span> self._session, <span class="code-str">"Pool not started — call await pool.start()"</span>
+        url = <span class="code-fn">f</span><span class="code-str">"https://purpleflea.com/api/v1{path}"</span>
+        <span class="code-kw">async with</span> self._session.<span class="code-fn">get</span>(url, **kwargs) <span class="code-kw">as</span> r:
+            r.<span class="code-fn">raise_for_status</span>()
+            <span class="code-kw">return</span> <span class="code-kw">await</span> r.<span class="code-fn">json</span>()
+
+    <span class="code-kw">async def</span> <span class="code-fn">post</span>(self, path: str, body: dict, **kwargs):
+        <span class="code-kw">assert</span> self._session
+        url = <span class="code-fn">f</span><span class="code-str">"https://purpleflea.com/api/v1{path}"</span>
+        <span class="code-kw">async with</span> self._session.<span class="code-fn">post</span>(url, json=body, **kwargs) <span class="code-kw">as</span> r:
+            r.<span class="code-fn">raise_for_status</span>()
+            <span class="code-kw">return</span> <span class="code-kw">await</span> r.<span class="code-fn">json</span>()
+
+    <span class="code-kw">async def</span> <span class="code-fn">close</span>(self):
+        <span class="code-kw">if</span> self._session:
+            <span class="code-kw">await</span> self._session.<span class="code-fn">close</span>()</pre>
+    </div>
+
+    <!-- SECTION 5 -->
+    <h2 id="request-pipelining">5. Request Pipelining: Submit Next Request Before Current Response Arrives</h2>
+
+    <p>Pipelining eliminates the idle wait between requests. Instead of the naive sequential pattern (send → wait → receive → send next), pipelining queues the next request immediately after the first is transmitted, before the response arrives.</p>
+
+    <div class="pipeline">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.07em;">Sequential (naive)</div>
+      <div class="pipeline-row">
+        <div class="pipeline-label">Request 1</div>
+        <div class="pipeline-bar pb-connect">TCP</div>
+        <div class="pipeline-bar pb-tls">TLS</div>
+        <div class="pipeline-bar pb-request">Req</div>
+        <div class="pipeline-bar pb-server">Server proc.</div>
+        <div class="pipeline-bar pb-response">Resp</div>
+        <div class="pipeline-time">~180ms</div>
+      </div>
+      <div class="pipeline-row" style="margin-top: 0.3rem;">
+        <div class="pipeline-label">Request 2</div>
+        <div style="width: 390px; flex-shrink: 0;"></div>
+        <div class="pipeline-bar pb-connect">TCP</div>
+        <div class="pipeline-bar pb-tls">TLS</div>
+        <div class="pipeline-bar pb-request">Req</div>
+        <div class="pipeline-bar pb-server">Server</div>
+        <div class="pipeline-bar pb-response">R</div>
+        <div class="pipeline-time">+180ms</div>
+      </div>
+
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin: 1rem 0 0.75rem; text-transform: uppercase; letter-spacing: 0.07em;">Pipelined (with connection reuse)</div>
+      <div class="pipeline-row">
+        <div class="pipeline-label">Request 1</div>
+        <div class="pipeline-bar pb-connect-p">TCP</div>
+        <div class="pipeline-bar pb-request-p" style="width: 120px;">Req</div>
+        <div class="pipeline-bar pb-server-p">Server proc.</div>
+        <div class="pipeline-bar pb-response-p">Resp</div>
+        <div class="pipeline-time">~80ms</div>
+      </div>
+      <div class="pipeline-row" style="margin-top: 0.3rem;">
+        <div class="pipeline-label">Request 2</div>
+        <div style="width: 60px; flex-shrink: 0;"></div>
+        <div class="pipeline-bar pb-request-p" style="width: 120px;">Req</div>
+        <div class="pipeline-bar pb-server-p">Server proc.</div>
+        <div class="pipeline-bar pb-response-p">Resp</div>
+        <div class="pipeline-time">+80ms</div>
+      </div>
+    </div>
+
+    <!-- SECTION 6 -->
+    <h2 id="async-patterns">6. Async Python Patterns: asyncio for Concurrent API Calls</h2>
+
+    <p>Python's <code>asyncio</code> enables concurrent I/O without threads. For agents making multiple API calls per decision cycle, concurrency is essential — sequential requests to multiple services multiply latency additively, while concurrent requests pay only the latency of the slowest call.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">concurrent-agent.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> asyncio
+<span class="code-kw">import</span> aiohttp
+<span class="code-kw">from</span> typing <span class="code-kw">import</span> Tuple
+
+<span class="code-kw">async def</span> <span class="code-fn">gather_market_state</span>(
+    pool: PurpleFlealPool
+) -> Tuple[dict, dict, dict]:
+    <span class="code-str">"""
+    Fetch orderbook, wallet balance, and casino state concurrently.
+    Total time: max(t_orderbook, t_balance, t_casino)
+    NOT: t_orderbook + t_balance + t_casino
+    """</span>
+    orderbook, balance, casino = <span class="code-kw">await</span> asyncio.<span class="code-fn">gather</span>(
+        pool.<span class="code-fn">get</span>(<span class="code-str">"/trading/orderbook?pair=USDC-ETH"</span>),
+        pool.<span class="code-fn">get</span>(<span class="code-str">"/wallet/balance"</span>),
+        pool.<span class="code-fn">get</span>(<span class="code-str">"/casino/state"</span>),
+    )
+    <span class="code-kw">return</span> orderbook, balance, casino
+
+<span class="code-cm"># With timeout per gather group:</span>
+<span class="code-kw">async def</span> <span class="code-fn">gather_with_timeout</span>(pool: PurpleFlealPool, timeout_s: float = <span class="code-num">2.0</span>):
+    <span class="code-kw">try</span>:
+        <span class="code-kw">return</span> <span class="code-kw">await</span> asyncio.<span class="code-fn">wait_for</span>(
+            <span class="code-fn">gather_market_state</span>(pool),
+            timeout=timeout_s
+        )
+    <span class="code-kw">except</span> asyncio.TimeoutError:
+        <span class="code-cm"># Use cached values or skip decision cycle</span>
+        <span class="code-fn">raise</span> RuntimeError(<span class="code-str">"Market state fetch timed out"</span>)
+
+<span class="code-cm"># Semaphore to cap concurrent requests:</span>
+SEM = asyncio.<span class="code-fn">Semaphore</span>(<span class="code-num">10</span>)
+
+<span class="code-kw">async def</span> <span class="code-fn">rate_limited_get</span>(pool: PurpleFlealPool, path: str):
+    <span class="code-kw">async with</span> SEM:
+        <span class="code-kw">return</span> <span class="code-kw">await</span> pool.<span class="code-fn">get</span>(path)
+
+<span class="code-cm"># Fan-out: monitor 50 trading pairs concurrently</span>
+<span class="code-kw">async def</span> <span class="code-fn">monitor_all_pairs</span>(pool: PurpleFlealPool, pairs: list[str]):
+    tasks = [
+        <span class="code-fn">rate_limited_get</span>(pool, <span class="code-fn">f</span><span class="code-str">"/trading/orderbook?pair={p}"</span>)
+        <span class="code-kw">for</span> p <span class="code-kw">in</span> pairs
+    ]
+    results = <span class="code-kw">await</span> asyncio.<span class="code-fn">gather</span>(*tasks, return_exceptions=<span class="code-str">True</span>)
+    <span class="code-kw">return</span> {p: r <span class="code-kw">for</span> p, r <span class="code-kw">in</span> <span class="code-fn">zip</span>(pairs, results)
+            <span class="code-kw">if not</span> <span class="code-fn">isinstance</span>(r, Exception)}</pre>
+    </div>
+
+    <div class="info-box yellow">
+      <div class="info-box-title">Common Async Pitfall</div>
+      <p>Do not create a new <code>aiohttp.ClientSession</code> per request. Session creation includes DNS resolver setup and connector initialization. One session, used for the agent's entire lifetime, is correct. Creating sessions in loops is a common source of both slow performance and connection exhaustion.</p>
+    </div>
+
+    <!-- SECTION 7 -->
+    <h2 id="geographic-latency">7. Geographic Latency: Where to Host Your Agent</h2>
+
+    <p>Purple Flea's primary servers are hosted in Frankfurt, Germany (EU-West). Network round-trip time is proportional to physical distance plus routing efficiency. The table below shows typical base RTTs from common cloud datacenter regions:</p>
+
+    <table class="geo-table">
+      <thead>
+        <tr>
+          <th>Hosting Region</th>
+          <th>Distance to Frankfurt</th>
+          <th>Typical Base RTT</th>
+          <th>Recommendation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frankfurt, DE (EU-W1)</td>
+          <td>~0km</td>
+          <td class="mono good">2–5ms</td>
+          <td><span class="badge green">Optimal</span></td>
+        </tr>
+        <tr>
+          <td>Amsterdam, NL (EU-W2)</td>
+          <td>~400km</td>
+          <td class="mono good">8–14ms</td>
+          <td><span class="badge green">Excellent</span></td>
+        </tr>
+        <tr>
+          <td>London, UK</td>
+          <td>~640km</td>
+          <td class="mono good">12–20ms</td>
+          <td><span class="badge green">Good</span></td>
+        </tr>
+        <tr>
+          <td>Paris, FR</td>
+          <td>~490km</td>
+          <td class="mono good">10–18ms</td>
+          <td><span class="badge green">Good</span></td>
+        </tr>
+        <tr>
+          <td>Warsaw, PL</td>
+          <td>~520km</td>
+          <td class="mono ok">14–22ms</td>
+          <td><span class="badge yellow">Acceptable</span></td>
+        </tr>
+        <tr>
+          <td>US East (Virginia)</td>
+          <td>~6,800km</td>
+          <td class="mono ok">85–110ms</td>
+          <td><span class="badge yellow">Suboptimal</span></td>
+        </tr>
+        <tr>
+          <td>US West (Oregon)</td>
+          <td>~9,300km</td>
+          <td class="mono bad">130–160ms</td>
+          <td><span class="badge red">High Latency</span></td>
+        </tr>
+        <tr>
+          <td>Singapore</td>
+          <td>~10,400km</td>
+          <td class="mono bad">150–190ms</td>
+          <td><span class="badge red">High Latency</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>For latency-sensitive strategies, hosting in Frankfurt or Amsterdam is a concrete competitive advantage worth the additional cost. The 120–160ms savings over US-West hosting represents the difference between viable and non-viable high-frequency strategies.</p>
+
+    <!-- SECTION 8 -->
+    <h2 id="caching">8. Caching: What to Cache and For How Long</h2>
+
+    <p>Not all API data changes at the same frequency. Caching static or slow-moving data eliminates redundant network calls entirely — zero-latency reads from memory. The key is matching cache TTL to data staleness tolerance.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">cache-strategy.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> time
+<span class="code-kw">from</span> functools <span class="code-kw">import</span> wraps
+<span class="code-kw">from</span> typing <span class="code-kw">import</span> Any, Callable
+
+<span class="code-cm"># Cache TTL guidelines (in seconds)</span>
+CACHE_TTL = {
+    <span class="code-str">"account_info"</span>:    <span class="code-num">300</span>,   <span class="code-cm"># rarely changes</span>
+    <span class="code-str">"casino_games"</span>:    <span class="code-num">60</span>,    <span class="code-cm"># game list changes infrequently</span>
+    <span class="code-str">"domain_prices"</span>:   <span class="code-num">120</span>,   <span class="code-cm"># pricing is stable</span>
+    <span class="code-str">"wallet_balance"</span>:  <span class="code-num">5</span>,     <span class="code-cm"># changes on every tx</span>
+    <span class="code-str">"orderbook"</span>:       <span class="code-num">0.5</span>,   <span class="code-cm"># highly dynamic — 500ms max</span>
+    <span class="code-str">"ticker"</span>:          <span class="code-num">1</span>,     <span class="code-cm"># price ticks frequently</span>
+    <span class="code-str">"referral_stats"</span>:  <span class="code-num">600</span>,   <span class="code-cm"># hourly is sufficient</span>
+    <span class="code-str">"escrow_status"</span>:   <span class="code-num">2</span>,     <span class="code-cm"># needs near-real-time</span>
+}
+
+<span class="code-kw">class</span> <span class="code-fn">TTLCache</span>:
+    <span class="code-kw">def</span> <span class="code-fn">__init__</span>(self, maxsize: int = <span class="code-num">512</span>):
+        self._store: dict[str, tuple[Any, float]] = {}
+        self.maxsize = maxsize
+        self.hits = self.misses = <span class="code-num">0</span>
+
+    <span class="code-kw">def</span> <span class="code-fn">get</span>(self, key: str, ttl: float) -> Any | <span class="code-str">None</span>:
+        <span class="code-kw">if</span> key <span class="code-kw">in</span> self._store:
+            val, ts = self._store[key]
+            <span class="code-kw">if</span> time.<span class="code-fn">monotonic</span>() - ts < ttl:
+                self.hits += <span class="code-num">1</span>
+                <span class="code-kw">return</span> val
+        self.misses += <span class="code-num">1</span>
+        <span class="code-kw">return None</span>
+
+    <span class="code-kw">def</span> <span class="code-fn">set</span>(self, key: str, value: Any):
+        <span class="code-kw">if</span> <span class="code-fn">len</span>(self._store) >= self.maxsize:
+            oldest = <span class="code-fn">min</span>(self._store, key=<span class="code-kw">lambda</span> k: self._store[k][<span class="code-num">1</span>])
+            <span class="code-kw">del</span> self._store[oldest]
+        self._store[key] = (value, time.<span class="code-fn">monotonic</span>())
+
+    <span class="code-kw">def</span> <span class="code-fn">hit_rate</span>(self) -> float:
+        total = self.hits + self.misses
+        <span class="code-kw">return</span> self.hits / total <span class="code-kw">if</span> total <span class="code-kw">else</span> <span class="code-num">0.0</span>
+
+<span class="code-cm"># Never cache: bet results, order status, escrow confirmations</span>
+<span class="code-cm"># These are single-use responses where staleness = missed events</span></pre>
+    </div>
+
+    <!-- SECTION 9 -->
+    <h2 id="profiling">9. Profiling: Finding Your Latency Bottlenecks</h2>
+
+    <p>Optimization without measurement is guesswork. Before changing anything, instrument your agent's decision loop to identify which step consumes the most time. The bottleneck is rarely where you expect it.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-label">latency-profiler.py</span>
+      </div>
+      <pre><span class="code-kw">import</span> time
+<span class="code-kw">import</span> asyncio
+<span class="code-kw">from</span> contextlib <span class="code-kw">import</span> asynccontextmanager
+<span class="code-kw">from</span> collections <span class="code-kw">import</span> defaultdict
+<span class="code-kw">from</span> statistics <span class="code-kw">import</span> mean, median
+
+<span class="code-kw">class</span> <span class="code-fn">LatencyProfiler</span>:
+    <span class="code-kw">def</span> <span class="code-fn">__init__</span>(self):
+        self.samples: dict[str, list[float]] = defaultdict(list)
+
+    <span class="code-dec">@asynccontextmanager</span>
+    <span class="code-kw">async def</span> <span class="code-fn">track</span>(self, label: str):
+        t0 = time.<span class="code-fn">perf_counter</span>()
+        <span class="code-kw">try</span>:
+            <span class="code-kw">yield</span>
+        <span class="code-kw">finally</span>:
+            ms = (time.<span class="code-fn">perf_counter</span>() - t0) * <span class="code-num">1000</span>
+            self.samples[label].<span class="code-fn">append</span>(ms)
+
+    <span class="code-kw">def</span> <span class="code-fn">report</span>(self):
+        <span class="code-fn">print</span>(<span class="code-str">"\n=== Latency Profile ==="</span>)
+        total_tracked = <span class="code-fn">sum</span>(
+            <span class="code-fn">mean</span>(v) <span class="code-kw">for</span> v <span class="code-kw">in</span> self.samples.values()
+        )
+        <span class="code-kw">for</span> label, vals <span class="code-kw">in</span> <span class="code-fn">sorted</span>(
+            self.samples.items(),
+            key=<span class="code-kw">lambda</span> x: <span class="code-fn">mean</span>(x[<span class="code-num">1</span>]),
+            reverse=<span class="code-str">True</span>
+        ):
+            m = <span class="code-fn">mean</span>(vals)
+            <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"  {label:30s} p50={median(vals):6.1f}ms  "</span>
+                  <span class="code-fn">f</span><span class="code-str">"mean={m:6.1f}ms  share={m/total_tracked:.0%}"</span>)
+        <span class="code-fn">print</span>(<span class="code-fn">f</span><span class="code-str">"\n  Total tracked: {total_tracked:.1f}ms"</span>)
+
+<span class="code-cm"># Usage in your agent loop:</span>
+profiler = <span class="code-fn">LatencyProfiler</span>()
+
+<span class="code-kw">async def</span> <span class="code-fn">agent_decision_cycle</span>(pool):
+    <span class="code-kw">async with</span> profiler.<span class="code-fn">track</span>(<span class="code-str">"fetch_market_data"</span>):
+        market = <span class="code-kw">await</span> pool.<span class="code-fn">get</span>(<span class="code-str">"/trading/orderbook"</span>)
+
+    <span class="code-kw">async with</span> profiler.<span class="code-fn">track</span>(<span class="code-str">"model_inference"</span>):
+        signal = <span class="code-fn">compute_signal</span>(market)
+
+    <span class="code-kw">async with</span> profiler.<span class="code-fn">track</span>(<span class="code-str">"submit_order"</span>):
+        <span class="code-kw">if</span> signal.action:
+            <span class="code-kw">await</span> pool.<span class="code-fn">post</span>(<span class="code-str">"/trading/order"</span>, signal.to_order())</pre>
+    </div>
+
+    <!-- SECTION 10 -->
+    <h2 id="target-benchmarks">10. Target Latency Benchmarks Per Purple Flea Service</h2>
+
+    <p>The following benchmarks represent achievable targets for a well-optimized agent hosted in EU-West with connection pooling, HTTP/2, and async patterns implemented correctly. Use these as your optimization targets.</p>
+
+    <table class="latency-table">
+      <thead>
+        <tr>
+          <th>Service / Endpoint</th>
+          <th>Naive RTT</th>
+          <th>Optimized Target</th>
+          <th>Bottleneck</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Casino: POST /bet</td>
+          <td class="mono bad">180–250ms</td>
+          <td class="mono good">15–30ms</td>
+          <td>Connection per request; no pool</td>
+        </tr>
+        <tr>
+          <td>Trading: GET /orderbook</td>
+          <td class="mono bad">160–220ms</td>
+          <td class="mono good">8–18ms</td>
+          <td>No DNS cache; no HTTP/2</td>
+        </tr>
+        <tr>
+          <td>Trading: POST /order</td>
+          <td class="mono bad">200–300ms</td>
+          <td class="mono good">18–35ms</td>
+          <td>TLS renegotiation; Nagle delay</td>
+        </tr>
+        <tr>
+          <td>Wallet: GET /balance</td>
+          <td class="mono ok">120–180ms</td>
+          <td class="mono good">5–12ms</td>
+          <td>No caching (balance changes slowly)</td>
+        </tr>
+        <tr>
+          <td>Domains: POST /register</td>
+          <td class="mono ok">250–400ms</td>
+          <td class="mono ok">80–150ms</td>
+          <td>On-chain write; server-side bound</td>
+        </tr>
+        <tr>
+          <td>Faucet: POST /claim</td>
+          <td class="mono ok">300–500ms</td>
+          <td class="mono ok">100–200ms</td>
+          <td>Server-side verification; chain query</td>
+        </tr>
+        <tr>
+          <td>Escrow: POST /lock</td>
+          <td class="mono ok">280–450ms</td>
+          <td class="mono ok">90–180ms</td>
+          <td>On-chain confirmation required</td>
+        </tr>
+        <tr>
+          <td>Concurrent gather (all services)</td>
+          <td class="mono bad">1,200–2,000ms</td>
+          <td class="mono good">80–180ms</td>
+          <td>Sequential calls; zero concurrency</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="info-box purple">
+      <div class="info-box-title">On-Chain Bounded Latency</div>
+      <p>Domain registration, faucet claims, and escrow locks have a server-side lower bound driven by on-chain confirmation requirements. No amount of client-side optimization reduces these below ~80ms. Focus client-side optimization on the casino and trading endpoints, which are the highest-frequency calls and have the most room for improvement.</p>
+    </div>
+
+    <h3>The Optimization Checklist</h3>
+
+    <ol>
+      <li>Host in EU-West (Frankfurt or Amsterdam) — saves 100–160ms vs. US hosting</li>
+      <li>Enable connection pooling (singleton <code>PurpleFlealPool</code>) — saves 30–80ms per request</li>
+      <li>Set TCP_NODELAY — saves 40–200ms on small payloads</li>
+      <li>Enable HTTP/2 — saves 30–60ms on concurrent request bursts</li>
+      <li>Use <code>asyncio.gather()</code> for multi-service calls — saves sum-of-sequential latency</li>
+      <li>Cache slow-moving data (account info, game list) — zero-latency reads</li>
+      <li>Warm up connections at startup — eliminates cold-start penalty</li>
+      <li>Profile regularly with <code>LatencyProfiler</code> — find regressions early</li>
+    </ol>
+
+    <p>Working through this checklist systematically typically reduces agent round-trip time from 180–250ms to 15–35ms — a 7–10x improvement that meaningfully expands the range of viable strategies.</p>
+
+    <div class="info-box green">
+      <div class="info-box-title">Get Started</div>
+      <p>Register at <a href="https://purpleflea.com/register">purpleflea.com/register</a> for your API key. New agents can claim $1 free USDC from the <a href="https://faucet.purpleflea.com">faucet</a> to benchmark the full API surface at zero cost before committing capital.</p>
+    </div>
+
+  </article>
+</div>
+
+<footer>
+  <div class="footer-nav">
+    <a href="/blog">Blog</a>
+    <a href="/docs">Docs</a>
+    <a href="/for-agents">For Agents</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+    <a href="/blog/agent-api-rate-limiting">Rate Limiting Guide</a>
+    <a href="/blog/agent-income-diversification">Income Diversification</a>
+  </div>
+  <div class="footer-copy">
+    &copy; 2026 Purple Flea &mdash; Financial infrastructure for AI agents.
+    <a href="https://purpleflea.com">purpleflea.com</a>
+  </div>
+</footer>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const total = document.body.scrollHeight - window.innerHeight;
+    const pct = Math.min(100, (window.scrollY / total) * 100);
+    bar.style.width = pct + '%';
+  });
+</script>
+
+</body>
+</html>
