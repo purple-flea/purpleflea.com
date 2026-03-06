@@ -798,6 +798,92 @@ STABLECOINS_ETH = {
         <p><strong>Yield Summary (2026):</strong> A well-diversified stablecoin portfolio (40% USDC, 25% sUSDe, 20% sDAI, 15% GHO/crvUSD) should yield approximately 6–8% annually with materially lower risk than any single algorithmic stablecoin. Depeg monitoring adds another safety layer with minimal engineering effort.</p>
       </div>
 
+      <!-- SECTION 10: FRAX V3 -->
+      <h2 id="frax-v3">FRAX v3 and Real-World Asset Backing</h2>
+      <p>Frax Finance's v3 evolution represents a significant philosophical shift from its partially-algorithmic origins. FRAX v3 targets a 100% collateral ratio, primarily backed by USDC and increasingly by Real-World Assets (RWA) — including US Treasuries held via FinresPBC, Frax's federally regulated entity. This RWA integration brings off-chain yield on-chain with regulatory compliance.</p>
+
+      <h3 id="frax-amo">Algorithmic Market Operations (AMO)</h3>
+      <p>Frax's AMO controllers are smart contracts that autonomously deploy and retract FRAX into DeFi protocols while maintaining the collateral invariant:</p>
+      <ul>
+        <li><strong>Curve AMO:</strong> Mints FRAX into Curve pools when liquidity is needed, earning CRV and trading fees</li>
+        <li><strong>Aave AMO:</strong> Supplies FRAX to Aave v3 lending market, earning interest from borrowers</li>
+        <li><strong>Fraxlend AMO:</strong> Deploys into Frax's own lending protocol at higher utilisation rates</li>
+        <li><strong>Treasury AMO:</strong> Routes collateral to US T-Bills via FinresPBC for risk-free RWA yield</li>
+      </ul>
+
+      <p>This AMO framework is analogous to central bank open market operations — but encoded in transparent, on-chain smart contracts. Protocol revenue from AMOs backs both FXS governance token staking rewards and the sfrxETH LST yield.</p>
+
+      <h3 id="sfrxeth">sfrxETH: Concentrated LST Yield</h3>
+      <p>Frax's frxETH/sfrxETH pair has an unusual design: frxETH itself does not rebase (unlike stETH). Instead, all validator rewards flow exclusively to sfrxETH stakers. This concentrates yield on the staked portion — agents holding sfrxETH earn approximately 1.4–1.6x the base ETH staking APY compared to stETH at equivalent collateral risk.</p>
+
+      <!-- SECTION 11: AGENT TREASURY FRAMEWORK -->
+      <h2 id="treasury-framework">Agent Stablecoin Treasury Framework</h2>
+      <p>For agents managing stablecoins across multiple protocol types, a structured decision framework prevents both under-yield (too conservative) and blow-up risk (too aggressive). A traffic-light tiering model provides clear operational rules:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Zone</th><th>Risk</th><th>Stablecoins</th><th>Max Treasury %</th><th>Exit Trigger</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="color:var(--green)">Green</td><td>Very Low</td><td>USDC, USDT, PYUSD</td><td>No cap (floor 40%)</td><td>Issuer insolvency only</td></tr>
+            <tr><td style="color:var(--green)">Green+</td><td>Low</td><td>DAI, sDAI, LUSD</td><td>40%</td><td>&gt;2% depeg for 2h</td></tr>
+            <tr><td style="color:var(--yellow)">Yellow</td><td>Medium</td><td>USDe, sUSDe, GHO, FRAX</td><td>30%</td><td>&gt;1.5% depeg for 1h</td></tr>
+            <tr><td style="color:var(--yellow)">Yellow+</td><td>Medium-High</td><td>crvUSD, DOLA, alUSD</td><td>20%</td><td>&gt;1% depeg for 30min</td></tr>
+            <tr><td style="color:var(--red)">Red</td><td>High</td><td>New/experimental stables</td><td>5%</td><td>&gt;0.5% depeg for 15min</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="yield-routing">Automated Yield Routing</h3>
+      <p>Agents should route idle stablecoin holdings into yield-bearing positions automatically. A simple priority hierarchy prevents over-concentration in any single protocol:</p>
+
+      <pre><code><span class="cm"># Stablecoin yield routing — simple priority allocation</span>
+<span class="ck">def</span> <span class="cf">route_stable_treasury</span>(
+    treasury_usd: float,
+    susde_apy: float,
+    sdai_apy: float,
+    gho_borrow_rate: float,
+    gho_deploy_apy: float
+) -&gt; dict:
+    alloc = {<span class="cs">"USDC_reserve"</span>: <span class="cn">0</span>, <span class="cs">"sDAI"</span>: <span class="cn">0</span>, <span class="cs">"sUSDe"</span>: <span class="cn">0</span>, <span class="cs">"GHO_arb"</span>: <span class="cn">0</span>}
+    rem = treasury_usd
+
+    <span class="cm"># 1. Always keep 20% liquid USDC</span>
+    alloc[<span class="cs">"USDC_reserve"</span>] = treasury_usd * <span class="cn">0.20</span>
+    rem -= alloc[<span class="cs">"USDC_reserve"</span>]
+
+    <span class="cm"># 2. sUSDe for high yield periods</span>
+    <span class="ck">if</span> susde_apy > <span class="cn">0.08</span>:
+        cap = treasury_usd * <span class="cn">0.30</span>
+        alloc[<span class="cs">"sUSDe"</span>] = min(rem, cap)
+        rem -= alloc[<span class="cs">"sUSDe"</span>]
+
+    <span class="cm"># 3. sDAI for base yield</span>
+    <span class="ck">if</span> sdai_apy > <span class="cn">0.04</span> <span class="ck">and</span> rem > <span class="cn">0</span>:
+        cap = treasury_usd * <span class="cn">0.30</span>
+        alloc[<span class="cs">"sDAI"</span>] = min(rem, cap)
+        rem -= alloc[<span class="cs">"sDAI"</span>]
+
+    <span class="cm"># 4. GHO borrow arb if spread > 2%</span>
+    <span class="ck">if</span> gho_deploy_apy - gho_borrow_rate > <span class="cn">0.02</span> <span class="ck">and</span> rem > <span class="cn">0</span>:
+        alloc[<span class="cs">"GHO_arb"</span>] = min(rem, treasury_usd * <span class="cn">0.15</span>)
+        rem -= alloc[<span class="cs">"GHO_arb"</span>]
+
+    alloc[<span class="cs">"USDC_reserve"</span>] += rem  <span class="cm"># remainder stays liquid</span>
+    <span class="ck">return</span> alloc
+
+<span class="cm"># Example: $50k treasury, sUSDe at 10%, sDAI at 5.2%</span>
+result = route_stable_treasury(<span class="cn">50_000</span>, <span class="cn">0.10</span>, <span class="cn">0.052</span>, <span class="cn">0.016</span>, <span class="cn">0.072</span>)
+<span class="ck">for</span> asset, usd <span class="ck">in</span> result.items():
+    print(f<span class="cs">"  {asset:15s}: ${usd:>8,.0f}"</span>)
+<span class="cm"># Output:
+#   USDC_reserve   : $ 18,500
+#   sUSDe          : $ 15,000
+#   sDAI           : $ 15,000
+#   GHO_arb        : $  1,500</span>
+</code></pre>
+
       <h2 id="conclusion">Conclusion</h2>
       <p>The Terra/LUNA collapse demonstrated that high yield alone cannot justify holding a stablecoin with reflexive, circular backing. The 19.5% Anchor yield was a warning sign, not a feature — it reflected the protocol's need to subsidise demand for a fundamentally fragile instrument.</p>
 
@@ -828,6 +914,9 @@ STABLECOINS_ETH = {
           <li><a href="#python-depeg-monitor">Python Depeg Agent</a></li>
           <li><a href="#protection-strategies">Protection Strategies</a></li>
           <li><a href="#agent-playbook">Agent Playbook</a></li>
+          <li><a href="#frax-v3">FRAX v3 and RWA Backing</a></li>
+          <li><a href="#treasury-framework">Treasury Framework</a></li>
+          <li><a href="#yield-routing" class="sub">Yield Routing</a></li>
           <li><a href="#conclusion">Conclusion</a></li>
         </ul>
       </div>

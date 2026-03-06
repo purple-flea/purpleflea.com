@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perpetual Swap Mechanics: Deep Dive for AI Agent Traders on Hyperliquid | Purple Flea</title>
+  <meta name="description" content="A comprehensive guide to perpetual swap mechanics for AI agents trading on Hyperliquid. Covers mark price, index price, funding rate formula, insurance fund, ADL, HyperBFT consensus, 275 markets, leverage, and a full Python perp trading agent." />
+  <meta name="author" content="Purple Flea Research Team" />
+  <meta name="keywords" content="perpetual swaps, Hyperliquid, funding rate, mark price, AI agents, perp trading, cross margin, isolated margin, HyperBFT" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-perpetual-swap-mechanics/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Perpetual Swap Mechanics: Deep Dive for AI Agent Traders on Hyperliquid" />
+  <meta property="og:description" content="Full deep dive into perpetual swap mechanics for AI agents on Hyperliquid: mark price, funding rates, insurance fund, ADL, 275 markets, and a Python trading agent." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-perpetual-swap-mechanics/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/og-default.png" />
+  <meta property="article:published_time" content="2026-03-06T00:00:00Z" />
+  <meta property="article:author" content="Purple Flea Research Team" />
+  <meta property="article:tag" content="Guide" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Perpetual Swap Mechanics: Deep Dive for AI Agent Traders on Hyperliquid" />
+  <meta name="twitter:description" content="Deep dive into perpetual swap mechanics for AI agents. Funding rates, mark price, ADL, 275 Hyperliquid markets, and a Python perp trading agent via Purple Flea." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-default.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Perpetual Swap Mechanics: Deep Dive for AI Agent Traders on Hyperliquid",
+    "description": "A comprehensive guide to perpetual swap mechanics for AI agents. Covers mark price, funding rates, insurance fund, ADL, Hyperliquid features, 275 markets, and a full Python trading agent.",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea Research Team",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-perpetual-swap-mechanics/",
+    "keywords": ["perpetual swaps", "Hyperliquid", "funding rate", "AI agents", "perp trading", "mark price"],
+    "articleSection": "Guide"
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --bg-card: #111113;
+      --bg-elevated: #18181B;
+      --border: #27272A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-glow: rgba(168, 85, 247, 0.15);
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --text-dim: #71717A;
+      --green: #22C55E;
+      --green-glow: rgba(34, 197, 94, 0.1);
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+      --red: #EF4444;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--purple));
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 900;
+      background: rgba(9, 9, 11, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--purple);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .page-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    article { min-width: 0; }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tag-green { background: rgba(34, 197, 94, 0.1); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3); }
+
+    .post-date { color: var(--text-dim); font-size: 0.875rem; }
+    .read-time { color: var(--text-dim); font-size: 0.875rem; }
+
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.5rem;
+    }
+
+    .post-intro {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      line-height: 1.8;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 2.5rem 0 1rem;
+      scroll-margin-top: 80px;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      scroll-margin-top: 80px;
+    }
+
+    p { margin-bottom: 1.25rem; color: var(--text-muted); }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    ul, ol { margin: 0 0 1.25rem 1.5rem; color: var(--text-muted); }
+    li { margin-bottom: 0.5rem; }
+    strong { color: var(--text); font-weight: 600; }
+
+    pre {
+      background: #0D0D0F;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+
+    pre code {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #E4E4E7;
+    }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: var(--bg-elevated);
+      color: #4ADE80;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #E4E4E7;
+    }
+
+    .callout {
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-left: 3px solid;
+    }
+
+    .callout-green {
+      background: var(--green-glow);
+      border-color: var(--green);
+    }
+
+    .callout-purple {
+      background: var(--purple-glow);
+      border-color: var(--purple);
+    }
+
+    .callout-yellow {
+      background: rgba(234, 179, 8, 0.08);
+      border-color: var(--yellow);
+    }
+
+    .callout-red {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: var(--red);
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.5rem;
+    }
+
+    .callout-green .callout-title { color: var(--green); }
+    .callout-purple .callout-title { color: var(--purple); }
+    .callout-yellow .callout-title { color: var(--yellow); }
+    .callout-red .callout-title { color: var(--red); }
+    .callout p { margin: 0; }
+
+    .formula {
+      font-family: var(--mono);
+      background: #0D0D0F;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #4ADE80;
+      overflow-x: auto;
+    }
+
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+
+    th {
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    tr:hover td { background: var(--bg-elevated); }
+
+    .sidebar { position: sticky; top: 80px; }
+
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    .toc ul { list-style: none; margin: 0; padding: 0; }
+    .toc li { margin-bottom: 0; }
+
+    .toc a {
+      display: block;
+      padding: 0.35rem 0.5rem;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+      border-radius: 4px;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+
+    .toc a:hover, .toc a.active {
+      color: var(--green);
+      background: var(--green-glow);
+      text-decoration: none;
+    }
+
+    .toc li.sub a { padding-left: 1.25rem; font-size: 0.78rem; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(168,85,247,0.08));
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0;
+      text-align: center;
+    }
+
+    .cta-box h3 { margin: 0 0 0.75rem; font-size: 1.25rem; }
+    .cta-box p { margin: 0 0 1.5rem; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-purple { background: var(--purple); color: white; }
+    .btn-purple:hover { background: #9333EA; text-decoration: none; transform: translateY(-1px); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.875rem;
+      margin-top: 4rem;
+    }
+
+    footer a { color: var(--text-muted); }
+
+    @media (max-width: 900px) {
+      .page-wrap { grid-template-columns: 1fr; padding: 2rem 1.25rem; }
+      .sidebar { display: none; }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <a href="/" class="nav-logo">Purple Flea</a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/blog/">Blog</a></li>
+    <li><a href="/docs/">Docs</a></li>
+    <li><a href="/trading/">Trading</a></li>
+    <li><a href="/register/">Register</a></li>
+  </ul>
+</nav>
+
+<div class="page-wrap">
+  <article>
+    <div class="post-meta">
+      <span class="tag tag-green">Guide</span>
+      <span class="post-date">March 6, 2026</span>
+      <span class="read-time">· 16 min read</span>
+      <span class="post-date">· Purple Flea Research Team</span>
+    </div>
+
+    <h1>Perpetual Swap Mechanics: Deep Dive for AI Agent Traders on Hyperliquid</h1>
+
+    <p class="post-intro">
+      Perpetual swaps are the most liquid and flexible derivative instrument in crypto — and they are uniquely suited to AI agents that need 24/7 position management, precise leverage control, and programmatic order execution. This guide covers every mechanical detail: mark price computation, index price oracles, the funding rate formula and its strategic implications, insurance fund mechanics, auto-deleveraging (ADL), and the Hyperliquid-specific features that make it the best perp venue for autonomous agents. Includes a complete Python trading agent using the Purple Flea trading API.
+    </p>
+
+    <!-- ==================== SECTION 1 ==================== -->
+    <h2 id="what-are-perps">What Are Perpetual Swaps?</h2>
+
+    <p>
+      A perpetual swap is a derivative contract that tracks the price of an underlying asset (ETH, BTC, SOL, etc.) without an expiry date. Unlike traditional futures contracts that settle on a fixed date, perpetuals never expire — traders can hold positions indefinitely.
+    </p>
+
+    <p>
+      The key mechanism that keeps the perp price anchored to the spot price is the <strong>funding rate</strong>: a periodic payment between long and short holders that incentivizes convergence between the perp price and the index (spot) price.
+    </p>
+
+    <h3>Perp vs. Spot vs. Traditional Futures</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Spot</th>
+            <th>Traditional Futures</th>
+            <th>Perpetual Swap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Expiry</td>
+            <td>None</td>
+            <td>Fixed date</td>
+            <td>None</td>
+          </tr>
+          <tr>
+            <td>Leverage</td>
+            <td>1x (or margin)</td>
+            <td>Up to ~20x</td>
+            <td>Up to 50x (Hyperliquid)</td>
+          </tr>
+          <tr>
+            <td>Anchor mechanism</td>
+            <td>N/A</td>
+            <td>Convergence at expiry</td>
+            <td>Funding rate</td>
+          </tr>
+          <tr>
+            <td>Short selling</td>
+            <td>Requires borrowing</td>
+            <td>Yes</td>
+            <td>Yes, natively</td>
+          </tr>
+          <tr>
+            <td>Holding cost</td>
+            <td>None (or lending yield)</td>
+            <td>Basis (contango/backwardation)</td>
+            <td>Funding payments</td>
+          </tr>
+          <tr>
+            <td>Settlement</td>
+            <td>Immediate</td>
+            <td>At expiry</td>
+            <td>Mark-to-market continuous</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ==================== SECTION 2 ==================== -->
+    <h2 id="mark-price">Mark Price: The Fair Liquidation Price</h2>
+
+    <p>
+      The <strong>mark price</strong> is the price used for profit-and-loss calculations and liquidation triggers. It is intentionally different from the last traded price to prevent price manipulation from triggering unnecessary liquidations.
+    </p>
+
+    <h3>Mark Price Calculation</h3>
+
+    <p>
+      Hyperliquid and most major perp venues compute mark price as:
+    </p>
+
+    <div class="formula">
+      Mark Price = Index Price + EMA(Basis)<br/><br/>
+      where Basis = Perp Mid Price − Index Price
+    </div>
+
+    <p>
+      The EMA (Exponential Moving Average) smooths out short-term perp price spikes. Specifically:
+    </p>
+
+    <ul>
+      <li><strong>Index Price</strong> — A weighted average of the spot price across multiple reference exchanges (Binance, Coinbase, OKX, etc.).</li>
+      <li><strong>Perp Mid Price</strong> — The midpoint of the best bid and ask on the perp order book.</li>
+      <li><strong>EMA Basis</strong> — A 30-second exponential moving average of (Perp Mid − Index). This means a single candle spike in the perp cannot immediately trigger liquidations.</li>
+    </ul>
+
+    <pre><code class="language-python">from collections import deque
+import time
+
+class MarkPriceCalculator:
+    """
+    Computes mark price using exponential moving average of basis.
+    Parameters match Hyperliquid's mark price model.
+    """
+
+    def __init__(self, ema_window_seconds: int = 30):
+        self.ema_window = ema_window_seconds
+        self.basis_samples = deque()   # (timestamp, basis) pairs
+        self._ema_basis = None
+        self._alpha = None
+
+    def _update_ema(self, basis: float, now: float):
+        """Update EMA with a new basis observation."""
+        if self._ema_basis is None:
+            self._ema_basis = basis
+            return
+
+        # EMA decay based on elapsed time
+        if self.basis_samples:
+            last_t = self.basis_samples[-1][0]
+            dt = now - last_t
+            # alpha = 1 - exp(-dt / window) for time-weighted EMA
+            import math
+            alpha = 1 - math.exp(-dt / self.ema_window)
+            self._ema_basis = alpha * basis + (1 - alpha) * self._ema_basis
+
+    def update(self, perp_bid: float, perp_ask: float, index_price: float) -> float:
+        """
+        Update with new market data. Returns current mark price.
+        """
+        now = time.time()
+        perp_mid = (perp_bid + perp_ask) / 2
+        basis = perp_mid - index_price
+
+        self._update_ema(basis, now)
+        self.basis_samples.append((now, basis))
+
+        # Prune old samples
+        cutoff = now - self.ema_window * 5
+        while self.basis_samples and self.basis_samples[0][0] < cutoff:
+            self.basis_samples.popleft()
+
+        mark = index_price + (self._ema_basis or 0)
+        return mark
+
+    @property
+    def current_ema_basis(self) -> float:
+        return self._ema_basis or 0.0
+
+# Example usage
+calc = MarkPriceCalculator(ema_window_seconds=30)
+
+# Simulate market updates
+samples = [
+    (2000.5, 2001.5, 2000.0),   # perp slightly above index
+    (2001.0, 2002.0, 2000.2),
+    (2000.8, 2001.8, 2000.1),
+]
+
+for bid, ask, index in samples:
+    mark = calc.update(bid, ask, index)
+    print(f"Mark: ${mark:.3f} | EMA Basis: ${calc.current_ema_basis:.4f}")</code></pre>
+
+    <!-- ==================== SECTION 3 ==================== -->
+    <h2 id="index-price">Index Price and Oracle Design</h2>
+
+    <p>
+      The index price is the ground truth that the perp price must stay close to. A robust index uses multiple spot exchanges with time-weighted average prices (TWAP) and outlier rejection to resist manipulation.
+    </p>
+
+    <h3>Hyperliquid's Index Methodology</h3>
+
+    <p>
+      Hyperliquid computes index prices using a median of prices from: Binance spot, Coinbase spot, OKX spot, and Bybit spot — with each source's price being a 5-minute TWAP. The median (not average) is used to make the index resistant to any single exchange's price being manipulated.
+    </p>
+
+    <div class="formula">
+      Index Price = Median(TWAP_Binance, TWAP_Coinbase, TWAP_OKX, TWAP_Bybit)
+    </div>
+
+    <p>
+      For AI agents, understanding the index construction matters for funding rate arbitrage: if one exchange's spot price deviates from the others due to a large trade, the index barely moves, preventing false signals.
+    </p>
+
+    <!-- ==================== SECTION 4 ==================== -->
+    <h2 id="funding-rate">Funding Rate: Formula and Strategic Implications</h2>
+
+    <p>
+      The <strong>funding rate</strong> is the core mechanism of perpetual swaps. Every 8 hours (on most exchanges; Hyperliquid uses 1-hour intervals for more responsive anchoring), longs pay shorts (or vice versa) a fee proportional to their position size and the funding rate.
+    </p>
+
+    <h3>Funding Rate Formula</h3>
+
+    <p>
+      The funding rate has two components:
+    </p>
+
+    <div class="formula">
+      Funding Rate = Clamp(Premium Index + Clamp(Interest Rate − Premium Index, −0.05%, 0.05%), −0.075%, 0.075%)
+    </div>
+
+    <p>Breaking this down:</p>
+
+    <ul>
+      <li><strong>Interest Rate</strong> — A fixed baseline, typically 0.01% per 8 hours (equivalent to ~4.5% annual rate). This represents the cost of synthetic lending in the perp market.</li>
+      <li><strong>Premium Index</strong> — The average of <code>(Mark Price − Index Price) / Index Price</code> sampled over the funding interval. When the perp trades above spot, the premium is positive — longs pay shorts.</li>
+      <li><strong>Clamp</strong> — The outer clamp (−0.075% to 0.075%) prevents extreme funding rates from creating cascading liquidations.</li>
+    </ul>
+
+    <h3>Funding Payment Calculation</h3>
+
+    <div class="formula">
+      Funding Payment = Position Size × Mark Price × Funding Rate
+    </div>
+
+    <p>
+      A long position of 10 ETH at mark price $2000 with a funding rate of 0.01% per hour:
+    </p>
+
+    <div class="formula">
+      Hourly Payment = 10 × $2,000 × 0.0001 = $2.00/hour = $48/day
+    </div>
+
+    <pre><code class="language-python">from dataclasses import dataclass
+from typing import Literal
+
+@dataclass
+class FundingCalculator:
+    """
+    Computes funding rates and payments for perp positions.
+    Uses Hyperliquid's 1-hour funding interval model.
+    """
+    interest_rate_per_hour: float = 0.0001 / 8   # 0.01% per 8hr baseline
+    max_funding: float = 0.00075                   # 0.075% per 8hr max
+
+    def compute_premium_index(
+        self,
+        mark_samples: list[float],
+        index_samples: list[float]
+    ) -> float:
+        """
+        Average of (mark - index) / index over the funding interval.
+        In production, this is sampled every minute and averaged.
+        """
+        if len(mark_samples) != len(index_samples):
+            raise ValueError("Mark and index sample counts must match")
+
+        premiums = [
+            (m - i) / i for m, i in zip(mark_samples, index_samples)
+        ]
+        return sum(premiums) / len(premiums)
+
+    def compute_funding_rate(
+        self,
+        mark_samples: list[float],
+        index_samples: list[float]
+    ) -> float:
+        """Compute final clamped funding rate for the interval."""
+        premium_index = self.compute_premium_index(mark_samples, index_samples)
+
+        # Inner clamp: cap the interest rate adjustment
+        inner_clamp_val = max(-0.0005, min(0.0005, self.interest_rate_per_hour - premium_index))
+
+        unclamped = premium_index + inner_clamp_val
+
+        # Outer clamp: max funding rate
+        funding_rate = max(-self.max_funding, min(self.max_funding, unclamped))
+        return funding_rate
+
+    def compute_payment(
+        self,
+        position_size_units: float,
+        mark_price: float,
+        funding_rate: float,
+        side: Literal["long", "short"]
+    ) -> float:
+        """
+        Compute funding payment.
+        Positive = you pay. Negative = you receive.
+        Longs pay when funding_rate > 0.
+        Shorts pay when funding_rate < 0.
+        """
+        gross = position_size_units * mark_price * abs(funding_rate)
+        if funding_rate > 0:
+            return gross if side == "long" else -gross
+        else:
+            return -gross if side == "long" else gross
+
+    def annualized_funding_cost(self, funding_rate_per_hour: float) -> float:
+        """Convert hourly funding rate to annualized cost (%)."""
+        return funding_rate_per_hour * 8760 * 100
+
+# Example
+calc = FundingCalculator()
+
+# ETH perp trading above spot for 60 minutes
+mark_samples = [2010, 2012, 2011, 2013, 2010] * 12  # 60 samples
+index_samples = [2000, 2001, 2000, 2002, 2001] * 12
+
+rate = calc.compute_funding_rate(mark_samples, index_samples)
+payment = calc.compute_payment(10, 2010, rate, "long")
+annualized = calc.annualized_funding_cost(rate)
+
+print(f"Funding Rate: {rate:.6f} ({rate*100:.4f}%/hr)")
+print(f"Long 10 ETH pays: ${payment:.4f} this hour")
+print(f"Annualized cost: {annualized:.1f}%")</code></pre>
+
+    <h3>Funding Rate as a Signal</h3>
+
+    <p>
+      Funding rates are a rich source of market intelligence for AI agents:
+    </p>
+
+    <ul>
+      <li><strong>Persistently positive funding</strong> (longs pay) — Market is overheated bullish. Shorts receive free yield. Contrarian signal: market may be due for a correction.</li>
+      <li><strong>Persistently negative funding</strong> (shorts pay) — Bearish overcrowding. Longs receive yield. Potential bounce signal.</li>
+      <li><strong>Funding rate spike</strong> — Sudden leverage influx on one side. Often precedes a flush of that side (short squeeze or long liquidation cascade).</li>
+      <li><strong>Neutral funding ≈ 0</strong> — Balanced market, minimal carry cost for holding positions.</li>
+    </ul>
+
+    <!-- ==================== SECTION 5 ==================== -->
+    <h2 id="insurance-fund">Insurance Fund and Auto-Deleveraging</h2>
+
+    <h3>Insurance Fund</h3>
+
+    <p>
+      When a trader's position is liquidated and the collateral is insufficient to cover the loss (i.e., the position goes bankrupt before liquidation can execute), the exchange's <strong>insurance fund</strong> covers the shortfall. The insurance fund is built from a portion of liquidation fees charged when positions are closed by the liquidation engine.
+    </p>
+
+    <p>
+      On Hyperliquid, the insurance fund is transparent and visible on-chain. If a large market move causes mass liquidations that exceed the insurance fund, the system falls back to <strong>Auto-Deleveraging (ADL)</strong>.
+    </p>
+
+    <h3>Auto-Deleveraging (ADL)</h3>
+
+    <p>
+      ADL is the last resort. When the insurance fund is depleted, the exchange forcibly closes positions held by the most profitable traders on the opposite side of the bankrupt position at the bankruptcy price. ADL recipients are selected by a ranking that combines profit percentage and leverage used.
+    </p>
+
+    <div class="callout callout-red">
+      <div class="callout-title">ADL Risk for Agents</div>
+      <p>An AI agent with a highly profitable leveraged short position during a market crash could have that position partially ADL-closed at an unfavorable price. Agents should monitor ADL indicator scores on Hyperliquid and reduce leverage on winning positions when ADL risk is elevated.</p>
+    </div>
+
+    <h3>ADL Score Computation</h3>
+
+    <div class="formula">
+      ADL Score = Percentile_rank(PnL%) × Percentile_rank(Effective_Leverage)
+    </div>
+
+    <p>
+      Traders with the highest combined rank (most profitable AND most leveraged) are auto-deleveraged first. AI agents can monitor this to know when they are at risk.
+    </p>
+
+    <!-- ==================== SECTION 6 ==================== -->
+    <h2 id="hyperliquid">Hyperliquid: Architecture and Agent Advantages</h2>
+
+    <p>
+      Hyperliquid is a purpose-built Layer 1 blockchain for perpetual trading. Purple Flea's trading infrastructure runs on Hyperliquid, giving agents access to 275 perp markets with sub-second execution and CEX-grade liquidity.
+    </p>
+
+    <h3>HyperBFT Consensus</h3>
+
+    <p>
+      Hyperliquid uses HyperBFT — a Byzantine Fault Tolerant consensus mechanism optimized for high-throughput financial applications. Key properties:
+    </p>
+
+    <ul>
+      <li><strong>Sub-second finality</strong> — Blocks finalize in ~0.3 seconds, enabling real-time order management.</li>
+      <li><strong>Deterministic execution</strong> — No MEV (Maximal Extractable Value) front-running. Orders execute in the order they are received, making agent strategies predictable.</li>
+      <li><strong>Native order book</strong> — Hyperliquid runs a fully on-chain CLOB (Central Limit Order Book), not an AMM. This means true limit orders with time-price priority, no slippage on limit orders, and professional market maker participation.</li>
+      <li><strong>Gas-free trading</strong> — No per-transaction gas fee for order operations. Agents can place, cancel, and modify orders without gas cost.</li>
+    </ul>
+
+    <h3>Order Book Efficiency</h3>
+
+    <p>
+      Because Hyperliquid runs a native CLOB at the consensus layer, order matching happens in microseconds. This is fundamentally different from AMM-based perp protocols (like GMX v1) where the price is oracle-sourced and any order executes at oracle price regardless of size. On Hyperliquid:
+    </p>
+
+    <ul>
+      <li>Market orders fill against resting limit orders at the best available price.</li>
+      <li>Large orders walk the book — agents must manage order size to minimize market impact.</li>
+      <li>TWAP and VWAP order types can be implemented via sequential limit orders.</li>
+    </ul>
+
+    <!-- ==================== SECTION 7 ==================== -->
+    <h2 id="fee-structure">Fee Structure and Market Selection</h2>
+
+    <h3>Hyperliquid Fee Tiers</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Taker Fee</th>
+            <th>Maker Rebate</th>
+            <th>Volume Requirement</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Default</td>
+            <td>0.025%</td>
+            <td>−0.002%</td>
+            <td>Any</td>
+          </tr>
+          <tr>
+            <td>VIP 1</td>
+            <td>0.022%</td>
+            <td>−0.003%</td>
+            <td>$25M / 14d</td>
+          </tr>
+          <tr>
+            <td>VIP 2</td>
+            <td>0.020%</td>
+            <td>−0.005%</td>
+            <td>$100M / 14d</td>
+          </tr>
+          <tr>
+            <td>VIP 3</td>
+            <td>0.018%</td>
+            <td>−0.007%</td>
+            <td>$500M / 14d</td>
+          </tr>
+          <tr>
+            <td>Market Maker</td>
+            <td>0.015%</td>
+            <td>−0.010%</td>
+            <td>Application-based</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Maker rebates mean that limit orders that rest in the book are actually <em>paid</em> by the exchange. AI agents that predominantly use limit orders (rather than market orders) can net-positive on fees from maker rebates alone.
+    </p>
+
+    <h3>275 Available Markets</h3>
+
+    <p>
+      Purple Flea provides access to all 275 Hyperliquid perpetual markets, spanning:
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Examples</th>
+            <th>Max Leverage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Major Crypto</td>
+            <td>BTC, ETH, SOL, BNB</td>
+            <td>50x</td>
+          </tr>
+          <tr>
+            <td>Mid-cap DeFi</td>
+            <td>AAVE, UNI, LINK, ARB</td>
+            <td>20x</td>
+          </tr>
+          <tr>
+            <td>Layer 1s</td>
+            <td>AVAX, NEAR, SUI, APT</td>
+            <td>20x</td>
+          </tr>
+          <tr>
+            <td>Layer 2s</td>
+            <td>OP, ARB, MATIC, STRK</td>
+            <td>20x</td>
+          </tr>
+          <tr>
+            <td>Meme / High beta</td>
+            <td>DOGE, SHIB, PEPE, WIF</td>
+            <td>10x</td>
+          </tr>
+          <tr>
+            <td>RWA / Synthetic</td>
+            <td>Gold, Silver, Forex</td>
+            <td>10x</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ==================== SECTION 8 ==================== -->
+    <h2 id="leverage-mechanics">Leverage Mechanics: Cross vs. Isolated</h2>
+
+    <h3>Cross Margin</h3>
+
+    <p>
+      In cross-margin mode, all positions share a single collateral pool. The full account balance backs each position. This is capital-efficient but means a single large loss can liquidate all cross-margin positions simultaneously.
+    </p>
+
+    <div class="formula">
+      Cross Margin Ratio = Total Account Equity / Total Position Notional
+    </div>
+
+    <p>
+      Liquidation is triggered when margin ratio falls below the maintenance margin (typically 0.5% for high-leverage markets).
+    </p>
+
+    <h3>Isolated Margin</h3>
+
+    <p>
+      In isolated-margin mode, each position has its own dedicated collateral. The maximum loss on any single position is capped at the isolated margin allocated to it. If the position is liquidated, the rest of the account is unaffected.
+    </p>
+
+    <div class="callout callout-purple">
+      <div class="callout-title">Agent Best Practice: Isolated Margin for Risky Positions</div>
+      <p>AI agents trading multiple strategies should use isolated margin for high-leverage or experimental positions. Cross margin is appropriate for large, conservative positions where the full account can act as a buffer. Never run cross-margin and isolated-margin positions simultaneously without a unified risk model.</p>
+    </div>
+
+    <h3>Leverage and Liquidation Price</h3>
+
+    <pre><code class="language-python">from dataclasses import dataclass
+
+@dataclass
+class PerpPosition:
+    symbol: str
+    side: str           # "long" or "short"
+    entry_price: float
+    position_size: float    # in base asset units (e.g., ETH)
+    margin: float           # allocated collateral in USDC
+    leverage: float
+    maintenance_margin_rate: float = 0.005  # 0.5%
+
+    @property
+    def notional(self) -> float:
+        return self.position_size * self.entry_price
+
+    @property
+    def initial_margin_rate(self) -> float:
+        return 1 / self.leverage
+
+    @property
+    def liquidation_price(self) -> float:
+        """
+        Compute liquidation price for isolated margin position.
+        Long: liquidated if mark price falls to liq price.
+        Short: liquidated if mark price rises to liq price.
+        """
+        mmr = self.maintenance_margin_rate
+        imr = self.initial_margin_rate
+
+        if self.side == "long":
+            # Price falls, position loses value
+            liq = self.entry_price * (1 - imr + mmr)
+        else:
+            # Price rises, short position loses value
+            liq = self.entry_price * (1 + imr - mmr)
+
+        return liq
+
+    def unrealized_pnl(self, mark_price: float) -> float:
+        """Unrealized P&L at given mark price."""
+        if self.side == "long":
+            return (mark_price - self.entry_price) * self.position_size
+        else:
+            return (self.entry_price - mark_price) * self.position_size
+
+    def margin_ratio(self, mark_price: float) -> float:
+        """Current margin ratio (equity / notional)."""
+        equity = self.margin + self.unrealized_pnl(mark_price)
+        current_notional = self.position_size * mark_price
+        if current_notional == 0:
+            return float('inf')
+        return equity / current_notional
+
+    def is_near_liquidation(self, mark_price: float, buffer: float = 0.1) -> bool:
+        """Return True if within buffer% of liquidation price."""
+        liq = self.liquidation_price
+        if self.side == "long":
+            return mark_price < liq * (1 + buffer)
+        else:
+            return mark_price > liq * (1 - buffer)
+
+# Example: 10x leveraged long ETH
+pos = PerpPosition(
+    symbol="ETH-PERP",
+    side="long",
+    entry_price=2000.0,
+    position_size=5.0,
+    margin=1000.0,
+    leverage=10.0
+)
+
+print(f"Notional: ${pos.notional:,.0f}")
+print(f"Liquidation Price: ${pos.liquidation_price:.2f}")
+print(f"At $1800 - PnL: ${pos.unrealized_pnl(1800):,.0f}")
+print(f"At $1800 - Margin Ratio: {pos.margin_ratio(1800):.3f}")
+print(f"Near liquidation at $1900: {pos.is_near_liquidation(1900)}")</code></pre>
+
+    <!-- ==================== SECTION 9 ==================== -->
+    <h2 id="trading-api">Purple Flea Trading API Endpoints</h2>
+
+    <p>
+      The <a href="https://purpleflea.com/docs/trading/">Purple Flea trading API</a> provides a RESTful interface over Hyperliquid's 275 markets. All endpoints require an API key obtained after agent registration.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Method</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/api/trading/markets</code></td>
+            <td>GET</td>
+            <td>List all 275 available markets with metadata</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/price</code></td>
+            <td>GET</td>
+            <td>Mark price, index price, funding rate for a market</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/orderbook</code></td>
+            <td>GET</td>
+            <td>Top 20 bids and asks with sizes</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/order</code></td>
+            <td>POST</td>
+            <td>Place market or limit order</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/order/{id}</code></td>
+            <td>DELETE</td>
+            <td>Cancel an open order</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/positions</code></td>
+            <td>GET</td>
+            <td>List all open positions with PnL</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/funding</code></td>
+            <td>GET</td>
+            <td>Historical funding rates for a market</td>
+          </tr>
+          <tr>
+            <td><code>/api/trading/transfers</code></td>
+            <td>POST</td>
+            <td>Transfer margin between isolated positions</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ==================== SECTION 10 ==================== -->
+    <h2 id="python-agent">Full Python Perp Trading Agent</h2>
+
+    <p>
+      Here is a complete production-ready perpetual trading agent. It implements a funding rate mean-reversion strategy: when funding is extreme, take the opposite side and collect the funding payment. It uses isolated margin to cap risk, and the Purple Flea API for all order management.
+    </p>
+
+    <pre><code class="language-python">"""
+Purple Flea Perpetual Trading Agent
+Strategy: Funding Rate Mean-Reversion
+- When funding is strongly positive (longs paying >0.05%/hr), go short
+- When funding is strongly negative (shorts paying >0.05%/hr), go long
+- Collect funding payments; exit when funding normalizes
+
+Register at: https://purpleflea.com/register/
+"""
+
+import asyncio
+import httpx
+import time
+import logging
+from dataclasses import dataclass, field
+from typing import Optional, Literal
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+log = logging.getLogger("perp-agent")
+
+# ─── Config ──────────────────────────────────────────────────────
+PURPLE_FLEA_BASE = "https://purpleflea.com/api"
+API_KEY = "your-api-key"
+AGENT_ID = "perp-agent-001"
+HEADERS = {"Authorization": f"Bearer {API_KEY}", "X-Agent-ID": AGENT_ID}
+
+TARGET_MARKETS = ["ETH-PERP", "BTC-PERP", "SOL-PERP"]
+POSITION_SIZE_USD = 5_000.0
+LEVERAGE = 5
+ENTRY_FUNDING_THRESHOLD = 0.0005    # 0.05%/hr = ~4.4% annual
+EXIT_FUNDING_THRESHOLD = 0.0001     # 0.01%/hr — exit when funding normalizes
+CHECK_INTERVAL = 300                 # 5 minutes
+
+# ─── Data Models ─────────────────────────────────────────────────
+@dataclass
+class MarketState:
+    symbol: str
+    mark_price: float = 0.0
+    index_price: float = 0.0
+    funding_rate: float = 0.0
+    position_side: Optional[Literal["long", "short"]] = None
+    position_size: float = 0.0
+    entry_price: float = 0.0
+    entry_time: float = 0.0
+    funding_collected: float = 0.0
+
+# ─── API Client ──────────────────────────────────────────────────
+async def get_market_data(symbol: str) -> dict:
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{PURPLE_FLEA_BASE}/trading/price",
+            headers=HEADERS,
+            params={"symbol": symbol}
+        )
+        r.raise_for_status()
+        return r.json()
+
+async def get_funding_rate(symbol: str) -> float:
+    data = await get_market_data(symbol)
+    return data.get("funding_rate", 0.0)
+
+async def get_positions() -> list[dict]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{PURPLE_FLEA_BASE}/trading/positions",
+            headers=HEADERS
+        )
+        r.raise_for_status()
+        return r.json().get("positions", [])
+
+async def place_order(
+    symbol: str,
+    side: Literal["buy", "sell"],
+    size: float,
+    leverage: int,
+    order_type: str = "market",
+    price: Optional[float] = None,
+    reduce_only: bool = False
+) -> dict:
+    body = {
+        "symbol": symbol,
+        "side": side,
+        "size": size,
+        "order_type": order_type,
+        "leverage": leverage,
+        "margin_mode": "isolated",
+        "reduce_only": reduce_only
+    }
+    if price and order_type == "limit":
+        body["price"] = price
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{PURPLE_FLEA_BASE}/trading/order",
+            headers=HEADERS,
+            json=body
+        )
+        r.raise_for_status()
+        return r.json()
+
+async def close_position(symbol: str, size: float, side: Literal["long", "short"]) -> dict:
+    close_side = "sell" if side == "long" else "buy"
+    return await place_order(
+        symbol=symbol,
+        side=close_side,
+        size=size,
+        leverage=LEVERAGE,
+        reduce_only=True
+    )
+
+# ─── Strategy Logic ──────────────────────────────────────────────
+def compute_position_size(mark_price: float) -> float:
+    """Size in base units given target USD notional."""
+    return POSITION_SIZE_USD / mark_price
+
+def funding_direction(funding_rate: float) -> Optional[Literal["long", "short"]]:
+    """
+    If funding is strongly positive: go short (receive funding from longs).
+    If funding is strongly negative: go long (receive funding from shorts).
+    """
+    if funding_rate > ENTRY_FUNDING_THRESHOLD:
+        return "short"
+    elif funding_rate < -ENTRY_FUNDING_THRESHOLD:
+        return "long"
+    return None
+
+def should_exit(state: MarketState) -> bool:
+    """Exit when funding normalizes toward zero."""
+    if state.position_side is None:
+        return False
+    funding = state.funding_rate
+    if state.position_side == "short" and funding < EXIT_FUNDING_THRESHOLD:
+        return True
+    if state.position_side == "long" and funding > -EXIT_FUNDING_THRESHOLD:
+        return True
+    return False
+
+# ─── Main Loop ───────────────────────────────────────────────────
+async def monitor_market(state: MarketState):
+    """Check and manage one market's position."""
+    try:
+        data = await get_market_data(state.symbol)
+        state.mark_price = data["mark_price"]
+        state.index_price = data["index_price"]
+        state.funding_rate = data["funding_rate"]
+
+        log.info(
+            f"{state.symbol} | Mark: ${state.mark_price:.2f} | "
+            f"Funding: {state.funding_rate*100:.4f}%/hr | "
+            f"Position: {state.position_side or 'none'}"
+        )
+
+        # Check exit first
+        if state.position_side is not None and should_exit(state):
+            log.info(f"[{state.symbol}] Exiting — funding normalized to {state.funding_rate*100:.4f}%")
+            result = await close_position(state.symbol, state.position_size, state.position_side)
+            hold_hours = (time.time() - state.entry_time) / 3600
+            log.info(f"[{state.symbol}] Position closed | Held {hold_hours:.1f}h | Fill: {result.get('fill_price')}")
+            state.position_side = None
+            state.position_size = 0.0
+            return
+
+        # Check entry
+        if state.position_side is None:
+            direction = funding_direction(state.funding_rate)
+            if direction is not None:
+                size = compute_position_size(state.mark_price)
+                order_side = "sell" if direction == "short" else "buy"
+                log.info(f"[{state.symbol}] Entering {direction} | Funding {state.funding_rate*100:.4f}%/hr | Size: {size:.4f}")
+
+                result = await place_order(
+                    symbol=state.symbol,
+                    side=order_side,
+                    size=size,
+                    leverage=LEVERAGE
+                )
+
+                state.position_side = direction
+                state.position_size = size
+                state.entry_price = result.get("fill_price", state.mark_price)
+                state.entry_time = time.time()
+                log.info(f"[{state.symbol}] {direction.upper()} opened at ${state.entry_price:.2f}")
+
+    except Exception as e:
+        log.error(f"[{state.symbol}] Error: {e}")
+
+async def main():
+    states = {sym: MarketState(symbol=sym) for sym in TARGET_MARKETS}
+
+    log.info(f"Perp funding agent starting | Markets: {TARGET_MARKETS}")
+    log.info(f"Entry threshold: {ENTRY_FUNDING_THRESHOLD*100:.3f}%/hr | Exit: {EXIT_FUNDING_THRESHOLD*100:.3f}%/hr")
+
+    iteration = 0
+    while True:
+        iteration += 1
+        log.info(f"=== Iteration {iteration} ===")
+
+        # Monitor all markets concurrently
+        await asyncio.gather(*[monitor_market(state) for state in states.values()])
+
+        # Log portfolio summary
+        active_positions = [s for s in states.values() if s.position_side]
+        log.info(f"Active positions: {len(active_positions)}/{len(TARGET_MARKETS)}")
+
+        await asyncio.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+
+    <!-- ==================== SECTION 11 ==================== -->
+    <h2 id="risk-management">Risk Management for Perp Trading Agents</h2>
+
+    <div class="callout callout-yellow">
+      <div class="callout-title">Leverage is a Double-Edged Sword</div>
+      <p>50x leverage means a 2% adverse move wipes out your entire margin. AI agents must implement hard stop-losses, position size limits, and portfolio-level risk checks — especially during high-volatility market events when liquidation cascades can cause instant ADL.</p>
+    </div>
+
+    <h3>Position Sizing Rules</h3>
+
+    <ul>
+      <li><strong>Kelly Criterion</strong> — Never risk more than <code>edge / odds</code> of total capital on any single trade. For a 55% win rate strategy with 1:1 risk-reward, Kelly says risk 10% per trade.</li>
+      <li><strong>Max drawdown circuit breaker</strong> — If daily PnL falls below −5% of total capital, halt all new entries and reduce open positions by 50%.</li>
+      <li><strong>Correlation limit</strong> — Do not hold more than 3 correlated positions simultaneously (e.g., ETH, LINK, ARB are all correlated; one may be enough).</li>
+    </ul>
+
+    <h3>Funding Rate Strategy-Specific Risks</h3>
+
+    <ul>
+      <li><strong>Trend risk</strong> — When the market trends strongly in one direction, funding stays elevated and your counter-trend position loses money on mark price even while collecting funding. The breakeven is: <code>Funding Collected = Price Move × Position Size</code>.</li>
+      <li><strong>Sudden reversal</strong> — A sudden market reversal can cause funding to flip rapidly, and your position's direction risk materializes faster than funding normalizes.</li>
+      <li><strong>Funding calculation lag</strong> — On Hyperliquid, funding is calculated and paid hourly. If you enter and exit within the hour, you may not receive any funding payment.</li>
+    </ul>
+
+    <!-- ==================== CTA ==================== -->
+    <div class="cta-box">
+      <h3>Start Perp Trading with Purple Flea</h3>
+      <p>Access 275 perpetual markets on Hyperliquid with up to 50x leverage. Register your agent, claim free credits from the faucet, and deploy your first perp strategy in minutes.</p>
+      <a href="https://purpleflea.com/register/" class="btn btn-purple">Register Your Agent</a>
+    </div>
+
+    <!-- ==================== CONCLUSION ==================== -->
+    <h2 id="conclusion">Conclusion</h2>
+
+    <p>
+      Perpetual swaps on Hyperliquid represent the ideal trading venue for AI agents — sub-second finality, no gas fees on orders, a full CLOB with 275 markets, and maker rebates that make limit-order-heavy strategies net-positive on fees. Understanding the full mechanics is essential for building profitable agents:
+    </p>
+
+    <ul>
+      <li><strong>Mark price</strong> uses an EMA of the basis to prevent manipulation-triggered liquidations — agents should monitor the divergence between mark and index as a signal.</li>
+      <li><strong>Funding rate</strong> is a mean-reverting signal and a source of passive income — the funding rate mean-reversion strategy above is one of the most reliable carry trades in crypto.</li>
+      <li><strong>Insurance fund and ADL</strong> create tail risks that agents must account for — especially when holding large profitable positions during market stress.</li>
+      <li><strong>Isolated margin</strong> is the correct default for autonomous agents running multiple strategies — it caps the blast radius of any single position going wrong.</li>
+      <li><strong>Maker rebates</strong> reward agents that provide liquidity — a limit-order-first execution strategy can earn −0.002% to −0.010% per trade instead of paying 0.025%.</li>
+    </ul>
+
+    <p>
+      Combined with the Purple Flea wallet for collateral management, the escrow service for agent-to-agent settlements, and the faucet for initial capital — Hyperliquid perps form the core trading engine for AI-native financial strategies.
+    </p>
+  </article>
+
+  <!-- Sidebar TOC -->
+  <aside class="sidebar">
+    <nav class="toc">
+      <div class="toc-title">Table of Contents</div>
+      <ul>
+        <li><a href="#what-are-perps">What Are Perpetual Swaps?</a></li>
+        <li><a href="#mark-price">Mark Price Calculation</a></li>
+        <li class="sub"><a href="#mark-price">EMA Basis Model</a></li>
+        <li><a href="#index-price">Index Price and Oracles</a></li>
+        <li><a href="#funding-rate">Funding Rate Formula</a></li>
+        <li class="sub"><a href="#funding-rate">Funding as a Signal</a></li>
+        <li class="sub"><a href="#funding-rate">Payment Computation</a></li>
+        <li><a href="#insurance-fund">Insurance Fund &amp; ADL</a></li>
+        <li><a href="#hyperliquid">Hyperliquid Architecture</a></li>
+        <li class="sub"><a href="#hyperliquid">HyperBFT Consensus</a></li>
+        <li><a href="#fee-structure">Fee Structure</a></li>
+        <li class="sub"><a href="#fee-structure">275 Available Markets</a></li>
+        <li><a href="#leverage-mechanics">Cross vs Isolated Margin</a></li>
+        <li><a href="#trading-api">Purple Flea API Endpoints</a></li>
+        <li><a href="#python-agent">Full Python Perp Agent</a></li>
+        <li><a href="#risk-management">Risk Management</a></li>
+        <li><a href="#conclusion">Conclusion</a></li>
+      </ul>
+    </nav>
+  </aside>
+</div>
+
+<footer>
+  <p>© 2026 Purple Flea | <a href="https://purpleflea.com">purpleflea.com</a></p>
+</footer>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = pct + '%';
+  });
+
+  const headings = document.querySelectorAll('h2[id], h3[id]');
+  const tocLinks = document.querySelectorAll('.toc a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(link => link.classList.remove('active'));
+        const active = document.querySelector(`.toc a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  headings.forEach(h => observer.observe(h));
+</script>
+
+</body>
+</html>
