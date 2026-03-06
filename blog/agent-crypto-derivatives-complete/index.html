@@ -735,6 +735,455 @@ logging.<span class="fn">basicConfig</span>(level=logging.INFO, format=<span cla
 
       <p>Use Purple Flea's 275-market perp API as the foundation for linear derivatives strategies, and Deribit's public API for options data. The Python agent above provides a working scaffold for your own derivatives manager. Start with paper trading using the <a href="/docs/faucet/">Faucet</a>, then deploy real capital as the strategy proves out.</p>
 
+      <h2 id="vol-surface">Volatility Surface Trading for Agents</h2>
+      <p>The volatility surface is a 3D map of implied volatility across strike prices and expiry dates. Agents that can model and trade the vol surface have access to some of the most consistent edges in crypto derivatives — edges that human traders rarely exploit systematically due to the monitoring overhead.</p>
+
+      <h3>Understanding IV Surface Structure</h3>
+      <p>A crypto options vol surface has two primary dimensions: <strong>moneyness</strong> (the ratio of strike to spot price) and <strong>time to expiry</strong>. The surface exhibits characteristic shapes that agents can exploit:</p>
+
+      <ul>
+        <li><strong>Volatility smile:</strong> IV is higher for deep OTM puts and calls versus ATM options. Crypto smiles are typically more pronounced than equity skews due to fat-tail risk appetite.</li>
+        <li><strong>Term structure:</strong> Near-term IV is typically higher than long-dated IV (backwardation) during risk-off periods, and lower during calm markets (contango).</li>
+        <li><strong>Skew:</strong> In crypto, put skew (OTM puts carrying higher IV than OTM calls) inverts frequently around bullish narratives, creating tradeable dislocations.</li>
+      </ul>
+
+      <h3>Python: Vol Surface Builder</h3>
+      <pre style="background:#0D0D0F;border:1px solid #27272A;border-radius:10px;padding:1.5rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.65;margin:1.5rem 0"><code style="color:#C4B5FD">import numpy as np
+from scipy.interpolate import RectBivariateSpline
+from dataclasses import dataclass
+from typing import List, Dict, Tuple
+
+@dataclass
+class OptionQuote:
+    strike: float
+    expiry_days: int
+    iv: float          # implied volatility (decimal)
+    option_type: str   # "call" or "put"
+    delta: float
+
+class VolSurface:
+    """
+    Build and query an implied volatility surface from option quotes.
+    Uses 2D spline interpolation across strike and expiry dimensions.
+    """
+
+    def __init__(self, spot: float):
+        self.spot = spot
+        self.quotes: List[OptionQuote] = []
+        self._surface = None
+        self._strikes = None
+        self._expiries = None
+
+    def add_quotes(self, quotes: List[OptionQuote]):
+        self.quotes = quotes
+        self._build_surface()
+
+    def _build_surface(self):
+        """Interpolate vol surface from discrete option quotes."""
+        # Extract unique strikes and expiries
+        strikes = sorted(set(q.strike for q in self.quotes))
+        expiries = sorted(set(q.expiry_days for q in self.quotes))
+
+        # Build IV matrix
+        iv_matrix = np.zeros((len(strikes), len(expiries)))
+        quote_map = {(q.strike, q.expiry_days): q.iv for q in self.quotes}
+
+        for i, s in enumerate(strikes):
+            for j, e in enumerate(expiries):
+                iv_matrix[i, j] = quote_map.get((s, e), np.nan)
+
+        # Fill missing values with column means
+        col_means = np.nanmean(iv_matrix, axis=0)
+        for j in range(iv_matrix.shape[1]):
+            mask = np.isnan(iv_matrix[:, j])
+            iv_matrix[mask, j] = col_means[j]
+
+        self._strikes = np.array(strikes)
+        self._expiries = np.array(expiries)
+        self._surface = RectBivariateSpline(
+            self._strikes, self._expiries, iv_matrix, kx=2, ky=2
+        )
+
+    def get_iv(self, strike: float, expiry_days: int) -> float:
+        """Interpolate IV for any strike/expiry combination."""
+        if self._surface is None:
+            raise RuntimeError("Surface not built — add quotes first")
+        return float(self._surface(strike, expiry_days))
+
+    def atm_iv(self, expiry_days: int) -> float:
+        """Return ATM implied volatility for given expiry."""
+        return self.get_iv(self.spot, expiry_days)
+
+    def skew(self, expiry_days: int, delta_otm: float = 0.25) -> float:
+        """
+        25-delta skew: IV(25d put) - IV(25d call).
+        Positive skew = puts more expensive than calls.
+        """
+        put_strike = self.spot * (1 - delta_otm)
+        call_strike = self.spot * (1 + delta_otm)
+        put_iv = self.get_iv(put_strike, expiry_days)
+        call_iv = self.get_iv(call_strike, expiry_days)
+        return put_iv - call_iv
+
+    def term_structure_slope(self) -> float:
+        """
+        Measure term structure slope: positive = contango (longer-dated IV higher).
+        """
+        if self._expiries is None or len(self._expiries) < 2:
+            return 0.0
+        short_iv = self.atm_iv(self._expiries[0])
+        long_iv = self.atm_iv(self._expiries[-1])
+        return (long_iv - short_iv) / (self._expiries[-1] - self._expiries[0])
+
+    def find_rich_strikes(self, expiry_days: int, threshold_iv: float = 0.05) -> List[dict]:
+        """
+        Identify strikes where IV is significantly above the smooth surface.
+        These are candidates for selling (richness > threshold).
+        """
+        rich = []
+        for s in np.linspace(self.spot * 0.7, self.spot * 1.3, 50):
+            market_iv = self.get_iv(s, expiry_days)
+            atm = self.atm_iv(expiry_days)
+            moneyness = (s / self.spot) - 1
+            expected_iv = atm + abs(moneyness) * 0.3  # simple smile approximation
+            richness = market_iv - expected_iv
+            if richness > threshold_iv:
+                rich.append({"strike": round(s, 0), "iv": market_iv, "richness": richness})
+        return sorted(rich, key=lambda x: x["richness"], reverse=True)</code></pre>
+
+      <h3>Practical Vol Surface Strategies</h3>
+      <p>Three edge cases agents should monitor continuously:</p>
+      <ul>
+        <li><strong>IV vs RV divergence:</strong> When 30-day ATM IV exceeds realized volatility by more than 10 vol points consistently, systematic short vol positions (via strangles) carry positive expectancy over time.</li>
+        <li><strong>Skew inversions:</strong> When 25-delta calls become more expensive than 25-delta puts (negative skew), this signals speculative call buying — a potential short-term bullish signal and a relative value opportunity to sell calls and buy puts.</li>
+        <li><strong>Term structure kink:</strong> When 7-day IV > 30-day IV by more than 20 vol points, calendar spreads (buy long-dated, sell short-dated) tend to revert profitably.</li>
+      </ul>
+
+      <h2 id="funding-harvest">Advanced Funding Rate Harvesting</h2>
+      <p>Funding rate harvesting is a market-neutral strategy that systematically captures the difference between perpetual futures funding rates and spot borrowing rates. When perpetual markets are in sustained contango (positive funding), short perp + long spot generates risk-free carry.</p>
+
+      <h3>Multi-Market Funding Aggregation</h3>
+      <pre style="background:#0D0D0F;border:1px solid #27272A;border-radius:10px;padding:1.5rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.65;margin:1.5rem 0"><code style="color:#C4B5FD">import asyncio
+import aiohttp
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+from datetime import datetime
+
+@dataclass
+class FundingOpportunity:
+    market: str
+    exchange: str
+    funding_rate: float     # 8h rate
+    annualized: float       # funding_rate * 3 * 365
+    oi: float               # open interest in USD
+    spot_borrow_rate: float # AAVE/Compound borrow rate annualized
+    net_carry: float        # annualized - spot_borrow_rate
+
+class FundingHarvester:
+    """
+    Multi-exchange funding rate monitor with carry calculation.
+    Identifies best funding harvest opportunities across markets.
+    """
+
+    EXCHANGES = {
+        "hyperliquid": "https://api.hyperliquid.xyz/info",
+        "purple_flea":  "https://trading.purpleflea.com/api/v1/funding",
+    }
+
+    def __init__(self, min_annualized: float = 15.0, min_oi: float = 1_000_000):
+        self.min_annualized = min_annualized
+        self.min_oi = min_oi
+        self.opportunities: List[FundingOpportunity] = []
+
+    async def fetch_hyperliquid_funding(self, session: aiohttp.ClientSession) -> List[dict]:
+        """Fetch funding rates from Hyperliquid."""
+        payload = {"type": "metaAndAssetCtxs"}
+        async with session.post(
+            "https://api.hyperliquid.xyz/info",
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=15)
+        ) as resp:
+            data = await resp.json()
+
+        meta, asset_ctxs = data[0], data[1]
+        results = []
+        for i, asset in enumerate(meta.get("universe", [])):
+            ctx = asset_ctxs[i] if i < len(asset_ctxs) else {}
+            funding = float(ctx.get("funding", 0))
+            oi = float(ctx.get("openInterest", 0)) * float(ctx.get("markPx", 0))
+            results.append({
+                "market": asset["name"] + "-PERP",
+                "exchange": "hyperliquid",
+                "funding_rate": funding,
+                "oi": oi
+            })
+        return results
+
+    async def fetch_purple_flea_funding(self, session: aiohttp.ClientSession) -> List[dict]:
+        """Fetch funding rates from Purple Flea Trading API."""
+        try:
+            async with session.get(
+                "https://trading.purpleflea.com/api/v1/funding",
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
+                data = await resp.json()
+            return [
+                {
+                    "market": m.get("symbol", ""),
+                    "exchange": "purple_flea",
+                    "funding_rate": m.get("fundingRate", 0),
+                    "oi": m.get("openInterest", 0)
+                }
+                for m in data.get("markets", [])
+            ]
+        except Exception:
+            return []
+
+    async def scan(self, spot_borrow_rate: float = 0.05) -> List[FundingOpportunity]:
+        """Scan all exchanges for funding harvest opportunities."""
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                self.fetch_hyperliquid_funding(session),
+                self.fetch_purple_flea_funding(session),
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_markets = []
+        for r in results:
+            if isinstance(r, list):
+                all_markets.extend(r)
+
+        opportunities = []
+        for m in all_markets:
+            fr = m.get("funding_rate", 0)
+            oi = m.get("oi", 0)
+            annualized = fr * 3 * 365 * 100  # 8h rate -> annual %
+
+            if annualized >= self.min_annualized and oi >= self.min_oi:
+                net_carry = annualized - spot_borrow_rate * 100
+                if net_carry > 0:
+                    opportunities.append(FundingOpportunity(
+                        market=m["market"],
+                        exchange=m["exchange"],
+                        funding_rate=fr,
+                        annualized=annualized,
+                        oi=oi,
+                        spot_borrow_rate=spot_borrow_rate * 100,
+                        net_carry=net_carry
+                    ))
+
+        self.opportunities = sorted(opportunities, key=lambda x: x.net_carry, reverse=True)
+        return self.opportunities
+
+    def top_opportunities(self, n: int = 5) -> List[FundingOpportunity]:
+        return self.opportunities[:n]
+
+# Run the harvester
+async def main():
+    harvester = FundingHarvester(min_annualized=20.0)
+    opps = await harvester.scan(spot_borrow_rate=0.06)  # 6% USDC borrow cost
+    print(f"Found {len(opps)} funding opportunities:")
+    for o in harvester.top_opportunities(5):
+        print(f"  {o.exchange}/{o.market}: {o.annualized:.1f}% annualized | Net carry: {o.net_carry:.1f}%")
+
+asyncio.run(main())</code></pre>
+
+      <h3>Risk Factors in Funding Harvest</h3>
+      <p>Despite its market-neutral framing, funding harvest carries several risks agents must monitor:</p>
+      <ul>
+        <li><strong>Liquidation risk:</strong> The short perp leg can be liquidated if spot price rises sharply and margin isn't topped up. Agents should maintain at least 30% buffer margin above liquidation price.</li>
+        <li><strong>Funding rate reversal:</strong> Positive funding doesn't persist indefinitely. When rate turns negative, the agent pays funding rather than receiving it. Set automatic exit conditions when funding flips negative for two consecutive periods.</li>
+        <li><strong>Spot-perp basis divergence:</strong> In periods of extreme volatility, the perp mark price can deviate significantly from spot. This creates mark-to-market losses on the perp leg even when net delta is zero.</li>
+        <li><strong>Counterparty risk:</strong> Exchange insolvency (as seen with FTX) can cause loss of both legs. Spread across at least 2&ndash;3 exchanges and maintain off-exchange custody of spot holdings where possible.</li>
+      </ul>
+
+      <h2 id="portfolio-greeks">Full Portfolio Greeks Tracking</h2>
+      <p>When running multiple options positions simultaneously, portfolio-level Greeks determine the overall exposure to price movement (delta), convexity (gamma), time decay (theta), and volatility (vega). Agents must aggregate these continuously to understand net risk.</p>
+
+      <pre style="background:#0D0D0F;border:1px solid #27272A;border-radius:10px;padding:1.5rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.65;margin:1.5rem 0"><code style="color:#C4B5FD">import math
+from dataclasses import dataclass
+from typing import List, Dict
+
+@dataclass
+class OptionsPosition:
+    symbol: str
+    option_type: str     # "call" or "put"
+    strike: float
+    expiry_days: int
+    quantity: float      # positive = long, negative = short
+    spot: float
+    iv: float            # implied volatility (decimal)
+    r: float = 0.05      # risk-free rate
+
+    def d1(self) -> float:
+        T = self.expiry_days / 365
+        return (math.log(self.spot / self.strike) +
+                (self.r + 0.5 * self.iv**2) * T) / (self.iv * math.sqrt(T))
+
+    def d2(self) -> float:
+        T = self.expiry_days / 365
+        return self.d1() - self.iv * math.sqrt(T)
+
+    def _norm_cdf(self, x: float) -> float:
+        return (1 + math.erf(x / math.sqrt(2))) / 2
+
+    def _norm_pdf(self, x: float) -> float:
+        return math.exp(-0.5 * x**2) / math.sqrt(2 * math.pi)
+
+    def delta(self) -> float:
+        d1 = self.d1()
+        if self.option_type == "call":
+            return self._norm_cdf(d1)
+        else:
+            return self._norm_cdf(d1) - 1
+
+    def gamma(self) -> float:
+        T = self.expiry_days / 365
+        return self._norm_pdf(self.d1()) / (self.spot * self.iv * math.sqrt(T))
+
+    def theta(self) -> float:  # per day
+        T = self.expiry_days / 365
+        d1, d2 = self.d1(), self.d2()
+        term1 = -(self.spot * self._norm_pdf(d1) * self.iv) / (2 * math.sqrt(T))
+        if self.option_type == "call":
+            return (term1 - self.r * self.strike * math.exp(-self.r * T) * self._norm_cdf(d2)) / 365
+        else:
+            return (term1 + self.r * self.strike * math.exp(-self.r * T) * self._norm_cdf(-d2)) / 365
+
+    def vega(self) -> float:  # per 1% change in IV
+        T = self.expiry_days / 365
+        return self.spot * self._norm_pdf(self.d1()) * math.sqrt(T) / 100
+
+class DerivativesPortfolio:
+    """
+    Track and manage portfolio-level Greeks across all options and perp positions.
+    """
+
+    def __init__(self):
+        self.options_positions: List[OptionsPosition] = []
+        self.perp_positions: Dict[str, float] = {}  # symbol -> net delta
+
+    def add_option(self, pos: OptionsPosition):
+        self.options_positions.append(pos)
+
+    def add_perp(self, symbol: str, net_delta: float):
+        self.perp_positions[symbol] = self.perp_positions.get(symbol, 0) + net_delta
+
+    def portfolio_greeks(self) -> dict:
+        """Aggregate portfolio-level Greeks."""
+        total_delta = 0.0
+        total_gamma = 0.0
+        total_theta = 0.0
+        total_vega = 0.0
+
+        for pos in self.options_positions:
+            q = pos.quantity
+            total_delta += q * pos.delta()
+            total_gamma += q * pos.gamma()
+            total_theta += q * pos.theta()
+            total_vega += q * pos.vega()
+
+        # Add perp deltas
+        for sym, delta in self.perp_positions.items():
+            total_delta += delta
+
+        return {
+            "delta": round(total_delta, 4),
+            "gamma": round(total_gamma, 6),
+            "theta_per_day": round(total_theta, 2),
+            "vega_per_1pct_iv": round(total_vega, 2),
+            "positions": len(self.options_positions),
+            "perp_positions": len(self.perp_positions),
+        }
+
+    def delta_hedge_qty(self, hedge_asset_delta: float = 1.0) -> float:
+        """
+        Calculate quantity of hedge asset (perp or spot) needed to neutralize delta.
+        """
+        greeks = self.portfolio_greeks()
+        return -greeks["delta"] / hedge_asset_delta
+
+    def gamma_scalp_pnl(self, spot_move: float) -> float:
+        """
+        Estimate P&L from gamma scalping over a given spot move.
+        P&L ≈ 0.5 * Gamma * (dS)^2
+        """
+        greeks = self.portfolio_greeks()
+        return 0.5 * greeks["gamma"] * spot_move**2
+
+    def risk_report(self) -> str:
+        g = self.portfolio_greeks()
+        lines = [
+            "=== Portfolio Greeks Report ===",
+            f"Net Delta:     {g['delta']:+.4f}",
+            f"Net Gamma:     {g['gamma']:+.6f}",
+            f"Daily Theta:   ${g['theta_per_day']:+.2f}",
+            f"Vega (1% IV):  ${g['vega_per_1pct_iv']:+.2f}",
+            f"Option Positions: {g['positions']}",
+            f"Perp Positions:   {g['perp_positions']}",
+            f"",
+            f"Delta hedge: {self.delta_hedge_qty():.2f} units needed",
+            f"Gamma scalp P&L (1% move): ${self.gamma_scalp_pnl(self.options_positions[0].spot * 0.01 if self.options_positions else 0):.2f}",
+        ]
+        return "\n".join(lines)
+
+# Example: Delta-neutral strangle portfolio
+portfolio = DerivativesPortfolio()
+spot = 65000.0
+
+# Long strangle: buy OTM call + OTM put
+portfolio.add_option(OptionsPosition("BTC", "call", 70000, 30, quantity=0.5, spot=spot, iv=0.65))
+portfolio.add_option(OptionsPosition("BTC", "put",  60000, 30, quantity=0.5, spot=spot, iv=0.72))
+
+# Delta-hedge the net position with a perp short
+greeks = portfolio.portfolio_greeks()
+hedge_qty = portfolio.delta_hedge_qty()
+portfolio.add_perp("BTC-PERP", hedge_qty)
+
+print(portfolio.risk_report())</code></pre>
+
+      <h3>Dynamic Delta Hedging Frequency</h3>
+      <p>The key question for gamma scalpers is: how often should you re-hedge? The answer depends on gamma magnitude and transaction costs:</p>
+      <ul>
+        <li><strong>High gamma positions</strong> (short-dated near-ATM options): re-hedge every 15&ndash;30 minutes or when delta moves beyond ±0.05</li>
+        <li><strong>Low gamma positions</strong> (long-dated or deep OTM): re-hedge once daily or when delta moves beyond ±0.10</li>
+        <li><strong>Cost consideration:</strong> Each re-hedge incurs spread + taker fee (typically 0.03&ndash;0.05% on liquid perps). At $50k position, this is $15&ndash;$25/trade. Hedge frequency must be justified by gamma income.</li>
+      </ul>
+
+      <h2 id="purple-flea-integration">Purple Flea for Derivatives Agents</h2>
+      <p>Purple Flea provides the financial layer that derivatives agents need beyond just trade execution:</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:1.5rem 0">
+        <div style="background:#18181B;border:1px solid #27272A;border-radius:10px;padding:1.2rem">
+          <div style="font-size:1.4rem;margin-bottom:0.5rem">&#128200;</div>
+          <strong style="color:#E4E4E7">Trading API</strong>
+          <p style="margin:0.4rem 0 0;font-size:0.85rem;color:#71717A">275+ perp markets for linear derivatives strategies and delta hedging</p>
+          <a href="https://trading.purpleflea.com" style="color:#A855F7;font-size:0.82rem">trading.purpleflea.com</a>
+        </div>
+        <div style="background:#18181B;border:1px solid #27272A;border-radius:10px;padding:1.2rem">
+          <div style="font-size:1.4rem;margin-bottom:0.5rem">&#128167;</div>
+          <strong style="color:#E4E4E7">Faucet</strong>
+          <p style="margin:0.4rem 0 0;font-size:0.85rem;color:#71717A">Free $1 USDC for new agents to test derivatives strategies with zero risk</p>
+          <a href="https://faucet.purpleflea.com" style="color:#A855F7;font-size:0.82rem">faucet.purpleflea.com</a>
+        </div>
+        <div style="background:#18181B;border:1px solid #27272A;border-radius:10px;padding:1.2rem">
+          <div style="font-size:1.4rem;margin-bottom:0.5rem">&#128274;</div>
+          <strong style="color:#E4E4E7">Escrow</strong>
+          <p style="margin:0.4rem 0 0;font-size:0.85rem;color:#71717A">Trustless settlement for structured products and OTC derivatives between agents</p>
+          <a href="https://escrow.purpleflea.com" style="color:#A855F7;font-size:0.82rem">escrow.purpleflea.com</a>
+        </div>
+        <div style="background:#18181B;border:1px solid #27272A;border-radius:10px;padding:1.2rem">
+          <div style="font-size:1.4rem;margin-bottom:0.5rem">&#128179;</div>
+          <strong style="color:#E4E4E7">Wallet</strong>
+          <p style="margin:0.4rem 0 0;font-size:0.85rem;color:#71717A">Multi-chain wallet with programmatic access for on-chain option settlement</p>
+          <a href="https://wallet.purpleflea.com" style="color:#A855F7;font-size:0.82rem">wallet.purpleflea.com</a>
+        </div>
+      </div>
+
+      <div style="background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.3);border-left:4px solid #A855F7;border-radius:8px;padding:1rem 1.25rem;margin:1.5rem 0">
+        <strong>New to derivatives?</strong> Start with the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to get $1 USDC free — enough to experiment with small positions on our 275-market perp API. Build intuition for funding rates, basis, and Greeks before scaling up.
+      </div>
+
     </article>
   </main>
 
@@ -755,6 +1204,10 @@ logging.<span class="fn">basicConfig</span>(level=logging.INFO, format=<span cla
         <li><a href="#risk-framework">Risk Framework</a></li>
         <li><a href="#getting-started">Getting Started</a></li>
         <li><a href="#conclusion">Conclusion</a></li>
+        <li><a href="#vol-surface">Vol Surface Trading</a></li>
+        <li><a href="#funding-harvest">Funding Rate Harvesting</a></li>
+        <li><a href="#portfolio-greeks">Portfolio Greeks Tracking</a></li>
+        <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
       </ul>
     </nav>
   </aside>
