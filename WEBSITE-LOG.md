@@ -393,3 +393,36 @@ Improvements:
 - index.html: Onboarding Checklist added to footer dev links
 - /for-agents: Checklist and Integrate links added to footer
 - sitemap.xml: /checklist/ and /blog/api-playground-launch/ added
+
+### Wave-40 (2026-03-06) — commit a344cb9
+
+New pages:
+- /blog/agent-onboarding-checklist — 3-min blog post explaining the 6-step checklist
+
+Improvements:
+- llms.txt: Developer Tools table (8 tools) and LLM-Readable Resources section added; 425 lines total
+- .well-known/agent.json: v2.7.3 — added integration_guide and onboarding_checklist fields
+- sitemap.xml: /blog/agent-onboarding-checklist/ added
+- WEBSITE-LOG.md: Wave-39 summary appended
+
+### Wave-41 (2026-03-06) — commit b376146
+
+Improvements:
+- changelog/index.html: v2.9.0 release block added (Onboarding Checklist, Integration Guide, Agent Tasks Gallery, Glossary). Version pill, hero stats, and sidebar updated from v2.8.1 to v2.9.0.
+
+### Wave-42 (2026-03-06) — commits 449fe97 + 0993001
+
+Improvements:
+- index.html: dismissible announcement banner highlighting v2.9.0 new tools (Checklist, API Playground, Integration Guide) with localStorage dismiss persistence
+- for-agents/index.html: new Developer Tools section with 4 cards (API Playground, MCP Config Generator, Onboarding Checklist, Integration Guide)
+- quick-start/index.html: Onboarding Checklist card added to next-steps grid; /checklist footer link added
+
+### Wave-43 (2026-03-06) — commit dc2404f
+
+New pages:
+- /blog/mcp-tools-2026 — 859-line blog post on MCP financial tools (Purple Flea's 3 MCP servers, Claude Desktop/Cursor config, StreamableHTTP vs SSE explanation, real use cases)
+
+Improvements:
+- blog/index.html: MCP-tagged card for mcp-tools-2026 post added
+- faq/index.html: 2 new Technical FAQ items — "Is there a way to test APIs without code?" (API Playground) and "Where is the best place to start?" (Onboarding Checklist)
+- sitemap.xml: /blog/mcp-tools-2026/ added
