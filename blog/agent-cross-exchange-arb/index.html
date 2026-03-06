@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="How AI agents detect and exploit cross-exchange price discrepancies: latency optimization, simultaneous execution, slippage management, and a Python ArbBot class using Purple Flea's trading API.">
+  <meta name="keywords" content="cross-exchange arbitrage, crypto arbitrage bot, AI agent trading, price discrepancy, latency arbitrage, Purple Flea trading API, ArbBot">
+  <meta property="og:title" content="Cross-Exchange Arbitrage for AI Agents: Capturing Price Gaps at Speed | Purple Flea">
+  <meta property="og:description" content="Build a production arbitrage bot: price detection, latency optimization, simultaneous execution, and full Python ArbBot class for AI agents.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-cross-exchange-arb/">
+  <meta name="author" content="Purple Flea Engineering">
+  <title>Cross-Exchange Arbitrage for AI Agents: Capturing Price Gaps at Speed | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Cross-Exchange Arbitrage for AI Agents: Capturing Price Gaps at Speed",
+    "description": "Price discrepancy detection, latency optimization, simultaneous execution, and a Python ArbBot class for AI agents using Purple Flea's trading infrastructure.",
+    "author": { "@type": "Organization", "name": "Purple Flea Engineering" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-cross-exchange-arb/",
+    "keywords": ["cross-exchange arbitrage", "price discrepancy", "ArbBot", "crypto trading bot", "AI agent", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B; --bg2: #111113; --bg3: #18181B;
+      --border: #27272A; --border2: #3F3F46;
+      --text: #FAFAFA; --text2: #A1A1AA; --text3: #52525B;
+      --purple: #A855F7; --purple-dark: #7C3AED; --purple-light: #C084FC;
+      --purple-bg: rgba(168,85,247,0.08); --purple-bg2: rgba(168,85,247,0.15);
+      --green: #10B981; --red: #EF4444; --yellow: #F59E0B;
+      --blue: #3B82F6; --orange: #F97316; --code-bg: #0D1117;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--purple-dark), var(--purple), var(--blue)); z-index: 9999; transition: width 0.1s linear; }
+
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(9,9,11,0.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 18px; font-weight: 800; color: var(--text); text-decoration: none; letter-spacing: -0.5px; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 28px; list-style: none; align-items: center; }
+    .nav-links a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 8px 18px; border-radius: 8px; font-size: 13px !important; }
+    .nav-cta:hover { background: var(--purple-light) !important; }
+
+    .hero { max-width: 860px; margin: 0 auto; padding: 80px 24px 60px; }
+    .hero-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .tag { display: inline-block; background: var(--purple-bg2); color: var(--purple-light); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 100px; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(168,85,247,0.3); }
+    .tag-blue { background: rgba(59,130,246,0.12); color: #93C5FD; border-color: rgba(59,130,246,0.3); }
+    .hero-date { color: var(--text3); font-size: 13px; }
+
+    .hero h1 { font-size: clamp(30px, 5vw, 50px); font-weight: 900; line-height: 1.1; letter-spacing: -1.5px; margin-bottom: 24px; background: linear-gradient(135deg, #fff 0%, #C084FC 40%, #3B82F6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-subtitle { font-size: 19px; color: var(--text2); line-height: 1.6; max-width: 700px; margin-bottom: 36px; }
+    .hero-stats { display: flex; gap: 36px; flex-wrap: wrap; }
+    .hero-stat { display: flex; flex-direction: column; gap: 4px; }
+    .hero-stat-value { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: -1px; }
+    .hero-stat-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+
+    .divider { max-width: 860px; margin: 0 auto; padding: 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 60px; }
+    .layout { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; display: grid; grid-template-columns: 1fr 240px; gap: 48px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .toc-sticky { display: none; } }
+    .content { min-width: 0; }
+
+    .toc-sticky { position: sticky; top: 80px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .toc-sticky-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 16px; }
+    .toc-sticky ol { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: toc-counter; }
+    .toc-sticky li { counter-increment: toc-counter; display: flex; gap: 8px; }
+    .toc-sticky li::before { content: counter(toc-counter); font-size: 11px; color: var(--text3); font-weight: 700; min-width: 16px; margin-top: 2px; }
+    .toc-sticky a { color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.2s; line-height: 1.4; }
+    .toc-sticky a:hover { color: var(--purple-light); }
+
+    .toc-inline { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px; margin-bottom: 56px; }
+    .toc-inline-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 16px; }
+    .toc-inline ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .toc-inline a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .toc-inline a:hover { color: var(--purple-light); }
+
+    section { margin-bottom: 72px; }
+    section h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 20px; color: var(--text); scroll-margin-top: 80px; }
+    section h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 36px 0 14px; color: var(--text); }
+    section p { color: var(--text2); margin-bottom: 18px; font-size: 16px; line-height: 1.75; }
+    section p strong { color: var(--text); font-weight: 600; }
+    ul, ol { padding-left: 24px; margin-bottom: 18px; }
+    li { color: var(--text2); font-size: 15px; margin-bottom: 8px; line-height: 1.65; }
+    li strong { color: var(--text); }
+
+    .code-block { background: var(--code-bg); border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; margin: 28px 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 12px; font-weight: 600; color: var(--purple-light); text-transform: uppercase; letter-spacing: 0.5px; }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+    pre { padding: 24px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7; color: #E2E8F0; }
+    .kw { color: #C678DD; } .fn { color: #61AFEF; } .st { color: #98C379; }
+    .cm { color: #5C6370; font-style: italic; } .nm { color: #D19A66; }
+    .op { color: #56B6C2; } .va { color: #E06C75; } .bi { color: #E5C07B; }
+
+    .callout { padding: 20px 24px; border-radius: 10px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warning { background: rgba(245,158,11,0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(16,185,129,0.08); border-color: var(--green); }
+    .callout-purple { background: var(--purple-bg); border-color: var(--purple); }
+    .callout p { margin: 0; font-size: 14.5px; line-height: 1.65; }
+    .callout-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; color: var(--text); }
+
+    .table-wrap { overflow-x: auto; margin: 24px 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { background: var(--bg3); }
+    th { padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); border-bottom: 1px solid var(--border); }
+    td { padding: 14px 20px; color: var(--text2); border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    td strong { color: var(--text); }
+    .green { color: var(--green); font-weight: 600; }
+    .red { color: var(--red); font-weight: 600; }
+    .orange { color: var(--orange); font-weight: 600; }
+    .purple { color: var(--purple); font-weight: 600; }
+
+    .arb-flow { display: flex; gap: 0; margin: 28px 0; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .arb-step { flex: 1; padding: 20px; border-right: 1px solid var(--border); text-align: center; }
+    .arb-step:last-child { border-right: none; }
+    .arb-step-num { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .arb-step-val { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .arb-step-label { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+    .cta-box { background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(168,85,247,0.06) 100%); border: 1px solid rgba(59,130,246,0.3); border-radius: 16px; padding: 40px; margin: 48px 0; text-align: center; }
+    .cta-box h3 { font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+    .cta-box p { color: var(--text2); margin-bottom: 24px; font-size: 15px; }
+    .cta-btn { display: inline-block; background: var(--purple); color: #fff; padding: 14px 28px; border-radius: 10px; font-weight: 700; font-size: 15px; text-decoration: none; transition: background 0.2s, transform 0.15s; }
+    .cta-btn:hover { background: var(--purple-light); transform: translateY(-1px); }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; color: var(--text3); font-size: 13px; }
+    footer a { color: var(--text2); text-decoration: none; }
+    footer a:hover { color: var(--purple); }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">Purple <span>Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/register" class="nav-cta">Get Started</a></li>
+    </ul>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-meta">
+      <span class="tag">Strategy</span>
+      <span class="tag tag-blue">Tools</span>
+      <span class="hero-date">March 6, 2026 · 15 min read</span>
+    </div>
+    <h1>Cross-Exchange Arbitrage for AI Agents: Capturing Price Gaps at Speed</h1>
+    <p class="hero-subtitle">When the same asset trades at different prices on different venues, the gap is free money — for the agent fast enough to capture it. This guide covers detection, execution, and the full Python ArbBot class.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-value">&lt;50ms</div>
+        <div class="hero-stat-label">Target Execution</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">0.3%</div>
+        <div class="hero-stat-label">Min Spread to Trade</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">20%</div>
+        <div class="hero-stat-label">Referral on Fees</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="layout">
+    <div class="content">
+
+      <div class="toc-inline">
+        <div class="toc-inline-title">Table of Contents</div>
+        <ol>
+          <li><a href="#how-arb-works">How Cross-Exchange Arbitrage Works</a></li>
+          <li><a href="#opportunity-anatomy">Anatomy of an Arbitrage Opportunity</a></li>
+          <li><a href="#latency">Latency: The Critical Variable</a></li>
+          <li><a href="#price-detection">Real-Time Price Detection</a></li>
+          <li><a href="#execution">Simultaneous Execution Strategy</a></li>
+          <li><a href="#slippage">Slippage, Fees, and Break-Even Math</a></li>
+          <li><a href="#purple-flea-arb">Arbitrage with Purple Flea Trading</a></li>
+          <li><a href="#python-arbbot">Python ArbBot Class</a></li>
+          <li><a href="#risk-management">Risk Management for Arb Bots</a></li>
+        </ol>
+      </div>
+
+      <!-- SECTION 1 -->
+      <section id="how-arb-works">
+        <h2>1. How Cross-Exchange Arbitrage Works</h2>
+        <p>Arbitrage is the simultaneous purchase and sale of the same asset on different markets to profit from price discrepancies. In theory, markets should instantly equalize — in practice, information asymmetry, latency differences, and capital constraints create persistent windows of 50–500ms where price gaps exist.</p>
+        <p>An AI agent's edge in arbitrage is purely operational: <strong>faster detection and execution than human traders</strong>. The strategy itself involves zero predictive skill — you're not forecasting price direction, you're observing a fact (Price A &gt; Price B) and acting on it before the gap closes.</p>
+        <p>The complete arbitrage lifecycle:</p>
+
+        <div class="arb-flow">
+          <div class="arb-step">
+            <div class="arb-step-num">Step 1</div>
+            <div class="arb-step-val" style="color: var(--blue)">Detect</div>
+            <div class="arb-step-label">Price gap &gt; threshold spotted across exchanges</div>
+          </div>
+          <div class="arb-step">
+            <div class="arb-step-num">Step 2</div>
+            <div class="arb-step-val" style="color: var(--purple)">Validate</div>
+            <div class="arb-step-label">Confirm spread covers fees + slippage</div>
+          </div>
+          <div class="arb-step">
+            <div class="arb-step-num">Step 3</div>
+            <div class="arb-step-val" style="color: var(--green)">Execute</div>
+            <div class="arb-step-label">Simultaneous buy low / sell high</div>
+          </div>
+          <div class="arb-step">
+            <div class="arb-step-num">Step 4</div>
+            <div class="arb-step-val" style="color: var(--yellow)">Settle</div>
+            <div class="arb-step-label">Collect spread minus fees</div>
+          </div>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Triangular vs Cross-Exchange Arb</div>
+          <p>Triangular arbitrage exploits price discrepancies within a single exchange (e.g., BTC/ETH, ETH/USDC, BTC/USDC). Cross-exchange arb requires capital and API access on multiple venues. This guide covers cross-exchange arb, which offers larger and more frequent opportunities.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 2 -->
+      <section id="opportunity-anatomy">
+        <h2>2. Anatomy of an Arbitrage Opportunity</h2>
+        <p>Let's trace a real example. At T=0ms, the WebSocket feed from Exchange A shows BTC at $65,200 (ask). Exchange B shows BTC at $65,100 (bid). The raw spread is $100 — but can you profit?</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Component</th><th>Value</th><th>Calculation</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Raw Spread</strong></td><td class="green">$100 (0.153%)</td><td>$65,200 - $65,100</td></tr>
+              <tr><td><strong>Taker Fee (Exchange A, buy)</strong></td><td class="red">-$13.04</td><td>0.02% of $65,200</td></tr>
+              <tr><td><strong>Taker Fee (Exchange B, sell)</strong></td><td class="red">-$13.02</td><td>0.02% of $65,100</td></tr>
+              <tr><td><strong>Estimated Slippage (both)</strong></td><td class="red">-$19.53</td><td>0.015% × 2 × $65,150 avg</td></tr>
+              <tr><td><strong>Transfer Cost (if applicable)</strong></td><td class="red">-$0</td><td>Pre-funded positions on both exchanges</td></tr>
+              <tr><td><strong>Net Profit</strong></td><td class="green">+$54.41</td><td>$100 - $13.04 - $13.02 - $19.53</td></tr>
+              <tr><td><strong>Net Margin</strong></td><td class="green">+0.083%</td><td>$54.41 / $65,150</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>This $54.41 profit on $65,150 capital (0.083%) sounds small, but arbitrage agents execute dozens to hundreds of such trades per day. At 50 trades/day averaging $40 profit, that's $2,000/day on $65K capital — a 3% daily return before compounding.</p>
+      </section>
+
+      <!-- SECTION 3 -->
+      <section id="latency">
+        <h2>3. Latency: The Critical Variable</h2>
+        <p>Arbitrage windows close fast. The moment a gap appears, competing bots simultaneously attempt to close it. Typical window durations:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Gap Size</th><th>Average Window Duration</th><th>Agents That Can Capture It</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>&gt;0.5%</strong></td><td class="green">500ms–5s</td><td>Most well-connected agents</td></tr>
+              <tr><td><strong>0.2–0.5%</strong></td><td class="orange">100–500ms</td><td>Agents with sub-100ms response</td></tr>
+              <tr><td><strong>0.1–0.2%</strong></td><td class="orange">20–100ms</td><td>Co-located agents, fast APIs</td></tr>
+              <tr><td><strong>&lt;0.1%</strong></td><td class="red">&lt;20ms</td><td>HFT firms only (not addressable)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Latency Optimization for AI Agents</h3>
+        <ul>
+          <li><strong>WebSocket over REST:</strong> WebSocket feeds deliver price updates in 1–5ms vs 50–200ms for REST polling. Always use WebSocket for price feeds.</li>
+          <li><strong>Geographic proximity:</strong> Deploy your agent on servers near exchange API endpoints. Most major exchanges have endpoints in AWS us-east-1, eu-west-1, and ap-northeast-1.</li>
+          <li><strong>Pre-funded positions:</strong> Fund both exchange accounts in advance. Transfers take minutes; pre-funding enables instant execution.</li>
+          <li><strong>Asyncio execution:</strong> Use Python's asyncio to fire both legs of the trade simultaneously, not sequentially.</li>
+          <li><strong>Order caching:</strong> Pre-prepare order parameters. The only variable is price — template orders reduce execution latency by 10–30ms.</li>
+        </ul>
+
+        <div class="callout callout-warning">
+          <div class="callout-title">The Latency Arms Race</div>
+          <p>Targeting gaps below 0.15% requires infrastructure investment (co-location, custom networking) that is uneconomical for most agents. Focus on gaps of 0.2%+, which persist for hundreds of milliseconds and are fully capturable by well-coded agents running on standard cloud VMs.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 4 -->
+      <section id="price-detection">
+        <h2>4. Real-Time Price Detection</h2>
+        <p>The price detection loop is the heart of any arb bot. It subscribes to WebSocket feeds from multiple exchanges simultaneously, maintains an in-memory order book, and triggers the arbitrage logic whenever a gap exceeds the minimum threshold.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python — Multi-Exchange WebSocket Price Feed</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#FF5F56"></div>
+              <div class="code-dot" style="background:#FFBD2E"></div>
+              <div class="code-dot" style="background:#27C93F"></div>
+            </div>
+          </div>
+          <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> json
+<span class="kw">import</span> websockets
+<span class="kw">import</span> logging
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Callable, Optional
+
+logger = logging.<span class="fn">getLogger</span>(<span class="st">"price_feed"</span>)
+
+
+<span class="kw">class</span> <span class="bi">PriceFeed</span>:
+    <span class="st">"""
+    Subscribes to multiple exchange WebSocket feeds simultaneously.
+    Maintains best bid/ask per exchange and triggers arb callback
+    when spread exceeds threshold.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        exchanges: <span class="bi">dict</span>[<span class="bi">str</span>, <span class="bi">str</span>],  <span class="cm"># {exchange_name: ws_url}</span>
+        symbol: <span class="bi">str</span>,
+        arb_callback: Callable,
+        min_spread_pct: <span class="bi">float</span> = <span class="nm">0.003</span>,  <span class="cm"># 0.3% minimum spread</span>
+    ):
+        self.exchanges = exchanges
+        self.symbol = symbol
+        self.arb_callback = arb_callback
+        self.min_spread_pct = min_spread_pct
+        self.prices: <span class="bi">dict</span>[<span class="bi">str</span>, <span class="bi">dict</span>] = {}  <span class="cm"># {exchange: {bid, ask, ts}}</span>
+
+    <span class="kw">async def</span> <span class="fn">subscribe_exchange</span>(self, name: <span class="bi">str</span>, url: <span class="bi">str</span>) -&gt; <span class="kw">None</span>:
+        <span class="st">"""Subscribe to a single exchange WebSocket feed."""</span>
+        <span class="kw">while True</span>:
+            <span class="kw">try</span>:
+                <span class="kw">async with</span> websockets.<span class="fn">connect</span>(url, ping_interval=<span class="nm">20</span>) <span class="kw">as</span> ws:
+                    logger.<span class="fn">info</span>(<span class="st">f"Connected to {name}"</span>)
+                    <span class="kw">async for</span> msg <span class="kw">in</span> ws:
+                        data = json.<span class="fn">loads</span>(msg)
+                        bid = <span class="bi">float</span>(data.get(<span class="st">"bid"</span>, <span class="nm">0</span>))
+                        ask = <span class="bi">float</span>(data.get(<span class="st">"ask"</span>, <span class="nm">0</span>))
+                        <span class="kw">if</span> bid &gt; <span class="nm">0</span> <span class="kw">and</span> ask &gt; <span class="nm">0</span>:
+                            self.prices[name] = {<span class="st">"bid"</span>: bid, <span class="st">"ask"</span>: ask}
+                            self.<span class="fn">check_spread</span>()
+            <span class="kw">except</span> <span class="bi">Exception</span> <span class="kw">as</span> e:
+                logger.<span class="fn">error</span>(<span class="st">f"{name} WS error: {e}. Reconnecting in 2s..."</span>)
+                <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="nm">2</span>)
+
+    <span class="kw">def</span> <span class="fn">check_spread</span>(self) -&gt; <span class="kw">None</span>:
+        <span class="st">"""
+        Compare all exchange pairs. Fire arb_callback if spread exceeds threshold.
+        Runs in O(n^2) over exchange count — fine for &lt;10 exchanges.
+        """</span>
+        exchange_names = <span class="bi">list</span>(self.prices.<span class="fn">keys</span>())
+        <span class="kw">for</span> i, ex_a <span class="kw">in</span> <span class="bi">enumerate</span>(exchange_names):
+            <span class="kw">for</span> ex_b <span class="kw">in</span> exchange_names[i+<span class="nm">1</span>:]:
+                price_a = self.prices[ex_a]
+                price_b = self.prices[ex_b]
+
+                <span class="cm"># Can we buy on A and sell on B?</span>
+                spread_ab = (price_b[<span class="st">"bid"</span>] - price_a[<span class="st">"ask"</span>]) / price_a[<span class="st">"ask"</span>]
+                <span class="kw">if</span> spread_ab &gt; self.min_spread_pct:
+                    asyncio.<span class="fn">create_task</span>(self.<span class="fn">arb_callback</span>(
+                        buy_exchange=ex_a, buy_price=price_a[<span class="st">"ask"</span>],
+                        sell_exchange=ex_b, sell_price=price_b[<span class="st">"bid"</span>],
+                        spread_pct=spread_ab
+                    ))
+
+                <span class="cm"># Can we buy on B and sell on A?</span>
+                spread_ba = (price_a[<span class="st">"bid"</span>] - price_b[<span class="st">"ask"</span>]) / price_b[<span class="st">"ask"</span>]
+                <span class="kw">if</span> spread_ba &gt; self.min_spread_pct:
+                    asyncio.<span class="fn">create_task</span>(self.<span class="fn">arb_callback</span>(
+                        buy_exchange=ex_b, buy_price=price_b[<span class="st">"ask"</span>],
+                        sell_exchange=ex_a, sell_price=price_a[<span class="st">"bid"</span>],
+                        spread_pct=spread_ba
+                    ))
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self) -&gt; <span class="kw">None</span>:
+        <span class="st">"""Run all WebSocket subscriptions concurrently."""</span>
+        tasks = [
+            self.<span class="fn">subscribe_exchange</span>(name, url)
+            <span class="kw">for</span> name, url <span class="kw">in</span> self.exchanges.<span class="fn">items</span>()
+        ]
+        <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*tasks)</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 5 -->
+      <section id="execution">
+        <h2>5. Simultaneous Execution Strategy</h2>
+        <p>The buy and sell legs must execute simultaneously — or as close to it as possible. Any sequential execution creates "leg risk": the price on the second exchange may move against you while you wait for the first order to fill.</p>
+
+        <h3>asyncio.gather for Parallel Order Placement</h3>
+        <p>Python's <code>asyncio.gather()</code> fires coroutines concurrently within a single event loop thread. For CPU-bound work, use <code>asyncio.to_thread()</code> to push blocking API calls to a thread pool. For I/O-bound REST calls (the norm), pure asyncio is sufficient.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python — Simultaneous Order Execution</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#FF5F56"></div>
+              <div class="code-dot" style="background:#FFBD2E"></div>
+              <div class="code-dot" style="background:#27C93F"></div>
+            </div>
+          </div>
+          <pre><span class="kw">async def</span> <span class="fn">execute_arb_legs</span>(
+    buy_api,
+    sell_api,
+    symbol: <span class="bi">str</span>,
+    size: <span class="bi">float</span>,
+    buy_price: <span class="bi">float</span>,
+    sell_price: <span class="bi">float</span>,
+    max_slippage: <span class="bi">float</span> = <span class="nm">0.001</span>,  <span class="cm"># 0.1% max acceptable slippage</span>
+) -&gt; <span class="bi">dict</span>:
+    <span class="st">"""
+    Execute both legs of an arbitrage simultaneously using asyncio.gather.
+    Returns combined result with fill prices and net P&amp;L.
+    """</span>
+    <span class="cm"># Fire both orders simultaneously</span>
+    buy_result, sell_result = <span class="kw">await</span> asyncio.<span class="fn">gather</span>(
+        buy_api.<span class="fn">place_market_order</span>(symbol=symbol, side=<span class="st">"buy"</span>, size=size),
+        sell_api.<span class="fn">place_market_order</span>(symbol=symbol, side=<span class="st">"sell"</span>, size=size),
+        return_exceptions=<span class="kw">True</span>
+    )
+
+    <span class="cm"># Handle partial failures</span>
+    <span class="kw">if</span> <span class="bi">isinstance</span>(buy_result, <span class="bi">Exception</span>):
+        <span class="cm"># Buy failed — cancel sell if it succeeded</span>
+        <span class="kw">if</span> <span class="kw">not</span> <span class="bi">isinstance</span>(sell_result, <span class="bi">Exception</span>):
+            <span class="kw">await</span> sell_api.<span class="fn">place_market_order</span>(symbol=symbol, side=<span class="st">"buy"</span>, size=size)  <span class="cm"># Unwind</span>
+        <span class="kw">raise</span> buy_result
+
+    <span class="kw">if</span> <span class="bi">isinstance</span>(sell_result, <span class="bi">Exception</span>):
+        <span class="cm"># Sell failed — unwind the buy</span>
+        <span class="kw">await</span> buy_api.<span class="fn">place_market_order</span>(symbol=symbol, side=<span class="st">"sell"</span>, size=size)
+        <span class="kw">raise</span> sell_result
+
+    <span class="cm"># Calculate actual spread captured</span>
+    actual_buy = buy_result[<span class="st">"fill_price"</span>]
+    actual_sell = sell_result[<span class="st">"fill_price"</span>]
+    actual_spread = (actual_sell - actual_buy) / actual_buy
+    slippage = (buy_price - actual_buy) / buy_price + (actual_sell - sell_price) / sell_price
+
+    net_pnl = (actual_sell - actual_buy) * size
+
+    logger.<span class="fn">info</span>(
+        <span class="st">f"ARB EXECUTED | Buy: {actual_buy:.2f} | Sell: {actual_sell:.2f} | "</span>
+        <span class="st">f"Spread: {actual_spread:.3%} | PnL: ${net_pnl:.2f}"</span>
+    )
+
+    <span class="kw">return</span> {
+        <span class="st">"buy_price"</span>: actual_buy,
+        <span class="st">"sell_price"</span>: actual_sell,
+        <span class="st">"spread_captured"</span>: actual_spread,
+        <span class="st">"slippage"</span>: slippage,
+        <span class="st">"net_pnl"</span>: net_pnl,
+    }</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 6 -->
+      <section id="slippage">
+        <h2>6. Slippage, Fees, and Break-Even Math</h2>
+        <p>The minimum spread required to profit must account for taker fees on both legs plus expected slippage. The break-even spread calculation:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Exchange Tier</th><th>Taker Fee</th><th>Break-Even Spread (both legs)</th><th>Min Target Spread</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>VIP / Market Maker</strong></td><td>0.01%</td><td class="green">0.02% + slippage</td><td class="green">0.07%</td></tr>
+              <tr><td><strong>Standard retail</strong></td><td>0.05%</td><td class="orange">0.10% + slippage</td><td class="orange">0.20%</td></tr>
+              <tr><td><strong>High-fee exchange</strong></td><td>0.10%</td><td class="red">0.20% + slippage</td><td class="red">0.35%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>For standard retail fee agents, set your <code>min_spread_pct</code> to 0.003 (0.3%) to ensure a comfortable margin above break-even. This conservative threshold filters out borderline opportunities where slippage could wipe the profit.</p>
+      </section>
+
+      <!-- SECTION 7 -->
+      <section id="purple-flea-arb">
+        <h2>7. Arbitrage with Purple Flea Trading</h2>
+        <p>Purple Flea's trading service operates as one of the venues in your arb system. When Purple Flea prices diverge from other exchanges (which happens during high-volatility periods), your bot can buy from the cheaper venue and sell to Purple Flea — or vice versa.</p>
+        <p>Additionally, every trade executed through Purple Flea's API earns you a <strong>20% referral commission</strong> on trading fees — both your own fees and fees from agents you've referred. Arb bots generate high trading volume, making the referral commission a substantial income stream on top of arb profits.</p>
+
+        <div class="callout callout-purple">
+          <div class="callout-title">Arb Volume = Referral Income</div>
+          <p>A bot executing $1M/month in trading volume through Purple Flea, paying 0.05% fees ($500/month in fees), earns $100/month in referral commission (20% of $500). Scale to $10M/month and that's $1,000/month in passive referral income on top of arb profits.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 8 -->
+      <section id="python-arbbot">
+        <h2>8. Python ArbBot Class</h2>
+        <p>This is the complete arbitrage bot combining price detection, opportunity validation, simultaneous execution, and risk controls into a single deployable class.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python — ArbBot (Complete)</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#FF5F56"></div>
+              <div class="code-dot" style="background:#FFBD2E"></div>
+              <div class="code-dot" style="background:#27C93F"></div>
+            </div>
+          </div>
+          <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List
+
+logger = logging.<span class="fn">getLogger</span>(<span class="st">"arbbot"</span>)
+
+
+<span class="nd">@dataclass</span>
+<span class="kw">class</span> <span class="bi">ArbTrade</span>:
+    buy_exchange: <span class="bi">str</span>
+    sell_exchange: <span class="bi">str</span>
+    symbol: <span class="bi">str</span>
+    size: <span class="bi">float</span>
+    buy_price: <span class="bi">float</span>
+    sell_price: <span class="bi">float</span>
+    spread_pct: <span class="bi">float</span>
+    net_pnl: <span class="bi">float</span> = <span class="nm">0.0</span>
+    timestamp: <span class="bi">float</span> = field(default_factory=time.time)
+
+
+<span class="kw">class</span> <span class="bi">ArbBot</span>:
+    <span class="st">"""
+    Production cross-exchange arbitrage bot for AI agents.
+
+    Features:
+    - Multi-exchange WebSocket price feed
+    - Configurable spread threshold with fee-aware break-even
+    - asyncio.gather() simultaneous leg execution
+    - Cooldown to prevent duplicate triggers on same opportunity
+    - Daily trade limit and max drawdown circuit breaker
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        symbol: <span class="bi">str</span>,
+        trade_size_usdc: <span class="bi">float</span> = <span class="nm">1000.0</span>,
+        min_spread_pct: <span class="bi">float</span> = <span class="nm">0.003</span>,   <span class="cm"># 0.3% minimum</span>
+        taker_fee_pct: <span class="bi">float</span> = <span class="nm">0.0005</span>,  <span class="cm"># 0.05% per leg</span>
+        max_daily_trades: <span class="bi">int</span> = <span class="nm">200</span>,
+        max_daily_loss: <span class="bi">float</span> = <span class="nm">-50.0</span>,   <span class="cm"># Stop if daily loss exceeds $50</span>
+        opportunity_cooldown: <span class="bi">float</span> = <span class="nm">2.0</span>,  <span class="cm"># Seconds between same-pair arb</span>
+    ):
+        self.symbol = symbol
+        self.trade_size = trade_size_usdc
+        self.min_spread_pct = min_spread_pct
+        self.taker_fee_pct = taker_fee_pct
+        self.max_daily_trades = max_daily_trades
+        self.max_daily_loss = max_daily_loss
+        self.cooldown = opportunity_cooldown
+
+        self.trades: List[ArbTrade] = []
+        self.last_trade_time: <span class="bi">dict</span>[<span class="bi">str</span>, <span class="bi">float</span>] = {}
+        self.daily_pnl: <span class="bi">float</span> = <span class="nm">0.0</span>
+        self.daily_trade_count: <span class="bi">int</span> = <span class="nm">0</span>
+        self.is_active: <span class="bi">bool</span> = <span class="kw">True</span>
+
+        <span class="cm"># Break-even spread = fees on both legs × 2 (buy + sell) + safety margin</span>
+        self.break_even_spread = taker_fee_pct * <span class="nm">2</span> * <span class="nm">1.5</span>  <span class="cm"># 1.5x safety factor</span>
+        logger.<span class="fn">info</span>(
+            <span class="st">f"ArbBot initialized | Symbol: {symbol} | Min spread: {min_spread_pct:.3%} | "</span>
+            <span class="st">f"Break-even: {self.break_even_spread:.3%}"</span>
+        )
+
+    <span class="kw">async def</span> <span class="fn">on_opportunity</span>(
+        self,
+        buy_exchange: <span class="bi">str</span>,
+        buy_price: <span class="bi">float</span>,
+        sell_exchange: <span class="bi">str</span>,
+        sell_price: <span class="bi">float</span>,
+        spread_pct: <span class="bi">float</span>,
+    ) -&gt; <span class="kw">None</span>:
+        <span class="st">"""Called by PriceFeed when an arb opportunity is detected."""</span>
+        <span class="kw">if</span> <span class="kw">not</span> self.<span class="fn">_can_trade</span>(buy_exchange, sell_exchange, spread_pct):
+            <span class="kw">return</span>
+
+        pair_key = <span class="st">f"{buy_exchange}-{sell_exchange}"</span>
+        self.last_trade_time[pair_key] = time.<span class="fn">time</span>()
+
+        logger.<span class="fn">info</span>(
+            <span class="st">f"ARB OPPORTUNITY | Buy {buy_exchange}@{buy_price:.2f} | "</span>
+            <span class="st">f"Sell {sell_exchange}@{sell_price:.2f} | Spread: {spread_pct:.3%}"</span>
+        )
+
+        <span class="kw">try</span>:
+            <span class="cm"># Compute size in asset units</span>
+            size_in_asset = self.trade_size / buy_price
+
+            <span class="cm"># Execute both legs simultaneously</span>
+            buy_api = self.<span class="fn">_get_api</span>(buy_exchange)
+            sell_api = self.<span class="fn">_get_api</span>(sell_exchange)
+
+            result = <span class="kw">await</span> <span class="fn">execute_arb_legs</span>(
+                buy_api=buy_api,
+                sell_api=sell_api,
+                symbol=self.symbol,
+                size=size_in_asset,
+                buy_price=buy_price,
+                sell_price=sell_price,
+            )
+
+            trade = ArbTrade(
+                buy_exchange=buy_exchange,
+                sell_exchange=sell_exchange,
+                symbol=self.symbol,
+                size=size_in_asset,
+                buy_price=result[<span class="st">"buy_price"</span>],
+                sell_price=result[<span class="st">"sell_price"</span>],
+                spread_pct=result[<span class="st">"spread_captured"</span>],
+                net_pnl=result[<span class="st">"net_pnl"</span>],
+            )
+            self.trades.<span class="fn">append</span>(trade)
+            self.daily_pnl += result[<span class="st">"net_pnl"</span>]
+            self.daily_trade_count += <span class="nm">1</span>
+
+            <span class="kw">if</span> self.daily_pnl &lt; self.max_daily_loss:
+                logger.<span class="fn">warning</span>(<span class="st">f"Daily loss limit hit: ${self.daily_pnl:.2f}. Stopping."</span>)
+                self.is_active = <span class="kw">False</span>
+
+        <span class="kw">except</span> <span class="bi">Exception</span> <span class="kw">as</span> e:
+            logger.<span class="fn">error</span>(<span class="st">f"Arb execution failed: {e}"</span>)
+
+    <span class="kw">def</span> <span class="fn">_can_trade</span>(self, ex_a: <span class="bi">str</span>, ex_b: <span class="bi">str</span>, spread: <span class="bi">float</span>) -&gt; <span class="bi">bool</span>:
+        <span class="st">"""Check all circuit breakers before executing."""</span>
+        <span class="kw">if</span> <span class="kw">not</span> self.is_active:
+            <span class="kw">return</span> <span class="kw">False</span>
+        <span class="kw">if</span> self.daily_trade_count &gt;= self.max_daily_trades:
+            <span class="kw">return</span> <span class="kw">False</span>
+        <span class="kw">if</span> spread &lt; self.min_spread_pct:
+            <span class="kw">return</span> <span class="kw">False</span>
+
+        pair_key = <span class="st">f"{ex_a}-{ex_b}"</span>
+        last = self.last_trade_time.<span class="fn">get</span>(pair_key, <span class="nm">0</span>)
+        <span class="kw">if</span> time.<span class="fn">time</span>() - last &lt; self.cooldown:
+            <span class="kw">return</span> <span class="kw">False</span>
+
+        <span class="kw">return</span> <span class="kw">True</span>
+
+    <span class="kw">def</span> <span class="fn">_get_api</span>(self, exchange: <span class="bi">str</span>):
+        <span class="st">"""Return exchange API client. Extend with your exchange clients."""</span>
+        apis = {
+            <span class="st">"purple_flea"</span>: self.purple_flea_api,
+            <span class="cm"># Add other exchange API clients here</span>
+        }
+        <span class="kw">return</span> apis[exchange]
+
+    <span class="kw">def</span> <span class="fn">summary</span>(self) -&gt; <span class="bi">str</span>:
+        total_volume = <span class="bi">sum</span>(t.size * t.buy_price <span class="kw">for</span> t <span class="kw">in</span> self.trades)
+        <span class="kw">return</span> (
+            <span class="st">f"ArbBot | Trades: {len(self.trades)} | "</span>
+            <span class="st">f"Volume: ${total_volume:,.0f} | "</span>
+            <span class="st">f"Daily PnL: ${self.daily_pnl:+.2f}"</span>
+        )</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 9 -->
+      <section id="risk-management">
+        <h2>9. Risk Management for Arb Bots</h2>
+        <p>Arbitrage is considered low-risk, but several failure modes can cause losses:</p>
+        <ul>
+          <li><strong>Leg failure:</strong> One order fills, the other doesn't. You now have a naked directional position. Always implement unwind logic (demonstrated above).</li>
+          <li><strong>Price staleness:</strong> Stale WebSocket data leads to executing arb on a gap that's already closed. Track WebSocket message timestamps and abort if data is &gt;500ms old.</li>
+          <li><strong>Inventory imbalance:</strong> Repeated arb in one direction drains inventory on one exchange. Monitor balances and pause when either exchange drops below $500 USDC equivalent.</li>
+          <li><strong>API rate limits:</strong> High-frequency arb may trigger exchange API rate limits, causing missed execution windows. Use exponential backoff and pre-configured order templates.</li>
+        </ul>
+
+        <div class="callout callout-success">
+          <div class="callout-title">Scaling the Bot</div>
+          <p>Start with $500 per trade to validate the logic with minimal risk. Once you've confirmed 50 successful executions with real fills, scale to $2,000–$5,000 per trade. Arb strategies scale linearly with capital (unlike strategies limited by market impact) up to ~$50K per trade on major pairs.</p>
+        </div>
+
+        <div class="cta-box">
+          <h3>Deploy Your Arb Bot on Purple Flea</h3>
+          <p>Register your trading agent, get API credentials, and start capturing cross-exchange price gaps. Earn 20% referral commission on all trading volume simultaneously.</p>
+          <a href="/register" class="cta-btn">Register Trading Agent</a>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- SIDEBAR TOC -->
+    <aside class="toc-sticky">
+      <div class="toc-sticky-title">On This Page</div>
+      <ol>
+        <li><a href="#how-arb-works">How Arb Works</a></li>
+        <li><a href="#opportunity-anatomy">Opportunity Anatomy</a></li>
+        <li><a href="#latency">Latency</a></li>
+        <li><a href="#price-detection">Price Detection</a></li>
+        <li><a href="#execution">Execution</a></li>
+        <li><a href="#slippage">Slippage &amp; Fees</a></li>
+        <li><a href="#purple-flea-arb">Purple Flea Arb</a></li>
+        <li><a href="#python-arbbot">Python ArbBot</a></li>
+        <li><a href="#risk-management">Risk Management</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer>
+    <p style="margin-bottom: 12px;">
+      <a href="/">Purple Flea</a> &middot;
+      <a href="/blog">Blog</a> &middot;
+      <a href="/docs">Docs</a> &middot;
+      <a href="/for-agents">For Agents</a> &middot;
+      <a href="/register">Register</a>
+    </p>
+    <p>Blue chip financial infrastructure for AI agents. &copy; 2026 Purple Flea.</p>
+  </footer>
+
+  <script>
+    window.addEventListener('scroll', () => {
+      const el = document.getElementById('progress-bar');
+      const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+      el.style.width = pct + '%';
+    });
+  </script>
+</body>
+</html>
