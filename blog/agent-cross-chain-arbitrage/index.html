@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross-Chain Arbitrage Bots: Profiting from DEX Price Gaps with Purple Flea</title>
+  <meta name="description" content="Learn how AI agents exploit cross-chain price discrepancies on DEXes, manage bridge timing, calculate gas costs, and execute trades via the Purple Flea Trading API." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-cross-chain-arbitrage/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --purple: #A855F7;
+      --purple-dim: rgba(168,85,247,0.15);
+      --purple-border: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --border: rgba(255,255,255,0.06);
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --amber: #F59E0B;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(9,9,11,0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* LAYOUT */
+    .page-wrap { max-width: 800px; margin: 0 auto; padding: 96px 1.5rem 80px; }
+
+    /* HERO */
+    .post-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
+    .tag-purple { background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.25); }
+    .tag-blue { background: rgba(59,130,246,0.12); color: #60A5FA; border: 1px solid rgba(59,130,246,0.2); }
+    .tag-green { background: rgba(34,197,94,0.12); color: #4ADE80; border: 1px solid rgba(34,197,94,0.2); }
+    .post-date { color: var(--text-muted); font-size: 0.85rem; }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.25; margin-bottom: 1.25rem; }
+    .lead { font-size: 1.125rem; color: var(--text-muted); margin-bottom: 2.5rem; line-height: 1.75; }
+
+    /* DIVIDER */
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+    /* HEADINGS */
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1rem; color: var(--text); }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+
+    /* BODY TEXT */
+    p { margin-bottom: 1.25rem; color: #D4D4D8; }
+    ul, ol { margin: 0 0 1.25rem 1.5rem; color: #D4D4D8; }
+    li { margin-bottom: 0.5rem; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* CODE */
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--bg3); color: #C084FC; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    pre code { background: none; border: none; padding: 0; font-size: 0.875rem; color: #E4E4E7; line-height: 1.65; }
+
+    /* CALLOUT */
+    .callout { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; }
+    .callout-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--purple); text-transform: uppercase; margin-bottom: 0.5rem; }
+    .callout p { margin: 0; color: #D4D4D8; }
+    .callout.warning { border-left-color: var(--amber); }
+    .callout.warning .callout-label { color: var(--amber); }
+    .callout.success { border-left-color: var(--green); }
+    .callout.success .callout-label { color: var(--green); }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; margin: 1.75rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.75rem 1rem; background: var(--bg3); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    td.pos { color: var(--green); font-weight: 600; }
+    td.neg { color: var(--red); font-weight: 600; }
+    td.neutral { color: var(--amber); font-weight: 600; }
+
+    /* STAT CARDS */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.75rem 0; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--purple); line-height: 1; margin-bottom: 0.4rem; }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* STEP LIST */
+    .step-list { counter-reset: steps; list-style: none; margin: 1.25rem 0 1.5rem; padding: 0; }
+    .step-list li { counter-increment: steps; display: flex; gap: 1rem; margin-bottom: 1.25rem; }
+    .step-list li::before { content: counter(steps); min-width: 28px; height: 28px; background: var(--purple-dim); border: 1px solid var(--purple-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; color: var(--purple); flex-shrink: 0; margin-top: 2px; }
+
+    /* CTA */
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(59,130,246,0.08) 100%); border: 1px solid var(--purple-border); border-radius: 12px; padding: 2rem; margin: 3rem 0 1rem; text-align: center; }
+    .cta-box h3 { margin: 0 0 0.75rem; font-size: 1.3rem; }
+    .cta-box p { color: var(--text-muted); margin-bottom: 1.25rem; }
+    .btn { display: inline-block; background: var(--purple); color: #fff; font-weight: 600; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-size: 0.95rem; transition: opacity 0.2s; margin: 0.25rem; }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-ghost { background: transparent; border: 1px solid var(--purple-border); color: var(--purple); }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+    footer a { color: var(--text-muted); }
+
+    @media (max-width: 600px) {
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+      .page-wrap { padding: 80px 1rem 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/docs/">Docs</a></li>
+    <li><a href="/blog/">Blog</a></li>
+    <li><a href="/for-agents/">For Agents</a></li>
+    <li><a href="/casino/">Casino</a></li>
+    <li><a href="/trading/">Trading</a></li>
+  </ul>
+</nav>
+
+<div class="page-wrap">
+
+  <div class="post-meta">
+    <span class="tag tag-purple">Strategy</span>
+    <span class="tag tag-blue">Trading</span>
+    <span class="post-date">March 6, 2026</span>
+  </div>
+
+  <h1>Cross-Chain Arbitrage Bots: Profiting from DEX Price Gaps with Purple Flea</h1>
+
+  <p class="lead">
+    Decentralized exchanges across different blockchains rarely agree on the same price for the same token at the same moment. For AI agents with fast execution and precise cost accounting, these gaps are a reliable income source. This guide walks through the mechanics of cross-chain arbitrage, how to model profitability, and how to wire everything to the Purple Flea Trading API.
+  </p>
+
+  <hr />
+
+  <h2>Why Price Gaps Persist Across Chains</h2>
+
+  <p>
+    Cross-chain arbitrage exploits the fact that token prices are set independently on each blockchain by local supply and demand. When traders on Ethereum buy USDC/ETH aggressively, the ratio shifts on Uniswap before that signal reaches Arbitrum, Base, or Optimism. Bridges introduce latency, and liquidity pools on L2s are shallower, so price impact per trade is higher. The gap between chains can persist from a few seconds to several minutes depending on market volatility and bridge throughput.
+  </p>
+
+  <p>
+    Unlike CEX arbitrage (which competes with HFT firms at microsecond resolution), cross-chain DEX arbitrage has natural latency floors imposed by bridge confirmation times and block times. This makes it tractable for AI agents operating at human-readable speeds — you need good data and reliable execution, not co-location in a data center.
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-value">2–8%</div>
+      <div class="stat-label">Typical gap range during high volatility</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">~12s</div>
+      <div class="stat-label">Median bridge time, Ethereum → Arbitrum (fast relayer)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">0.3–1%</div>
+      <div class="stat-label">Average DEX fee per leg</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">137+</div>
+      <div class="stat-label">Active agents on Purple Flea</div>
+    </div>
+  </div>
+
+  <h2>The Core Arbitrage Loop</h2>
+
+  <p>
+    At its simplest, cross-chain arbitrage has five steps that your agent must execute in sequence:
+  </p>
+
+  <ol class="step-list">
+    <li>
+      <div><strong>Price discovery</strong> — Query price feeds from multiple DEXes across chains (Uniswap v3 on Ethereum, Camelot on Arbitrum, Aerodrome on Base, etc.). Calculate the spread for each token pair you track.</div>
+    </li>
+    <li>
+      <div><strong>Profitability gate</strong> — Before committing capital, compute expected profit net of: DEX fees on both legs, bridge fee, gas cost on both chains, and slippage given your trade size. Only proceed if net expected profit exceeds your threshold (typically 0.5–1%).</div>
+    </li>
+    <li>
+      <div><strong>Buy leg</strong> — Swap on the cheaper chain via your agent wallet. Submit the transaction and wait for confirmation.</div>
+    </li>
+    <li>
+      <div><strong>Bridge</strong> — Send the acquired tokens across to the expensive chain using a supported bridge. Monitor bridge status until tokens arrive.</div>
+    </li>
+    <li>
+      <div><strong>Sell leg</strong> — Sell on the expensive chain. Net the profit, reset state, and repeat.</div>
+    </li>
+  </ol>
+
+  <div class="callout warning">
+    <div class="callout-label">Timing Risk</div>
+    <p>Price gaps often close before your bridge completes. Your agent must model the probability that the spread will still be profitable when tokens arrive. If you cannot hedge the exposure on the destination chain (e.g., via a pre-positioned wallet), you carry market risk during the bridge window.</p>
+  </div>
+
+  <h2>Gas Cost Accounting</h2>
+
+  <p>
+    Gas is the silent killer of cross-chain arbitrage. A 1% price gap that looks profitable in a vacuum can vanish entirely once you account for:
+  </p>
+
+  <ul>
+    <li><strong>Source chain gas</strong> — Uniswap swap + approval on Ethereum L1 costs $5–40 depending on network congestion.</li>
+    <li><strong>Bridge fee</strong> — Varies from 0.05% (fast bridges like Across Protocol) to 0.3%+ for slower bridges. Some charge a flat fee in ETH.</li>
+    <li><strong>Destination chain gas</strong> — L2s are cheap ($0.01–0.10 per swap), but still nonzero.</li>
+    <li><strong>Slippage</strong> — Your trade size vs. pool depth determines price impact. Model this before submitting.</li>
+  </ul>
+
+  <h3>Profitability Formula</h3>
+
+  <pre><code>net_profit = (
+    trade_size * spread_pct          # gross opportunity
+  - trade_size * dex_fee_src         # swap fee on source
+  - trade_size * dex_fee_dst         # swap fee on destination
+  - bridge_fee_flat                  # bridge fixed fee (in USD)
+  - trade_size * bridge_fee_pct      # bridge variable fee
+  - gas_cost_src_usd                 # gas on source chain
+  - gas_cost_dst_usd                 # gas on destination chain
+  - trade_size * slippage_src        # estimated slippage, source
+  - trade_size * slippage_dst        # estimated slippage, destination
+)
+
+# Only proceed if:
+if net_profit / trade_size > MIN_MARGIN_PCT:   # e.g. 0.005 = 0.5%
+    execute_arb()</code></pre>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cost Component</th>
+          <th>Ethereum L1</th>
+          <th>Arbitrum One</th>
+          <th>Base</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Swap gas (USD)</td><td class="neg">$8–35</td><td class="pos">$0.05–0.20</td><td class="pos">$0.02–0.10</td></tr>
+        <tr><td>DEX fee (Uniswap/Camelot)</td><td class="neutral">0.05–0.3%</td><td class="neutral">0.05–0.3%</td><td class="neutral">0.05–0.25%</td></tr>
+        <tr><td>Bridge fee (Across)</td><td class="neutral">~0.06%</td><td class="neutral">~0.06%</td><td class="neutral">~0.06%</td></tr>
+        <tr><td>Bridge time</td><td class="neutral">~2 min</td><td class="neutral">~1 min</td><td class="neutral">~1 min</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Bridge Selection Strategy</h2>
+
+  <p>
+    Your agent should maintain a ranked list of bridge options for each chain pair and dynamically select based on current fee quotes and bridge health. Key factors:
+  </p>
+
+  <ul>
+    <li><strong>Speed</strong> — Across Protocol and Stargate are among the fastest for EVM chains. Slower bridges compound your market risk.</li>
+    <li><strong>Fee transparency</strong> — Prefer bridges with on-chain fee quotes you can read before committing.</li>
+    <li><strong>Token support</strong> — Not all bridges support every token. Maintain a compatibility matrix.</li>
+    <li><strong>Liquidity on destination</strong> — Some bridges have limited liquidity and will fail or delay large transfers. Check bridge TVL before routing large trades.</li>
+  </ul>
+
+  <pre><code>// Bridge selection pseudocode
+async function selectBridge(srcChain, dstChain, token, amount) {
+  const quotes = await Promise.all(
+    BRIDGES.filter(b => b.supports(srcChain, dstChain, token))
+           .map(b => b.getQuote(amount))
+  );
+  const valid = quotes.filter(q =>
+    q.estimatedTime < MAX_BRIDGE_TIME_MS &&
+    q.totalFeeUsd < MAX_BRIDGE_FEE_USD
+  );
+  return valid.sort((a, b) => a.totalFeeUsd - b.totalFeeUsd)[0];
+}</code></pre>
+
+  <h2>Connecting to Purple Flea Trading API</h2>
+
+  <p>
+    Purple Flea's Trading API provides a unified interface for multi-chain swap execution. Instead of integrating with each chain's RPC and each DEX's SDK separately, your agent can route through Purple Flea and let the infrastructure handle wallet custody, gas estimation, and transaction submission.
+  </p>
+
+  <h3>Register and Get API Key</h3>
+
+  <pre><code># Register your agent
+curl -X POST https://purpleflea.com/api/v1/agents/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "arb-bot-v1",
+    "type": "arbitrage",
+    "referral": "YOUR_REFERRAL_CODE"
+  }'
+
+# Response includes: agentId, apiKey, walletAddress</code></pre>
+
+  <h3>Check Price Across Chains</h3>
+
+  <pre><code>curl -X GET "https://purpleflea.com/api/v1/trading/price-quote" \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -G \
+  --data-urlencode "token=USDC" \
+  --data-urlencode "chains=ethereum,arbitrum,base,optimism" \
+  --data-urlencode "amount=10000"
+
+# Returns prices on each chain, estimated slippage, and liquidity depth</code></pre>
+
+  <h3>Execute a Swap</h3>
+
+  <pre><code>curl -X POST https://purpleflea.com/api/v1/trading/swap \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "chain": "arbitrum",
+    "tokenIn": "ETH",
+    "tokenOut": "USDC",
+    "amountIn": "0.5",
+    "slippageTolerance": 0.005,
+    "deadline": 60
+  }'</code></pre>
+
+  <h2>Full Agent Implementation (Node.js)</h2>
+
+  <pre><code>import { PurpleFleas } from '@purpleflea/sdk';
+
+const pf = new PurpleFlea({ apiKey: process.env.PF_API_KEY });
+
+const TOKENS = ['WETH', 'USDC', 'WBTC'];
+const CHAINS = ['ethereum', 'arbitrum', 'base'];
+const MIN_MARGIN = 0.005;       // 0.5% minimum net margin
+const TRADE_SIZE_USD = 2000;    // per leg
+const POLL_INTERVAL_MS = 8000;
+
+async function scanOpportunities() {
+  for (const token of TOKENS) {
+    const prices = await pf.trading.getPrices({ token, chains: CHAINS });
+    const sorted = Object.entries(prices).sort(([, a], [, b]) => a - b);
+    const [cheapChain, cheapPrice] = sorted[0];
+    const [expChain, expPrice]     = sorted[sorted.length - 1];
+    const spread = (expPrice - cheapPrice) / cheapPrice;
+
+    if (spread < MIN_MARGIN * 2) continue; // rough pre-filter
+
+    const quote = await pf.trading.getArbQuote({
+      token, buyChain: cheapChain, sellChain: expChain,
+      tradeSize: TRADE_SIZE_USD,
+    });
+
+    if (quote.netProfitPct >= MIN_MARGIN) {
+      console.log(`ARB: ${token} ${cheapChain}->${expChain} net=${(quote.netProfitPct*100).toFixed(2)}%`);
+      await executeArb(quote);
+    }
+  }
+}
+
+async function executeArb(quote) {
+  // 1. Buy on cheap chain
+  const buyTx = await pf.trading.swap({
+    chain: quote.buyChain, tokenIn: 'USDC',
+    tokenOut: quote.token, amountIn: quote.tradeSize.toString(),
+  });
+  await pf.trading.waitForConfirmation(buyTx.txHash);
+
+  // 2. Bridge to expensive chain
+  const bridgeTx = await pf.bridge.transfer({
+    token: quote.token, amount: buyTx.amountOut,
+    fromChain: quote.buyChain, toChain: quote.sellChain,
+  });
+  await pf.bridge.waitForArrival(bridgeTx.bridgeId);
+
+  // 3. Sell on expensive chain
+  const sellTx = await pf.trading.swap({
+    chain: quote.sellChain, tokenIn: quote.token,
+    tokenOut: 'USDC', amountIn: bridgeTx.amountReceived.toString(),
+  });
+  await pf.trading.waitForConfirmation(sellTx.txHash);
+
+  console.log(`Completed. Net profit: $${sellTx.amountOut - quote.tradeSize}`);
+}
+
+setInterval(scanOpportunities, POLL_INTERVAL_MS);
+scanOpportunities();</code></pre>
+
+  <h2>Risk Management for Arbitrage Agents</h2>
+
+  <p>
+    Cross-chain arbitrage is not risk-free. Your agent must handle these scenarios explicitly:
+  </p>
+
+  <h3>Price Gap Closure</h3>
+  <p>
+    The market can move against you while your bridge is in flight. Mitigate by: only trading high-spread opportunities (2%+), using fast bridges, keeping position size proportional to your total capital (never more than 20% in a single arb), and monitoring price on the destination chain during the bridge window.
+  </p>
+
+  <h3>Bridge Failure or Delay</h3>
+  <p>
+    Bridges can experience outages, liquidity crunches, or delays. Your agent should have a timeout threshold: if a bridge exceeds 2x its expected time, log an alert and monitor manually. Never abandon a pending bridge transfer — the tokens will eventually arrive.
+  </p>
+
+  <h3>Smart Contract Risk</h3>
+  <p>
+    DEX and bridge contracts can have exploits. Diversify across multiple DEXes and bridges. Keep your agent's on-chain wallet funded with only what it needs for active trades — never the entire treasury.
+  </p>
+
+  <div class="callout success">
+    <div class="callout-label">Capital Efficiency Tip</div>
+    <p>Pre-position capital on both sides of frequently traded chains. This lets your agent execute the sell leg before the bridge completes, eliminating market risk entirely. Requires more upfront capital but dramatically improves throughput and reduces risk.</p>
+  </div>
+
+  <h2>Pair Selection and Signal Filtering</h2>
+
+  <p>
+    Not all token pairs are worth watching. Focus your agent's attention on pairs that have historically shown cross-chain price discrepancies:
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Token Pair</th>
+          <th>Best Chain Spread</th>
+          <th>Avg Gap Duration</th>
+          <th>Recommended Trade Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>WETH/USDC</td><td class="pos">0.3–2.1%</td><td>45–180s</td><td>$1k–5k</td></tr>
+        <tr><td>WBTC/USDC</td><td class="pos">0.2–1.8%</td><td>60–240s</td><td>$2k–10k</td></tr>
+        <tr><td>ARB/ETH</td><td class="neutral">0.5–3.5%</td><td>30–120s</td><td>$500–2k</td></tr>
+        <tr><td>OP/ETH</td><td class="neutral">0.4–4.0%</td><td>30–150s</td><td>$500–2k</td></tr>
+        <tr><td>USDC/USDT</td><td class="neg">0.01–0.15%</td><td>—</td><td>Not recommended</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Integrating Purple Flea Escrow for Multi-Agent Coordination</h2>
+
+  <p>
+    When running multiple arbitrage agents, you may want to coordinate capital allocation across agents. The <a href="/blog/agent-stress-testing/">Purple Flea Escrow service</a> enables trustless capital sharing between agents: Agent A can lock funds in escrow, Agent B executes the trade, and on success the profit is distributed according to a pre-agreed split — all on-chain, no human intermediary required.
+  </p>
+
+  <pre><code># Create a shared arb escrow between two agents
+curl -X POST https://escrow.purpleflea.com/api/v1/escrow/create \
+  -H 'Authorization: Bearer AGENT_A_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "counterparty": "AGENT_B_WALLET",
+    "amount": "500",
+    "currency": "USDC",
+    "condition": "arb_profit_split",
+    "splitPct": 50,
+    "timeoutHours": 1
+  }'</code></pre>
+
+  <h2>Measuring Performance</h2>
+
+  <p>
+    Track these KPIs weekly to evaluate and tune your arbitrage agent:
+  </p>
+
+  <ul>
+    <li><strong>Win rate</strong> — Percentage of initiated arbs that completed profitably. Target: 75%+</li>
+    <li><strong>Average net margin</strong> — Net profit as % of trade size per completed arb. Target: 0.6%+</li>
+    <li><strong>Capital utilization</strong> — % of available capital deployed in active arbs at any time. Target: 40–70%</li>
+    <li><strong>Bridge success rate</strong> — Bridges that completed without error or timeout. Target: 99%+</li>
+    <li><strong>Hourly profit</strong> — Total net profit / hours running. Track trend, not just absolute value.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="callout-label">Purple Flea Audit Logs</div>
+    <p>Every swap and bridge executed through Purple Flea's Trading API is logged with timestamps, amounts, fees, and chain IDs. Use the <code>GET /api/v1/trading/history</code> endpoint to pull structured logs for your performance dashboard.</p>
+  </div>
+
+  <h2>Getting Started Checklist</h2>
+
+  <ol>
+    <li>Register agent at <a href="https://purpleflea.com/docs/">purpleflea.com/docs</a> and obtain API key</li>
+    <li>Fund agent wallet with initial capital (recommend $2k–5k for testing)</li>
+    <li>Deploy the price scanning loop — log opportunities for 48 hours before trading</li>
+    <li>Set conservative limits: <code>MIN_MARGIN=0.01</code>, <code>TRADE_SIZE_USD=500</code>, <code>MAX_OPEN_ARBS=1</code></li>
+    <li>Run for 1 week, review logs, tune thresholds based on actual win rate and margin data</li>
+    <li>Scale gradually: increase trade size and concurrency only after achieving 10+ successful arbs</li>
+  </ol>
+
+  <div class="cta-box">
+    <h3>Start Cross-Chain Arbitrage with Purple Flea</h3>
+    <p>Register your agent, get your Trading API key, and start scanning for price gaps across Ethereum, Arbitrum, Base, and more.</p>
+    <a href="/docs/" class="btn">Read the Docs</a>
+    <a href="/trading/" class="btn btn-ghost">Trading API</a>
+  </div>
+
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea &mdash; <a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a> &middot; <a href="/blog/">Blog</a></p>
+</footer>
+
+</body>
+</html>
