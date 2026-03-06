@@ -1,5 +1,50 @@
 # Purple Flea Website Log
 
+## 2026-03-06 — Autonomous Web Engineer Session (Wave-36)
+
+### Changes Made
+
+#### New Pages Created
+1. `/agent-compliance/index.html` — Responsible AI agent financial operations guide. Permissionless by design, transparent rate limiting, provably fair outcomes, no-KYC philosophy. 551 lines.
+
+2. `/agent-escrow-api/index.html` — Comprehensive escrow API landing page. Trustless agent-to-agent payments, 1% fee, 15% referral. Full API reference with curl examples, use cases, MCP config. 1852 lines.
+
+3. `/agent-fleet-management/index.html` — Enterprise-grade fleet management for AI agents at scale. Shared faucet pools, centralized escrow management, real-time fleet analytics. 1774 lines.
+
+#### New Blog Posts
+4. `blog/agent-arbitrage-strategies/` — Spatial, temporal, statistical and triangular arbitrage for AI agents with Python code.
+5. `blog/agent-network-effects/` — Metcalfe's Law, liquidity network effects, referral compounding in agent economies.
+6. `blog/agent-sentiment-analysis/` — Multi-source sentiment aggregator with LLMs, VADER, source-weighted scoring.
+7. `blog/agent-statistical-edge/` — Framework for discovering/validating statistical edges without overfitting.
+8. `blog/agent-logging-observability/` — Structured logging with correlation IDs, log levels, centralized aggregation.
+
+#### Updated Pages
+- `blog/index.html` — Added 98 blog posts that existed on disk but were missing from the index (174 total). Plus 5 new 2026-03-06 posts.
+- `docs/index.html` — Added research paper (Zenodo DOI) link to sidebar + page intro section.
+- `index.html` — Added agent-compliance and agent-fleet-management to footer company column.
+- `for-mastra/index.html` — Refreshed content.
+- `sitemap.xml` — Added 63 new URLs (new blog posts + new pages), dated 2026-03-06. Total: 444 URLs.
+
+#### Committed and Pushed
+- Commit: 767a0df — Wave-36: 98 missing blog posts indexed, 5 new blog posts, 3 new pages
+- Repository: https://github.com/purple-flea/purpleflea.com
+- Branch: main
+
+### Health Check — All Pages 200 OK ✓
+200 / | 200 /for-agents/ | 200 /docs/ | 200 /stats/ | 200 /blog/
+200 /llms.txt | 200 /sitemap.xml | 200 /research/
+200 /agent-compliance/ | 200 /agent-escrow-api/ | 200 /agent-fleet-management/
+
+### Next Improvements to Consider
+- Create /agent-benchmarks page comparing trading strategies with real data
+- Add /agent-tax-reporting page (growing legal concern for AI agents)
+- Wire stats page live counters to real API endpoints
+- Add comparison pages: /vs-moralis, /vs-alchemy
+- Create /agent-autonomous-income-2026 dedicated SEO page (already in blog, make standalone)
+- Update blog index to show newest posts first (sort by date)
+
+---
+
 ## 2026-03-04 — Autonomous Web Engineer Session
 
 ### Changes Made
@@ -307,3 +352,29 @@ Infrastructure:
 - blog/passive-income-ai-agent
 - tutorials/index.html
 
+
+### Wave-37 (2026-03-06) — commit da45b94
+
+New pages:
+- /api-playground — live in-browser API tester for all 6 services with real fetch() calls
+- /mcp-config-generator — MCP JSON config generator for Claude Desktop, Cursor, Windsurf
+
+Improvements:
+- /for-agents: interactive referral code personalizer (paste code, all templates update)
+- .well-known/agent.json: version bumped to v2.7.2, added new tool URLs
+- changelog: v2.8.1 release entry added
+- sitemap.xml: 2 new URLs added
+- index.html: new tool pages linked in footer
+
+### Wave-38 (2026-03-06) — commits 915df0e + 0bb6d92
+
+New pages:
+- /agent-tasks-gallery — 20+ filterable task cards for Casino, Trading, Wallet, Domains, Faucet, Escrow
+- /glossary — 46 AI agent finance terms with live search filter, A-Z navigation, code snippets
+- /integrate — 5-minute integration guide: Python, Node.js, LangChain, CrewAI, MCP, curl
+
+Improvements:
+- index.html: API Playground + MCP Config Generator added to developers section cards
+- index.html: Integrate, Glossary, Task Gallery added to footer dev links
+- /for-agents: fallback agent count updated to 137+ (live casino data)
+- sitemap.xml: 5 new URLs added total across Wave-37/38
