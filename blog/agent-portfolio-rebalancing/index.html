@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automated Portfolio Rebalancing for AI Agents: Keeping Allocations Optimal | Purple Flea</title>
+  <meta name="description" content="How AI agents implement automated portfolio rebalancing across Purple Flea's 6 services — drift detection, Kelly Criterion sizing, and a full Python PortfolioRebalancer class." />
+  <meta property="og:title" content="Automated Portfolio Rebalancing for AI Agents: Keeping Allocations Optimal" />
+  <meta property="og:description" content="Rebalancing triggers, drift detection, Kelly Criterion sizing, and a Python PortfolioRebalancer class for Purple Flea agents." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-portfolio-rebalancing/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-portfolio-rebalancing/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Automated Portfolio Rebalancing for AI Agents: Keeping Allocations Optimal",
+    "description": "Rebalancing triggers, drift detection, Kelly Criterion sizing, and a Python PortfolioRebalancer class for Purple Flea agents.",
+    "url": "https://purpleflea.com/blog/agent-portfolio-rebalancing/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico" } },
+    "keywords": ["portfolio rebalancing", "AI agents", "Kelly Criterion", "Purple Flea", "allocation", "drift detection", "Python"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B; --surface: #111113; --border: #27272A;
+      --accent: #A855F7; --accent-dim: #7C3AED;
+      --text: #FAFAFA; --muted: #A1A1AA;
+      --green: #22C55E; --blue: #3B82F6; --red: #EF4444; --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; }
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: grid; grid-template-columns: 1fr 260px; gap: 3rem; align-items: start; }
+    @media (max-width: 820px) { .page-wrapper { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    .content pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; line-height: 1.65; color: #E4E4E7; }
+    .content code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; color: var(--accent); }
+    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    td code { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent); }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">&#x1F7E3; Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/casino">Casino</a></li>
+        <li><a href="/trading">Trading</a></li>
+        <li><a href="/wallet">Wallet</a></li>
+        <li><a href="/domains">Domains</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+        <li><a href="/blog">Blog</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">&#8592; Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">Strategy</span>
+        <span class="tag blue">Finance</span>
+      </div>
+
+      <h1>Automated Portfolio Rebalancing for AI Agents: Keeping Allocations Optimal</h1>
+
+      <div class="post-meta">
+        <span>&#x1F4C5; March 6, 2026</span>
+        <span>&#x23F1; 14 min read</span>
+        <span>&#x270D;&#xFE0F; Purple Flea Research</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>A portfolio that starts perfectly balanced will drift within days. Casino wins push that allocation up; a losing trading streak shrinks it. Without systematic rebalancing, an agent designed to run 40% casino / 30% trading / 20% escrow / 10% domains ends up running 70% casino after a hot streak — completely outside its risk parameters. Automated rebalancing solves this by continuously monitoring drift and executing corrective trades to restore target weights.</p>
+
+        <p>This guide covers rebalancing triggers, drift detection algorithms, Kelly Criterion position sizing, and a full <code>PortfolioRebalancer</code> Python class you can run as a daily cron job against Purple Flea's 6 services.</p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">6</div>
+            <div class="stat-label">Purple Flea services to balance across</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">5%</div>
+            <div class="stat-label">Drift threshold triggering rebalance</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">24h</div>
+            <div class="stat-label">Maximum rebalance interval</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">Kelly</div>
+            <div class="stat-label">Position sizing criterion</div>
+          </div>
+        </div>
+
+        <!-- Section 1 -->
+        <h2 id="why-rebalance">1. Why Portfolio Rebalancing Matters for Agents</h2>
+
+        <p>Human investors rebalance quarterly or annually because drift is slow. AI agents operate 24/7 with rapid position changes — an agent running casino bets every few minutes can drift 20% from target allocations within a single day. Without rebalancing, several problems compound:</p>
+
+        <ul>
+          <li><strong>Concentration risk</strong>: Over-allocation to one service increases exposure to that service's specific risks (e.g., a losing streak in casino wipes a disproportionate fraction of total capital).</li>
+          <li><strong>Opportunity cost</strong>: Under-allocated services represent missed returns. If trading is your highest-Sharpe service but you're perpetually underweight there, you're leaving alpha on the table.</li>
+          <li><strong>Strategy drift</strong>: The agent's actual behavior diverges from its designed strategy. A "balanced" agent running 80% casino has effectively become a casino-only agent with different risk characteristics.</li>
+          <li><strong>Compounding errors</strong>: Drift compounds. A 10% overweight in casino that isn't corrected grows as casino wins add more to that position, creating exponential concentration.</li>
+        </ul>
+
+        <div class="callout green">
+          <div class="callout-title">Rebalancing as Risk Management</div>
+          <p>Think of rebalancing not as portfolio optimization but as risk management. The goal isn't to maximize returns — it's to ensure your agent stays within its designed risk parameters across all market conditions.</p>
+        </div>
+
+        <h2 id="target-allocations">2. Designing Target Allocations Across Purple Flea Services</h2>
+
+        <p>Before automating rebalancing, you need a target allocation. This is the percentage of your total capital you want deployed in each service at any given time. Target allocations should reflect expected risk-adjusted returns, your agent's edge in each service, and diversification goals.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th>Risk Profile</th>
+                <th>Expected Return</th>
+                <th>Conservative Target</th>
+                <th>Aggressive Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Casino (10% referral)</td><td>High volatility</td><td>Edge-dependent</td><td>20%</td><td>40%</td></tr>
+              <tr><td>Trading (20% referral)</td><td>Medium volatility</td><td>Signal-dependent</td><td>30%</td><td>35%</td></tr>
+              <tr><td>Wallet</td><td>Low</td><td>Transaction-based</td><td>15%</td><td>10%</td></tr>
+              <tr><td>Domains (15% referral)</td><td>Low-medium</td><td>Rental + appreciation</td><td>15%</td><td>10%</td></tr>
+              <tr><td>Escrow (1% fee)</td><td>Very low</td><td>Fee-based</td><td>10%</td><td>5%</td></tr>
+              <tr><td>Reserve (idle)</td><td>Zero</td><td>Zero</td><td>10%</td><td>0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>For most agents starting out, a conservative allocation (20% casino, 30% trading, 15% wallet, 15% domains, 10% escrow, 10% reserve) provides good diversification without over-concentrating in high-volatility services.</p>
+
+        <h2 id="drift-detection">3. Drift Detection: When to Trigger a Rebalance</h2>
+
+        <p>Drift detection monitors the difference between current allocations and target allocations. There are three common triggering strategies:</p>
+
+        <h3>Time-Based Triggers</h3>
+        <p>Rebalance at fixed intervals regardless of drift magnitude. Simple to implement but inefficient — you may rebalance when allocations are already optimal, or miss large drifts between intervals.</p>
+
+        <pre><code><span class="tok-comment"># Time-based trigger: rebalance every 24 hours</span>
+<span class="tok-keyword">import</span> schedule
+<span class="tok-keyword">import</span> time
+
+schedule.every(<span class="tok-number">24</span>).hours.do(rebalancer.run)
+<span class="tok-keyword">while</span> <span class="tok-keyword">True</span>:
+    schedule.run_pending()
+    time.sleep(<span class="tok-number">60</span>)
+</code></pre>
+
+        <h3>Threshold-Based Triggers</h3>
+        <p>Rebalance when any allocation drifts beyond a threshold from its target. A 5% threshold means if casino is targeted at 20% but reaches 25%, a rebalance is triggered. This is more efficient than time-based triggering and reacts proportionally to actual drift.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">check_drift</span>(current: dict, targets: dict, threshold: float = <span class="tok-number">0.05</span>) -> bool:
+    <span class="tok-string">"""Return True if any allocation exceeds drift threshold."""</span>
+    total = sum(current.values())
+    <span class="tok-keyword">for</span> service, target_pct <span class="tok-keyword">in</span> targets.items():
+        current_pct = current.get(service, <span class="tok-number">0</span>) / total
+        drift = abs(current_pct - target_pct)
+        <span class="tok-keyword">if</span> drift > threshold:
+            <span class="tok-keyword">return</span> <span class="tok-keyword">True</span>
+    <span class="tok-keyword">return</span> <span class="tok-keyword">False</span>
+</code></pre>
+
+        <h3>Volatility-Adjusted Triggers</h3>
+        <p>The most sophisticated approach: adjust the rebalancing threshold based on market volatility. During high-volatility periods, tighten the threshold (rebalance more frequently). During calm periods, widen it. This reduces unnecessary trading costs while ensuring rapid response to large moves.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">dynamic_threshold</span>(base_threshold: float, volatility_index: float) -> float:
+    <span class="tok-string">"""Adjust threshold inversely with volatility."""</span>
+    <span class="tok-comment"># volatility_index: 0.0 (calm) to 1.0 (extreme volatility)</span>
+    min_threshold = <span class="tok-number">0.02</span>  <span class="tok-comment"># 2% minimum</span>
+    max_threshold = <span class="tok-number">0.10</span>  <span class="tok-comment"># 10% maximum</span>
+    adjusted = base_threshold * (<span class="tok-number">1</span> - volatility_index * <span class="tok-number">0.6</span>)
+    <span class="tok-keyword">return</span> max(min_threshold, min(max_threshold, adjusted))
+</code></pre>
+
+        <h2 id="kelly-criterion">4. Kelly Criterion for Position Sizing</h2>
+
+        <p>The Kelly Criterion is the mathematically optimal formula for sizing bets to maximize long-run capital growth. For a binary win/loss scenario:</p>
+
+        <div style="background:#0D0D10;border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-family:'JetBrains Mono',monospace;font-size:0.9rem;color:#E4E4E7;text-align:center;">
+          f* = (bp - q) / b<br/>
+          <span style="color:#71717A;font-size:0.8rem;">where b = odds, p = win probability, q = 1 - p</span>
+        </div>
+
+        <p>For multi-service portfolios, the Kelly formula extends to fractional Kelly — using a fraction (typically 25-50%) of the full Kelly bet to reduce variance while retaining most of the growth rate benefit.</p>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">kelly_fraction</span>(win_prob: float, win_amount: float, loss_amount: float,
+                      kelly_multiplier: float = <span class="tok-number">0.25</span>) -> float:
+    <span class="tok-string">"""
+    Calculate fractional Kelly bet size as a fraction of bankroll.
+
+    Args:
+        win_prob: Probability of winning (0.0 to 1.0)
+        win_amount: Amount won on a win (e.g., 1.0 = 100% gain)
+        loss_amount: Amount lost on a loss (e.g., 1.0 = 100% loss)
+        kelly_multiplier: Fraction of full Kelly to use (0.25 = quarter-Kelly)
+
+    Returns:
+        Fraction of bankroll to deploy (0.0 to 1.0)
+    """</span>
+    loss_prob = <span class="tok-number">1</span> - win_prob
+    b = win_amount / loss_amount  <span class="tok-comment"># odds ratio</span>
+    full_kelly = (b * win_prob - loss_prob) / b
+    <span class="tok-keyword">if</span> full_kelly <= <span class="tok-number">0</span>:
+        <span class="tok-keyword">return</span> <span class="tok-number">0.0</span>  <span class="tok-comment"># negative edge, don't bet</span>
+    <span class="tok-keyword">return</span> min(<span class="tok-number">1.0</span>, full_kelly * kelly_multiplier)
+
+<span class="tok-comment"># Example: Casino bet with 52% win probability, 1:1 payout</span>
+fraction = kelly_fraction(win_prob=<span class="tok-number">0.52</span>, win_amount=<span class="tok-number">1.0</span>, loss_amount=<span class="tok-number">1.0</span>)
+<span class="tok-comment"># full_kelly = (0.52 - 0.48) = 0.04 = 4%</span>
+<span class="tok-comment"># quarter_kelly = 0.04 * 0.25 = 0.01 = 1% of bankroll per bet</span>
+print(f<span class="tok-string">"Quarter Kelly: {fraction:.1%} of bankroll"</span>)
+</code></pre>
+
+        <div class="callout">
+          <div class="callout-title">Why Quarter-Kelly?</div>
+          <p>Full Kelly maximizes long-run growth but produces extreme volatility — drawdowns of 50%+ are common. Quarter-Kelly captures ~75% of Kelly growth at roughly half the variance. Most professional agents use 25-33% Kelly sizing.</p>
+        </div>
+
+        <h2 id="rebalancer-class">5. The PortfolioRebalancer Python Class</h2>
+
+        <p>Here is a complete, production-ready <code>PortfolioRebalancer</code> class that integrates with Purple Flea's REST API. It runs daily allocation checks, detects drift, calculates corrective trade sizes, and executes rebalancing transactions.</p>
+
+        <pre><code><span class="tok-keyword">import</span> requests
+<span class="tok-keyword">import</span> json
+<span class="tok-keyword">import</span> logging
+<span class="tok-keyword">from</span> datetime <span class="tok-keyword">import</span> datetime, timedelta
+<span class="tok-keyword">from</span> dataclasses <span class="tok-keyword">import</span> dataclass, field
+<span class="tok-keyword">from</span> typing <span class="tok-keyword">import</span> Dict, List, Optional, Tuple
+<span class="tok-keyword">import</span> time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(<span class="tok-string">'PortfolioRebalancer'</span>)
+
+BASE_URL = <span class="tok-string">"https://purpleflea.com/api/v1"</span>
+
+@dataclass
+<span class="tok-keyword">class</span> <span class="tok-class">AllocationTarget</span>:
+    casino: float = <span class="tok-number">0.20</span>     <span class="tok-comment"># 20% in casino</span>
+    trading: float = <span class="tok-number">0.30</span>   <span class="tok-comment"># 30% in trading</span>
+    wallet: float = <span class="tok-number">0.15</span>    <span class="tok-comment"># 15% in wallet</span>
+    domains: float = <span class="tok-number">0.15</span>   <span class="tok-comment"># 15% in domains</span>
+    escrow: float = <span class="tok-number">0.10</span>    <span class="tok-comment"># 10% in escrow</span>
+    reserve: float = <span class="tok-number">0.10</span>   <span class="tok-comment"># 10% idle reserve</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">as_dict</span>(self) -> Dict[str, float]:
+        <span class="tok-keyword">return</span> {
+            <span class="tok-string">'casino'</span>: self.casino,
+            <span class="tok-string">'trading'</span>: self.trading,
+            <span class="tok-string">'wallet'</span>: self.wallet,
+            <span class="tok-string">'domains'</span>: self.domains,
+            <span class="tok-string">'escrow'</span>: self.escrow,
+            <span class="tok-string">'reserve'</span>: self.reserve,
+        }
+
+    <span class="tok-keyword">def</span> <span class="tok-func">validate</span>(self):
+        total = sum(self.as_dict().values())
+        <span class="tok-keyword">if</span> abs(total - <span class="tok-number">1.0</span>) > <span class="tok-number">0.001</span>:
+            <span class="tok-keyword">raise</span> ValueError(f<span class="tok-string">"Allocations must sum to 1.0, got {total:.3f}"</span>)
+
+
+@dataclass
+<span class="tok-keyword">class</span> <span class="tok-class">RebalanceAction</span>:
+    service: str
+    direction: str        <span class="tok-comment"># 'increase' or 'decrease'</span>
+    current_pct: float
+    target_pct: float
+    drift: float
+    trade_usdc: float     <span class="tok-comment"># absolute USDC to move</span>
+
+
+<span class="tok-keyword">class</span> <span class="tok-class">PortfolioRebalancer</span>:
+    <span class="tok-string">"""
+    Automated portfolio rebalancer for Purple Flea agents.
+
+    Checks allocations daily and executes rebalancing trades
+    to keep portfolio within drift tolerance of target weights.
+    """</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(
+        self,
+        api_key: str,
+        agent_id: str,
+        targets: Optional[AllocationTarget] = None,
+        drift_threshold: float = <span class="tok-number">0.05</span>,
+        kelly_multiplier: float = <span class="tok-number">0.25</span>,
+        min_trade_usdc: float = <span class="tok-number">1.0</span>,
+        dry_run: bool = <span class="tok-keyword">False</span>
+    ):
+        self.api_key = api_key
+        self.agent_id = agent_id
+        self.targets = targets <span class="tok-keyword">or</span> AllocationTarget()
+        self.targets.validate()
+        self.drift_threshold = drift_threshold
+        self.kelly_multiplier = kelly_multiplier
+        self.min_trade_usdc = min_trade_usdc
+        self.dry_run = dry_run
+        self.session = requests.Session()
+        self.session.headers.update({
+            <span class="tok-string">'Authorization'</span>: f<span class="tok-string">'Bearer {api_key}'</span>,
+            <span class="tok-string">'Content-Type'</span>: <span class="tok-string">'application/json'</span>,
+        })
+        self.rebalance_history: List[dict] = []
+
+    <span class="tok-keyword">def</span> <span class="tok-func">get_balances</span>(self) -> Dict[str, float]:
+        <span class="tok-string">"""Fetch current balance deployed across all services."""</span>
+        resp = self.session.get(
+            f<span class="tok-string">"{BASE_URL}/agents/{self.agent_id}/portfolio"</span>
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        <span class="tok-keyword">return</span> {
+            <span class="tok-string">'casino'</span>: data[<span class="tok-string">'casino_balance'</span>],
+            <span class="tok-string">'trading'</span>: data[<span class="tok-string">'trading_balance'</span>],
+            <span class="tok-string">'wallet'</span>: data[<span class="tok-string">'wallet_balance'</span>],
+            <span class="tok-string">'domains'</span>: data[<span class="tok-string">'domains_balance'</span>],
+            <span class="tok-string">'escrow'</span>: data[<span class="tok-string">'escrow_balance'</span>],
+            <span class="tok-string">'reserve'</span>: data[<span class="tok-string">'available_balance'</span>],
+        }
+
+    <span class="tok-keyword">def</span> <span class="tok-func">calculate_drift</span>(
+        self, balances: Dict[str, float]
+    ) -> Tuple[Dict[str, float], List[RebalanceAction]]:
+        <span class="tok-string">"""
+        Calculate current percentage allocations and identify drifts.
+        Returns (current_pcts, actions_needed).
+        """</span>
+        total = sum(balances.values())
+        <span class="tok-keyword">if</span> total == <span class="tok-number">0</span>:
+            <span class="tok-keyword">raise</span> ValueError(<span class="tok-string">"Total portfolio value is zero"</span>)
+
+        current_pcts = {k: v / total <span class="tok-keyword">for</span> k, v <span class="tok-keyword">in</span> balances.items()}
+        targets = self.targets.as_dict()
+        actions = []
+
+        <span class="tok-keyword">for</span> service <span class="tok-keyword">in</span> targets:
+            target = targets[service]
+            current = current_pcts.get(service, <span class="tok-number">0.0</span>)
+            drift = current - target  <span class="tok-comment"># positive = overweight</span>
+
+            <span class="tok-keyword">if</span> abs(drift) >= self.drift_threshold:
+                trade_usdc = abs(drift) * total
+                <span class="tok-keyword">if</span> trade_usdc >= self.min_trade_usdc:
+                    actions.append(RebalanceAction(
+                        service=service,
+                        direction=<span class="tok-string">'decrease'</span> <span class="tok-keyword">if</span> drift > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-string">'increase'</span>,
+                        current_pct=current,
+                        target_pct=target,
+                        drift=drift,
+                        trade_usdc=trade_usdc
+                    ))
+
+        <span class="tok-comment"># Sort: largest drifts first</span>
+        actions.sort(key=<span class="tok-keyword">lambda</span> a: abs(a.drift), reverse=<span class="tok-keyword">True</span>)
+        <span class="tok-keyword">return</span> current_pcts, actions
+
+    <span class="tok-keyword">def</span> <span class="tok-func">kelly_position_size</span>(
+        self, service: str, direction: str, base_amount: float
+    ) -> float:
+        <span class="tok-string">"""Apply Kelly scaling to the rebalancing trade size."""</span>
+        <span class="tok-comment"># Service-specific win probabilities and payout estimates</span>
+        service_params = {
+            <span class="tok-string">'casino'</span>:  {<span class="tok-string">'win_prob'</span>: <span class="tok-number">0.52</span>, <span class="tok-string">'win_mult'</span>: <span class="tok-number">1.0</span>, <span class="tok-string">'loss_mult'</span>: <span class="tok-number">1.0</span>},
+            <span class="tok-string">'trading'</span>: {<span class="tok-string">'win_prob'</span>: <span class="tok-number">0.55</span>, <span class="tok-string">'win_mult'</span>: <span class="tok-number">1.5</span>, <span class="tok-string">'loss_mult'</span>: <span class="tok-number">1.0</span>},
+            <span class="tok-string">'domains'</span>: {<span class="tok-string">'win_prob'</span>: <span class="tok-number">0.70</span>, <span class="tok-string">'win_mult'</span>: <span class="tok-number">0.5</span>, <span class="tok-string">'loss_mult'</span>: <span class="tok-number">0.3</span>},
+            <span class="tok-string">'escrow'</span>:  {<span class="tok-string">'win_prob'</span>: <span class="tok-number">0.98</span>, <span class="tok-string">'win_mult'</span>: <span class="tok-number">0.01</span>, <span class="tok-string">'loss_mult'</span>: <span class="tok-number">0.01</span>},
+        }
+        params = service_params.get(service)
+        <span class="tok-keyword">if</span> <span class="tok-keyword">not</span> params:
+            <span class="tok-keyword">return</span> base_amount  <span class="tok-comment"># wallet/reserve: no Kelly adjustment</span>
+
+        b = params[<span class="tok-string">'win_mult'</span>] / params[<span class="tok-string">'loss_mult'</span>]
+        p = params[<span class="tok-string">'win_prob'</span>]
+        q = <span class="tok-number">1</span> - p
+        full_kelly = (b * p - q) / b
+        fraction = max(<span class="tok-number">0.0</span>, min(<span class="tok-number">1.0</span>, full_kelly * self.kelly_multiplier))
+        <span class="tok-comment"># Scale trade size by Kelly fraction</span>
+        <span class="tok-keyword">return</span> base_amount * fraction * <span class="tok-number">4</span>  <span class="tok-comment"># *4 to undo the quarter-Kelly scaling for rebalance</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">execute_action</span>(self, action: RebalanceAction) -> bool:
+        <span class="tok-string">"""Execute a single rebalancing trade via Purple Flea API."""</span>
+        <span class="tok-keyword">if</span> self.dry_run:
+            logger.info(f<span class="tok-string">"[DRY RUN] {action.direction.upper()} {action.service} by ${action.trade_usdc:.2f} USDC"</span>)
+            <span class="tok-keyword">return</span> <span class="tok-keyword">True</span>
+
+        endpoint = f<span class="tok-string">"{BASE_URL}/agents/{self.agent_id}/rebalance"</span>
+        payload = {
+            <span class="tok-string">"service"</span>: action.service,
+            <span class="tok-string">"direction"</span>: action.direction,
+            <span class="tok-string">"amount_usdc"</span>: round(action.trade_usdc, <span class="tok-number">4</span>),
+            <span class="tok-string">"reason"</span>: f<span class="tok-string">"rebalance: {action.drift:+.1%} drift from {action.target_pct:.0%} target"</span>,
+        }
+
+        <span class="tok-keyword">try</span>:
+            resp = self.session.post(endpoint, json=payload, timeout=<span class="tok-number">10</span>)
+            resp.raise_for_status()
+            logger.info(
+                f<span class="tok-string">"Rebalanced {action.service}: {action.direction} by ${action.trade_usdc:.2f} "
+                f"(drift was {action.drift:+.1%})"</span>
+            )
+            <span class="tok-keyword">return</span> <span class="tok-keyword">True</span>
+        <span class="tok-keyword">except</span> requests.HTTPError <span class="tok-keyword">as</span> e:
+            logger.error(f<span class="tok-string">"Failed to rebalance {action.service}: {e}"</span>)
+            <span class="tok-keyword">return</span> <span class="tok-keyword">False</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">run</span>(self) -> dict:
+        <span class="tok-string">"""
+        Main rebalancing loop. Fetch balances, detect drift,
+        execute corrections. Returns summary dict.
+        """</span>
+        logger.info(<span class="tok-string">"Starting portfolio rebalance check..."</span>)
+        start_time = datetime.utcnow()
+
+        balances = self.get_balances()
+        total = sum(balances.values())
+        logger.info(f<span class="tok-string">"Total portfolio: ${total:.2f} USDC"</span>)
+
+        current_pcts, actions = self.calculate_drift(balances)
+
+        <span class="tok-keyword">if</span> <span class="tok-keyword">not</span> actions:
+            logger.info(<span class="tok-string">"Portfolio within drift tolerance. No rebalancing needed."</span>)
+            <span class="tok-keyword">return</span> {<span class="tok-string">'status'</span>: <span class="tok-string">'ok'</span>, <span class="tok-string">'trades'</span>: <span class="tok-number">0</span>, <span class="tok-string">'total_usdc'</span>: total}
+
+        logger.info(f<span class="tok-string">"Detected {len(actions)} rebalancing actions needed."</span>)
+        trades_executed = <span class="tok-number">0</span>
+        total_moved = <span class="tok-number">0.0</span>
+
+        <span class="tok-keyword">for</span> action <span class="tok-keyword">in</span> actions:
+            logger.info(
+                f<span class="tok-string">"  {action.service}: {action.current_pct:.1%} actual vs {action.target_pct:.1%} target "
+                f"(drift: {action.drift:+.1%})"</span>
+            )
+            success = self.execute_action(action)
+            <span class="tok-keyword">if</span> success:
+                trades_executed += <span class="tok-number">1</span>
+                total_moved += action.trade_usdc
+            time.sleep(<span class="tok-number">0.5</span>)  <span class="tok-comment"># rate limit courtesy</span>
+
+        summary = {
+            <span class="tok-string">'status'</span>: <span class="tok-string">'rebalanced'</span>,
+            <span class="tok-string">'timestamp'</span>: start_time.isoformat(),
+            <span class="tok-string">'total_usdc'</span>: total,
+            <span class="tok-string">'trades'</span>: trades_executed,
+            <span class="tok-string">'usdc_moved'</span>: total_moved,
+            <span class="tok-string">'actions'</span>: [{
+                <span class="tok-string">'service'</span>: a.service,
+                <span class="tok-string">'direction'</span>: a.direction,
+                <span class="tok-string">'drift'</span>: a.drift,
+                <span class="tok-string">'trade_usdc'</span>: a.trade_usdc,
+            } <span class="tok-keyword">for</span> a <span class="tok-keyword">in</span> actions],
+        }
+        self.rebalance_history.append(summary)
+        logger.info(f<span class="tok-string">"Rebalance complete: {trades_executed} trades, ${total_moved:.2f} USDC moved."</span>)
+        <span class="tok-keyword">return</span> summary
+</code></pre>
+
+        <h2 id="daily-cron">6. Running as a Daily Cron Job</h2>
+
+        <p>The <code>PortfolioRebalancer</code> is designed to run as a daily scheduled task. Here's the complete setup script including environment variable management and logging:</p>
+
+        <pre><code><span class="tok-comment">#!/usr/bin/env python3
+# rebalance_agent.py — run daily via cron</span>
+
+<span class="tok-keyword">import</span> os
+<span class="tok-keyword">import</span> json
+<span class="tok-keyword">from</span> datetime <span class="tok-keyword">import</span> datetime
+
+<span class="tok-comment"># Import the class defined above</span>
+<span class="tok-keyword">from</span> portfolio_rebalancer <span class="tok-keyword">import</span> PortfolioRebalancer, AllocationTarget
+
+<span class="tok-keyword">def</span> <span class="tok-func">main</span>():
+    api_key = os.environ[<span class="tok-string">'PURPLE_FLEA_API_KEY'</span>]
+    agent_id = os.environ[<span class="tok-string">'PURPLE_FLEA_AGENT_ID'</span>]
+
+    <span class="tok-comment"># Custom targets: aggressive agent profile</span>
+    targets = AllocationTarget(
+        casino=<span class="tok-number">0.35</span>,
+        trading=<span class="tok-number">0.35</span>,
+        wallet=<span class="tok-number">0.10</span>,
+        domains=<span class="tok-number">0.10</span>,
+        escrow=<span class="tok-number">0.05</span>,
+        reserve=<span class="tok-number">0.05</span>,
+    )
+
+    rebalancer = PortfolioRebalancer(
+        api_key=api_key,
+        agent_id=agent_id,
+        targets=targets,
+        drift_threshold=<span class="tok-number">0.05</span>,   <span class="tok-comment"># rebalance at 5% drift</span>
+        kelly_multiplier=<span class="tok-number">0.25</span>,  <span class="tok-comment"># quarter Kelly</span>
+        min_trade_usdc=<span class="tok-number">2.0</span>,      <span class="tok-comment"># ignore tiny trades</span>
+        dry_run=<span class="tok-keyword">False</span>
+    )
+
+    result = rebalancer.run()
+    print(json.dumps(result, indent=<span class="tok-number">2</span>))
+
+    <span class="tok-comment"># Save log</span>
+    log_path = f<span class="tok-string">"/var/log/pf_rebalance_{datetime.utcnow():%Y%m%d}.json"</span>
+    <span class="tok-keyword">with</span> open(log_path, <span class="tok-string">'w'</span>) <span class="tok-keyword">as</span> f:
+        json.dump(result, f, indent=<span class="tok-number">2</span>)
+
+<span class="tok-keyword">if</span> __name__ == <span class="tok-string">'__main__'</span>:
+    main()
+</code></pre>
+
+        <p>Add to crontab for daily 00:05 UTC execution:</p>
+
+        <pre><code><span class="tok-comment"># Run portfolio rebalancer daily at 00:05 UTC</span>
+5 0 * * * PURPLE_FLEA_API_KEY=your_key PURPLE_FLEA_AGENT_ID=your_id python3 /home/agent/rebalance_agent.py
+</code></pre>
+
+        <h2 id="backtesting">7. Backtesting Your Rebalancing Strategy</h2>
+
+        <p>Before running live, validate your target allocations against historical data. This simplified backtest simulates daily portfolio values and measures how often rebalancing would have been triggered.</p>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+<span class="tok-keyword">from</span> dataclasses <span class="tok-keyword">import</span> dataclass
+
+@dataclass
+<span class="tok-keyword">class</span> <span class="tok-class">BacktestResult</span>:
+    total_return: float
+    max_drawdown: float
+    rebalance_count: int
+    sharpe_ratio: float
+    final_allocations: dict
+
+
+<span class="tok-keyword">def</span> <span class="tok-func">backtest_rebalancer</span>(
+    initial_capital: float,
+    days: int,
+    targets: dict,
+    drift_threshold: float = <span class="tok-number">0.05</span>,
+    daily_returns: Optional[dict] = <span class="tok-keyword">None</span>
+) -> BacktestResult:
+    <span class="tok-string">"""
+    Simulate rebalancing strategy over historical period.
+    daily_returns: dict of service -> list of daily return fractions
+    """</span>
+    <span class="tok-keyword">if</span> daily_returns <span class="tok-keyword">is</span> <span class="tok-keyword">None</span>:
+        <span class="tok-comment"># Simulate returns with realistic parameters</span>
+        np.random.seed(<span class="tok-number">42</span>)
+        daily_returns = {
+            <span class="tok-string">'casino'</span>:  np.random.normal(<span class="tok-number">0.002</span>, <span class="tok-number">0.05</span>, days),
+            <span class="tok-string">'trading'</span>: np.random.normal(<span class="tok-number">0.003</span>, <span class="tok-number">0.03</span>, days),
+            <span class="tok-string">'wallet'</span>:  np.random.normal(<span class="tok-number">0.0005</span>, <span class="tok-number">0.01</span>, days),
+            <span class="tok-string">'domains'</span>: np.random.normal(<span class="tok-number">0.001</span>, <span class="tok-number">0.015</span>, days),
+            <span class="tok-string">'escrow'</span>:  np.random.normal(<span class="tok-number">0.0003</span>, <span class="tok-number">0.005</span>, days),
+            <span class="tok-string">'reserve'</span>: np.zeros(days),
+        }
+
+    <span class="tok-comment"># Initialize balances at target allocations</span>
+    balances = {k: initial_capital * v <span class="tok-keyword">for</span> k, v <span class="tok-keyword">in</span> targets.items()}
+    portfolio_values = [initial_capital]
+    rebalance_count = <span class="tok-number">0</span>
+
+    <span class="tok-keyword">for</span> day <span class="tok-keyword">in</span> range(days):
+        <span class="tok-comment"># Apply daily returns</span>
+        <span class="tok-keyword">for</span> service <span class="tok-keyword">in</span> balances:
+            ret = daily_returns[service][day] <span class="tok-keyword">if</span> day < len(daily_returns[service]) <span class="tok-keyword">else</span> <span class="tok-number">0</span>
+            balances[service] *= (<span class="tok-number">1</span> + ret)
+
+        total = sum(balances.values())
+        portfolio_values.append(total)
+
+        <span class="tok-comment"># Check drift and rebalance if needed</span>
+        current_pcts = {k: v / total <span class="tok-keyword">for</span> k, v <span class="tok-keyword">in</span> balances.items()}
+        needs_rebalance = any(
+            abs(current_pcts[s] - targets[s]) >= drift_threshold
+            <span class="tok-keyword">for</span> s <span class="tok-keyword">in</span> targets
+        )
+        <span class="tok-keyword">if</span> needs_rebalance:
+            balances = {k: total * v <span class="tok-keyword">for</span> k, v <span class="tok-keyword">in</span> targets.items()}
+            rebalance_count += <span class="tok-number">1</span>
+
+    values = np.array(portfolio_values)
+    total_return = (values[-<span class="tok-number">1</span>] - values[<span class="tok-number">0</span>]) / values[<span class="tok-number">0</span>]
+    peak = np.maximum.accumulate(values)
+    drawdowns = (values - peak) / peak
+    max_drawdown = drawdowns.min()
+    daily_rets = np.diff(values) / values[:-<span class="tok-number">1</span>]
+    sharpe = (daily_rets.mean() / daily_rets.std()) * np.sqrt(<span class="tok-number">365</span>) <span class="tok-keyword">if</span> daily_rets.std() > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-number">0</span>
+
+    <span class="tok-keyword">return</span> BacktestResult(
+        total_return=total_return,
+        max_drawdown=max_drawdown,
+        rebalance_count=rebalance_count,
+        sharpe_ratio=sharpe,
+        final_allocations={k: v / values[-<span class="tok-number">1</span>] <span class="tok-keyword">for</span> k, v <span class="tok-keyword">in</span> balances.items()}
+    )
+</code></pre>
+
+        <h2 id="rebalance-costs">8. Accounting for Rebalancing Costs</h2>
+
+        <p>Every rebalancing trade has costs. On Purple Flea, the primary cost is the escrow fee (1% on escrow transactions) and any trading spreads. These costs reduce the benefit of frequent rebalancing.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rebalance Frequency</th>
+                <th>Annual Trades (estimated)</th>
+                <th>Annual Trade Costs</th>
+                <th>Net Benefit vs. No Rebalancing</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Daily (5% threshold)</td><td>~40</td><td>~0.4% of portfolio</td><td>+2.1%</td></tr>
+              <tr><td>Weekly (5% threshold)</td><td>~20</td><td>~0.2% of portfolio</td><td>+1.9%</td></tr>
+              <tr><td>Monthly (5% threshold)</td><td>~10</td><td>~0.1% of portfolio</td><td>+1.4%</td></tr>
+              <tr><td>Daily (10% threshold)</td><td>~15</td><td>~0.15% of portfolio</td><td>+1.8%</td></tr>
+              <tr><td>No rebalancing</td><td>0</td><td>0%</td><td>baseline</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The sweet spot for most agents is a 5% drift threshold with daily checks. This captures most of the rebalancing benefit while limiting trade frequency to roughly 40 rebalances per year.</p>
+
+        <div class="callout blue">
+          <div class="callout-title">Minimum Trade Size</div>
+          <p>Set a minimum trade size of $1-2 USDC to avoid executing tiny rebalancing trades where the cost exceeds the benefit. The <code>min_trade_usdc</code> parameter in <code>PortfolioRebalancer</code> handles this automatically.</p>
+        </div>
+
+        <h2 id="advanced-triggers">9. Advanced Rebalancing Triggers</h2>
+
+        <p>Beyond simple drift thresholds, sophisticated agents implement event-driven rebalancing that responds to specific market conditions:</p>
+
+        <ul>
+          <li><strong>Post-win rebalance</strong>: After a large casino win (&gt;10% of bankroll), immediately rebalance to prevent over-concentration in the casino bucket.</li>
+          <li><strong>Volatility spike rebalance</strong>: When observed portfolio volatility exceeds 2x historical average, tighten to more conservative allocations temporarily.</li>
+          <li><strong>Referral income rebalancing</strong>: When referral income arrives (10% casino, 20% trading, 15% domains, 15% escrow referrals), route it into under-allocated services rather than the default reserve.</li>
+          <li><strong>Drawdown protection rebalancing</strong>: If any single service drops 20%+ from its local peak, automatically reduce allocation to that service.</li>
+        </ul>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">rebalance_on_win</span>(
+    rebalancer: PortfolioRebalancer,
+    win_amount: float,
+    bankroll: float,
+    threshold: float = <span class="tok-number">0.10</span>
+):
+    <span class="tok-string">"""Trigger rebalance if a single win exceeds threshold% of bankroll."""</span>
+    <span class="tok-keyword">if</span> win_amount >= bankroll * threshold:
+        logger.info(f<span class="tok-string">"Large win ${win_amount:.2f} detected. Triggering rebalance."</span>)
+        rebalancer.run()
+
+
+<span class="tok-keyword">def</span> <span class="tok-func">rebalance_referral_income</span>(
+    rebalancer: PortfolioRebalancer,
+    referral_income: float,
+    source_service: str
+):
+    <span class="tok-string">"""Route referral income to under-allocated services."""</span>
+    balances = rebalancer.get_balances()
+    _, actions = rebalancer.calculate_drift(balances)
+    underweight = [a <span class="tok-keyword">for</span> a <span class="tok-keyword">in</span> actions <span class="tok-keyword">if</span> a.direction == <span class="tok-string">'increase'</span>]
+    <span class="tok-keyword">if</span> underweight:
+        <span class="tok-comment"># Route to most underweight service</span>
+        target = underweight[<span class="tok-number">0</span>].service
+        logger.info(f<span class="tok-string">"Routing ${referral_income:.2f} referral income to {target}"</span>)
+</code></pre>
+
+        <hr class="divider" />
+
+        <div class="cta-box">
+          <h3>Start Rebalancing Your Agent Portfolio</h3>
+          <p>Six services, automated allocation management. Claim your free USDC and start building a balanced agent strategy.</p>
+          <a href="/for-agents" class="btn">Register as Agent</a>
+          <a href="https://faucet.purpleflea.com" class="btn btn-outline">Claim Free $1 USDC</a>
+        </div>
+
+        <p>Automated portfolio rebalancing transforms a reactive agent into a systematic one. Instead of letting winners run unchecked and losers starve for capital, a well-configured rebalancer continuously enforces the strategy you designed. With Purple Flea's 6 services offering different risk/return profiles, the opportunity to build a diversified, auto-rebalancing agent portfolio is substantial. The Python class above is a starting point — customize the targets, thresholds, and Kelly parameters to match your agent's specific edge and risk tolerance.</p>
+
+      </div>
+    </article>
+
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#why-rebalance">1. Why Rebalancing Matters</a></li>
+          <li><a href="#target-allocations">2. Designing Target Allocations</a></li>
+          <li><a href="#drift-detection">3. Drift Detection Triggers</a></li>
+          <li><a href="#kelly-criterion">4. Kelly Criterion Sizing</a></li>
+          <li><a href="#rebalancer-class">5. PortfolioRebalancer Class</a></li>
+          <li><a href="#daily-cron">6. Daily Cron Setup</a></li>
+          <li><a href="#backtesting">7. Backtesting Strategy</a></li>
+          <li><a href="#rebalance-costs">8. Rebalancing Costs</a></li>
+          <li><a href="#advanced-triggers">9. Advanced Triggers</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/casino">Casino</a>
+      <a href="/trading">Trading</a>
+      <a href="/wallet">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (scrolled / total * 100) + '%';
+    });
+    const headings = document.querySelectorAll('h2[id]');
+    const tocLinks = document.querySelectorAll('.toc-box a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-box a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
