@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leverage Management for AI Agents: When to Go 2x, 5x, or Stay Unleveraged | Purple Flea</title>
+  <meta name="description" content="Optimal leverage selection for AI trading agents: Kelly-adjusted leverage formulas, cross-margin vs isolated, liquidation price calculations, and a Python LeverageManager class." />
+  <meta property="og:title" content="Leverage Management for AI Agents: When to Go 2x, 5x, or Stay Unleveraged" />
+  <meta property="og:description" content="Master leverage selection with volatility-aware Kelly sizing, margin health monitoring, and real code for automated liquidation prevention." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-leverage-management/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-leverage-management/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Leverage Management for AI Agents: When to Go 2x, 5x, or Stay Unleveraged",
+    "description": "Optimal leverage selection based on volatility, Kelly-adjusted leverage formula, cross-margining vs isolated, liquidation price calculation, and a Python LeverageManager class.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-leverage-management/",
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://purpleflea.com/blog/agent-leverage-management/" },
+    "keywords": ["leverage", "AI agents", "Kelly criterion", "margin", "trading", "Purple Flea", "liquidation"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 2rem; }
+    .nav-inner { max-width: 1200px; margin: 0 auto; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+    .nav-links { display: flex; gap: 2rem; }
+    .nav-links a { color: var(--secondary); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 220px 1fr; gap: 3rem; align-items: start; }
+    .toc { position: sticky; top: 80px; font-size: 0.82rem; }
+    .toc-title { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary); margin-bottom: 0.75rem; }
+    .toc ol { list-style: none; padding: 0; counter-reset: toc; }
+    .toc li { counter-increment: toc; margin-bottom: 0.4rem; }
+    .toc a { color: var(--secondary); text-decoration: none; display: flex; gap: 0.5rem; transition: color 0.2s; line-height: 1.4; }
+    .toc a::before { content: counter(toc) "."; color: var(--accent); font-family: var(--mono); min-width: 1.4rem; font-size: 0.75rem; }
+    .toc a:hover { color: var(--text); }
+    article { min-width: 0; }
+    .post-meta { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .tag { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 4px; background: rgba(168,85,247,0.15); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); }
+    .tag.green { background: rgba(34,197,94,0.12); color: var(--green); border-color: rgba(34,197,94,0.25); }
+    .tag.blue { background: rgba(59,130,246,0.12); color: var(--blue); border-color: rgba(59,130,246,0.25); }
+    .post-date { color: var(--secondary); font-size: 0.85rem; }
+    h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+    .subtitle { font-size: 1.15rem; color: var(--secondary); margin-bottom: 2.5rem; line-height: 1.6; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); scroll-margin-top: 80px; }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    p { margin-bottom: 1.2rem; color: #D4D4D8; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 1.2rem; color: #D4D4D8; }
+    li { margin-bottom: 0.4rem; }
+    pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; font-family: var(--mono); font-size: 0.83rem; line-height: 1.6; }
+    code { font-family: var(--mono); font-size: 0.85em; background: rgba(168,85,247,0.1); padding: 0.15em 0.4em; border-radius: 3px; color: #C4B5FD; }
+    pre code { background: none; padding: 0; color: #E2E8F0; }
+    .comment { color: #6B7280; }
+    .kw { color: #C084FC; }
+    .str { color: #86EFAC; }
+    .num { color: #FCA5A5; }
+    .fn { color: #67E8F9; }
+    .var { color: #FDE68A; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { background: #111113; text-align: left; padding: 0.6rem 1rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--secondary); border-bottom: 1px solid var(--border); }
+    td { padding: 0.65rem 1rem; border-bottom: 1px solid rgba(39,39,42,0.5); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168,85,247,0.04); }
+    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.yellow { border-color: var(--yellow); background: rgba(234,179,8,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
+    .callout .callout-label { color: var(--accent); }
+    .callout.green .callout-label { color: var(--green); }
+    .callout.yellow .callout-label { color: var(--yellow); }
+    .callout.red .callout-label { color: var(--red); }
+    .callout p { color: #D4D4D8; margin: 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 1.8rem; font-weight: 700; font-family: var(--mono); color: var(--accent); display: block; }
+    .stat-label { font-size: 0.78rem; color: var(--secondary); margin-top: 0.3rem; }
+    .cta-block { background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.06)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 3rem 0; }
+    .cta-block h3 { margin-top: 0; color: var(--text); }
+    .btn { display: inline-block; padding: 0.65rem 1.5rem; border-radius: 6px; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: opacity 0.2s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; text-decoration: none; }
+    .btn-outline { background: transparent; color: var(--accent); border: 1px solid rgba(168,85,247,0.4); margin-left: 0.75rem; }
+    .btn-outline:hover { background: rgba(168,85,247,0.1); text-decoration: none; }
+    footer { margin-top: 5rem; padding: 2rem; border-top: 1px solid var(--border); text-align: center; color: var(--secondary); font-size: 0.85rem; }
+    @media (max-width: 768px) { .page-wrap { grid-template-columns: 1fr; } .toc { display: none; } }
+  </style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/">&#x1F7E3; Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <ol>
+      <li><a href="#why-leverage">Why Leverage Is Dangerous for Agents</a></li>
+      <li><a href="#volatility-sizing">Volatility-Based Leverage Selection</a></li>
+      <li><a href="#kelly-leverage">Kelly-Adjusted Leverage Formula</a></li>
+      <li><a href="#cross-vs-isolated">Cross vs. Isolated Margin</a></li>
+      <li><a href="#liquidation-price">Liquidation Price Calculation</a></li>
+      <li><a href="#margin-health">Margin Health Monitoring</a></li>
+      <li><a href="#leverage-manager">Python LeverageManager Class</a></li>
+      <li><a href="#rules">Practical Leverage Rules</a></li>
+    </ol>
+  </aside>
+
+  <article>
+    <div class="post-meta">
+      <span class="tag">Strategy</span>
+      <span class="tag green">Guide</span>
+      <time class="post-date" datetime="2026-03-06">March 6, 2026</time>
+      <span class="post-date">&#x23; 15 min read</span>
+    </div>
+
+    <h1>Leverage Management for AI Agents: When to Go 2x, 5x, or Stay Unleveraged</h1>
+
+    <p class="subtitle">
+      Leverage amplifies both returns and ruin. For AI agents executing autonomously,
+      leverage decisions must be systematic, volatility-aware, and continuously monitored.
+      This guide gives you the formulas and code to get it right.
+    </p>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <span class="stat-value">2x</span>
+        <div class="stat-label">Max safe leverage (volatile markets)</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">50%</span>
+        <div class="stat-label">Kelly fraction cap recommended</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">80%</span>
+        <div class="stat-label">Margin ratio alert threshold</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">20%</span>
+        <div class="stat-label">Trading API referral rate</div>
+      </div>
+    </div>
+
+    <h2 id="why-leverage">Why Leverage Is Dangerous for Agents</h2>
+
+    <p>
+      Human traders can override bad positions intuitively. AI agents cannot. Without
+      explicit leverage constraints baked into your agent's decision loop, a single
+      bad market move combined with high leverage can wipe an account before any
+      circuit-breaker fires.
+    </p>
+
+    <p>
+      The asymmetry of leverage is brutal: going 5x means a 20% adverse move causes
+      total loss. At 10x, only a 10% move is needed. Crypto regularly moves 15-30%
+      in a single session. Agents operating without leverage discipline are not
+      trading &mdash; they are gambling.
+    </p>
+
+    <div class="callout red">
+      <div class="callout-label">Critical Rule</div>
+      <p>Never allow leverage to be dynamically increased during a losing position. This is the most common cause of agent account blow-ups. Your leverage manager should only reduce leverage as losses accumulate, never increase it.</p>
+    </div>
+
+    <h3>The Three Leverage Regimes</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Regime</th>
+            <th>Market Condition</th>
+            <th>Recommended Leverage</th>
+            <th>Daily Vol (30d)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Conservative</strong></td><td>High volatility, unclear trend</td><td>1x (no leverage)</td><td>&gt; 5%</td></tr>
+          <tr><td><strong>Moderate</strong></td><td>Medium vol, confirmed trend</td><td>2x&ndash;3x</td><td>2%&ndash;5%</td></tr>
+          <tr><td><strong>Aggressive</strong></td><td>Low vol, strong signal</td><td>5x&ndash;10x</td><td>&lt; 2%</td></tr>
+          <tr><td><strong>Maximum</strong></td><td>Arbitrage / near-zero risk</td><td>10x&ndash;20x</td><td>&lt; 0.5%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="volatility-sizing">Volatility-Based Leverage Selection</h2>
+
+    <p>
+      The foundational rule: <strong>leverage should scale inversely with volatility</strong>.
+      When markets are calm, moderate leverage is safe. When volatility spikes, reduce
+      immediately. Your agent should recompute this on every position entry.
+    </p>
+
+    <p>
+      Use the 30-day realized volatility (annualized) and convert to a daily figure.
+      The target daily risk budget &mdash; the maximum fraction of capital you are
+      willing to lose in a single day &mdash; divided by daily volatility gives your
+      position size. Leverage is then position size divided by capital.
+    </p>
+
+<pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">compute_daily_vol</span>(prices: list[float], window: int = <span class="num">30</span>) -> float:
+    <span class="str">"""Annualized daily vol from recent close prices."""</span>
+    prices = np.array(prices[-window:])
+    log_returns = np.diff(np.log(prices))
+    daily_vol = np.std(log_returns)          <span class="comment"># daily std dev</span>
+    return daily_vol                          <span class="comment"># not annualized here</span>
+
+<span class="kw">def</span> <span class="fn">vol_adjusted_leverage</span>(
+    prices: list[float],
+    daily_risk_budget: float = <span class="num">0.02</span>,   <span class="comment"># 2% max daily loss</span>
+    max_leverage: float = <span class="num">10.0</span>
+) -> float:
+    <span class="str">"""Return safe leverage based on current volatility."""</span>
+    vol = <span class="fn">compute_daily_vol</span>(prices)
+    <span class="kw">if</span> vol <= <span class="num">0</span>:
+        <span class="kw">return</span> <span class="num">1.0</span>
+    raw = daily_risk_budget / vol
+    <span class="kw">return</span> min(raw, max_leverage)
+
+<span class="comment"># Example: BTC at 4% daily vol</span>
+lev = <span class="fn">vol_adjusted_leverage</span>(btc_prices, daily_risk_budget=<span class="num">0.02</span>)
+<span class="comment"># Result: 0.02 / 0.04 = 0.5 → stay unleveraged, use 50% of capital</span>
+print(f<span class="str">"Recommended leverage: {lev:.2f}x"</span>)</code></pre>
+
+    <div class="callout">
+      <div class="callout-label">Key Insight</div>
+      <p>When vol-adjusted leverage comes out below 1.0, it means you should not deploy your full capital, not just avoid leverage. A 4% daily vol asset at a 2% risk budget should only use 50% of your position capital.</p>
+    </div>
+
+    <h2 id="kelly-leverage">Kelly-Adjusted Leverage Formula</h2>
+
+    <p>
+      The Kelly Criterion gives the theoretically optimal fraction of capital to risk
+      given your edge and win probability. For leveraged positions, Kelly also
+      determines optimal leverage directly.
+    </p>
+
+    <p>
+      Full Kelly is mathematically optimal in the long run but produces severe
+      drawdowns that most agents (and their operators) cannot stomach. The standard
+      practice is to use <strong>half-Kelly or quarter-Kelly</strong>.
+    </p>
+
+<pre><code><span class="kw">def</span> <span class="fn">kelly_leverage</span>(
+    win_prob: float,          <span class="comment"># P(profit) from your model</span>
+    avg_win: float,           <span class="comment"># average profit when right</span>
+    avg_loss: float,          <span class="comment"># average loss when wrong (positive value)</span>
+    kelly_fraction: float = <span class="num">0.5</span>,   <span class="comment"># 0.5 = half-Kelly</span>
+    max_leverage: float = <span class="num">10.0</span>
+) -> float:
+    <span class="str">"""
+    Kelly-optimal leverage.
+    f* = (p * b - q) / b
+    where b = avg_win/avg_loss, p = win_prob, q = 1-p
+    """</span>
+    b = avg_win / avg_loss
+    q = <span class="num">1.0</span> - win_prob
+    f_star = (win_prob * b - q) / b
+    <span class="kw">if</span> f_star <= <span class="num">0</span>:
+        <span class="kw">return</span> <span class="num">0.0</span>   <span class="comment"># negative edge: do not trade</span>
+    adjusted = f_star * kelly_fraction
+    <span class="kw">return</span> min(adjusted, max_leverage)
+
+<span class="comment"># Example: 55% win rate, 1.5:1 reward/risk ratio, half-Kelly</span>
+lev = <span class="fn">kelly_leverage</span>(win_prob=<span class="num">0.55</span>, avg_win=<span class="num">0.015</span>, avg_loss=<span class="num">0.01</span>)
+print(f<span class="str">"Kelly leverage: {lev:.2f}x"</span>)
+<span class="comment"># f* = (0.55*1.5 - 0.45)/1.5 = 0.275 → half-Kelly = 0.138x</span>
+<span class="comment"># Low leverage is correct when edge is modest</span></code></pre>
+
+    <p>
+      Many agents with strong models assume their edge is larger than it really is.
+      Run your Kelly calculation against <em>out-of-sample</em> data only. In-sample
+      win rates are always optimistic.
+    </p>
+
+    <h3>Combining Vol and Kelly</h3>
+
+    <p>
+      The most robust approach takes the <strong>minimum</strong> of the vol-adjusted
+      leverage and Kelly leverage. Both constraints must be satisfied simultaneously.
+    </p>
+
+<pre><code><span class="kw">def</span> <span class="fn">safe_leverage</span>(prices, win_prob, avg_win, avg_loss,
+                    risk_budget=<span class="num">0.02</span>, kelly_frac=<span class="num">0.5</span>, max_lev=<span class="num">10.0</span>) -> float:
+    vol_lev = <span class="fn">vol_adjusted_leverage</span>(prices, risk_budget, max_lev)
+    kel_lev = <span class="fn">kelly_leverage</span>(win_prob, avg_win, avg_loss, kelly_frac, max_lev)
+    <span class="kw">return</span> min(vol_lev, kel_lev)</code></pre>
+
+    <h2 id="cross-vs-isolated">Cross vs. Isolated Margin</h2>
+
+    <p>
+      The choice between cross-margin and isolated margin is as important as the
+      leverage multiple itself. Each has distinct risk profiles for agent portfolios.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Cross Margin</th>
+            <th>Isolated Margin</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Liquidation risk</td><td>Uses full account balance</td><td>Limited to position margin</td></tr>
+          <tr><td>Capital efficiency</td><td>Higher &mdash; shared buffer</td><td>Lower &mdash; per-position lock</td></tr>
+          <tr><td>Cascading risk</td><td>One bad position can wipe all</td><td>Losses are contained</td></tr>
+          <tr><td>Best for</td><td>Hedged portfolios, low net exposure</td><td>High-risk directional bets</td></tr>
+          <tr><td>Agent recommendation</td><td>Only with strict correlation limits</td><td>Default for new agents</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout yellow">
+      <div class="callout-label">Warning</div>
+      <p>Cross-margin is deceptively dangerous for agents. A correlated multi-position drawdown can drain your entire account before any single position hits its liquidation price. Use isolated margin until you have cross-correlation monitoring in place.</p>
+    </div>
+
+    <h2 id="liquidation-price">Liquidation Price Calculation</h2>
+
+    <p>
+      Every leveraged position must have its liquidation price pre-computed before
+      entry. This is non-negotiable for autonomous agents &mdash; you need to know
+      exactly how far the market can move against you.
+    </p>
+
+<pre><code><span class="kw">def</span> <span class="fn">liquidation_price</span>(
+    entry_price: float,
+    leverage: float,
+    side: str,                  <span class="comment"># 'long' or 'short'</span>
+    maintenance_margin: float = <span class="num">0.005</span>  <span class="comment"># 0.5% typical</span>
+) -> float:
+    <span class="str">"""
+    Long:  liq = entry * (1 - 1/leverage + maintenance_margin)
+    Short: liq = entry * (1 + 1/leverage - maintenance_margin)
+    """</span>
+    <span class="kw">if</span> side == <span class="str">'long'</span>:
+        liq = entry_price * (<span class="num">1</span> - <span class="num">1</span>/leverage + maintenance_margin)
+    <span class="kw">else</span>:
+        liq = entry_price * (<span class="num">1</span> + <span class="num">1</span>/leverage - maintenance_margin)
+    <span class="kw">return</span> round(liq, <span class="num">4</span>)
+
+<span class="kw">def</span> <span class="fn">distance_to_liquidation</span>(current_price, liq_price, side) -> float:
+    <span class="str">"""Return percentage distance from current price to liquidation."""</span>
+    <span class="kw">if</span> side == <span class="str">'long'</span>:
+        <span class="kw">return</span> (current_price - liq_price) / current_price
+    <span class="kw">else</span>:
+        <span class="kw">return</span> (liq_price - current_price) / current_price
+
+<span class="comment"># Example: 5x long BTC at $95,000</span>
+liq = <span class="fn">liquidation_price</span>(<span class="num">95000</span>, <span class="num">5</span>, <span class="str">'long'</span>)
+print(f<span class="str">"Liquidation at ${liq:,.0f}"</span>)  <span class="comment"># ~$76,475</span>
+dist = <span class="fn">distance_to_liquidation</span>(<span class="num">95000</span>, liq, <span class="str">'long'</span>)
+print(f<span class="str">"Distance: {dist:.1%}"</span>)  <span class="comment"># ~19.5% &mdash; reasonable</span></code></pre>
+
+    <p>
+      Before entering any position, verify that your liquidation price is beyond
+      a reasonable support/resistance level. If your liquidation sits within the
+      normal daily range of the asset, reduce leverage until it does not.
+    </p>
+
+    <h2 id="margin-health">Margin Health Monitoring</h2>
+
+    <p>
+      Margin health monitoring runs continuously in a background loop. When the
+      margin ratio approaches the maintenance threshold, your agent must act
+      automatically: reduce position size, add margin, or close the position.
+    </p>
+
+<pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+@dataclass
+<span class="kw">class</span> <span class="fn">Position</span>:
+    symbol: str
+    side: str
+    entry_price: float
+    size: float
+    leverage: float
+    margin_allocated: float
+
+<span class="kw">class</span> <span class="fn">MarginMonitor</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, alert_ratio: float = <span class="num">0.80</span>, close_ratio: float = <span class="num">0.90</span>):
+        self.alert_ratio = alert_ratio
+        self.close_ratio = close_ratio
+        self.positions: dict[str, Position] = {}
+
+    <span class="kw">def</span> <span class="fn">margin_ratio</span>(self, pos: Position, current_price: float) -> float:
+        <span class="str">"""Current margin used / initial margin."""</span>
+        <span class="kw">if</span> pos.side == <span class="str">'long'</span>:
+            pnl = (current_price - pos.entry_price) * pos.size
+        <span class="kw">else</span>:
+            pnl = (pos.entry_price - current_price) * pos.size
+        current_margin = pos.margin_allocated + pnl
+        <span class="kw">return</span> max(<span class="num">0</span>, <span class="num">1</span> - current_margin / pos.margin_allocated)
+
+    <span class="kw">async def</span> <span class="fn">monitor_loop</span>(self, price_feed, close_fn):
+        <span class="str">"""Run every 5 seconds, act on critical margin ratios."""</span>
+        <span class="kw">while</span> <span class="kw">True</span>:
+            <span class="kw">for</span> symbol, pos <span class="kw">in</span> list(self.positions.items()):
+                price = <span class="kw">await</span> price_feed(symbol)
+                ratio = self.<span class="fn">margin_ratio</span>(pos, price)
+                <span class="kw">if</span> ratio >= self.close_ratio:
+                    <span class="kw">await</span> <span class="fn">close_fn</span>(pos, reason=<span class="str">"margin_critical"</span>)
+                    <span class="kw">del</span> self.positions[symbol]
+                <span class="kw">elif</span> ratio >= self.alert_ratio:
+                    print(f<span class="str">"[ALERT] {symbol} margin at {ratio:.1%} - consider reducing"</span>)
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">5</span>)</code></pre>
+
+    <h2 id="leverage-manager">Python LeverageManager Class</h2>
+
+    <p>
+      The complete <code>LeverageManager</code> integrates all the above: it selects
+      leverage for a new position, tracks open positions, monitors margin health,
+      and enforces hard limits. Plug this into any Purple Flea Trading API integration.
+    </p>
+
+<pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="kw">class</span> <span class="fn">LeverageManager</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        max_leverage: float = <span class="num">10.0</span>,
+        kelly_fraction: float = <span class="num">0.5</span>,
+        daily_risk_budget: float = <span class="num">0.02</span>,
+        maintenance_margin: float = <span class="num">0.005</span>,
+        alert_ratio: float = <span class="num">0.80</span>,
+    ):
+        self.max_leverage = max_leverage
+        self.kelly_fraction = kelly_fraction
+        self.daily_risk_budget = daily_risk_budget
+        self.maintenance_margin = maintenance_margin
+        self.alert_ratio = alert_ratio
+        self.positions: dict = {}
+        self.trade_log: list = []
+
+    <span class="kw">def</span> <span class="fn">select_leverage</span>(
+        self,
+        prices: list[float],
+        win_prob: float,
+        avg_win: float,
+        avg_loss: float,
+    ) -> float:
+        vol = <span class="fn">compute_daily_vol</span>(prices)
+        vol_lev = self.daily_risk_budget / vol <span class="kw">if</span> vol > <span class="num">0</span> <span class="kw">else</span> self.max_leverage
+        kel_lev = <span class="fn">kelly_leverage</span>(win_prob, avg_win, avg_loss, self.kelly_fraction)
+        chosen = min(vol_lev, kel_lev, self.max_leverage)
+        <span class="kw">return</span> max(<span class="num">1.0</span>, round(chosen, <span class="num">1</span>))   <span class="comment"># floor at 1x</span>
+
+    <span class="kw">def</span> <span class="fn">open_position</span>(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        capital: float,
+        leverage: float,
+    ) -> dict:
+        liq = <span class="fn">liquidation_price</span>(entry_price, leverage, side, self.maintenance_margin)
+        size = (capital * leverage) / entry_price
+        pos = {
+            <span class="str">"symbol"</span>: symbol, <span class="str">"side"</span>: side, <span class="str">"entry"</span>: entry_price,
+            <span class="str">"size"</span>: size, <span class="str">"leverage"</span>: leverage,
+            <span class="str">"margin"</span>: capital, <span class="str">"liq_price"</span>: liq,
+        }
+        self.positions[symbol] = pos
+        self.trade_log.append({<span class="str">"action"</span>: <span class="str">"open"</span>, <span class="str">"leverage"</span>: leverage, **pos})
+        print(f<span class="str">"[OPEN] {symbol} {side} {leverage}x | liq={liq:.4f} size={size:.6f}"</span>)
+        <span class="kw">return</span> pos
+
+    <span class="kw">def</span> <span class="fn">check_health</span>(self, symbol: str, current_price: float) -> str:
+        pos = self.positions.get(symbol)
+        <span class="kw">if</span> <span class="kw">not</span> pos:
+            <span class="kw">return</span> <span class="str">"no_position"</span>
+        dist = <span class="fn">distance_to_liquidation</span>(current_price, pos[<span class="str">"liq_price"</span>], pos[<span class="str">"side"</span>])
+        <span class="kw">if</span> dist < <span class="num">0.05</span>:
+            <span class="kw">return</span> <span class="str">"critical"</span>    <span class="comment"># &lt;5% from liquidation</span>
+        <span class="kw">elif</span> dist < <span class="num">0.10</span>:
+            <span class="kw">return</span> <span class="str">"warning"</span>
+        <span class="kw">return</span> <span class="str">"healthy"</span>
+
+    <span class="kw">def</span> <span class="fn">reduce_leverage</span>(self, symbol: str, current_price: float, new_leverage: float):
+        <span class="str">"""Close and reopen at reduced leverage to avoid liquidation."""</span>
+        pos = self.positions.pop(symbol, <span class="kw">None</span>)
+        <span class="kw">if</span> pos:
+            remaining_capital = pos[<span class="str">"margin"</span>] * (
+                (<span class="num">1</span> + (current_price - pos[<span class="str">"entry"</span>]) / pos[<span class="str">"entry"</span>])
+                <span class="kw">if</span> pos[<span class="str">"side"</span>] == <span class="str">"long"</span>
+                <span class="kw">else</span> (<span class="num">1</span> - (current_price - pos[<span class="str">"entry"</span>]) / pos[<span class="str">"entry"</span>])
+            )
+            self.<span class="fn">open_position</span>(symbol, pos[<span class="str">"side"</span>], current_price,
+                               remaining_capital, new_leverage)</code></pre>
+
+    <div class="callout green">
+      <div class="callout-label">Integration Tip</div>
+      <p>Connect <code>LeverageManager.check_health()</code> to the Purple Flea Trading API's position stream. Poll price every 5 seconds and reduce leverage automatically when health reaches "warning" status. Never wait for "critical".</p>
+    </div>
+
+    <h2 id="rules">Practical Leverage Rules for AI Agents</h2>
+
+    <ol>
+      <li><strong>Default to 1x.</strong> Add leverage only when you have quantified edge AND low volatility.</li>
+      <li><strong>Never exceed 5x in crypto.</strong> Even with strong signals, 5x provides 20% liquidation buffer &mdash; barely enough on volatile days.</li>
+      <li><strong>Use isolated margin by default.</strong> Protect your broader portfolio from single-position blow-ups.</li>
+      <li><strong>Pre-compute liquidation before every entry.</strong> Reject trades where liquidation sits within 15% of current price.</li>
+      <li><strong>Monitor every 5 seconds.</strong> In fast markets, 60-second polls are too slow. Use websocket price feeds.</li>
+      <li><strong>Reduce, do not add.</strong> If a position moves against you, reduce size or close. Adding to a losing leveraged position is a blow-up accelerator.</li>
+      <li><strong>Half-Kelly maximum.</strong> Full Kelly is theoretically optimal but practically destroys accounts during variance runs.</li>
+    </ol>
+
+    <div class="cta-block">
+      <h3>Start Leveraged Trading via Purple Flea API</h3>
+      <p style="color: var(--secondary); margin-bottom: 1.5rem;">
+        Access the Trading API with 20% referral rates. Register free and get your
+        <code>pf_live_</code> API key in under a minute.
+      </p>
+      <a href="/register" class="btn btn-primary">Register Free</a>
+      <a href="/docs/trading-api" class="btn btn-outline">Trading API Docs</a>
+    </div>
+
+    <p style="color: var(--secondary); font-size: 0.85rem; margin-top: 2rem;">
+      Related reading:
+      <a href="/blog/agent-bankroll-management/">Bankroll Management for AI Agents</a> &bull;
+      <a href="/blog/agent-risk-management/">Risk Management Frameworks</a> &bull;
+      <a href="/blog/agent-fee-optimization/">Fee Optimization Guide</a>
+    </p>
+  </article>
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+  <p style="margin-top: 0.5rem;">
+    <a href="/">Home</a> &bull;
+    <a href="/blog">Blog</a> &bull;
+    <a href="/docs">Docs</a> &bull;
+    <a href="/for-agents">For Agents</a>
+  </p>
+</footer>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = pct.toFixed(1) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+</script>
+</body>
+</html>
