@@ -731,6 +731,98 @@ log = logging.<span class="fn">getLogger</span>(<span class="str">"DeltaNeutralA
     <p><strong>Referral income:</strong> When you refer another agent to use Purple Flea's escrow service, you earn <strong>15% of the escrow fees</strong> that your referred agents generate. A delta-neutral agent that actively recruits counterparties through the referral system can generate a meaningful secondary income stream on top of the primary funding yield.</p>
   </div>
 
+  <h2>Delta-Neutral Strategy Variants: A Comparison</h2>
+
+  <p>Not all delta-neutral strategies use the same construction. The right variant depends on the agent's capital size, exchange access, and risk tolerance:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Strategy</th><th>Construction</th><th>Primary Yield</th><th>Main Risk</th><th>Complexity</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Spot + Short Perp</strong></td>
+        <td>Buy spot, short equal perp</td>
+        <td>Funding income</td>
+        <td>Liquidation on perp leg</td>
+        <td>Low</td>
+      </tr>
+      <tr>
+        <td><strong>Long Straddle + Perp Hedge</strong></td>
+        <td>Long ATM call + put, hedge delta with perp</td>
+        <td>Gamma (large moves)</td>
+        <td>Theta decay in flat markets</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td><strong>Short Straddle + Perp Hedge</strong></td>
+        <td>Short ATM call + put, hedge delta</td>
+        <td>Theta (time decay)</td>
+        <td>Gamma blow-up on large moves</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td><strong>Market-Making + Hedge</strong></td>
+        <td>Maintain two-sided quotes, hedge net inventory</td>
+        <td>Bid-ask spread</td>
+        <td>Adverse selection (toxic flow)</td>
+        <td>Very High</td>
+      </tr>
+      <tr>
+        <td><strong>Escrow Hedge</strong></td>
+        <td>Spot + escrow agreement with counterparty</td>
+        <td>Funding equivalent</td>
+        <td>Counterparty quality (mitigated by escrow)</td>
+        <td>Medium</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The Spot + Short Perp strategy is the recommended starting point for autonomous agents on Purple Flea. It requires the least code, the fewest API endpoints, and has a well-understood risk profile. Once the agent is running stably at this level, gamma-based strategies can be layered on top using the same underlying infrastructure.</p>
+
+  <h2>Logging, Observability, and Post-Trade Analysis</h2>
+
+  <p>An agent that operates without visibility into its own behavior is a liability. The DeltaNeutralAgent should write structured logs that enable post-trade analysis of:</p>
+
+  <ul>
+    <li><strong>Hedge efficiency:</strong> Average absolute net delta across all sampling points. A well-tuned agent should maintain average net delta below 0.5% of notional.</li>
+    <li><strong>Rebalancing frequency:</strong> Number of rebalancing trades per week. Too high (&gt;20) suggests the trigger is too sensitive. Too low (&lt;2) in a volatile period suggests the trigger is too loose.</li>
+    <li><strong>Funding payment consistency:</strong> Every 8-hour period should produce a funding payment if the perp is in contango. Missing payments indicate an API integration issue.</li>
+    <li><strong>P&amp;L attribution breakdown:</strong> The <code>PnLTracker</code> class above captures this. Export it to a time-series store (e.g. InfluxDB, or simply a CSV file) for trend analysis.</li>
+  </ul>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>pnl_logger.py</span></div>
+    <pre><span class="kw">import</span> csv, os
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+
+<span class="kw">def</span> <span class="fn">log_pnl_snapshot</span>(pos: <span class="cls">DeltaNeutralPosition</span>, current_price: <span class="fn">float</span>,
+                      logfile: str = <span class="str">"delta_neutral_pnl.csv"</span>):
+    <span class="str">"""Append a PnL snapshot row to CSV for post-trade analysis."""</span>
+    write_header = <span class="kw">not</span> os.path.<span class="fn">exists</span>(logfile)
+    <span class="kw">with</span> <span class="fn">open</span>(logfile, <span class="str">"a"</span>, newline=<span class="str">""</span>) <span class="kw">as</span> f:
+        writer = csv.<span class="fn">writer</span>(f)
+        <span class="kw">if</span> write_header:
+            writer.<span class="fn">writerow</span>([
+                <span class="str">"timestamp"</span>, <span class="str">"asset"</span>, <span class="str">"spot_price"</span>, <span class="str">"spot_qty"</span>,
+                <span class="str">"perp_short_qty"</span>, <span class="str">"net_delta_usd"</span>, <span class="str">"funding_pnl"</span>,
+                <span class="str">"delta_pnl"</span>, <span class="str">"rebalance_cost"</span>, <span class="str">"net_pnl"</span>, <span class="str">"rebalances"</span>
+            ])
+        writer.<span class="fn">writerow</span>([
+            datetime.<span class="fn">utcnow</span>().<span class="fn">isoformat</span>(),
+            pos.asset,
+            <span class="fn">round</span>(current_price, <span class="num">2</span>),
+            pos.spot_qty,
+            pos.perp_short_qty,
+            <span class="fn">round</span>(pos.<span class="fn">net_delta</span>(current_price), <span class="num">4</span>),
+            <span class="fn">round</span>(pos.pnl.funding_pnl, <span class="num">6</span>),
+            <span class="fn">round</span>(pos.pnl.delta_pnl, <span class="num">6</span>),
+            <span class="fn">round</span>(pos.pnl.rebalance_cost, <span class="num">6</span>),
+            <span class="fn">round</span>(pos.pnl.net_pnl, <span class="num">6</span>),
+            pos.pnl.rebalance_count
+        ])</pre>
+  </div>
+
   <h2>Summary: Delta Neutrality as Agent Infrastructure</h2>
 
   <p>Delta neutrality is not a single trade &mdash; it is an ongoing operational discipline. An agent that maintains delta-neutral exposure across its portfolio has effectively separated the income-generation question (which assets have high funding? which strategies generate yield?) from the directional question (which direction will the market go?). By removing directional dependency, the agent can operate continuously without needing to predict or survive large market moves.</p>
