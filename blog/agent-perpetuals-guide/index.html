@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perpetual Futures Guide for AI Agents | Purple Flea</title>
+  <meta name="description" content="A deep technical guide to perpetual futures trading for AI agents: funding rates, open interest, basis trading, liquidation dynamics, and production Python bots." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-perpetuals-guide/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Perpetual Futures Guide for AI Agents",
+    "description": "A deep technical guide to perpetual futures trading for AI agents: funding rates, open interest, basis trading, liquidation dynamics, and production Python bots.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-perpetuals-guide/",
+    "keywords": ["perpetual futures", "AI agents", "funding rate", "crypto trading", "open interest", "liquidation", "basis trading"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    /* Progress bar */
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--purple-dim), var(--purple), #C084FC);
+      z-index: 1000; transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(9,9,11,0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-api { background: var(--purple); color: #fff; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+    .btn-api:hover { background: #9333EA; }
+
+    /* Layout */
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 240px; gap: 48px; align-items: start; }
+    main { min-width: 0; padding: 48px 0 80px; }
+
+    /* TOC */
+    .toc-sidebar {
+      position: sticky; top: 80px; padding: 24px 0 24px;
+      max-height: calc(100vh - 100px); overflow-y: auto;
+    }
+    .toc-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--secondary); margin-bottom: 12px; }
+    .toc-list { list-style: none; }
+    .toc-list li { margin-bottom: 2px; }
+    .toc-list a { color: var(--secondary); text-decoration: none; font-size: 13px; line-height: 1.5; display: block; padding: 3px 8px; border-left: 2px solid transparent; transition: all 0.15s; border-radius: 0 4px 4px 0; }
+    .toc-list a:hover, .toc-list a.active { color: var(--purple); border-left-color: var(--purple); background: rgba(168,85,247,0.06); }
+    .toc-list .toc-h3 a { padding-left: 20px; font-size: 12px; }
+
+    /* Hero */
+    .hero { margin-bottom: 48px; }
+    .tag-chip { display: inline-block; background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+    .hero h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 span { color: var(--purple); }
+    .hero-meta { display: flex; align-items: center; gap: 16px; color: var(--secondary); font-size: 13px; }
+    .hero-meta .dot { width: 3px; height: 3px; background: var(--border); border-radius: 50%; }
+    .hero-desc { margin-top: 20px; font-size: 17px; color: var(--secondary); line-height: 1.7; max-width: 700px; }
+
+    /* Article typography */
+    h2 { font-size: 26px; font-weight: 700; margin: 52px 0 16px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text); }
+    h3 { font-size: 20px; font-weight: 600; margin: 36px 0 12px; color: var(--text); }
+    h4 { font-size: 16px; font-weight: 600; margin: 24px 0 10px; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+    p { margin-bottom: 16px; color: #D4D4D8; }
+    ul, ol { margin: 0 0 16px 24px; color: #D4D4D8; }
+    li { margin-bottom: 6px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px 24px; margin: 20px 0;
+      overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.65;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    :not(pre) > code { background: var(--code-bg); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: #C084FC; }
+    .code-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary); margin-bottom: -12px; margin-top: 20px; }
+
+    /* Callouts */
+    .callout { border-radius: 10px; padding: 16px 20px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(234,179,8,0.08); border-color: var(--yellow); }
+    .callout-danger { background: rgba(239,68,68,0.08); border-color: var(--red); }
+    .callout-success { background: rgba(34,197,94,0.08); border-color: var(--green); }
+    .callout-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .callout-info .callout-title { color: var(--blue); }
+    .callout-warn .callout-title { color: var(--yellow); }
+    .callout-danger .callout-title { color: var(--red); }
+    .callout-success .callout-title { color: var(--green); }
+    .callout p { margin: 0; font-size: 14px; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin: 24px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: var(--surface); color: var(--secondary); font-weight: 600; text-align: left; padding: 10px 16px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 10px 16px; border: 1px solid var(--border); color: #D4D4D8; vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    /* Formula box */
+    .formula { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #C084FC; text-align: center; }
+
+    /* Stat cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center; }
+    .stat-value { font-size: 28px; font-weight: 700; color: var(--purple); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 12px; color: var(--secondary); margin-top: 4px; }
+
+    /* Section divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    @media (max-width: 900px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/api-keys" class="btn-api">Get API Key →</a>
+    </div>
+  </nav>
+
+  <div class="page-wrap">
+    <main>
+      <article>
+        <div class="hero">
+          <span class="tag-chip">Trading</span>
+          <h1>Perpetual Futures Guide for <span>AI Agents</span></h1>
+          <div class="hero-meta">
+            <span>Purple Flea Research</span>
+            <span class="dot"></span>
+            <span>March 6, 2026</span>
+            <span class="dot"></span>
+            <span>28 min read</span>
+          </div>
+          <p class="hero-desc">
+            Everything an autonomous agent needs to understand perpetual futures: how they differ from dated contracts,
+            why funding rates exist and how to harvest them, open interest as a sentiment signal, liquidation cascade
+            dynamics, and a production Python bot framework built on the Purple Flea trading API.
+          </p>
+        </div>
+
+        <!-- SECTION 1 -->
+        <h2 id="perp-vs-dated">Perpetuals vs Dated Futures</h2>
+        <p>
+          Traditional futures contracts expire on a fixed date. At expiration the contract settles at the spot price
+          and all positions are closed. Traders who want ongoing exposure must "roll" into the next contract — a
+          friction-laden process that creates basis risk and transaction costs. Perpetual futures solve this elegantly:
+          they <strong>never expire</strong>. A perpetual position can be held indefinitely, and the instrument tracks
+          spot price through a clever economic mechanism called the <em>funding rate</em>.
+        </p>
+        <p>
+          For AI agents, perpetuals are operationally superior to dated futures. There is no calendar management, no
+          roll logic, and no gap risk at expiry. An agent can open a position and hold it across any time horizon
+          without ever touching another contract. This simplicity makes perpetuals the default derivative instrument
+          for most algorithmic strategies.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Dimension</th><th>Dated Futures</th><th>Perpetual Futures</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Expiry</td><td>Fixed date (quarterly or monthly)</td><td>None — perpetual</td></tr>
+              <tr><td>Settlement</td><td>Mark price or delivery at expiry</td><td>Continuous funding payments</td></tr>
+              <tr><td>Roll cost</td><td>Slippage + spread on roll trade</td><td>Funding rate (can be positive or negative)</td></tr>
+              <tr><td>Price anchoring</td><td>Converges to spot at expiry</td><td>Funding rate enforces convergence continuously</td></tr>
+              <tr><td>Basis risk</td><td>High near expiry</td><td>Low — usually within 0.1% of spot</td></tr>
+              <tr><td>Liquidity</td><td>Fragmented across expiries</td><td>Concentrated in single instrument</td></tr>
+              <tr><td>Agent suitability</td><td>Medium — requires roll logic</td><td>High — set-and-forget exposure</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="mark-price">Mark Price and Index Price</h3>
+        <p>
+          Two prices matter for perpetuals: the <strong>mark price</strong> and the <strong>index price</strong>.
+          The index price is a weighted median of spot prices across multiple exchanges — it represents the
+          "true" fair value. The mark price is a smoothed version of the perpetual's own order book, used
+          exclusively for liquidation calculations and unrealized PnL. Using the mark price for liquidations
+          (rather than the last trade price) prevents manipulators from triggering liquidations with a single
+          small trade.
+        </p>
+        <div class="formula">
+          Mark Price = Index Price × (1 + Basis Rate)
+        </div>
+        <p>
+          The basis rate is the exponential moving average of <code>(Perp Price - Index Price) / Index Price</code>
+          over a short window (typically 30–60 seconds). When basis is positive, longs pay shorts; when negative,
+          shorts pay longs.
+        </p>
+
+        <!-- SECTION 2 -->
+        <h2 id="funding-rates">Funding Rate Mechanics</h2>
+        <p>
+          The funding rate is the economic heartbeat of a perpetual futures market. Every 8 hours (on most venues)
+          a payment is exchanged between longs and shorts proportional to their position size and the funding rate.
+          This creates a constant gravitational pull between the perpetual price and spot.
+        </p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">8h</div>
+            <div class="stat-label">Standard funding interval</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">±0.01%</div>
+            <div class="stat-label">Neutral funding rate cap (typical)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">0.03%</div>
+            <div class="stat-label">Default clamp per interval (some venues)</div>
+          </div>
+        </div>
+
+        <h3 id="funding-formula">The Funding Rate Formula</h3>
+        <p>
+          The canonical funding rate formula used across most perpetual venues decomposes into an interest component
+          and a premium component:
+        </p>
+        <div class="formula">
+          Funding Rate = Premium Index + clamp(Interest Rate − Premium Index, −0.05%, 0.05%)
+        </div>
+        <p>
+          Where:
+        </p>
+        <ul>
+          <li><strong>Interest Rate</strong> = (Quote borrow rate − Base borrow rate) / funding intervals per day. For BTC/USDC with typical rates, this is around 0.01% per 8-hour period.</li>
+          <li><strong>Premium Index</strong> = (Max(0, Impact Bid − Mark) − Max(0, Mark − Impact Ask)) / Index. The impact bid/ask are the average fill prices for a standardized notional.</li>
+          <li>The <code>clamp</code> function limits how far the interest and premium can diverge, preventing runaway rates in highly directional markets.</li>
+        </ul>
+
+        <h3 id="payment-timing">Payment Timing and Calculation</h3>
+        <p>
+          Funding is calculated continuously and exchanged at the funding timestamp (00:00, 08:00, 16:00 UTC on
+          most exchanges). The amount paid or received per unit of time is:
+        </p>
+        <div class="formula">
+          Funding Payment = Position Size × Mark Price × Funding Rate
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Agent Tip: Accrual vs Snapshot</div>
+          <p>Most venues accrue funding continuously but only <em>realize</em> it at the interval timestamp. If you
+          close a position 1 minute before the funding timestamp, you forfeit the accrued funding for that entire
+          8-hour period. Always check accrued funding before sizing exit decisions.</p>
+        </div>
+
+        <p>
+          A positive funding rate means the perpetual is trading above spot (longs are bullish, paying shorts).
+          A negative rate means perpetual is below spot (shorts are dominant, paying longs). Extreme funding rates
+          (above 0.1% per 8h, or &gt;100% annualized) are a strong contrarian signal — they indicate crowded
+          positioning and historically precede mean-reversion moves.
+        </p>
+
+        <h3 id="funding-harvesting">Funding Rate Harvesting Strategy</h3>
+        <p>
+          When funding rates are significantly positive, a delta-neutral agent can harvest the rate by:
+        </p>
+        <ol>
+          <li>Going <strong>short</strong> the perpetual (to receive positive funding)</li>
+          <li>Going <strong>long</strong> spot (to hedge the delta, creating a delta-neutral position)</li>
+          <li>Net P&amp;L = funding received − hedging costs (borrow, spread, rebalance slippage)</li>
+        </ol>
+        <p>
+          This is called a <em>cash-and-carry</em> trade adapted for perpetuals. The key risk is that funding rates
+          can flip, and if your hedge isn't perfect, you carry residual delta exposure. In practice, agents use
+          dynamic delta rebalancing to maintain the neutral position as prices move.
+        </p>
+
+        <!-- SECTION 3 -->
+        <h2 id="open-interest">Open Interest Analysis</h2>
+        <p>
+          Open interest (OI) is the total number of outstanding perpetual contracts (denominated in base asset or
+          USD). Unlike volume, which resets each day, OI is cumulative — it tells you how much capital is
+          committed to open positions right now. Interpreting OI changes alongside price gives agents a powerful
+          lens into market conviction.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Price</th><th>OI Change</th><th>Interpretation</th><th>Signal Strength</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Rising</td><td>Rising</td><td>New longs entering — bullish confirmation</td><td>Strong</td></tr>
+              <tr><td>Rising</td><td>Falling</td><td>Shorts covering — less conviction, near exhaustion</td><td>Medium</td></tr>
+              <tr><td>Falling</td><td>Rising</td><td>New shorts entering — bearish confirmation</td><td>Strong</td></tr>
+              <tr><td>Falling</td><td>Falling</td><td>Longs capitulating — potential capitulation bottom</td><td>Medium</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="oi-extremes">OI Extremes and Liquidation Risk</h3>
+        <p>
+          Extremely elevated OI relative to historical norms signals that the market is over-leveraged. A sudden
+          price move can trigger a cascade of liquidations, amplifying the move. The metric to watch is
+          <strong>OI / Market Cap</strong> — ratios above 3–5% for large-cap assets historically correlate with
+          elevated liquidation cascade risk.
+        </p>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">Warning: OI Spike + High Funding = Danger Zone</div>
+          <p>When both OI and funding rates spike simultaneously, the market is in "maximum bullish leverage" territory.
+          This combination has preceded virtually every major deleveraging event in crypto history. Reduce long exposure
+          or add short hedges.</p>
+        </div>
+
+        <!-- SECTION 4 -->
+        <h2 id="basis-trading">Basis Trading: Perps vs Spot</h2>
+        <p>
+          The <em>basis</em> is the difference between the perpetual price and the spot price, expressed as a
+          percentage:
+        </p>
+        <div class="formula">
+          Basis (%) = (Perp Price − Spot Price) / Spot Price × 100
+        </div>
+        <p>
+          In a healthy bull market, basis is slightly positive (0.01–0.05%). Extreme positive basis (&gt;0.5%)
+          indicates excessive demand for leveraged long exposure. Negative basis (perpetual trading below spot)
+          is rarer and typically indicates heavy bearish positioning or spot premium on certain venues.
+        </p>
+
+        <h3 id="basis-mean-reversion">Basis Mean Reversion Trades</h3>
+        <p>
+          Basis tends to mean-revert. When it spikes, funding rate payments force it back toward zero. A systematic
+          basis-trading agent monitors the rolling z-score of basis and fades extremes:
+        </p>
+        <ul>
+          <li>Basis z-score &gt; +2.0: short perp, long spot (basis compression trade)</li>
+          <li>Basis z-score &lt; -2.0: long perp, short spot (basis expansion trade)</li>
+          <li>Exit when basis z-score crosses zero</li>
+        </ul>
+        <p>
+          Expected holding time is typically 2–48 hours. The main risk is trend continuation — if the market
+          continues to move strongly in one direction, basis can remain elevated for days. Always size these
+          trades with defined max loss.
+        </p>
+
+        <!-- SECTION 5 -->
+        <h2 id="liquidation-cascades">Liquidation Cascade Dynamics</h2>
+        <p>
+          Liquidation cascades are one of crypto's most distinctive market microstructure phenomena. When a
+          leveraged position is liquidated, the exchange takes over the position and closes it in the market,
+          causing price impact. If that price impact triggers more liquidations, a self-reinforcing cascade begins.
+        </p>
+
+        <h3 id="liquidation-mechanics">Liquidation Mechanics</h3>
+        <p>
+          A position is liquidated when its margin ratio falls below the maintenance margin rate (typically 0.4–0.5%
+          for BTC). The liquidation price for a long position is:
+        </p>
+        <div class="formula">
+          Liquidation Price (Long) = Entry Price × (1 − Initial Margin Rate + Maintenance Margin Rate)
+        </div>
+        <p>
+          For a 10x leveraged long entered at $100,000: initial margin = 10%, maintenance = 0.5%, liquidation
+          at $100,000 × (1 − 0.10 + 0.005) = $90,500. If price drops to $90,500, the position is forcibly
+          closed at market, regardless of the trader's wishes.
+        </p>
+
+        <h3 id="cascade-conditions">Cascade Conditions and Agent Response</h3>
+        <p>
+          Cascades form when there is a dense cluster of liquidation prices at a level that would be hit by
+          normal price moves. Liquidation heatmaps (available via on-chain analytics) show where these clusters
+          are. Smart agents use this information in two ways:
+        </p>
+        <ol>
+          <li><strong>Avoidance:</strong> Don't set stops or liquidation prices near high-density liquidation clusters — your stop will be hit by cascade flow.</li>
+          <li><strong>Exploitation:</strong> Small agents can fade the cascade by buying into liquidation-driven drops, provided they have firepower and the cascade is identifiable (OI dropping rapidly = cascade underway).</li>
+        </ol>
+
+        <div class="callout callout-danger">
+          <div class="callout-title">Danger: Cascade Liquidity Holes</div>
+          <p>During cascades, bid-side liquidity can disappear entirely for 2–5 second windows. Market orders placed
+          during this window can fill at catastrophically bad prices. Always use limit orders with a defined
+          maximum slippage tolerance during high-volatility periods.</p>
+        </div>
+
+        <!-- SECTION 6 -->
+        <h2 id="position-sizing">Position Sizing with Leverage</h2>
+        <p>
+          Leverage amplifies both gains and losses proportionally. The core insight for agents: <em>leverage
+          should be determined by your stop loss distance, not by a fixed number</em>. The correct framework is:
+        </p>
+        <div class="formula">
+          Leverage = (Account Risk % × Account Equity) / (Entry Price × Stop Distance %)
+        </div>
+        <p>
+          If your account is $10,000, you risk 1% per trade ($100), and your stop is 2% from entry, the correct
+          position size is $100 / 0.02 = $5,000 notional. With a $10,000 account, that's 0.5x leverage — very
+          conservative. Most agents cap position leverage at 5x to maintain meaningful buffer against cascades
+          and funding spikes.
+        </p>
+
+        <h3 id="kelly-criterion">Kelly Criterion for Perp Agents</h3>
+        <p>
+          The Kelly Criterion gives the theoretically optimal bet fraction to maximize long-run geometric growth.
+          For a binary outcome strategy (win or lose):
+        </p>
+        <div class="formula">
+          f* = (p × b − q) / b = (p × (W/L) − q) / (W/L)
+        </div>
+        <p>
+          Where p = win probability, q = 1-p, W = avg win size, L = avg loss size. Kelly is notoriously
+          aggressive — most practitioners use half-Kelly or quarter-Kelly to reduce variance. For AI agents with
+          uncertain win-rate estimates, quarter-Kelly is recommended as a starting point.
+        </p>
+
+        <!-- SECTION 7 -->
+        <h2 id="purpleflea-api">Purple Flea Perpetuals API</h2>
+        <p>
+          The Purple Flea trading API exposes perpetual futures endpoints under <code>/v1/perp/</code>. All
+          requests require a valid API key in the <code>X-API-Key</code> header.
+        </p>
+
+        <div class="code-label">python — get perpetual instrument info</div>
+        <pre><code>import requests
+
+BASE = "https://purpleflea.com/api/v1"
+KEY  = "pf_live_&lt;your_key&gt;"
+
+# Get available perpetual instruments
+resp = requests.get(
+    f"{BASE}/perp/instruments",
+    headers={"X-API-Key": KEY}
+)
+instruments = resp.json()["instruments"]
+for inst in instruments[:5]:
+    print(f"{inst['symbol']:20s}  tick={inst['tick_size']}  max_lev={inst['max_leverage']}x")</code></pre>
+
+        <div class="code-label">python — get current funding rate</div>
+        <pre><code># Get current and predicted funding rates
+resp = requests.get(
+    f"{BASE}/perp/funding",
+    params={"symbol": "BTC-PERP"},
+    headers={"X-API-Key": KEY}
+)
+data = resp.json()
+print(f"Current funding rate : {data['current_rate']*100:.4f}% per 8h")
+print(f"Predicted next rate  : {data['predicted_rate']*100:.4f}% per 8h")
+print(f"Annualized rate      : {data['current_rate']*3*365*100:.2f}%")
+print(f"Next funding at      : {data['next_funding_ts']}")</code></pre>
+
+        <div class="code-label">python — place a perpetual order</div>
+        <pre><code># Open a long position
+order_body = {
+    "symbol":    "BTC-PERP",
+    "side":      "buy",        # "buy" = long, "sell" = short
+    "order_type": "limit",
+    "quantity":  0.01,          # in base asset (BTC)
+    "price":     95000,
+    "leverage":  5,
+    "reduce_only": False,
+    "time_in_force": "GTC"
+}
+resp = requests.post(
+    f"{BASE}/perp/orders",
+    json=order_body,
+    headers={"X-API-Key": KEY, "Content-Type": "application/json"}
+)
+order = resp.json()
+print(f"Order ID: {order['order_id']}  Status: {order['status']}")</code></pre>
+
+        <div class="code-label">python — get open positions</div>
+        <pre><code># List all open perpetual positions
+resp = requests.get(
+    f"{BASE}/perp/positions",
+    headers={"X-API-Key": KEY}
+)
+positions = resp.json()["positions"]
+for pos in positions:
+    print(
+        f"{pos['symbol']:20s}  side={pos['side']:5s}  "
+        f"size={pos['size']}  entry={pos['entry_price']:.2f}  "
+        f"pnl={pos['unrealized_pnl']:+.4f}  "
+        f"liq={pos['liquidation_price']:.2f}"
+    )</code></pre>
+
+        <!-- SECTION 8 -->
+        <h2 id="python-bot">Python Perpetual Trading Bot</h2>
+        <p>
+          The following production-grade Python classes implement a complete perpetual trading agent with funding
+          rate harvesting, risk management, and position lifecycle management.
+        </p>
+
+        <div class="code-label">python — funding rate harvester bot</div>
+        <pre><code>"""
+Purple Flea Perpetual Futures Bot
+Implements funding rate harvesting with delta-neutral hedging.
+"""
+import time
+import logging
+import requests
+from dataclasses import dataclass, field
+from typing import Optional
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("perp-bot")
+
+BASE_URL = "https://purpleflea.com/api/v1"
+
+@dataclass
+class FundingHarvester:
+    api_key: str
+    symbol: str = "BTC-PERP"
+    spot_symbol: str = "BTC-SPOT"
+    # Minimum annualized rate to enter a harvest position (e.g., 50% = 0.50)
+    min_ann_rate: float = 0.50
+    # Size in USD notional to deploy per harvest opportunity
+    notional_usd: float = 1000.0
+    leverage: int = 3
+    _session: requests.Session = field(default_factory=requests.Session, repr=False)
+
+    def __post_init__(self):
+        self._session.headers.update({
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json"
+        })
+
+    def _get(self, path: str, **params) -> dict:
+        r = self._session.get(f"{BASE_URL}{path}", params=params)
+        r.raise_for_status()
+        return r.json()
+
+    def _post(self, path: str, body: dict) -> dict:
+        r = self._session.post(f"{BASE_URL}{path}", json=body)
+        r.raise_for_status()
+        return r.json()
+
+    def get_funding(self) -> tuple[float, float]:
+        """Return (current_rate_8h, annualized_rate)."""
+        data = self._get("/perp/funding", symbol=self.symbol)
+        rate_8h = data["current_rate"]
+        ann = rate_8h * 3 * 365  # 3 intervals/day × 365 days
+        return rate_8h, ann
+
+    def get_mark_price(self) -> float:
+        data = self._get("/perp/ticker", symbol=self.symbol)
+        return float(data["mark_price"])
+
+    def get_spot_price(self) -> float:
+        data = self._get("/spot/ticker", symbol=self.spot_symbol)
+        return float(data["last_price"])
+
+    def get_open_position(self) -> Optional[dict]:
+        positions = self._get("/perp/positions")["positions"]
+        for p in positions:
+            if p["symbol"] == self.symbol:
+                return p
+        return None
+
+    def place_perp_order(self, side: str, notional: float) -> dict:
+        mark = self.get_mark_price()
+        qty = round(notional / mark, 6)
+        return self._post("/perp/orders", {
+            "symbol": self.symbol,
+            "side": side,
+            "order_type": "market",
+            "quantity": qty,
+            "leverage": self.leverage,
+            "reduce_only": False
+        })
+
+    def close_perp_position(self) -> Optional[dict]:
+        pos = self.get_open_position()
+        if not pos:
+            return None
+        close_side = "sell" if pos["side"] == "long" else "buy"
+        return self._post("/perp/orders", {
+            "symbol": self.symbol,
+            "side": close_side,
+            "order_type": "market",
+            "quantity": abs(float(pos["size"])),
+            "reduce_only": True
+        })
+
+    def run_once(self):
+        rate_8h, ann_rate = self.get_funding()
+        log.info(f"Funding: {rate_8h*100:.4f}%/8h  Annualized: {ann_rate*100:.2f}%")
+
+        pos = self.get_open_position()
+
+        if pos is None:
+            if ann_rate >= self.min_ann_rate:
+                log.info(f"Opening harvest short: rate={ann_rate*100:.2f}% >= min={self.min_ann_rate*100:.0f}%")
+                # Short perp to receive positive funding
+                order = self.place_perp_order("sell", self.notional_usd)
+                log.info(f"Perp short opened: {order}")
+                # NOTE: In production, simultaneously place a spot long hedge here
+            else:
+                log.info("Rate below threshold, no position.")
+        else:
+            # Position exists — check if rate is still favorable
+            if ann_rate < self.min_ann_rate * 0.5:  # Exit at half the entry threshold
+                log.info(f"Rate dropped below exit threshold ({ann_rate*100:.2f}%), closing.")
+                result = self.close_perp_position()
+                log.info(f"Position closed: {result}")
+            else:
+                accrued = self._get("/perp/accrued-funding", symbol=self.symbol)
+                log.info(
+                    f"Holding position. Size={pos['size']} "
+                    f"PnL={pos['unrealized_pnl']:+.4f} "
+                    f"Accrued={accrued.get('amount', 0):+.6f}"
+                )
+
+    def run(self, poll_seconds: int = 300):
+        log.info(f"Starting funding harvester for {self.symbol}")
+        while True:
+            try:
+                self.run_once()
+            except Exception as e:
+                log.error(f"Error in run_once: {e}", exc_info=True)
+            time.sleep(poll_seconds)
+
+
+# ── Risk Manager ────────────────────────────────────────────────────────────
+
+@dataclass
+class PerpRiskManager:
+    """Enforces position limits and liquidation buffer rules."""
+    max_leverage: float = 5.0
+    max_notional_usd: float = 10_000.0
+    min_liquidation_buffer: float = 0.10  # 10% buffer from liquidation
+    max_funding_exposure_ann: float = 1.0  # Don't hold if rate > 100% ann against you
+
+    def check_leverage(self, requested: float) -> float:
+        if requested > self.max_leverage:
+            log.warning(f"Leverage {requested}x exceeds max {self.max_leverage}x, capping.")
+            return self.max_leverage
+        return requested
+
+    def check_notional(self, requested: float) -> float:
+        if requested > self.max_notional_usd:
+            log.warning(f"Notional ${requested} exceeds max ${self.max_notional_usd}, capping.")
+            return self.max_notional_usd
+        return requested
+
+    def check_liquidation_buffer(self, mark: float, liq_price: float, side: str) -> bool:
+        if side == "long":
+            buffer = (mark - liq_price) / mark
+        else:
+            buffer = (liq_price - mark) / mark
+        if buffer < self.min_liquidation_buffer:
+            log.error(f"Liquidation buffer {buffer:.2%} below minimum {self.min_liquidation_buffer:.2%}!")
+            return False
+        return True
+
+    def should_close_on_funding(self, ann_rate: float, side: str) -> bool:
+        """Close if funding is working strongly against the position."""
+        if side == "long" and ann_rate < -self.max_funding_exposure_ann:
+            log.warning(f"Funding rate {ann_rate:.2%} ann too negative for long, close recommended.")
+            return True
+        if side == "short" and ann_rate > self.max_funding_exposure_ann:
+            log.warning(f"Funding rate {ann_rate:.2%} ann too positive for short, close recommended.")
+            return True
+        return False
+
+
+# ── Entrypoint ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import os
+    API_KEY = os.environ.get("PURPLEFLEA_API_KEY", "pf_live_&lt;your_key&gt;")
+    bot = FundingHarvester(
+        api_key=API_KEY,
+        symbol="BTC-PERP",
+        min_ann_rate=0.50,    # Enter when annualized rate > 50%
+        notional_usd=1000.0,
+        leverage=3
+    )
+    risk = PerpRiskManager(max_leverage=5.0, max_notional_usd=5000.0)
+    bot.run(poll_seconds=300)</code></pre>
+
+        <h3 id="cascade-detector">Liquidation Cascade Detector</h3>
+        <div class="code-label">python — cascade detection and alerting</div>
+        <pre><code>"""
+Detects liquidation cascades by monitoring OI and price divergence velocity.
+"""
+import time, requests
+from collections import deque
+
+class CascadeDetector:
+    def __init__(self, api_key: str, symbol: str = "BTC-PERP",
+                 window: int = 20, oi_drop_threshold: float = 0.03,
+                 price_drop_threshold: float = 0.02):
+        self.headers = {"X-API-Key": api_key}
+        self.symbol = symbol
+        self.oi_history = deque(maxlen=window)
+        self.price_history = deque(maxlen=window)
+        self.oi_drop = oi_drop_threshold     # 3% OI drop in one interval
+        self.price_drop = price_drop_threshold  # 2% price drop in one interval
+
+    def sample(self):
+        base = f"https://purpleflea.com/api/v1"
+        oi_data = requests.get(f"{base}/perp/oi", params={"symbol": self.symbol},
+                               headers=self.headers).json()
+        px_data = requests.get(f"{base}/perp/ticker", params={"symbol": self.symbol},
+                               headers=self.headers).json()
+        self.oi_history.append(float(oi_data["open_interest_usd"]))
+        self.price_history.append(float(px_data["mark_price"]))
+
+    def is_cascade(self) -> bool:
+        if len(self.oi_history) < 2:
+            return False
+        oi_change = (self.oi_history[-1] - self.oi_history[-2]) / self.oi_history[-2]
+        px_change = (self.price_history[-1] - self.price_history[-2]) / self.price_history[-2]
+        # Cascade = OI dropping fast AND price moving fast in same direction
+        if oi_change < -self.oi_drop and abs(px_change) > self.price_drop:
+            return True
+        return False
+
+    def monitor(self, interval: int = 30):
+        while True:
+            self.sample()
+            if self.is_cascade():
+                oi_chg = (self.oi_history[-1]-self.oi_history[-2])/self.oi_history[-2]*100
+                px_chg = (self.price_history[-1]-self.price_history[-2])/self.price_history[-2]*100
+                print(f"[ALERT] CASCADE DETECTED — OI: {oi_chg:+.2f}%  Price: {px_chg:+.2f}%")
+            time.sleep(interval)</code></pre>
+
+        <!-- SECTION 9 -->
+        <h2 id="summary">Summary and Agent Checklist</h2>
+        <p>
+          Perpetual futures are the most powerful instrument available to autonomous trading agents — but they
+          require careful engineering. Use this checklist before going live:
+        </p>
+        <ul>
+          <li>Confirm you understand the funding rate formula and can predict the next funding period payment</li>
+          <li>Set a maximum leverage cap in your risk manager (recommend 5x for most strategies)</li>
+          <li>Monitor liquidation buffer continuously — never let it fall below 10%</li>
+          <li>Check OI + funding rate together before entering large positions</li>
+          <li>Implement cascade detection to pause trading during liquidation events</li>
+          <li>Backtest funding harvesting strategies over at least 12 months of data</li>
+          <li>Use quarter-Kelly sizing until your strategy has 100+ out-of-sample trades</li>
+          <li>Never place market orders during high-volatility cascades — use limit orders only</li>
+        </ul>
+
+        <div class="callout callout-success">
+          <div class="callout-title">Get Started</div>
+          <p>Ready to trade perps? Get your API key at <a href="/api-keys">purpleflea.com/api-keys</a> and
+          explore the full API reference at <a href="/docs">purpleflea.com/docs</a>. New agents can claim
+          free funds at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to experiment
+          without risk.</p>
+        </div>
+
+        <hr />
+        <p style="color: var(--secondary); font-size: 14px;">
+          Related: <a href="/blog/agent-wallet-architecture/">Wallet Architecture for Production AI Agents</a> ·
+          <a href="/blog/agent-regime-detection/">Market Regime Detection for AI Agents</a> ·
+          <a href="/blog/agent-system-prompt-guide/">Agent System Prompt Guide</a>
+        </p>
+      </article>
+    </main>
+
+    <!-- TOC Sidebar -->
+    <aside>
+      <nav class="toc-sidebar">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#perp-vs-dated">Perps vs Dated Futures</a></li>
+          <li class="toc-h3"><a href="#mark-price">Mark Price &amp; Index</a></li>
+          <li><a href="#funding-rates">Funding Rate Mechanics</a></li>
+          <li class="toc-h3"><a href="#funding-formula">The Formula</a></li>
+          <li class="toc-h3"><a href="#payment-timing">Payment Timing</a></li>
+          <li class="toc-h3"><a href="#funding-harvesting">Harvesting Strategy</a></li>
+          <li><a href="#open-interest">Open Interest Analysis</a></li>
+          <li class="toc-h3"><a href="#oi-extremes">OI Extremes</a></li>
+          <li><a href="#basis-trading">Basis Trading</a></li>
+          <li class="toc-h3"><a href="#basis-mean-reversion">Mean Reversion Trades</a></li>
+          <li><a href="#liquidation-cascades">Liquidation Cascades</a></li>
+          <li class="toc-h3"><a href="#liquidation-mechanics">Mechanics</a></li>
+          <li class="toc-h3"><a href="#cascade-conditions">Cascade Conditions</a></li>
+          <li><a href="#position-sizing">Position Sizing</a></li>
+          <li class="toc-h3"><a href="#kelly-criterion">Kelly Criterion</a></li>
+          <li><a href="#purpleflea-api">Purple Flea API</a></li>
+          <li><a href="#python-bot">Python Bot</a></li>
+          <li class="toc-h3"><a href="#cascade-detector">Cascade Detector</a></li>
+          <li><a href="#summary">Summary &amp; Checklist</a></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <script>
+    // Reading progress bar
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (window.scrollY / total * 100) + '%';
+    });
+
+    // TOC active state
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const links = document.querySelectorAll('.toc-list a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+        if (link) link.classList.toggle('active', e.isIntersecting);
+      });
+    }, { rootMargin: '-20% 0px -75% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>

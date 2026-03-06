@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Regime Detection for AI Agents | Purple Flea</title>
+  <meta name="description" content="Detect trending vs ranging markets, volatility regimes, and macro risk environments using ADX, Hurst exponent, HMMs, and autocorrelation — with full Python RegimeDetector class." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-regime-detection/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Market Regime Detection for AI Agents",
+    "description": "Detect trending vs ranging markets, volatility regimes, and macro risk environments using ADX, Hurst exponent, HMMs, and autocorrelation — with full Python RegimeDetector class.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-regime-detection/",
+    "keywords": ["market regime", "regime detection", "ADX", "Hurst exponent", "Hidden Markov Model", "volatility", "AI agents", "algo trading"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --cyan: #06B6D4;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--purple-dim), var(--purple), #C084FC);
+      z-index: 1000; transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(9,9,11,0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-api { background: var(--purple); color: #fff; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+    .btn-api:hover { background: #9333EA; }
+
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 240px; gap: 48px; align-items: start; }
+    main { min-width: 0; padding: 48px 0 80px; }
+
+    .toc-sidebar {
+      position: sticky; top: 80px; padding: 24px 0 24px;
+      max-height: calc(100vh - 100px); overflow-y: auto;
+    }
+    .toc-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--secondary); margin-bottom: 12px; }
+    .toc-list { list-style: none; }
+    .toc-list li { margin-bottom: 2px; }
+    .toc-list a { color: var(--secondary); text-decoration: none; font-size: 13px; line-height: 1.5; display: block; padding: 3px 8px; border-left: 2px solid transparent; transition: all 0.15s; border-radius: 0 4px 4px 0; }
+    .toc-list a:hover, .toc-list a.active { color: var(--purple); border-left-color: var(--purple); background: rgba(168,85,247,0.06); }
+    .toc-list .toc-h3 a { padding-left: 20px; font-size: 12px; }
+
+    .hero { margin-bottom: 48px; }
+    .tag-chip { display: inline-block; background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+    .hero h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 span { color: var(--purple); }
+    .hero-meta { display: flex; align-items: center; gap: 16px; color: var(--secondary); font-size: 13px; }
+    .hero-meta .dot { width: 3px; height: 3px; background: var(--border); border-radius: 50%; }
+    .hero-desc { margin-top: 20px; font-size: 17px; color: var(--secondary); line-height: 1.7; max-width: 700px; }
+
+    h2 { font-size: 26px; font-weight: 700; margin: 52px 0 16px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text); }
+    h3 { font-size: 20px; font-weight: 600; margin: 36px 0 12px; color: var(--text); }
+    p { margin-bottom: 16px; color: #D4D4D8; }
+    ul, ol { margin: 0 0 16px 24px; color: #D4D4D8; }
+    li { margin-bottom: 6px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px 24px; margin: 20px 0;
+      overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.65;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    :not(pre) > code { background: var(--code-bg); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: #C084FC; }
+    .code-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary); margin-bottom: -12px; margin-top: 20px; }
+
+    .callout { border-radius: 10px; padding: 16px 20px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(234,179,8,0.08); border-color: var(--yellow); }
+    .callout-danger { background: rgba(239,68,68,0.08); border-color: var(--red); }
+    .callout-success { background: rgba(34,197,94,0.08); border-color: var(--green); }
+    .callout-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .callout-info .callout-title { color: var(--blue); }
+    .callout-warn .callout-title { color: var(--yellow); }
+    .callout-danger .callout-title { color: var(--red); }
+    .callout-success .callout-title { color: var(--green); }
+    .callout p { margin: 0; font-size: 14px; }
+
+    .table-wrap { overflow-x: auto; margin: 24px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: var(--surface); color: var(--secondary); font-weight: 600; text-align: left; padding: 10px 16px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 10px 16px; border: 1px solid var(--border); color: #D4D4D8; vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .formula { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #C084FC; text-align: center; }
+
+    /* Regime badge grid */
+    .regime-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
+    .regime-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .regime-label { font-size: 13px; font-weight: 700; margin-bottom: 8px; letter-spacing: 0.03em; }
+    .regime-card p { font-size: 13px; color: var(--secondary); margin: 0; }
+    .regime-trending { border-left: 3px solid var(--green); }
+    .regime-trending .regime-label { color: var(--green); }
+    .regime-ranging { border-left: 3px solid var(--yellow); }
+    .regime-ranging .regime-label { color: var(--yellow); }
+    .regime-volatile { border-left: 3px solid var(--red); }
+    .regime-volatile .regime-label { color: var(--red); }
+    .regime-calm { border-left: 3px solid var(--cyan); }
+    .regime-calm .regime-label { color: var(--cyan); }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    @media (max-width: 900px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+      .regime-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/api-keys" class="btn-api">Get API Key →</a>
+    </div>
+  </nav>
+
+  <div class="page-wrap">
+    <main>
+      <article>
+        <div class="hero">
+          <span class="tag-chip">Strategy</span>
+          <h1>Market Regime Detection for <span>AI Agents</span></h1>
+          <div class="hero-meta">
+            <span>Purple Flea Research</span>
+            <span class="dot"></span>
+            <span>March 6, 2026</span>
+            <span class="dot"></span>
+            <span>25 min read</span>
+          </div>
+          <p class="hero-desc">
+            The market's character shifts constantly — trending, ranging, volatile, calm. A strategy that works
+            in a trend destroys capital in a range. This guide covers the statistical toolkit for detecting
+            regimes in real time: ADX, Hurst exponent, autocorrelation, Hidden Markov Models, and volatility
+            clustering — plus a complete Python <code>RegimeDetector</code> class and regime-conditioned
+            strategy switching for Purple Flea agents.
+          </p>
+        </div>
+
+        <!-- SECTION 1 -->
+        <h2 id="regime-types">Trending vs Ranging Markets</h2>
+        <p>
+          Market regimes are persistent statistical states that govern how prices behave. The two fundamental
+          regimes are <strong>trending</strong> and <strong>ranging</strong>. In a trending regime, returns
+          exhibit positive autocorrelation — yesterday's move predicts a move in the same direction. In a ranging
+          regime, returns are negatively autocorrelated — the market oscillates around a mean, and momentum
+          signals fail.
+        </p>
+
+        <div class="regime-grid">
+          <div class="regime-card regime-trending">
+            <div class="regime-label">Trending Regime</div>
+            <p>Positive return autocorrelation. Momentum strategies work. Mean-reversion fails. Higher ADX (&gt;25). Hurst exponent &gt;0.55. Strategy: trend-following, breakout entry, trailing stops.</p>
+          </div>
+          <div class="regime-card regime-ranging">
+            <div class="regime-label">Ranging Regime</div>
+            <p>Negative or near-zero autocorrelation. Mean-reversion strategies work. Momentum strategies whipsaw. ADX &lt;20. Hurst ~0.50. Strategy: fade extremes, tight take-profit, delta-neutral.</p>
+          </div>
+          <div class="regime-card regime-volatile">
+            <div class="regime-label">Volatile / Crisis Regime</div>
+            <p>VIX/BVOL elevated, realized volatility spiking, correlation across assets converging to 1. All directional strategies struggle. Strategy: reduce exposure, only volatility-long positions.</p>
+          </div>
+          <div class="regime-card regime-calm">
+            <div class="regime-label">Calm / Accumulation Regime</div>
+            <p>Low realized volatility, tight bid-ask spreads, low volume. Market is coiling energy. Strategy: build positions, harvest funding rates, sell options premium.</p>
+          </div>
+        </div>
+
+        <p>
+          The key insight for agents: <em>no strategy is universally best</em>. The expected edge of any strategy
+          is conditional on the current regime. A well-architected agent selects or weights strategies based on a
+          real-time regime probability vector, rather than hard-switching.
+        </p>
+
+        <!-- SECTION 2 -->
+        <h2 id="adx">ADX: Average Directional Index</h2>
+        <p>
+          The Average Directional Index (ADX) measures trend <em>strength</em>, not direction. It ranges from
+          0–100 and is derived from two directional movement indicators: +DI (positive) and -DI (negative).
+        </p>
+
+        <div class="formula">
+          ADX = EMA(|+DI - -DI| / (+DI + -DI), period=14)  ×  100
+        </div>
+
+        <p>
+          The computation pipeline:
+        </p>
+        <ol>
+          <li><strong>True Range (TR)</strong> = max(High−Low, |High−Close_prev|, |Low−Close_prev|)</li>
+          <li><strong>+DM</strong> = max(High − High_prev, 0) if High−High_prev &gt; Low_prev−Low, else 0</li>
+          <li><strong>-DM</strong> = max(Low_prev − Low, 0) if Low_prev−Low &gt; High−High_prev, else 0</li>
+          <li><strong>+DI</strong> = 100 × Wilder EMA(+DM, 14) / Wilder EMA(TR, 14)</li>
+          <li><strong>-DI</strong> = 100 × Wilder EMA(-DM, 14) / Wilder EMA(TR, 14)</li>
+          <li><strong>DX</strong> = 100 × |+DI − -DI| / (+DI + -DI)</li>
+          <li><strong>ADX</strong> = Wilder EMA(DX, 14)</li>
+        </ol>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ADX Value</th><th>Regime Interpretation</th><th>Suggested Strategy Class</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>&lt; 15</td><td>Very weak / no trend (ranging)</td><td>Mean reversion, market making</td></tr>
+              <tr><td>15 – 25</td><td>Weakening or developing trend</td><td>Neutral / monitor only</td></tr>
+              <tr><td>25 – 40</td><td>Moderate trend</td><td>Trend following with confirmation</td></tr>
+              <tr><td>40 – 60</td><td>Strong trend</td><td>Aggressive trend following</td></tr>
+              <tr><td>&gt; 60</td><td>Extremely strong trend (often unsustainable)</td><td>Hold but watch for exhaustion</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ADX Limitation</div>
+          <p>ADX is a lagging indicator — it confirms a trend after it has already developed. Use it for regime
+          <em>classification</em>, not prediction. Combine with leading indicators (Hurst, autocorrelation) for
+          earlier regime shift detection.</p>
+        </div>
+
+        <!-- SECTION 3 -->
+        <h2 id="hurst">Hurst Exponent</h2>
+        <p>
+          The Hurst exponent H quantifies the long-range dependence of a time series. For financial price returns:
+        </p>
+        <ul>
+          <li><strong>H &gt; 0.5:</strong> Persistent (trending) — past moves predict future moves in the same direction</li>
+          <li><strong>H = 0.5:</strong> Random walk — no autocorrelation (classic efficient market hypothesis)</li>
+          <li><strong>H &lt; 0.5:</strong> Anti-persistent (mean-reverting) — past up-moves predict future down-moves</li>
+        </ul>
+        <p>
+          The most practical estimation method for agents is the <strong>Rescaled Range (R/S) method</strong>:
+          divide the return series into sub-series, compute the range-to-standard-deviation ratio for each length,
+          then regress log(R/S) on log(n) — the slope is H.
+        </p>
+
+        <div class="formula">
+          H = slope of log(R/S) vs. log(n)  where R/S = range / std_dev
+        </div>
+
+        <h3 id="hurst-practical">Practical Hurst for Agents</h3>
+        <p>
+          Compute Hurst on rolling 100–500 candle windows. A 4-hour candle window of 200 bars gives a
+          33-day lookback — enough to characterize the current regime without being too slow to adapt.
+          Use the following thresholds:
+        </p>
+        <ul>
+          <li>H &gt; 0.58: High-confidence trending — run momentum strategies</li>
+          <li>0.45 &lt; H &lt; 0.55: Neutral — run neutral or low-leverage strategies</li>
+          <li>H &lt; 0.42: High-confidence mean-reverting — run mean-reversion strategies</li>
+        </ul>
+
+        <!-- SECTION 4 -->
+        <h2 id="autocorrelation">Autocorrelation as Regime Signal</h2>
+        <p>
+          The first-order autocorrelation of returns (AC1) is the correlation between today's return and yesterday's.
+          It is the most direct measure of momentum vs mean-reversion:
+        </p>
+        <div class="formula">
+          AC1 = corr(r_t, r_{t-1})   over rolling window of N periods
+        </div>
+        <p>
+          AC1 &gt; 0: momentum regime. AC1 &lt; 0: mean-reversion regime. AC1 ≈ 0: efficient / random.
+          In crypto, AC1 at the 1-hour candle level fluctuates between approximately -0.15 and +0.20 for BTC.
+          Extreme readings (&lt; -0.10 or &gt; +0.12) are actionable regime signals.
+        </p>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">Autocorrelation is Noisy</div>
+          <p>AC1 on raw 1-hour returns has high variance. Smooth it with a 10-period EMA and require it to
+          maintain a threshold for at least 3 consecutive periods before acting on it as a regime signal.</p>
+        </div>
+
+        <!-- SECTION 5 -->
+        <h2 id="hmm">Hidden Markov Models for Regime Detection</h2>
+        <p>
+          Hidden Markov Models (HMMs) formalize regime detection as a statistical inference problem. The market
+          is modeled as an unobserved (hidden) Markov chain with K states. At each timestep, the hidden state
+          emits an observable (return, volatility) from a state-specific distribution (usually Gaussian).
+        </p>
+        <p>
+          HMM components:
+        </p>
+        <ul>
+          <li><strong>Transition matrix A:</strong> A[i,j] = P(next state is j | current state is i). Captures regime persistence.</li>
+          <li><strong>Emission distributions:</strong> Each state has its own mean (μ) and variance (σ²) for returns. Low-μ low-σ = calm; high-μ = trending; high-σ low-μ = volatile.</li>
+          <li><strong>Initial probabilities π:</strong> P(state at t=0).</li>
+        </ul>
+        <p>
+          Training uses the Baum-Welch algorithm (expectation-maximization). Inference uses the Viterbi algorithm
+          to decode the most likely sequence of hidden states, or the forward algorithm to compute current-state
+          probabilities in real time.
+        </p>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Choosing K (Number of States)</div>
+          <p>For crypto markets, 3 states (calm/trending/volatile) or 4 states (calm/bull-trend/bear-trend/crisis)
+          are most interpretable. More than 5 states tend to overfit on the training window. Use BIC or AIC on
+          held-out data to select K systematically.</p>
+        </div>
+
+        <!-- SECTION 6 -->
+        <h2 id="volatility-regimes">Volatility Regimes</h2>
+        <p>
+          Volatility itself has regimes, independent of price direction. Volatility clustering — the tendency for
+          large moves to follow large moves — is one of the most persistent empirical regularities in financial data.
+          GARCH(1,1) captures this: today's variance is a weighted sum of yesterday's variance and yesterday's
+          squared return.
+        </p>
+        <div class="formula">
+          σ²_t = ω + α × ε²_{t-1} + β × σ²_{t-1}
+        </div>
+        <p>
+          For agent risk management, it's simpler to classify realized volatility (rolling 24h standard deviation
+          of hourly returns × √24) into three buckets:
+        </p>
+        <ul>
+          <li><strong>Calm (&lt;30% annualized):</strong> Full position sizing, sell options, harvest funding</li>
+          <li><strong>Normal (30–80% annualized):</strong> Standard sizing, standard strategies</li>
+          <li><strong>Volatile (&gt;80% annualized):</strong> Half position sizing, no new entries, tighten stops</li>
+        </ul>
+
+        <!-- SECTION 7 -->
+        <h2 id="macro-regime">Macro Regime Classification</h2>
+        <p>
+          Beyond price-based regimes, macro financial conditions define the broader risk environment. Agents
+          trading crypto should be aware of three macro regimes:
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Macro Regime</th><th>Signals</th><th>Crypto Impact</th><th>Agent Response</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Risk-On</strong></td>
+                <td>Equities rising, credit spreads tight, USD weak, BTC dominance rising</td>
+                <td>Bullish for BTC and altcoins, funding rates positive</td>
+                <td>Long bias, harvest positive funding, hold longer</td>
+              </tr>
+              <tr>
+                <td><strong>Risk-Off</strong></td>
+                <td>Equities falling, USD/JPY rising, VIX elevated, safe-haven flows</td>
+                <td>BTC correlates with equities in acute phase, then decouples</td>
+                <td>Reduce long exposure, short altcoins, hold stables</td>
+              </tr>
+              <tr>
+                <td><strong>Stagflation</strong></td>
+                <td>High inflation + low growth, yield curve flat or inverted</td>
+                <td>BTC as inflation hedge narrative activates (mixed)</td>
+                <td>Neutral-to-long BTC, avoid leveraged altcoin exposure</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>
+          Agents can proxy macro regime via the <code>/market/macro-regime</code> endpoint in the Purple Flea API,
+          which aggregates BTC/SPX correlation, DXY trend, and credit spread data into a simple three-state signal.
+        </p>
+
+        <!-- SECTION 8 -->
+        <h2 id="strategy-switching">Strategy Switching Based on Detected Regime</h2>
+        <p>
+          The payoff of regime detection comes from <em>strategy switching</em>. Rather than hard-switching
+          (which creates whipsaw risk near regime boundaries), use a <strong>soft weighting</strong> approach:
+          each strategy gets a weight proportional to its regime probability score.
+        </p>
+        <div class="code-label">python — strategy weight allocation by regime</div>
+        <pre><code">"""
+Soft regime-based strategy allocation.
+Each strategy has a 'regime_affinity' dict mapping regime names to [0,1] scores.
+"""
+from dataclasses import dataclass
+import numpy as np
+
+@dataclass
+class Strategy:
+    name: str
+    regime_affinity: dict  # regime_name -> score in [0, 1]
+
+STRATEGIES = [
+    Strategy("momentum_long",   {"trending": 0.9, "ranging": 0.05, "volatile": 0.1, "calm": 0.3}),
+    Strategy("mean_reversion",  {"trending": 0.05, "ranging": 0.9, "volatile": 0.1, "calm": 0.5}),
+    Strategy("funding_harvest", {"trending": 0.4, "ranging": 0.6, "volatile": 0.0, "calm": 0.9}),
+    Strategy("delta_neutral",   {"trending": 0.2, "ranging": 0.8, "volatile": 0.5, "calm": 0.7}),
+    Strategy("cash_only",       {"trending": 0.0, "ranging": 0.0, "volatile": 1.0, "calm": 0.0}),
+]
+
+def compute_strategy_weights(regime_probs: dict) -> dict:
+    """
+    Given regime probabilities, compute normalized allocation weight for each strategy.
+    regime_probs: {'trending': 0.3, 'ranging': 0.5, 'volatile': 0.1, 'calm': 0.1}
+    """
+    weights = {}
+    for strat in STRATEGIES:
+        score = sum(
+            regime_probs.get(regime, 0.0) * affinity
+            for regime, affinity in strat.regime_affinity.items()
+        )
+        weights[strat.name] = score
+    # Normalize to sum to 1
+    total = sum(weights.values())
+    if total > 0:
+        weights = {k: v/total for k, v in weights.items()}
+    return weights
+
+# Example
+regime_probs = {"trending": 0.15, "ranging": 0.60, "volatile": 0.05, "calm": 0.20}
+alloc = compute_strategy_weights(regime_probs)
+for name, w in sorted(alloc.items(), key=lambda x: -x[1]):
+    print(f"  {name:20s}: {w*100:.1f}%")</code></pre>
+
+        <!-- SECTION 9 -->
+        <h2 id="regime-detector-class">Python RegimeDetector Class</h2>
+        <p>
+          The following <code>RegimeDetector</code> class consolidates all regime indicators into a single
+          interface that returns a probability distribution over regime states.
+        </p>
+
+        <div class="code-label">python — full RegimeDetector class</div>
+        <pre><code">"""
+RegimeDetector: Consolidates ADX, Hurst, AC1, volatility, and HMM signals
+into a single real-time regime probability vector.
+
+Requires: pip install numpy pandas hmmlearn requests ta-lib-python
+(ta-lib-python provides ADX; hmmlearn for HMM)
+"""
+import numpy as np
+import pandas as pd
+import requests
+import logging
+from dataclasses import dataclass, field
+from typing import Optional
+from collections import deque
+
+log = logging.getLogger("regime-detector")
+
+REGIMES = ["trending", "ranging", "volatile", "calm"]
+
+# ── Hurst Exponent (R/S method) ──────────────────────────────────────────────
+
+def hurst_rs(returns: np.ndarray, min_chunk: int = 8) -> float:
+    """Compute Hurst exponent via Rescaled Range analysis."""
+    n = len(returns)
+    if n < 32:
+        return 0.5  # Not enough data
+    rs_values, ns = [], []
+    for chunk_size in [n//8, n//4, n//2, n]:
+        if chunk_size < min_chunk:
+            continue
+        chunks = [returns[i:i+chunk_size] for i in range(0, n-chunk_size+1, chunk_size)]
+        rs_per_chunk = []
+        for chunk in chunks:
+            mean = chunk.mean()
+            deviation = np.cumsum(chunk - mean)
+            r = deviation.max() - deviation.min()
+            s = chunk.std(ddof=1)
+            if s > 0:
+                rs_per_chunk.append(r / s)
+        if rs_per_chunk:
+            rs_values.append(np.mean(rs_per_chunk))
+            ns.append(chunk_size)
+    if len(ns) < 2:
+        return 0.5
+    log_ns = np.log(ns)
+    log_rs = np.log(rs_values)
+    h, _ = np.polyfit(log_ns, log_rs, 1)
+    return float(np.clip(h, 0.0, 1.0))
+
+
+# ── ADX Computation ──────────────────────────────────────────────────────────
+
+def compute_adx(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                period: int = 14) -> float:
+    """Return the current ADX value (last value of the ADX series)."""
+    n = len(close)
+    if n < period * 2:
+        return 25.0  # default neutral
+    tr, pdm, ndm = [], [], []
+    for i in range(1, n):
+        h, l, pc = high[i], low[i], close[i-1]
+        tr.append(max(h - l, abs(h - pc), abs(l - pc)))
+        up = high[i] - high[i-1]
+        dn = low[i-1] - low[i]
+        pdm.append(up if up > dn and up > 0 else 0)
+        ndm.append(dn if dn > up and dn > 0 else 0)
+
+    def wilder_ema(series, p):
+        out = [np.mean(series[:p])]
+        for x in series[p:]:
+            out.append(out[-1] * (p-1)/p + x * 1/p)
+        return np.array(out)
+
+    atr = wilder_ema(tr, period)
+    pdi = 100 * wilder_ema(pdm, period) / atr
+    ndi = 100 * wilder_ema(ndm, period) / atr
+    dx  = 100 * np.abs(pdi - ndi) / (pdi + ndi + 1e-9)
+    adx = wilder_ema(dx, period)
+    return float(adx[-1])
+
+
+# ── Autocorrelation (lag-1) ──────────────────────────────────────────────────
+
+def autocorrelation_1(returns: np.ndarray) -> float:
+    if len(returns) < 10:
+        return 0.0
+    return float(pd.Series(returns).autocorr(lag=1))
+
+
+# ── Volatility Regime ────────────────────────────────────────────────────────
+
+def annualized_vol(returns: np.ndarray, periods_per_year: int = 8760) -> float:
+    """For hourly returns, periods_per_year=8760."""
+    if len(returns) < 5:
+        return 0.5
+    return float(returns.std() * np.sqrt(periods_per_year))
+
+
+# ── Main RegimeDetector ──────────────────────────────────────────────────────
+
+@dataclass
+class RegimeDetector:
+    api_key: str
+    symbol: str = "BTC/USDC"
+    candle_interval: str = "1h"
+    lookback: int = 200         # candles to use for computations
+    adx_period: int = 14
+    _cache: deque = field(default_factory=lambda: deque(maxlen=500), repr=False)
+    _session: requests.Session = field(default_factory=requests.Session, repr=False)
+
+    def __post_init__(self):
+        self._session.headers.update({"X-API-Key": self.api_key})
+
+    def fetch_candles(self) -> pd.DataFrame:
+        resp = self._session.get(
+            "https://purpleflea.com/api/v1/market/candles",
+            params={"symbol": self.symbol, "interval": self.candle_interval, "limit": self.lookback}
+        )
+        resp.raise_for_status()
+        df = pd.DataFrame(resp.json()["candles"],
+                          columns=["timestamp","open","high","low","close","volume"])
+        df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
+        df["returns"] = df["close"].pct_change().fillna(0.0)
+        return df
+
+    def detect(self) -> dict:
+        """
+        Returns regime probability dict and intermediate indicator values.
+        Example: {
+          'probs': {'trending': 0.15, 'ranging': 0.55, 'volatile': 0.10, 'calm': 0.20},
+          'adx': 18.3, 'hurst': 0.48, 'ac1': -0.06, 'ann_vol': 0.42,
+          'regime': 'ranging'
+        }
+        """
+        df = self.fetch_candles()
+        returns = df["returns"].values
+        high    = df["high"].values
+        low     = df["low"].values
+        close   = df["close"].values
+
+        adx     = compute_adx(high, low, close, self.adx_period)
+        hurst   = hurst_rs(returns[-200:])
+        ac1     = autocorrelation_1(returns[-100:])
+        ann_vol = annualized_vol(returns[-24:])   # 24h realized vol
+
+        # ── Score each regime 0-1 ─────────────────────────────────────────
+        scores = {}
+
+        # Trending: high ADX + high Hurst + positive AC1
+        scores["trending"] = (
+            np.clip((adx - 15) / 40, 0, 1) * 0.4 +
+            np.clip((hurst - 0.5) / 0.3, 0, 1) * 0.35 +
+            np.clip(ac1 / 0.15, 0, 1) * 0.25
+        )
+
+        # Ranging: low ADX + Hurst near 0.5 or below + negative AC1
+        scores["ranging"] = (
+            np.clip((30 - adx) / 25, 0, 1) * 0.40 +
+            np.clip((0.55 - abs(hurst - 0.5)) / 0.55, 0, 1) * 0.30 +
+            np.clip(-ac1 / 0.15, 0, 1) * 0.30
+        )
+
+        # Volatile: high realized vol is the primary signal
+        scores["volatile"] = (
+            np.clip((ann_vol - 0.60) / 0.80, 0, 1) * 0.70 +
+            np.clip((adx - 30) / 40, 0, 1) * 0.30
+        )
+
+        # Calm: low realized vol + ranging character
+        scores["calm"] = (
+            np.clip((0.40 - ann_vol) / 0.35, 0, 1) * 0.60 +
+            np.clip((25 - adx) / 25, 0, 1) * 0.40
+        )
+
+        # Normalize to probabilities
+        total = sum(scores.values()) + 1e-9
+        probs = {r: scores[r] / total for r in REGIMES}
+        regime = max(probs, key=probs.get)
+
+        return {
+            "probs":   probs,
+            "regime":  regime,
+            "adx":     round(adx, 2),
+            "hurst":   round(hurst, 4),
+            "ac1":     round(ac1, 4),
+            "ann_vol": round(ann_vol, 4),
+        }
+
+    def detect_with_strategy_weights(self) -> dict:
+        """Convenience: detect regime and compute strategy allocations."""
+        result = self.detect()
+        alloc = compute_strategy_weights(result["probs"])
+        result["strategy_weights"] = alloc
+        return result
+
+
+def compute_strategy_weights(regime_probs: dict) -> dict:
+    """Soft strategy weighting based on regime probabilities."""
+    affinities = {
+        "momentum_long":    {"trending": 0.9, "ranging": 0.05, "volatile": 0.1,  "calm": 0.3},
+        "mean_reversion":   {"trending": 0.05, "ranging": 0.9, "volatile": 0.1,  "calm": 0.5},
+        "funding_harvest":  {"trending": 0.4, "ranging": 0.6,  "volatile": 0.0,  "calm": 0.9},
+        "delta_neutral":    {"trending": 0.2, "ranging": 0.8,  "volatile": 0.5,  "calm": 0.7},
+        "cash_only":        {"trending": 0.0, "ranging": 0.0,  "volatile": 1.0,  "calm": 0.0},
+    }
+    weights = {}
+    for strat, aff in affinities.items():
+        weights[strat] = sum(regime_probs.get(r, 0) * s for r, s in aff.items())
+    total = sum(weights.values()) + 1e-9
+    return {k: round(v/total, 4) for k, v in weights.items()}
+
+
+# ── Regime-Conditioned Position Sizing ──────────────────────────────────────
+
+@dataclass
+class RegimePositionSizer:
+    """Scales position size by regime confidence and volatility."""
+    base_risk_pct: float = 0.01  # 1% account risk per trade by default
+    regime_multipliers: dict = field(default_factory=lambda: {
+        "trending": 1.2,    # Slightly larger in confirmed trends
+        "ranging":  0.8,    # Reduce size in choppy ranges
+        "volatile": 0.3,    # Drastically reduce in crisis
+        "calm":     1.0,    # Normal sizing in calm markets
+    })
+    volatility_scalar: bool = True
+
+    def compute_size(self, account_usd: float, entry: float, stop: float,
+                     regime_result: dict) -> dict:
+        """
+        Returns recommended position size in USD notional.
+        Uses: (account * risk%) * regime_multiplier / stop_distance%
+        """
+        regime = regime_result["regime"]
+        confidence = regime_result["probs"][regime]  # 0-1
+        ann_vol    = regime_result["ann_vol"]
+
+        # Base dollar risk
+        base_risk_usd = account_usd * self.base_risk_pct
+
+        # Regime adjustment (blend with confidence)
+        r_mult = self.regime_multipliers.get(regime, 1.0)
+        # Blend: full multiplier at full confidence, 1.0 at zero confidence
+        adj_mult = 1.0 + (r_mult - 1.0) * confidence
+
+        # Volatility scalar: reduce size when vol is elevated
+        vol_mult = 1.0
+        if self.volatility_scalar:
+            vol_mult = np.clip(0.40 / (ann_vol + 0.01), 0.2, 1.5)
+
+        stop_dist = abs(entry - stop) / entry
+        if stop_dist < 0.001:
+            stop_dist = 0.001  # minimum 0.1% stop to avoid division explosion
+
+        notional = (base_risk_usd * adj_mult * vol_mult) / stop_dist
+
+        return {
+            "notional_usd":    round(notional, 2),
+            "qty_at_entry":    round(notional / entry, 8),
+            "regime":          regime,
+            "regime_mult":     round(adj_mult, 3),
+            "vol_mult":        round(vol_mult, 3),
+            "stop_dist_pct":   round(stop_dist * 100, 3),
+        }
+
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import os, json
+    API_KEY = os.environ.get("PURPLEFLEA_API_KEY", "pf_live_&lt;your_key&gt;")
+    detector = RegimeDetector(api_key=API_KEY, symbol="BTC/USDC", lookback=200)
+    result = detector.detect_with_strategy_weights()
+    print(json.dumps(result, indent=2))
+
+    sizer = RegimePositionSizer(base_risk_pct=0.01)
+    sizing = sizer.compute_size(
+        account_usd=10000,
+        entry=95000,
+        stop=93000,
+        regime_result=result
+    )
+    print("\nPosition sizing:", json.dumps(sizing, indent=2))</code></pre>
+
+        <!-- SECTION 10 -->
+        <h2 id="hmm-implementation">HMM-Based Regime Detection</h2>
+        <p>
+          For agents that want a more principled probabilistic approach, here is a Gaussian HMM implementation
+          using <code>hmmlearn</code>:
+        </p>
+
+        <div class="code-label">python — Gaussian HMM for regime detection</div>
+        <pre><code">"""
+Trains a 3-state Gaussian HMM on historical returns + volatility features.
+Uses hmmlearn: pip install hmmlearn
+"""
+import numpy as np
+import requests
+from hmmlearn.hmm import GaussianHMM
+
+def fetch_features(api_key: str, symbol: str = "BTC/USDC",
+                   interval: str = "4h", limit: int = 1000) -> np.ndarray:
+    """Fetch OHLCV and compute return + log-vol features."""
+    resp = requests.get(
+        "https://purpleflea.com/api/v1/market/candles",
+        params={"symbol": symbol, "interval": interval, "limit": limit},
+        headers={"X-API-Key": api_key}
+    )
+    resp.raise_for_status()
+    data = resp.json()["candles"]
+    closes = np.array([float(c[4]) for c in data])
+    returns = np.diff(np.log(closes))
+    # 5-bar rolling realized vol
+    vol = np.array([returns[max(0,i-5):i].std() for i in range(1, len(returns)+1)])
+    # Feature matrix: [return, log(vol + 1e-8)]
+    X = np.column_stack([returns, np.log(vol + 1e-8)])
+    return X
+
+class MarketHMM:
+    def __init__(self, n_states: int = 3, n_iter: int = 100):
+        self.n_states = n_states
+        self.model = GaussianHMM(
+            n_components=n_states, covariance_type="diag",
+            n_iter=n_iter, random_state=42
+        )
+        self.state_labels: dict = {}  # state_id -> regime_name
+
+    def fit(self, X: np.ndarray):
+        self.model.fit(X)
+        # Label states by mean return (ascending):
+        # lowest mean = bearish/volatile, middle = ranging, highest = bullish/trending
+        means = self.model.means_[:, 0]  # first feature = return
+        order = np.argsort(means)
+        names = ["bearish", "ranging", "bullish"]
+        self.state_labels = {int(order[i]): names[i] for i in range(self.n_states)}
+        return self
+
+    def decode(self, X: np.ndarray) -> list:
+        """Return list of regime labels for each timestep."""
+        _, states = self.model.decode(X, algorithm="viterbi")
+        return [self.state_labels[s] for s in states]
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Return state probability matrix (T x K)."""
+        # Use forward algorithm (posteriors)
+        return self.model.predict_proba(X)
+
+    def current_state(self, X: np.ndarray) -> dict:
+        """Return current regime name and probabilities."""
+        proba = self.predict_proba(X)
+        last_proba = proba[-1]
+        state_id = int(np.argmax(last_proba))
+        regime = self.state_labels[state_id]
+        probs = {self.state_labels[i]: float(last_proba[i]) for i in range(self.n_states)}
+        return {"regime": regime, "probs": probs, "confidence": float(last_proba[state_id])}
+
+
+# Example usage
+if __name__ == "__main__":
+    import os
+    API_KEY = os.environ.get("PURPLEFLEA_API_KEY", "pf_live_&lt;your_key&gt;")
+    X = fetch_features(API_KEY, symbol="BTC/USDC", interval="4h", limit=800)
+    hmm = MarketHMM(n_states=3).fit(X)
+    current = hmm.current_state(X[-50:])   # Use last 50 bars for decoding
+    print("Current regime:", current["regime"])
+    print("Probabilities :", current["probs"])
+    print("Confidence    :", f"{current['confidence']:.1%}")</code></pre>
+
+        <!-- SECTION 11 -->
+        <h2 id="purple-flea-integration">Purple Flea API Integration</h2>
+        <p>
+          The Purple Flea market API provides all the data needed for regime detection. Key endpoints:
+        </p>
+        <div class="code-label">python — Purple Flea regime data endpoints</div>
+        <pre><code>import requests
+
+BASE = "https://purpleflea.com/api/v1"
+KEY  = "pf_live_&lt;your_key&gt;"
+H    = {"X-API-Key": KEY}
+
+# Historical candles for indicators
+candles = requests.get(f"{BASE}/market/candles",
+    params={"symbol": "BTC/USDC", "interval": "1h", "limit": 200},
+    headers=H).json()
+
+# Pre-computed market microstructure data
+micro = requests.get(f"{BASE}/market/microstructure",
+    params={"symbol": "BTC/USDC"}, headers=H).json()
+print("Bid-ask spread:", micro["spread_bps"], "bps")
+print("Order book depth:", micro["depth_usd_1pct"])
+
+# Volatility surface (implied vs realized)
+vol = requests.get(f"{BASE}/market/volatility",
+    params={"symbol": "BTC/USDC"}, headers=H).json()
+print("Realized vol (24h):", vol["realized_24h"])
+print("Implied vol (ATM) :", vol["implied_atm"])
+
+# Macro regime signal (aggregated)
+macro = requests.get(f"{BASE}/market/macro-regime", headers=H).json()
+print("Macro regime:", macro["regime"])  # 'risk-on', 'risk-off', 'stagflation'
+print("BTC/SPX corr:", macro["btc_spx_corr_30d"])</code></pre>
+
+        <!-- SECTION 12 -->
+        <h2 id="summary">Summary and Regime Checklist</h2>
+        <p>
+          Regime detection is the meta-layer above individual strategies. Get it right, and every strategy in
+          your agent's toolkit performs better. Use this checklist:
+        </p>
+        <ul>
+          <li>Compute ADX, Hurst, and AC1 on a rolling window — never on fixed historical data alone</li>
+          <li>Blend indicator signals into a soft probability vector — avoid binary regime switching</li>
+          <li>Use HMMs for a principled probabilistic framework when you have sufficient training data</li>
+          <li>Always include a volatility regime dimension separate from trend/range classification</li>
+          <li>Monitor macro regime for high-level risk-on/risk-off context</li>
+          <li>Scale position size down in volatile and uncertain regimes automatically</li>
+          <li>Backtest each strategy separately per regime to validate expected edge before deploying</li>
+          <li>Log detected regime with every trade for post-trade performance attribution</li>
+        </ul>
+
+        <div class="callout callout-success">
+          <div class="callout-title">Start Detecting Regimes Now</div>
+          <p>Get your API key at <a href="/api-keys">purpleflea.com/api-keys</a> and access historical
+          candle data, volatility surface, and macro regime signals. New agents can claim free funds at
+          <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to backtest without risk.</p>
+        </div>
+
+        <hr />
+        <p style="color: var(--secondary); font-size: 14px;">
+          Related: <a href="/blog/agent-perpetuals-guide/">Perpetual Futures Guide for AI Agents</a> ·
+          <a href="/blog/agent-wallet-architecture/">Wallet Architecture for Production AI Agents</a> ·
+          <a href="/blog/mcp-tools-2026/">Best MCP Tools for Agents in 2026</a>
+        </p>
+      </article>
+    </main>
+
+    <aside>
+      <nav class="toc-sidebar">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#regime-types">Trending vs Ranging</a></li>
+          <li><a href="#adx">ADX Indicator</a></li>
+          <li><a href="#hurst">Hurst Exponent</a></li>
+          <li class="toc-h3"><a href="#hurst-practical">Practical Thresholds</a></li>
+          <li><a href="#autocorrelation">Autocorrelation Signal</a></li>
+          <li><a href="#hmm">Hidden Markov Models</a></li>
+          <li><a href="#volatility-regimes">Volatility Regimes</a></li>
+          <li><a href="#macro-regime">Macro Regime</a></li>
+          <li><a href="#strategy-switching">Strategy Switching</a></li>
+          <li><a href="#regime-detector-class">RegimeDetector Class</a></li>
+          <li><a href="#hmm-implementation">HMM Implementation</a></li>
+          <li><a href="#purple-flea-integration">PF API Integration</a></li>
+          <li><a href="#summary">Summary &amp; Checklist</a></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (window.scrollY / total * 100) + '%';
+    });
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+        if (link) link.classList.toggle('active', e.isIntersecting);
+      });
+    }, { rootMargin: '-20% 0px -75% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>

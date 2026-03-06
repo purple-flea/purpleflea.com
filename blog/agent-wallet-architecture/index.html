@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wallet Architecture for Production AI Agents | Purple Flea</title>
+  <meta name="description" content="HD wallet structure, multi-chain address derivation, hot/warm/cold tiers, key management, multi-sig, and the full Purple Flea wallet API — for production AI agents." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-wallet-architecture/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Wallet Architecture for Production AI Agents",
+    "description": "HD wallet structure, multi-chain address derivation, hot/warm/cold tiers, key management, multi-sig, and the full Purple Flea wallet API for production AI agents.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-wallet-architecture/",
+    "keywords": ["wallet architecture", "HD wallet", "BIP32", "BIP44", "AI agents", "multi-chain", "key management", "multi-sig"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --code-bg: #18181B;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --orange: #F97316;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+      background: linear-gradient(90deg, var(--purple-dim), var(--purple), #C084FC);
+      z-index: 1000; transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(9,9,11,0.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--secondary); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-api { background: var(--purple); color: #fff; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+    .btn-api:hover { background: #9333EA; }
+
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 240px; gap: 48px; align-items: start; }
+    main { min-width: 0; padding: 48px 0 80px; }
+
+    .toc-sidebar {
+      position: sticky; top: 80px; padding: 24px 0 24px;
+      max-height: calc(100vh - 100px); overflow-y: auto;
+    }
+    .toc-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--secondary); margin-bottom: 12px; }
+    .toc-list { list-style: none; }
+    .toc-list li { margin-bottom: 2px; }
+    .toc-list a { color: var(--secondary); text-decoration: none; font-size: 13px; line-height: 1.5; display: block; padding: 3px 8px; border-left: 2px solid transparent; transition: all 0.15s; border-radius: 0 4px 4px 0; }
+    .toc-list a:hover, .toc-list a.active { color: var(--purple); border-left-color: var(--purple); background: rgba(168,85,247,0.06); }
+    .toc-list .toc-h3 a { padding-left: 20px; font-size: 12px; }
+
+    .hero { margin-bottom: 48px; }
+    .tag-chip { display: inline-block; background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+    .hero h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 span { color: var(--purple); }
+    .hero-meta { display: flex; align-items: center; gap: 16px; color: var(--secondary); font-size: 13px; }
+    .hero-meta .dot { width: 3px; height: 3px; background: var(--border); border-radius: 50%; }
+    .hero-desc { margin-top: 20px; font-size: 17px; color: var(--secondary); line-height: 1.7; max-width: 700px; }
+
+    h2 { font-size: 26px; font-weight: 700; margin: 52px 0 16px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text); }
+    h3 { font-size: 20px; font-weight: 600; margin: 36px 0 12px; color: var(--text); }
+    p { margin-bottom: 16px; color: #D4D4D8; }
+    ul, ol { margin: 0 0 16px 24px; color: #D4D4D8; }
+    li { margin-bottom: 6px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px 24px; margin: 20px 0;
+      overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.65;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    :not(pre) > code { background: var(--code-bg); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; color: #C084FC; }
+    .code-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary); margin-bottom: -12px; margin-top: 20px; }
+
+    .callout { border-radius: 10px; padding: 16px 20px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warn { background: rgba(234,179,8,0.08); border-color: var(--yellow); }
+    .callout-danger { background: rgba(239,68,68,0.08); border-color: var(--red); }
+    .callout-success { background: rgba(34,197,94,0.08); border-color: var(--green); }
+    .callout-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .callout-info .callout-title { color: var(--blue); }
+    .callout-warn .callout-title { color: var(--yellow); }
+    .callout-danger .callout-title { color: var(--red); }
+    .callout-success .callout-title { color: var(--green); }
+    .callout p { margin: 0; font-size: 14px; }
+
+    .table-wrap { overflow-x: auto; margin: 24px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: var(--surface); color: var(--secondary); font-weight: 600; text-align: left; padding: 10px 16px; border: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 10px 16px; border: 1px solid var(--border); color: #D4D4D8; vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .formula { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #C084FC; text-align: center; }
+
+    /* Tier cards */
+    .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+    .tier-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .tier-card.hot { border-top: 3px solid var(--red); }
+    .tier-card.warm { border-top: 3px solid var(--orange); }
+    .tier-card.cold { border-top: 3px solid var(--blue); }
+    .tier-name { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .tier-card.hot .tier-name { color: var(--red); }
+    .tier-card.warm .tier-name { color: var(--orange); }
+    .tier-card.cold .tier-name { color: var(--blue); }
+    .tier-card p { font-size: 13px; color: var(--secondary); margin: 0; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+    @media (max-width: 900px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+      .tier-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/api-keys" class="btn-api">Get API Key →</a>
+    </div>
+  </nav>
+
+  <div class="page-wrap">
+    <main>
+      <article>
+        <div class="hero">
+          <span class="tag-chip">Wallet</span>
+          <h1>Wallet Architecture for <span>Production AI Agents</span></h1>
+          <div class="hero-meta">
+            <span>Purple Flea Engineering</span>
+            <span class="dot"></span>
+            <span>March 6, 2026</span>
+            <span class="dot"></span>
+            <span>26 min read</span>
+          </div>
+          <p class="hero-desc">
+            A complete technical guide to designing wallet infrastructure for AI agents: HD wallet derivation paths,
+            multi-chain address generation, hot/warm/cold key tiers, multi-sig patterns, address rotation, and a
+            production <code>AgentWallet</code> Python class backed by the Purple Flea wallet API.
+          </p>
+        </div>
+
+        <!-- SECTION 1 -->
+        <h2 id="hd-wallet">HD Wallet Structure: BIP32, BIP39, BIP44</h2>
+        <p>
+          Hierarchical Deterministic (HD) wallets are the backbone of modern crypto key management. Defined by
+          BIP32, they allow an entire tree of key pairs to be derived deterministically from a single 256-bit
+          master seed. Add BIP39 mnemonic encoding and BIP44 path conventions, and you have a portable, auditable,
+          multi-chain key management system in a single 12 or 24-word phrase.
+        </p>
+        <p>
+          The relationship between the standards:
+        </p>
+        <ul>
+          <li><strong>BIP39</strong>: Converts 128–256 bits of entropy into a human-readable mnemonic phrase (12–24 words). The mnemonic + optional passphrase derives a 512-bit seed via PBKDF2-HMAC-SHA512.</li>
+          <li><strong>BIP32</strong>: Takes the 512-bit seed, splits it with HMAC-SHA512 to create the master private key + chain code, then defines the math for child key derivation at each level of the tree.</li>
+          <li><strong>BIP44</strong>: Standardizes the path structure: <code>m / purpose' / coin_type' / account' / change / index</code>, where hardened levels (') are derivable only with the parent private key.</li>
+        </ul>
+
+        <div class="formula">
+          m / 44' / coin_type' / account' / change / address_index
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Chain</th><th>BIP44 coin_type</th><th>Example Path</th><th>Address Format</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Bitcoin</td><td>0'</td><td>m/44'/0'/0'/0/0</td><td>bc1q... (bech32)</td></tr>
+              <tr><td>Ethereum</td><td>60'</td><td>m/44'/60'/0'/0/0</td><td>0x... (EIP-55 checksum)</td></tr>
+              <tr><td>Tron</td><td>195'</td><td>m/44'/195'/0'/0/0</td><td>T... (base58check)</td></tr>
+              <tr><td>Solana</td><td>501'</td><td>m/44'/501'/0'/0'</td><td>Base58 (Ed25519 public key)</td></tr>
+              <tr><td>Cosmos</td><td>118'</td><td>m/44'/118'/0'/0/0</td><td>cosmos1... (bech32)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="child-key-derivation">Child Key Derivation Math</h3>
+        <p>
+          At each derivation step, BIP32 computes:
+        </p>
+        <div class="formula">
+          HMAC-SHA512(Key=parent_chain_code, Data=parent_pubkey || index) → 64 bytes
+        </div>
+        <p>
+          The left 32 bytes become the child key tweak (added mod n to the parent private key), and the right
+          32 bytes become the child chain code. Hardened derivation (index &ge; 2^31) uses the parent
+          <em>private</em> key as the HMAC data instead of the public key, preventing downward-exposure attacks
+          where a leaked child private key could compromise the parent.
+        </p>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">Security: Hardened vs Non-Hardened</div>
+          <p>Always use hardened derivation (<code>'</code>) for the purpose, coin_type, and account levels.
+          Non-hardened derivation at these levels means that leaking any child private key — plus the chain code —
+          allows an attacker to compute all sibling keys. The change and index levels are conventionally non-hardened
+          but are lower-risk since they don't expose the account level.</p>
+        </div>
+
+        <!-- SECTION 2 -->
+        <h2 id="multi-chain">Multi-Chain Address Derivation</h2>
+        <p>
+          An AI agent operating across multiple blockchains needs deterministic address generation for each chain
+          from a single master seed. The following Python code demonstrates derivation for the four most common
+          chains an agent encounters on Purple Flea.
+        </p>
+
+        <div class="code-label">python — multi-chain address derivation</div>
+        <pre><code>"""
+Multi-chain address derivation from a single BIP39 mnemonic.
+Requires: pip install mnemonic hdwallet eth-account base58
+"""
+from mnemonic import Mnemonic
+from hdwallet import BIP44HDWallet
+from hdwallet.cryptocurrencies import EthereumMainnet, BitcoinMainnet
+from eth_account import Account
+import hashlib, base58
+
+mnemo = Mnemonic("english")
+# Generate a fresh mnemonic — store this SECURELY (never log it)
+MNEMONIC = mnemo.generate(strength=256)  # 24 words
+
+def derive_ethereum(mnemonic: str, account: int = 0, index: int = 0) -> dict:
+    Account.enable_unaudited_hdwallet_features()
+    acct = Account.from_mnemonic(
+        mnemonic,
+        account_path=f"m/44'/60'/{account}'/0/{index}"
+    )
+    return {
+        "address": acct.address,   # EIP-55 checksummed
+        "private_key": acct.key.hex()
+    }
+
+def derive_tron(mnemonic: str, account: int = 0, index: int = 0) -> dict:
+    """Tron uses the same derivation as Ethereum path 195', same secp256k1 key."""
+    Account.enable_unaudited_hdwallet_features()
+    acct = Account.from_mnemonic(
+        mnemonic,
+        account_path=f"m/44'/195'/{account}'/0/{index}"
+    )
+    # Convert EVM address to Tron base58check format
+    evm_hex = acct.address[2:]  # strip '0x'
+    raw = bytes.fromhex("41" + evm_hex)
+    checksum = hashlib.sha256(hashlib.sha256(raw).digest()).digest()[:4]
+    tron_addr = base58.b58encode(raw + checksum).decode()
+    return {"address": tron_addr, "private_key": acct.key.hex()}
+
+def derive_bitcoin(mnemonic: str, account: int = 0, index: int = 0) -> dict:
+    wallet = BIP44HDWallet(cryptocurrency=BitcoinMainnet)
+    wallet.from_mnemonic(mnemonic=mnemonic, language="english")
+    wallet.clean_derivation()
+    wallet.from_path(f"m/44'/0'/{account}'/0/{index}")
+    return {
+        "address": wallet.address(),  # P2PKH (1xxx)
+        "private_key": wallet.private_key()
+    }
+
+# Example: derive first address on each chain
+eth  = derive_ethereum(MNEMONIC)
+tron = derive_tron(MNEMONIC)
+btc  = derive_bitcoin(MNEMONIC)
+
+print(f"ETH  : {eth['address']}")
+print(f"TRON : {tron['address']}")
+print(f"BTC  : {btc['address']}")</code></pre>
+
+        <!-- SECTION 3 -->
+        <h2 id="wallet-tiers">Hot, Warm, and Cold Wallet Tiers</h2>
+        <p>
+          A production agent needs a three-tier wallet architecture. Moving funds between tiers should be
+          auditable and policy-driven, not ad-hoc.
+        </p>
+
+        <div class="tier-grid">
+          <div class="tier-card hot">
+            <div class="tier-name">Hot Wallet</div>
+            <p>Private key in memory or ENV var. Signs transactions instantly. Holds only working capital (1–5% of total). Exposed to compromise if the process is exploited. Rotate addresses frequently.</p>
+          </div>
+          <div class="tier-card warm">
+            <div class="tier-name">Warm Wallet</div>
+            <p>Key encrypted at rest (AES-256-GCM). Loaded into memory only when signing. Holds medium-term operational reserves (10–30%). Requires a decryption key from a separate secret manager.</p>
+          </div>
+          <div class="tier-card cold">
+            <div class="tier-name">Cold Wallet</div>
+            <p>Hardware signer or air-gapped system. Never touches an internet-connected machine. Holds long-term reserves (65–90%). Manual approval required for any outbound transaction.</p>
+          </div>
+        </div>
+
+        <h3 id="sweep-policy">Automatic Sweep Policy</h3>
+        <p>
+          Agents should implement automatic sweep policies to keep the hot wallet balance within safe bounds:
+        </p>
+        <ul>
+          <li><strong>Upward sweep:</strong> When hot wallet exceeds the high-water mark (e.g., 5% of total AUM), sweep excess to warm wallet automatically.</li>
+          <li><strong>Downward sweep:</strong> When hot wallet falls below the low-water mark (e.g., 1%), request a refill from warm wallet (with 2-of-2 multi-sig approval in high-security deployments).</li>
+          <li><strong>Emergency drain:</strong> If the process detects anomalous behavior (unexpected transactions, unusual gas spend), drain the hot wallet to cold immediately.</li>
+        </ul>
+
+        <!-- SECTION 4 -->
+        <h2 id="key-management">Key Management Patterns</h2>
+        <p>
+          Key management is the hardest part of wallet architecture. The following patterns are ordered from
+          minimal to production-grade:
+        </p>
+
+        <h3 id="env-keys">Pattern 1: Environment Variables (Dev Only)</h3>
+        <p>
+          Suitable for development and testing. Never use in production with real funds.
+        </p>
+        <div class="code-label">python — env var key loading</div>
+        <pre><code>import os
+from eth_account import Account
+
+private_key = os.environ["AGENT_PRIVATE_KEY"]  # e.g., export AGENT_PRIVATE_KEY=0xabc...
+account = Account.from_key(private_key)
+print(f"Agent address: {account.address}")</code></pre>
+
+        <h3 id="encrypted-keystore">Pattern 2: Encrypted Keystore File</h3>
+        <p>
+          The Ethereum keystore format (EIP-55) encrypts the private key with a passphrase using scrypt + AES-128-CTR.
+          The passphrase itself should come from a secret manager at runtime.
+        </p>
+        <div class="code-label">python — create and load encrypted keystore</div>
+        <pre><code">import json, os
+from eth_account import Account
+
+def create_keystore(private_key: str, passphrase: str, path: str):
+    acct = Account.from_key(private_key)
+    encrypted = Account.encrypt(private_key, passphrase)
+    with open(path, "w") as f:
+        json.dump(encrypted, f, indent=2)
+    print(f"Keystore written to {path} for {acct.address}")
+
+def load_keystore(path: str, passphrase: str) -> Account:
+    with open(path) as f:
+        keystore = json.load(f)
+    private_key = Account.decrypt(keystore, passphrase)
+    return Account.from_key(private_key)
+
+# Usage
+PASSPHRASE = os.environ["KEYSTORE_PASSPHRASE"]  # from secret manager
+acct = load_keystore("/etc/agent/keystore.json", PASSPHRASE)
+print(f"Loaded wallet: {acct.address}")</code></pre>
+
+        <h3 id="secret-manager">Pattern 3: Cloud Secret Manager</h3>
+        <p>
+          For production agents running on cloud infrastructure, store the encrypted private key (or mnemonic)
+          in a dedicated secret manager (HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager). The agent
+          retrieves it at startup using its service identity — no secrets ever touch the filesystem or environment.
+        </p>
+
+        <!-- SECTION 5 -->
+        <h2 id="multisig">Multi-Sig for High-Value Agents</h2>
+        <p>
+          When an agent controls significant funds, multi-signature security becomes critical. Multi-sig means
+          a transaction requires M-of-N keys to sign before it is valid — no single key compromise can drain
+          the wallet.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Scheme</th><th>Threshold</th><th>Use Case</th><th>Tradeoff</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1-of-2</td><td>Any 1 of 2 keys</td><td>Redundancy (two backups)</td><td>No security benefit over single key</td></tr>
+              <tr><td>2-of-3</td><td>Any 2 of 3 keys</td><td>Standard operational security</td><td>1 key loss tolerated; 1 key compromise not enough</td></tr>
+              <tr><td>3-of-5</td><td>Any 3 of 5 keys</td><td>Institutional / large reserves</td><td>Very resilient; complex coordination</td></tr>
+              <tr><td>2-of-2</td><td>Both keys required</td><td>Human + agent co-signing</td><td>Human must approve every tx — high latency</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="threshold-signing">Threshold Signature Schemes (TSS)</h3>
+        <p>
+          Modern multi-sig avoids on-chain multi-sig contracts (which are visible and slightly more expensive)
+          by using <strong>Threshold Signature Schemes</strong>. TSS distributes key generation and signing
+          across multiple parties at the cryptographic level — the on-chain result looks like a regular
+          single-key transaction. Protocols like FROST (for Ed25519) and GG20 (for secp256k1) are the
+          state of the art.
+        </p>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Agent Multi-Sig Pattern</div>
+          <p>A common production pattern: the agent holds one TSS share (hot, can sign quickly), the operator
+          holds a second share (warm, available in minutes), and a hardware device holds a third (cold, requires
+          physical access). Routine transactions use agent + operator (2-of-3). Large transfers require all three.</p>
+        </div>
+
+        <!-- SECTION 6 -->
+        <h2 id="purple-flea-wallet-api">Purple Flea Wallet API Deep-Dive</h2>
+        <p>
+          The Purple Flea wallet API provides a complete managed wallet infrastructure. Agents don't need to
+          self-custody keys — they can delegate custody to Purple Flea and interact via API, retaining full
+          programmatic control.
+        </p>
+
+        <div class="code-label">python — check wallet balance</div>
+        <pre><code>import requests
+
+BASE = "https://purpleflea.com/api/v1"
+KEY  = "pf_live_&lt;your_key&gt;"
+HEADERS = {"X-API-Key": KEY}
+
+# Get balance for all supported chains
+resp = requests.get(f"{BASE}/wallet/balance", headers=HEADERS)
+balances = resp.json()["balances"]
+for asset in balances:
+    print(f"{asset['symbol']:10s}  {asset['amount']:>14.8f}  (${asset['usd_value']:.2f})")</code></pre>
+
+        <div class="code-label">python — get receive address</div>
+        <pre><code"># Get a fresh receive address (rotated automatically after use)
+resp = requests.get(
+    f"{BASE}/wallet/receive",
+    params={"chain": "ethereum", "asset": "USDC"},
+    headers=HEADERS
+)
+data = resp.json()
+print(f"Deposit address : {data['address']}")
+print(f"Chain           : {data['chain']}")
+print(f"Memo required   : {data['memo_required']}")
+if data["memo_required"]:
+    print(f"Memo            : {data['memo']}")</code></pre>
+
+        <div class="code-label">python — send a payment</div>
+        <pre><code># Send USDC on Ethereum
+send_body = {
+    "chain":     "ethereum",
+    "asset":     "USDC",
+    "to":        "0xRecipientAddressHere",
+    "amount":    "100.00",
+    "memo":      "payment for service #42",
+    "speed":     "standard"   # "slow" | "standard" | "fast"
+}
+resp = requests.post(
+    f"{BASE}/wallet/send",
+    json=send_body,
+    headers={**HEADERS, "Content-Type": "application/json"}
+)
+tx = resp.json()
+print(f"TX hash  : {tx['tx_hash']}")
+print(f"Fee paid : {tx['fee']} {tx['fee_asset']}")
+print(f"Status   : {tx['status']}")</code></pre>
+
+        <div class="code-label">python — transaction history</div>
+        <pre><code"># Paginated transaction history
+def get_history(chain: str = "all", limit: int = 50, cursor: str = None) -> list:
+    params = {"chain": chain, "limit": limit}
+    if cursor:
+        params["cursor"] = cursor
+    resp = requests.get(f"{BASE}/wallet/history", params=params, headers=HEADERS)
+    data = resp.json()
+    return data["transactions"], data.get("next_cursor")
+
+txns, cursor = get_history("ethereum", limit=20)
+for tx in txns:
+    direction = "IN " if tx["direction"] == "receive" else "OUT"
+    print(f"{direction}  {tx['amount']:>12s} {tx['asset']:6s}  {tx['timestamp'][:10]}  {tx['tx_hash'][:12]}...")</code></pre>
+
+        <!-- SECTION 7 -->
+        <h2 id="address-rotation">Address Rotation Strategies</h2>
+        <p>
+          Using the same receive address indefinitely creates privacy risks and makes on-chain activity trivially
+          linkable. Address rotation strategies mitigate this:
+        </p>
+        <ul>
+          <li><strong>Per-transaction rotation:</strong> Generate a new BIP44 address for every incoming payment (incrementing the index). Most privacy-preserving but requires tracking all used addresses.</li>
+          <li><strong>Time-based rotation:</strong> Rotate addresses on a schedule (daily, weekly). Easier to manage, moderate privacy improvement.</li>
+          <li><strong>Stealth addresses:</strong> Using ECDH, generate a one-time address for each payer that only you can link to your master key. Full sender-receiver unlinkability on-chain (supported on Monero natively, EIP-5564 for Ethereum).</li>
+        </ul>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Purple Flea Auto-Rotation</div>
+          <p>The <code>/wallet/receive</code> endpoint automatically rotates addresses after each confirmed
+          inbound transaction. Agents can also request a fresh address explicitly by passing
+          <code>force_new=true</code> as a query parameter.</p>
+        </div>
+
+        <!-- SECTION 8 -->
+        <h2 id="agent-wallet-class">Production AgentWallet Class</h2>
+        <p>
+          The following <code>AgentWallet</code> class provides a complete abstraction over the Purple Flea
+          wallet API with retry logic, balance caching, transaction confirmation polling, and sweep policy
+          enforcement.
+        </p>
+
+        <div class="code-label">python — production AgentWallet class</div>
+        <pre><code">"""
+AgentWallet: Production-grade wallet abstraction for AI agents.
+Wraps the Purple Flea wallet API with caching, retries, and sweep logic.
+"""
+import time, logging, requests
+from dataclasses import dataclass, field
+from typing import Optional
+from functools import cached_property
+
+log = logging.getLogger("agent-wallet")
+BASE = "https://purpleflea.com/api/v1"
+
+@dataclass
+class WalletConfig:
+    api_key: str
+    hot_max_usd: float = 500.0     # Sweep above this
+    hot_min_usd: float = 50.0      # Refill below this
+    refill_amount_usd: float = 200.0
+    cache_ttl_seconds: int = 300   # 5 min balance cache
+    max_retries: int = 3
+    retry_delay: float = 2.0
+
+class AgentWallet:
+    def __init__(self, config: WalletConfig):
+        self.cfg = config
+        self._session = requests.Session()
+        self._session.headers.update({"X-API-Key": config.api_key})
+        self._balance_cache: dict = {}
+        self._cache_time: float = 0.0
+
+    def _request(self, method: str, path: str, **kwargs) -> dict:
+        url = f"{BASE}{path}"
+        for attempt in range(self.cfg.max_retries):
+            try:
+                r = self._session.request(method, url, **kwargs)
+                r.raise_for_status()
+                return r.json()
+            except requests.RequestException as e:
+                if attempt == self.cfg.max_retries - 1:
+                    raise
+                log.warning(f"Request failed (attempt {attempt+1}): {e}. Retrying...")
+                time.sleep(self.cfg.retry_delay * (attempt + 1))
+
+    def get_balances(self, force: bool = False) -> dict:
+        """Return dict of asset -> float balance, with caching."""
+        now = time.time()
+        if not force and (now - self._cache_time) < self.cfg.cache_ttl_seconds:
+            return self._balance_cache
+        data = self._request("GET", "/wallet/balance")
+        self._balance_cache = {b["symbol"]: float(b["amount"]) for b in data["balances"]}
+        self._cache_time = now
+        return self._balance_cache
+
+    def get_balance(self, asset: str, force: bool = False) -> float:
+        return self.get_balances(force).get(asset, 0.0)
+
+    def get_usd_value(self) -> float:
+        data = self._request("GET", "/wallet/balance")
+        return sum(float(b["usd_value"]) for b in data["balances"])
+
+    def get_receive_address(self, chain: str = "ethereum",
+                            asset: str = "USDC", force_new: bool = False) -> dict:
+        params = {"chain": chain, "asset": asset}
+        if force_new:
+            params["force_new"] = "true"
+        return self._request("GET", "/wallet/receive", params=params)
+
+    def send(self, chain: str, asset: str, to: str,
+             amount: str, memo: str = "", speed: str = "standard") -> dict:
+        body = {"chain": chain, "asset": asset, "to": to,
+                "amount": amount, "memo": memo, "speed": speed}
+        result = self._request("POST", "/wallet/send", json=body)
+        # Invalidate balance cache after send
+        self._cache_time = 0.0
+        log.info(f"Sent {amount} {asset} to {to}: tx={result.get('tx_hash', 'pending')}")
+        return result
+
+    def wait_for_confirmation(self, tx_hash: str, chain: str,
+                               timeout: int = 300, poll: int = 10) -> dict:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            data = self._request("GET", f"/wallet/tx/{tx_hash}", params={"chain": chain})
+            status = data.get("status")
+            if status == "confirmed":
+                log.info(f"TX {tx_hash} confirmed at block {data.get('block_number')}")
+                return data
+            elif status == "failed":
+                raise RuntimeError(f"Transaction {tx_hash} failed on-chain")
+            time.sleep(poll)
+        raise TimeoutError(f"TX {tx_hash} not confirmed within {timeout}s")
+
+    def enforce_sweep_policy(self, hot_asset: str = "USDC",
+                              warm_address: str = None) -> Optional[dict]:
+        """Sweep hot wallet if above high-water mark; alert if below low-water mark."""
+        if warm_address is None:
+            log.warning("No warm_address configured — skipping sweep policy")
+            return None
+        usd_value = self.get_usd_value()
+        if usd_value > self.cfg.hot_max_usd:
+            excess = usd_value - self.cfg.hot_max_usd
+            log.info(f"Hot wallet ${usd_value:.2f} > max ${self.cfg.hot_max_usd:.2f}. Sweeping ${excess:.2f}.")
+            # Get precise balance for sweep asset
+            balance = self.get_balance(hot_asset, force=True)
+            # Convert excess USD to asset units (approximate)
+            price_resp = self._request("GET", "/market/price", params={"symbol": f"{hot_asset}/USD"})
+            price = float(price_resp.get("price", 1.0))  # USDC/USD ≈ 1.0
+            sweep_amount = str(round(excess / price, 6))
+            return self.send("ethereum", hot_asset, warm_address, sweep_amount, memo="auto-sweep")
+        elif usd_value < self.cfg.hot_min_usd:
+            log.warning(f"Hot wallet ${usd_value:.2f} < min ${self.cfg.hot_min_usd:.2f}! Refill needed.")
+        return None
+
+    def get_history(self, chain: str = "all", limit: int = 50) -> list:
+        data = self._request("GET", "/wallet/history", params={"chain": chain, "limit": limit})
+        return data.get("transactions", [])
+
+
+# ── Usage Example ────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import os
+    cfg = WalletConfig(
+        api_key=os.environ.get("PURPLEFLEA_API_KEY", "pf_live_&lt;your_key&gt;"),
+        hot_max_usd=500.0,
+        hot_min_usd=50.0,
+        cache_ttl_seconds=300,
+    )
+    wallet = AgentWallet(cfg)
+
+    balances = wallet.get_balances()
+    print("Current balances:", balances)
+
+    addr = wallet.get_receive_address(chain="ethereum", asset="USDC")
+    print(f"Receive address: {addr['address']}")
+
+    # Enforce sweep policy (sweeps to warm wallet if hot wallet is too large)
+    WARM_ADDR = os.environ.get("WARM_WALLET_ADDRESS")
+    if WARM_ADDR:
+        wallet.enforce_sweep_policy(hot_asset="USDC", warm_address=WARM_ADDR)
+</code></pre>
+
+        <!-- SECTION 9 -->
+        <h2 id="summary">Security Checklist for Agent Wallets</h2>
+        <p>
+          Before deploying a production agent with real funds, validate each item:
+        </p>
+        <ul>
+          <li>Never log private keys, mnemonics, or passphrases — even in debug mode</li>
+          <li>Use hardened BIP44 paths for account/coin_type derivation levels</li>
+          <li>Store encrypted keystores with scrypt/Argon2 KDF — never plaintext</li>
+          <li>Implement a hot-wallet balance cap and automatic sweep to warm wallet</li>
+          <li>Enable 2-of-3 multi-sig for warm and cold tiers</li>
+          <li>Rotate hot wallet addresses on every inbound transaction</li>
+          <li>Monitor for unexpected outbound transactions with real-time alerting</li>
+          <li>Maintain a transaction log with full audit trail (hash, amount, fee, timestamp)</li>
+          <li>Set withdrawal rate limits per time window at the API layer</li>
+          <li>Test emergency drain procedure quarterly — it must work when you need it most</li>
+        </ul>
+
+        <div class="callout callout-success">
+          <div class="callout-title">Purple Flea Managed Wallets</div>
+          <p>Skip the key management complexity. Purple Flea's managed wallet API handles custody, address rotation,
+          and sweep policies automatically. Get started at <a href="/api-keys">purpleflea.com/api-keys</a>.
+          New agents can claim free funds at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a>.</p>
+        </div>
+
+        <hr />
+        <p style="color: var(--secondary); font-size: 14px;">
+          Related: <a href="/blog/agent-perpetuals-guide/">Perpetual Futures Guide for AI Agents</a> ·
+          <a href="/blog/agent-regime-detection/">Market Regime Detection for AI Agents</a> ·
+          <a href="/blog/agent-register-tutorial/">Agent Registration Tutorial</a>
+        </p>
+      </article>
+    </main>
+
+    <aside>
+      <nav class="toc-sidebar">
+        <div class="toc-title">On This Page</div>
+        <ul class="toc-list">
+          <li><a href="#hd-wallet">HD Wallet: BIP32/39/44</a></li>
+          <li class="toc-h3"><a href="#child-key-derivation">Child Key Derivation</a></li>
+          <li><a href="#multi-chain">Multi-Chain Derivation</a></li>
+          <li><a href="#wallet-tiers">Hot / Warm / Cold Tiers</a></li>
+          <li class="toc-h3"><a href="#sweep-policy">Sweep Policy</a></li>
+          <li><a href="#key-management">Key Management Patterns</a></li>
+          <li class="toc-h3"><a href="#env-keys">Env Var Pattern</a></li>
+          <li class="toc-h3"><a href="#encrypted-keystore">Encrypted Keystore</a></li>
+          <li class="toc-h3"><a href="#secret-manager">Secret Manager</a></li>
+          <li><a href="#multisig">Multi-Sig</a></li>
+          <li class="toc-h3"><a href="#threshold-signing">TSS</a></li>
+          <li><a href="#purple-flea-wallet-api">PF Wallet API</a></li>
+          <li><a href="#address-rotation">Address Rotation</a></li>
+          <li><a href="#agent-wallet-class">AgentWallet Class</a></li>
+          <li><a href="#summary">Security Checklist</a></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (window.scrollY / total * 100) + '%';
+    });
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+        if (link) link.classList.toggle('active', e.isIntersecting);
+      });
+    }, { rootMargin: '-20% 0px -75% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
