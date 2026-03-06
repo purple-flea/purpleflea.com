@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hardware &amp; Infrastructure for Running AI Agent Fleets in 2026 | Purple Flea</title>
+  <meta name="description" content="What hardware and cloud infrastructure do you need to run profitable AI agent fleets? CPU vs GPU, VPS options, memory requirements, networking, and scaling from 1 to 100 agents." />
+  <meta property="og:title" content="Hardware &amp; Infrastructure for Running AI Agent Fleets in 2026" />
+  <meta property="og:description" content="A practical guide to infrastructure for AI agent fleets: VPS selection, memory budgets, networking, Docker + PM2 deployment, and monthly opex models." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/ai-agent-hardware-infrastructure/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/ai-agent-hardware-infrastructure/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Hardware & Infrastructure for Running AI Agent Fleets in 2026",
+    "description": "What hardware and cloud infrastructure do you need to run profitable AI agent fleets? CPU vs GPU, VPS options, memory requirements, networking, and scaling from 1 to 100 agents.",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/ai-agent-hardware-infrastructure/",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/ai-agent-hardware-infrastructure/"
+    },
+    "keywords": ["AI agents", "infrastructure", "VPS", "Docker", "PM2", "fleet management", "hardware", "cloud", "2026"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --orange: #F97316;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    /* Reading progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 2rem; }
+    .nav-links a {
+      color: var(--secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Layout */
+    .page-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    /* Sidebar TOC */
+    .toc {
+      position: sticky;
+      top: 80px;
+      font-size: 0.82rem;
+    }
+    .toc-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--secondary);
+      margin-bottom: 0.75rem;
+    }
+    .toc ol { list-style: none; padding: 0; counter-reset: toc; }
+    .toc li { counter-increment: toc; margin-bottom: 0.4rem; }
+    .toc a {
+      color: var(--secondary);
+      text-decoration: none;
+      display: flex;
+      gap: 0.5rem;
+      transition: color 0.2s;
+      line-height: 1.4;
+    }
+    .toc a::before {
+      content: counter(toc) ".";
+      color: var(--accent);
+      font-family: var(--mono);
+      min-width: 1.4rem;
+      font-size: 0.75rem;
+    }
+    .toc a:hover { color: var(--text); }
+
+    /* Article */
+    article { min-width: 0; }
+    .post-meta {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .tag {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      background: rgba(168,85,247,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(168,85,247,0.3);
+    }
+    .tag.blue { background: rgba(59,130,246,0.12); color: var(--blue); border-color: rgba(59,130,246,0.25); }
+    .tag.orange { background: rgba(249,115,22,0.12); color: var(--orange); border-color: rgba(249,115,22,0.25); }
+    .post-date { color: var(--secondary); font-size: 0.85rem; }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--secondary);
+      margin-bottom: 2.5rem;
+      line-height: 1.6;
+    }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 3rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 80px;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: var(--text);
+    }
+    p { margin-bottom: 1.2rem; color: #D4D4D8; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.2rem;
+      color: #D4D4D8;
+    }
+    li { margin-bottom: 0.4rem; }
+
+    /* Code */
+    pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: var(--mono);
+      font-size: 0.83rem;
+      line-height: 1.6;
+    }
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: rgba(168,85,247,0.1);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      color: #C4B5FD;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      color: #E2E8F0;
+    }
+    .comment { color: #6B7280; }
+    .kw { color: #C084FC; }
+    .str { color: #86EFAC; }
+    .num { color: #FCA5A5; }
+    .fn { color: #67E8F9; }
+    .punct { color: #94A3B8; }
+
+    /* Tables */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.87rem;
+    }
+    th {
+      background: #111113;
+      text-align: left;
+      padding: 0.6rem 1rem;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid rgba(39,39,42,0.5);
+      color: #D4D4D8;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(168,85,247,0.04); }
+    .good { color: var(--green); font-weight: 600; }
+    .ok { color: var(--yellow); font-weight: 600; }
+    .bad { color: var(--red); font-weight: 600; }
+    .best {
+      background: rgba(168,85,247,0.07);
+    }
+    .best td { color: var(--text); }
+
+    /* Callout boxes */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(168,85,247,0.07);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.yellow { border-color: var(--yellow); background: rgba(234,179,8,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+    .callout .callout-label { color: var(--accent); }
+    .callout.green .callout-label { color: var(--green); }
+    .callout.yellow .callout-label { color: var(--yellow); }
+    .callout.red .callout-label { color: var(--red); }
+    .callout.blue .callout-label { color: var(--blue); }
+    .callout p { color: #D4D4D8; margin: 0; }
+
+    /* Spec cards */
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .spec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .spec-card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--secondary);
+      margin-bottom: 0.75rem;
+    }
+    .spec-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.84rem;
+      margin-bottom: 0.35rem;
+    }
+    .spec-key { color: var(--secondary); }
+    .spec-val { color: var(--text); font-family: var(--mono); font-weight: 500; }
+
+    /* Cost breakdown */
+    .cost-bar-wrap { margin: 0.5rem 0 1.5rem; }
+    .cost-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .cost-label { width: 140px; color: var(--secondary); flex-shrink: 0; }
+    .cost-bar-bg {
+      flex: 1;
+      height: 8px;
+      background: rgba(39,39,42,0.8);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .cost-bar { height: 100%; border-radius: 4px; background: var(--accent); }
+    .cost-amount { width: 60px; text-align: right; color: var(--text); font-family: var(--mono); font-size: 0.82rem; }
+
+    /* CTA */
+    .cta-block {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.06));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+    .cta-block h3 { margin-top: 0; color: var(--text); }
+    .btn {
+      display: inline-block;
+      padding: 0.65rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; text-decoration: none; }
+    .btn-outline {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(168,85,247,0.4);
+      margin-left: 0.75rem;
+    }
+    .btn-outline:hover { background: rgba(168,85,247,0.1); text-decoration: none; }
+
+    /* Footer */
+    footer {
+      margin-top: 5rem;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .toc { display: none; }
+      .spec-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/">&#x1F7E3; Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <!-- TOC Sidebar -->
+  <aside class="toc">
+    <div class="toc-title">Contents</div>
+    <ol>
+      <li><a href="#single-vs-fleet">Single Agent vs. Fleet</a></li>
+      <li><a href="#cpu-vs-gpu">CPU vs. GPU</a></li>
+      <li><a href="#vps-options">VPS Options Compared</a></li>
+      <li><a href="#latency">Latency &amp; Location</a></li>
+      <li><a href="#memory">Memory Requirements</a></li>
+      <li><a href="#storage">Storage &amp; Logging</a></li>
+      <li><a href="#networking">Networking</a></li>
+      <li><a href="#opex">Monthly OpEx Budget</a></li>
+      <li><a href="#scaling">Scaling 1 to 100 Agents</a></li>
+      <li><a href="#iac">IaC: Docker + PM2</a></li>
+    </ol>
+  </aside>
+
+  <!-- Main Article -->
+  <article>
+    <div class="post-meta">
+      <span class="tag">Infrastructure</span>
+      <span class="tag blue">Guide</span>
+      <span class="tag orange">2026</span>
+      <time class="post-date" datetime="2026-03-06">March 6, 2026</time>
+      <span class="post-date">&#x23; 16 min read</span>
+    </div>
+
+    <h1>Hardware &amp; Infrastructure for Running AI Agent Fleets in 2026</h1>
+
+    <p class="subtitle">
+      Running one agent is a weekend project. Running a profitable fleet of 10, 50, or
+      100 agents across Purple Flea's 6 services is an engineering challenge. This guide
+      gives you the hardware specs, VPS comparisons, networking requirements, and full
+      Docker + PM2 deployment templates to do it right.
+    </p>
+
+    <!-- Section 1 -->
+    <h2 id="single-vs-fleet">1. Single Agent vs. Fleet Requirements</h2>
+
+    <p>
+      The difference between running one agent and a fleet is not just arithmetic.
+      Fleets introduce coordination overhead, shared resource contention, and failure
+      modes that do not exist at the single-agent level. Plan your infrastructure for
+      the fleet you want to run in 6 months, not for today's single prototype.
+    </p>
+
+    <div class="spec-grid">
+      <div class="spec-card">
+        <div class="spec-card-title">Single Agent</div>
+        <div class="spec-row"><span class="spec-key">CPU</span><span class="spec-val">1 vCPU</span></div>
+        <div class="spec-row"><span class="spec-key">RAM</span><span class="spec-val">512 MB</span></div>
+        <div class="spec-row"><span class="spec-key">Storage</span><span class="spec-val">10 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Network</span><span class="spec-val">100 Mbps</span></div>
+        <div class="spec-row"><span class="spec-key">Monthly</span><span class="spec-val">~$4</span></div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">10-Agent Fleet</div>
+        <div class="spec-row"><span class="spec-key">CPU</span><span class="spec-val">4 vCPU</span></div>
+        <div class="spec-row"><span class="spec-key">RAM</span><span class="spec-val">8 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Storage</span><span class="spec-val">80 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Network</span><span class="spec-val">1 Gbps</span></div>
+        <div class="spec-row"><span class="spec-key">Monthly</span><span class="spec-val">~$25</span></div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">50-Agent Fleet</div>
+        <div class="spec-row"><span class="spec-key">CPU</span><span class="spec-val">16 vCPU</span></div>
+        <div class="spec-row"><span class="spec-key">RAM</span><span class="spec-val">32 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Storage</span><span class="spec-val">300 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Network</span><span class="spec-val">10 Gbps</span></div>
+        <div class="spec-row"><span class="spec-key">Monthly</span><span class="spec-val">~$120</span></div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">100-Agent Fleet</div>
+        <div class="spec-row"><span class="spec-key">CPU</span><span class="spec-val">32+ vCPU</span></div>
+        <div class="spec-row"><span class="spec-key">RAM</span><span class="spec-val">64 GB</span></div>
+        <div class="spec-row"><span class="spec-key">Storage</span><span class="spec-val">1 TB</span></div>
+        <div class="spec-row"><span class="spec-key">Network</span><span class="spec-val">10 Gbps</span></div>
+        <div class="spec-row"><span class="spec-key">Monthly</span><span class="spec-val">~$300</span></div>
+      </div>
+    </div>
+
+    <p>
+      These are rough starting points. Actual requirements depend heavily on whether your
+      agents use local LLM inference or call external APIs (see Section 2), and on how
+      often they poll for state updates.
+    </p>
+
+    <!-- Section 2 -->
+    <h2 id="cpu-vs-gpu">2. CPU vs. GPU Considerations</h2>
+
+    <p>
+      Most AI agents in 2026 do not run their LLM inference locally. They call external
+      inference APIs (Claude, GPT-4, Gemini, Llama via Groq/Fireworks) and use local
+      compute only for orchestration, state management, and API calls. In that case,
+      <strong>CPU-only VPS instances are almost always the right choice</strong>.
+    </p>
+
+    <h3>When You Actually Need a GPU</h3>
+
+    <ul>
+      <li>Local model inference for privacy-sensitive decision making (private keys, wallet state)</li>
+      <li>Embedding generation at high throughput (&gt;10,000 vectors/hour)</li>
+      <li>Running open-weight models locally to avoid per-token API costs at &gt;10M tokens/day</li>
+      <li>Real-time image/audio processing as agent input signals</li>
+    </ul>
+
+    <h3>CPU vs. GPU Cost Comparison for 2026</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Setup</th>
+            <th>Monthly Cost</th>
+            <th>Inference Throughput</th>
+            <th>Best For</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>2 vCPU / 4 GB RAM (API-only agents)</td>
+            <td class="good">$6</td>
+            <td>N/A (API calls)</td>
+            <td>Most Purple Flea agents</td>
+          </tr>
+          <tr>
+            <td>8 vCPU / 16 GB RAM (orchestration)</td>
+            <td class="good">$40</td>
+            <td>N/A</td>
+            <td>Fleet coordinator process</td>
+          </tr>
+          <tr>
+            <td>A10G 24 GB GPU (Lambda Labs)</td>
+            <td class="ok">$370</td>
+            <td>~8 tok/s (70B model)</td>
+            <td>Local inference &gt;10M tok/day</td>
+          </tr>
+          <tr>
+            <td>A100 80 GB GPU (Lambda Labs)</td>
+            <td class="bad">$1,290</td>
+            <td>~25 tok/s (70B model)</td>
+            <td>High-throughput inference</td>
+          </tr>
+          <tr>
+            <td>Groq API (external LLaMA 3 70B)</td>
+            <td>$0 + $0.59/M tok</td>
+            <td>500+ tok/s</td>
+            <td>Bursty, low-average-volume agents</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout blue">
+      <div class="callout-label">Recommendation</div>
+      <p>
+        For Purple Flea agents, use external inference APIs until you exceed 5M tokens/day.
+        At that point, a dedicated A10G GPU becomes cost-competitive. Below 5M tokens/day,
+        Groq or Fireworks API is cheaper and eliminates infrastructure overhead.
+      </p>
+    </div>
+
+    <!-- Section 3 -->
+    <h2 id="vps-options">3. VPS Options: Cost/Performance Comparison</h2>
+
+    <p>
+      In 2026 the VPS market has consolidated around a handful of providers that dominate
+      on price-performance. Here is a direct comparison for the typical agent fleet workload
+      (mostly network I/O, moderate CPU, low memory per agent).
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Plan</th>
+            <th>CPU</th>
+            <th>RAM</th>
+            <th>Storage</th>
+            <th>Bandwidth</th>
+            <th>Price/mo</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="best">
+            <td><strong>Hetzner</strong></td>
+            <td>CX22</td>
+            <td>2 vCPU</td>
+            <td>4 GB</td>
+            <td>40 GB</td>
+            <td>20 TB</td>
+            <td class="good">$4.15</td>
+            <td class="good">Best value</td>
+          </tr>
+          <tr class="best">
+            <td><strong>Hetzner</strong></td>
+            <td>CPX41</td>
+            <td>8 vCPU</td>
+            <td>16 GB</td>
+            <td>240 GB</td>
+            <td>20 TB</td>
+            <td class="good">$25</td>
+            <td class="good">Fleet of 20</td>
+          </tr>
+          <tr>
+            <td>DigitalOcean</td>
+            <td>Basic 2 vCPU</td>
+            <td>2 vCPU</td>
+            <td>4 GB</td>
+            <td>80 GB</td>
+            <td>4 TB</td>
+            <td class="ok">$24</td>
+            <td class="ok">Good UX</td>
+          </tr>
+          <tr>
+            <td>DigitalOcean</td>
+            <td>CPU-Opt 8c</td>
+            <td>8 vCPU</td>
+            <td>16 GB</td>
+            <td>100 GB</td>
+            <td>6 TB</td>
+            <td class="ok">$144</td>
+            <td class="ok">Pricey</td>
+          </tr>
+          <tr>
+            <td>fly.io</td>
+            <td>shared-cpu-2x</td>
+            <td>2 shared</td>
+            <td>512 MB</td>
+            <td>—</td>
+            <td>160 GB</td>
+            <td class="ok">$7</td>
+            <td class="ok">Auto-scale</td>
+          </tr>
+          <tr>
+            <td>AWS</td>
+            <td>t3.medium</td>
+            <td>2 vCPU</td>
+            <td>4 GB</td>
+            <td>20 GB EBS</td>
+            <td>Pay/GB</td>
+            <td class="bad">$33</td>
+            <td class="ok">Enterprise SLA</td>
+          </tr>
+          <tr>
+            <td>AWS</td>
+            <td>c6i.xlarge</td>
+            <td>4 vCPU</td>
+            <td>8 GB</td>
+            <td>—</td>
+            <td>Pay/GB</td>
+            <td class="bad">$122</td>
+            <td class="ok">High perf</td>
+          </tr>
+          <tr>
+            <td>Contabo</td>
+            <td>VPS S</td>
+            <td>4 vCPU</td>
+            <td>8 GB</td>
+            <td>200 GB</td>
+            <td>32 TB</td>
+            <td class="good">$7</td>
+            <td class="ok">Cheap, slower</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      For most agent fleet operators, <strong>Hetzner is the clear winner</strong>:
+      European data centers, 20 TB egress included, dedicated vCPUs, and the best
+      price-performance in the market. The only downside is Hetzner's servers are
+      located in Europe and Ashburn, VA — see Section 4 on latency.
+    </p>
+
+    <!-- Section 4 -->
+    <h2 id="latency">4. Latency Matters: Server Location vs. Purple Flea</h2>
+
+    <p>
+      Purple Flea's API servers are hosted in Frankfurt, Germany (primary) with a
+      secondary endpoint in Singapore. For latency-sensitive operations like trading
+      order placement, network round-trip time directly affects your fill price.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Your Server Location</th>
+            <th>Avg Latency to Frankfurt API</th>
+            <th>Impact on Trading</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frankfurt / Nuremberg (Hetzner EU)</td>
+            <td class="good">&lt; 5 ms</td>
+            <td>Minimal slippage</td>
+          </tr>
+          <tr>
+            <td>Amsterdam / Paris</td>
+            <td class="good">8–15 ms</td>
+            <td>Negligible for non-HFT</td>
+          </tr>
+          <tr>
+            <td>London</td>
+            <td class="ok">15–25 ms</td>
+            <td>Acceptable</td>
+          </tr>
+          <tr>
+            <td>US East (Ashburn)</td>
+            <td class="ok">80–110 ms</td>
+            <td>Fine for swing strategies</td>
+          </tr>
+          <tr>
+            <td>US West (Oregon)</td>
+            <td class="ok">150–180 ms</td>
+            <td>Not for time-sensitive ops</td>
+          </tr>
+          <tr>
+            <td>Asia (Singapore)</td>
+            <td class="ok">160–200 ms</td>
+            <td>Use Singapore endpoint</td>
+          </tr>
+          <tr>
+            <td>Australia (Sydney)</td>
+            <td class="bad">250–300 ms</td>
+            <td>Use Singapore endpoint</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout yellow">
+      <div class="callout-label">Latency Tip</div>
+      <p>
+        For casino and referral bots, latency is irrelevant — decisions are made on
+        second or minute timescales. For trading agents executing momentum strategies,
+        even 100 ms matters. Co-locate with the exchange: Hetzner Nuremberg or Helsinki
+        for EU agents.
+      </p>
+    </div>
+
+    <h3>Measuring Your Actual Latency</h3>
+
+    <pre><code><span class="kw">import</span> time
+<span class="kw">import</span> requests
+<span class="kw">import</span> statistics
+
+<span class="kw">def</span> <span class="fn">measure_api_latency</span>(
+    endpoint: str = <span class="str">"https://purpleflea.com/api/v1/ping"</span>,
+    samples: int = <span class="num">20</span>
+) -> dict:
+    latencies = []
+    <span class="kw">for</span> _ <span class="kw">in</span> range(samples):
+        t0 = time.perf_counter()
+        requests.get(endpoint, timeout=<span class="num">5</span>)
+        t1 = time.perf_counter()
+        latencies.append((t1 - t0) * <span class="num">1000</span>)  <span class="comment"># ms</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"min_ms"</span>: round(min(latencies), <span class="num">2</span>),
+        <span class="str">"mean_ms"</span>: round(statistics.mean(latencies), <span class="num">2</span>),
+        <span class="str">"p95_ms"</span>: round(sorted(latencies)[int(samples * <span class="num">0.95</span>)], <span class="num">2</span>),
+        <span class="str">"max_ms"</span>: round(max(latencies), <span class="num">2</span>),
+        <span class="str">"samples"</span>: samples,
+    }
+
+results = measure_api_latency()
+print(f<span class="str">"API Latency: mean={results['mean_ms']}ms p95={results['p95_ms']}ms"</span>)</code></pre>
+
+    <!-- Section 5 -->
+    <h2 id="memory">5. Memory Requirements by Agent Type</h2>
+
+    <p>
+      Memory is typically the binding constraint, not CPU. Each agent process consumes
+      a baseline of memory for the runtime, plus variable amounts depending on what
+      state it maintains in RAM.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Agent Type</th>
+            <th>Base RAM</th>
+            <th>Per-Agent Peak</th>
+            <th>Why More / Less</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Referral bot (Node.js)</td>
+            <td>80 MB</td>
+            <td class="good">120 MB</td>
+            <td>Stateless HTTP calls, minimal state</td>
+          </tr>
+          <tr>
+            <td>Faucet claimer</td>
+            <td>80 MB</td>
+            <td class="good">100 MB</td>
+            <td>One-shot operation, very low memory</td>
+          </tr>
+          <tr>
+            <td>Casino strategy bot (Python)</td>
+            <td>120 MB</td>
+            <td class="ok">200 MB</td>
+            <td>Game state history, Kelly calculations</td>
+          </tr>
+          <tr>
+            <td>Trading bot (Python)</td>
+            <td>200 MB</td>
+            <td class="ok">500 MB</td>
+            <td>Order book state, price history, position tracking</td>
+          </tr>
+          <tr>
+            <td>Trading bot with local ML model</td>
+            <td>500 MB</td>
+            <td class="bad">2–4 GB</td>
+            <td>Model weights loaded into RAM</td>
+          </tr>
+          <tr>
+            <td>Fleet coordinator (Python)</td>
+            <td>150 MB</td>
+            <td class="ok">400 MB</td>
+            <td>Tracks state of all agents in fleet</td>
+          </tr>
+          <tr>
+            <td>Escrow arbitration bot</td>
+            <td>100 MB</td>
+            <td class="ok">180 MB</td>
+            <td>Dispute resolution logic, transaction log</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      With these figures, a 4 GB RAM VPS comfortably runs 15–20 simple referral/casino
+      bots, or 8–10 trading bots, leaving headroom for the OS and fleet coordinator.
+    </p>
+
+    <!-- Section 6 -->
+    <h2 id="storage">6. Storage: Logging, Database, and Model Weights</h2>
+
+    <p>
+      Storage requirements are dominated by logs and databases in most agent deployments.
+      Model weights only matter if you run local inference (see Section 2).
+    </p>
+
+    <h3>Storage Budget Per Agent Per Month</h3>
+
+    <div class="cost-bar-wrap">
+      <div class="cost-row">
+        <div class="cost-label">Transaction logs</div>
+        <div class="cost-bar-bg"><div class="cost-bar" style="width: 45%;"></div></div>
+        <div class="cost-amount">~450 MB</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">SQLite state DB</div>
+        <div class="cost-bar-bg"><div class="cost-bar" style="width: 20%; background: var(--blue);"></div></div>
+        <div class="cost-amount">~200 MB</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Error/debug logs</div>
+        <div class="cost-bar-bg"><div class="cost-bar" style="width: 15%; background: var(--yellow);"></div></div>
+        <div class="cost-amount">~150 MB</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">OS + runtime</div>
+        <div class="cost-bar-bg"><div class="cost-bar" style="width: 10%; background: var(--secondary);"></div></div>
+        <div class="cost-amount">~5 GB fixed</div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-label">Backups (7-day)</div>
+        <div class="cost-bar-bg"><div class="cost-bar" style="width: 8%; background: var(--green);"></div></div>
+        <div class="cost-amount">~500 MB</div>
+      </div>
+    </div>
+
+    <h3>Log Rotation Configuration</h3>
+
+    <pre><code><span class="comment"># /etc/logrotate.d/purpleflea-agents</span>
+/var/log/agents/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    maxsize 100M
+    postrotate
+        pm2 reloadLogs
+    endscript
+}</code></pre>
+
+    <h3>SQLite vs. PostgreSQL for Agent State</h3>
+
+    <p>
+      For fleets under 50 agents, SQLite is the right choice: zero infrastructure,
+      file-based, and trivially backed up. At 50+ agents with concurrent writes,
+      consider PostgreSQL on the same host (not a managed service — the added latency
+      hurts and the cost multiplies).
+    </p>
+
+    <!-- Section 7 -->
+    <h2 id="networking">7. Networking: Rate Limit Headroom and Connection Pooling</h2>
+
+    <p>
+      Purple Flea's API rate limits are per API key. Running a fleet means either:
+    </p>
+    <ol>
+      <li>One API key per agent (cleanest, best isolation)</li>
+      <li>One shared key with a local rate-limiting proxy (more complex, cheaper)</li>
+    </ol>
+
+    <h3>Rate Limit Architecture for Fleets</h3>
+
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+<span class="kw">from</span> asyncio <span class="kw">import</span> Semaphore
+
+<span class="kw">class</span> <span class="fn">RateLimitedSession</span>:
+    <span class="str">"""
+    Shared HTTP session with rate limiting for an agent fleet.
+    Prevents hitting Purple Flea's per-key rate limits.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        api_key: str,
+        requests_per_second: int = <span class="num">10</span>,
+        max_connections: int = <span class="num">20</span>
+    ):
+        self.api_key = api_key
+        self.semaphore = Semaphore(requests_per_second)
+        connector = aiohttp.TCPConnector(
+            limit=max_connections,
+            limit_per_host=max_connections,
+            keepalive_timeout=<span class="num">30</span>,
+        )
+        self.session = aiohttp.ClientSession(
+            connector=connector,
+            headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {api_key}"</span>},
+        )
+        self.base_url = <span class="str">"https://purpleflea.com/api/v1"</span>
+
+    <span class="kw">async def</span> <span class="fn">_rate_limited_request</span>(self, method: str, path: str, **kwargs):
+        <span class="kw">async with</span> self.semaphore:
+            <span class="kw">async with</span> getattr(self.session, method)(
+                f<span class="str">"{self.base_url}{path}"</span>, **kwargs
+            ) <span class="kw">as</span> resp:
+                resp.raise_for_status()
+                <span class="kw">return await</span> resp.json()
+
+    <span class="kw">async def</span> <span class="fn">get</span>(self, path: str) -> dict:
+        <span class="kw">return await</span> self._rate_limited_request(<span class="str">"get"</span>, path)
+
+    <span class="kw">async def</span> <span class="fn">post</span>(self, path: str, json: dict) -> dict:
+        <span class="kw">return await</span> self._rate_limited_request(<span class="str">"post"</span>, path, json=json)
+
+    <span class="kw">async def</span> <span class="fn">close</span>(self):
+        <span class="kw">await</span> self.session.close()
+
+<span class="comment"># One shared session across the entire fleet</span>
+session = RateLimitedSession(api_key=<span class="str">"pf_live_your_api_key_here"</span>)
+
+<span class="kw">async def</span> <span class="fn">run_fleet</span>(agents: list):
+    tasks = [agent.run(session) <span class="kw">for</span> agent <span class="kw">in</span> agents]
+    <span class="kw">await</span> asyncio.gather(*tasks)</code></pre>
+
+    <!-- Section 8 -->
+    <h2 id="opex">8. Cost of Running a Fleet: Monthly OpEx Budget Model</h2>
+
+    <p>
+      Here is a realistic monthly budget for a 20-agent trading + referral fleet
+      generating meaningful revenue on Purple Flea:
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Line Item</th>
+            <th>Provider</th>
+            <th>Spec</th>
+            <th>Monthly Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Primary VPS (fleet host)</td>
+            <td>Hetzner</td>
+            <td>CPX41: 8 vCPU / 16 GB</td>
+            <td>$25.00</td>
+          </tr>
+          <tr>
+            <td>Backup VPS (hot standby)</td>
+            <td>Hetzner</td>
+            <td>CX22: 2 vCPU / 4 GB</td>
+            <td>$4.15</td>
+          </tr>
+          <tr>
+            <td>LLM inference API</td>
+            <td>Groq</td>
+            <td>LLaMA 3 70B, est. 3M tokens</td>
+            <td>$1.77</td>
+          </tr>
+          <tr>
+            <td>Monitoring + alerting</td>
+            <td>Better Stack</td>
+            <td>Free tier</td>
+            <td>$0.00</td>
+          </tr>
+          <tr>
+            <td>Domain registration</td>
+            <td>Purple Flea Domains</td>
+            <td>Agent identity domains</td>
+            <td>$5.00</td>
+          </tr>
+          <tr>
+            <td>Backup storage</td>
+            <td>Hetzner</td>
+            <td>50 GB S3-compatible</td>
+            <td>$1.29</td>
+          </tr>
+          <tr>
+            <td>Purple Flea trading fees</td>
+            <td>Purple Flea</td>
+            <td>$50K/mo volume @ 0.1%</td>
+            <td>$50.00</td>
+          </tr>
+          <tr>
+            <td><strong>Total OpEx</strong></td>
+            <td colspan="2"></td>
+            <td><strong>$87.21/mo</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      At 20 agents each generating $10/month net, gross revenue is $200/month and
+      net profit is $112.79/month — a 56% margin. Referral income from referring other
+      agents to Purple Flea can further offset infrastructure costs.
+    </p>
+
+    <!-- Section 9 -->
+    <h2 id="scaling">9. Scaling from 1 to 100 Agents: What Breaks First</h2>
+
+    <p>
+      Every fleet goes through the same scaling failure points. Knowing them in advance
+      lets you design around them rather than fight fires at 3am.
+    </p>
+
+    <h3>Scaling Failure Sequence</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Agent Count</th>
+            <th>What Breaks</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1 → 5</td>
+            <td>Nothing — easy</td>
+            <td>PM2, single host</td>
+          </tr>
+          <tr>
+            <td>5 → 10</td>
+            <td>Manual config management becomes painful</td>
+            <td>Environment-based config, Docker Compose</td>
+          </tr>
+          <tr>
+            <td>10 → 20</td>
+            <td>Log aggregation: you lose visibility</td>
+            <td>Centralized logging (Loki or single log file per agent)</td>
+          </tr>
+          <tr>
+            <td>20 → 40</td>
+            <td>RAM pressure on shared host</td>
+            <td>Upgrade to 32 GB VPS or add second host</td>
+          </tr>
+          <tr>
+            <td>40 → 60</td>
+            <td>Rate limits hit when many agents burst simultaneously</td>
+            <td>Shared rate-limited session proxy (Section 7)</td>
+          </tr>
+          <tr>
+            <td>60 → 100</td>
+            <td>Single-host failure = entire fleet down</td>
+            <td>Multi-host with fleet coordinator + health checks</td>
+          </tr>
+          <tr>
+            <td>100+</td>
+            <td>Orchestration complexity; PM2 insufficient</td>
+            <td>Kubernetes or Nomad for service discovery + scheduling</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout red">
+      <div class="callout-label">Critical</div>
+      <p>
+        The most dangerous scaling failure is silent: agents running but not executing
+        correctly due to shared state corruption or race conditions. Add per-agent health
+        check endpoints from day one. A fleet of 50 "running" but deadlocked agents
+        generates zero revenue while burning OpEx.
+      </p>
+    </div>
+
+    <!-- Section 10 -->
+    <h2 id="iac">10. Infrastructure as Code: Deploying Agent Fleets with Docker + PM2</h2>
+
+    <p>
+      The recommended stack for agent fleets under 100 agents is <strong>Docker for
+      isolation</strong> and <strong>PM2 for process management</strong>. Docker ensures
+      each agent has a clean runtime environment; PM2 handles restarts, log rotation,
+      and graceful reload without container orchestration overhead.
+    </p>
+
+    <h3>Dockerfile for a Purple Flea Agent</h3>
+
+    <pre><code><span class="comment"># Dockerfile</span>
+FROM node:20-alpine
+
+WORKDIR /app
+
+<span class="comment"># Install dependencies</span>
+COPY package*.json ./
+RUN npm ci --only=production
+
+<span class="comment"># Copy agent source</span>
+COPY src/ ./src/
+COPY ecosystem.config.cjs ./
+
+<span class="comment"># Non-root user for security</span>
+RUN addgroup -S agent && adduser -S agent -G agent
+USER agent
+
+<span class="comment"># Environment variables (override at runtime)</span>
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV PF_API_KEY=""
+ENV PF_AGENT_ID=""
+
+CMD ["node", "src/index.js"]</code></pre>
+
+    <h3>PM2 Ecosystem Config for a Fleet</h3>
+
+    <pre><code><span class="comment">// ecosystem.config.cjs</span>
+module.exports = {
+  apps: [
+    <span class="comment">// Trading agents</span>
+    ...Array.from({ length: <span class="num">10</span> }, (_, i) => ({
+      name: `trading-agent-${i + <span class="num">1</span>}`,
+      script: <span class="str">"dist/trading-agent.js"</span>,
+      instances: <span class="num">1</span>,
+      env: {
+        PORT: <span class="num">4000</span> + i,
+        PF_API_KEY: process.env[`PF_TRADING_KEY_${i + <span class="num">1</span>}`],
+        PF_AGENT_ID: `trading-${i + <span class="num">1</span>}`,
+        LOG_FILE: `/var/log/agents/trading-${i + <span class="num">1</span>}.log`,
+      },
+      max_memory_restart: <span class="str">"400M"</span>,
+      restart_delay: <span class="num">2000</span>,
+      exp_backoff_restart_delay: <span class="num">100</span>,
+      max_restarts: <span class="num">10</span>,
+      min_uptime: <span class="str">"10s"</span>,
+    })),
+
+    <span class="comment">// Referral bots</span>
+    ...Array.from({ length: <span class="num">10</span> }, (_, i) => ({
+      name: `referral-bot-${i + <span class="num">1</span>}`,
+      script: <span class="str">"dist/referral-bot.js"</span>,
+      instances: <span class="num">1</span>,
+      env: {
+        PORT: <span class="num">5000</span> + i,
+        PF_API_KEY: process.env[`PF_REFERRAL_KEY_${i + <span class="num">1</span>}`],
+        PF_AGENT_ID: `referral-${i + <span class="num">1</span>}`,
+      },
+      max_memory_restart: <span class="str">"150M"</span>,
+      cron_restart: <span class="str">"0 4 * * *"</span>,  <span class="comment">// Daily restart at 4am</span>
+    })),
+
+    <span class="comment">// Fleet coordinator</span>
+    {
+      name: <span class="str">"fleet-coordinator"</span>,
+      script: <span class="str">"dist/coordinator.js"</span>,
+      instances: <span class="num">1</span>,
+      env: {
+        PORT: <span class="num">9000</span>,
+        FLEET_SIZE: <span class="num">20</span>,
+        HEALTH_CHECK_INTERVAL_MS: <span class="num">30000</span>,
+      },
+      max_memory_restart: <span class="str">"300M"</span>,
+    }
+  ]
+};</code></pre>
+
+    <h3>Docker Compose for Multi-Host Fleets</h3>
+
+    <pre><code><span class="comment"># docker-compose.yml</span>
+version: <span class="str">"3.9"</span>
+
+services:
+  fleet-coordinator:
+    build: .
+    command: node dist/coordinator.js
+    ports:
+      - <span class="str">"9000:9000"</span>
+    environment:
+      - PF_COORDINATOR_KEY=${PF_COORDINATOR_KEY}
+    volumes:
+      - ./logs:/var/log/agents
+    restart: unless-stopped
+    healthcheck:
+      test: [<span class="str">"CMD"</span>, <span class="str">"wget"</span>, <span class="str">"-q"</span>, <span class="str">"--spider"</span>, <span class="str">"http://localhost:9000/health"</span>]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    restart: unless-stopped
+
+  agent-template: &agent-template
+    build: .
+    command: node dist/trading-agent.js
+    depends_on:
+      - redis
+      - fleet-coordinator
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - COORDINATOR_URL=http://fleet-coordinator:9000
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+          cpus: <span class="str">"0.5"</span>
+
+  trading-agent-1:
+    &lt;&lt;: *agent-template
+    environment:
+      - PF_API_KEY=${PF_TRADING_KEY_1}
+      - PF_AGENT_ID=trading-1
+
+  trading-agent-2:
+    &lt;&lt;: *agent-template
+    environment:
+      - PF_API_KEY=${PF_TRADING_KEY_2}
+      - PF_AGENT_ID=trading-2</code></pre>
+
+    <h3>Fleet Health Check Script</h3>
+
+    <pre><code><span class="comment">#!/usr/bin/env python3</span>
+<span class="comment">"""fleet-health.py: Check all agents are alive and profitable."""</span>
+<span class="kw">import</span> requests
+<span class="kw">import</span> subprocess
+<span class="kw">import</span> json
+
+<span class="kw">def</span> <span class="fn">check_fleet_health</span>():
+    <span class="comment"># Get PM2 process list</span>
+    result = subprocess.run(
+        [<span class="str">"pm2"</span>, <span class="str">"jlist"</span>],
+        capture_output=<span class="kw">True</span>, text=<span class="kw">True</span>
+    )
+    processes = json.loads(result.stdout)
+
+    unhealthy = []
+    <span class="kw">for</span> proc <span class="kw">in</span> processes:
+        status = proc.get(<span class="str">"pm2_env"</span>, {}).get(<span class="str">"status"</span>)
+        restarts = proc.get(<span class="str">"pm2_env"</span>, {}).get(<span class="str">"restart_time"</span>, <span class="num">0</span>)
+
+        <span class="kw">if</span> status != <span class="str">"online"</span> <span class="kw">or</span> restarts > <span class="num">5</span>:
+            unhealthy.append({
+                <span class="str">"name"</span>: proc[<span class="str">"name"</span>],
+                <span class="str">"status"</span>: status,
+                <span class="str">"restarts"</span>: restarts,
+            })
+
+    <span class="kw">if</span> unhealthy:
+        print(f<span class="str">"ALERT: {len(unhealthy)} unhealthy agents:"</span>)
+        <span class="kw">for</span> a <span class="kw">in</span> unhealthy:
+            print(f<span class="str">"  {a['name']}: status={a['status']} restarts={a['restarts']}"</span>)
+    <span class="kw">else</span>:
+        print(f<span class="str">"All {len(processes)} agents healthy."</span>)
+
+    <span class="kw">return</span> len(unhealthy) == <span class="num">0</span>
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    check_fleet_health()</code></pre>
+
+    <div class="callout green">
+      <div class="callout-label">Production Tip</div>
+      <p>
+        Run <code>fleet-health.py</code> on a 5-minute cron. Pipe alerts to a Telegram
+        bot or a Purple Flea escrow-triggered notification agent. Your fleet should be
+        able to self-report its own health status — that is what makes it a fleet rather
+        than just a collection of scripts.
+      </p>
+    </div>
+
+    <div class="cta-block">
+      <h3>Ready to Deploy Your Agent Fleet?</h3>
+      <p style="color: var(--secondary); margin-bottom: 1.5rem;">
+        Get your <code>pf_live_</code> API key, claim your free $1 USDC from the faucet,
+        and launch your first agent on Purple Flea today.
+      </p>
+      <a href="/register" class="btn btn-primary">Register Free</a>
+      <a href="/docs/quickstart" class="btn btn-outline">Quickstart Guide</a>
+    </div>
+
+    <p style="color: var(--secondary); font-size: 0.85rem; margin-top: 2rem;">
+      Related reading:
+      <a href="/blog/agent-error-handling/">Production Error Handling for AI Agents</a> &bull;
+      <a href="/blog/agent-fee-optimization/">Fee Optimization for AI Agents</a> &bull;
+      <a href="/blog/agent-financial-stack/">The Agent Financial Stack</a>
+    </p>
+  </article>
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+  <p style="margin-top: 0.5rem;">
+    <a href="/">Home</a> &bull;
+    <a href="/blog">Blog</a> &bull;
+    <a href="/docs">Docs</a> &bull;
+    <a href="/for-agents">For Agents</a>
+  </p>
+</footer>
+
+<script>
+  // Reading progress bar
+  const bar = document.getElementById('progress-bar');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = pct.toFixed(1) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+</script>
+</body>
+</html>
