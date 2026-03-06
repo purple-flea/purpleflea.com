@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Data Feeds for AI Trading Agents: WebSocket Architecture | Purple Flea</title>
+  <meta name="description" content="How autonomous agents consume real-time market data via WebSocket connections — handling reconnects, multiplexing streams, parsing order book updates, and maintaining data consistency." />
+  <meta name="keywords" content="websocket trading agent, real-time market data, order book streaming, AI agent websocket, reconnect logic, multiplexer, trade tape, liquidation feed" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-websocket-feeds/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Real-Time Data Feeds for AI Trading Agents: WebSocket Architecture" />
+  <meta property="og:description" content="How autonomous agents consume real-time market data via WebSocket connections — handling reconnects, multiplexing streams, parsing order book updates, and maintaining data consistency." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-websocket-feeds/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/og-default.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Real-Time Data Feeds for AI Trading Agents: WebSocket Architecture" />
+  <meta name="twitter:description" content="How autonomous agents consume real-time market data via WebSocket connections — handling reconnects, multiplexing streams, parsing order book updates, and maintaining data consistency." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-default.png" />
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Real-Time Data Feeds for AI Trading Agents: WebSocket Architecture",
+    "description": "How autonomous agents consume real-time market data via WebSocket connections — handling reconnects, multiplexing streams, parsing order book updates, and maintaining data consistency.",
+    "url": "https://purpleflea.com/blog/agent-websocket-feeds/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/logo.png"
+      }
+    },
+    "keywords": ["websocket", "trading agent", "real-time data", "order book", "market feed", "AI agent"]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --surface2: #1C1C1F;
+      --border: #27272A;
+      --text: #E4E4E7;
+      --muted: #71717A;
+      --accent: #A855F7;
+      --accent-dim: rgba(168,85,247,0.15);
+      --accent-border: rgba(168,85,247,0.3);
+      --green: #22C55E;
+      --green-dim: rgba(34,197,94,0.12);
+      --code-bg: #0D0D0F;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --red: #EF4444;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    /* Reading progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #6366F1);
+      z-index: 9999;
+      transition: width 0.1s linear;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .nav-cta:hover { opacity: 0.9; }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, rgba(168,85,247,0.07) 0%, transparent 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 3.5rem 1.5rem 3rem;
+    }
+    .hero-inner {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .tag-guide { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .hero h1 {
+      font-size: clamp(1.7rem, 4vw, 2.5rem);
+      font-weight: 700;
+      line-height: 1.25;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .hero-desc {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 700px;
+      margin-bottom: 1.5rem;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 1.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 2rem;
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+    }
+    .stat-card .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+
+    /* Layout */
+    .layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 2.5rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+
+    /* TOC Sidebar */
+    .sidebar {
+      position: sticky;
+      top: 72px;
+    }
+    .toc-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .toc-box h3 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .toc-box ol {
+      list-style: none;
+      counter-reset: toc;
+    }
+    .toc-box li {
+      counter-increment: toc;
+      margin-bottom: 0.4rem;
+    }
+    .toc-box a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      display: flex;
+      gap: 0.5rem;
+      transition: color 0.2s;
+    }
+    .toc-box a::before {
+      content: counter(toc, decimal-leading-zero);
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .toc-box a:hover { color: var(--text); }
+
+    /* Article content */
+    article h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 2.5rem 0 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      scroll-margin-top: 72px;
+    }
+    article h2:first-of-type { border-top: none; margin-top: 0; }
+    article h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.75rem 0 0.6rem;
+      scroll-margin-top: 72px;
+    }
+    article p { margin-bottom: 1rem; color: var(--text); }
+    article ul, article ol {
+      margin: 0.75rem 0 1rem 1.5rem;
+      color: var(--text);
+    }
+    article li { margin-bottom: 0.4rem; }
+    article strong { color: #fff; font-weight: 600; }
+    article a { color: var(--accent); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 1.25rem 0;
+      overflow: hidden;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-lang {
+      font-size: 0.72rem;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+    .code-file {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    pre {
+      margin: 0;
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.83rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    p code, li code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15em 0.45em;
+      font-size: 0.82em;
+      color: #A5F3FC;
+    }
+
+    /* Syntax highlight helpers */
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #86EFAC; }
+    .cm { color: #52525B; font-style: italic; }
+    .nu { color: #FB923C; }
+    .cl { color: #F9A8D4; }
+    .dc { color: #FCD34D; }
+
+    /* Callout boxes */
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+      border-left: 3px solid;
+      font-size: 0.92rem;
+    }
+    .callout-tip { background: var(--green-dim); border-color: var(--green); }
+    .callout-warn { background: rgba(234,179,8,0.1); border-color: var(--yellow); }
+    .callout-info { background: rgba(59,130,246,0.1); border-color: var(--blue); }
+    .callout-danger { background: rgba(239,68,68,0.1); border-color: var(--red); }
+    .callout strong { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .callout-tip strong { color: var(--green); }
+    .callout-warn strong { color: var(--yellow); }
+    .callout-info strong { color: var(--blue); }
+    .callout-danger strong { color: var(--red); }
+
+    /* Comparison table */
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.25rem 0;
+      font-size: 0.88rem;
+    }
+    .comparison-table th {
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 600;
+      padding: 0.65rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .comparison-table td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid rgba(39,39,42,0.5);
+      color: var(--text);
+    }
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .badge-green { color: var(--green); font-weight: 600; }
+    .badge-red { color: var(--red); }
+    .badge-yellow { color: var(--yellow); }
+
+    /* CTA box */
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(99,102,241,0.08));
+      border: 1px solid var(--accent-border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 2.5rem 0;
+      text-align: center;
+    }
+    .cta-box h3 { color: var(--text); font-size: 1.2rem; margin-bottom: 0.6rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.92rem; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .cta-btn:hover { opacity: 0.85; text-decoration: none; }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+    }
+    .info-card h4 { font-size: 0.9rem; color: var(--accent); margin-bottom: 0.4rem; }
+    .info-card p { font-size: 0.83rem; color: var(--muted); margin: 0; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+    <div class="nav-links">
+      <a href="/docs/">Docs</a>
+      <a href="/blog/">Blog</a>
+      <a href="/for-agents/">For Agents</a>
+      <a href="https://purpleflea.com/register" class="nav-cta">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="tag-chip tag-guide">Guide</div>
+    <h1>Real-Time Data Feeds for AI Trading Agents: WebSocket Architecture</h1>
+    <p class="hero-desc">How autonomous agents consume real-time market data via WebSocket connections — handling reconnects, multiplexing streams, parsing order book updates, and maintaining data consistency.</p>
+    <div class="hero-meta">
+      <span>&#128197; March 6, 2026</span>
+      <span>&#128336; 18 min read</span>
+      <span>&#128218; Guide</span>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card">
+        <div class="stat-value">&lt;1ms</div>
+        <div class="stat-label">Typical WebSocket latency</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">8x</div>
+        <div class="stat-label">Faster than REST polling</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">99.9%</div>
+        <div class="stat-label">Uptime with reconnect logic</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <article>
+
+    <h2 id="ws-vs-rest">1. WebSocket vs REST: Why Real-Time Matters</h2>
+    <p>For AI trading agents, the choice between REST polling and WebSocket streaming is not merely an engineering preference — it is the difference between acting on stale data and executing with edge. A REST-based agent polling an exchange every 500ms is blind to every price tick, trade, and liquidation that occurs between requests. A WebSocket-connected agent receives every event as it happens.</p>
+
+    <p>The fundamental difference is transport model. REST follows a request-response cycle: the agent initiates every interaction. WebSocket establishes a persistent, full-duplex TCP connection where the server pushes updates to the agent as they occur. No repeated handshakes, no polling overhead, no latency floor imposed by HTTP round-trips.</p>
+
+    <table class="comparison-table">
+      <thead>
+        <tr><th>Property</th><th>REST Polling</th><th>WebSocket Stream</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Latency model</td><td class="badge-red">Round-trip per request</td><td class="badge-green">Server-push, sub-ms</td></tr>
+        <tr><td>Bandwidth efficiency</td><td class="badge-red">Headers repeated every call</td><td class="badge-green">Persistent framing only</td></tr>
+        <tr><td>Order book completeness</td><td class="badge-red">Snapshot per poll interval</td><td class="badge-green">Full delta stream</td></tr>
+        <tr><td>Trade tape coverage</td><td class="badge-red">Misses ticks between polls</td><td class="badge-green">Every trade delivered</td></tr>
+        <tr><td>Connection overhead</td><td class="badge-green">Stateless, easy to scale</td><td class="badge-yellow">Stateful, needs mgmt</td></tr>
+        <tr><td>Reconnect complexity</td><td class="badge-green">None required</td><td class="badge-yellow">Required for reliability</td></tr>
+        <tr><td>Rate limit risk</td><td class="badge-red">High — every poll counts</td><td class="badge-green">Subscription model</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <strong>Key insight</strong>
+      On a busy exchange, 500ms of missed price action can contain dozens of trades and multiple order book level changes. A trading agent that misses these cannot accurately compute VWAP, spread, or liquidation risk.
+    </div>
+
+    <p>For Purple Flea's perpetual futures and casino games, WebSocket connectivity is the recommended path for any agent that needs responsive execution. REST endpoints remain useful for account queries, order status checks, and low-frequency operations — but market data should always flow through a persistent stream.</p>
+
+    <h2 id="connection-lifecycle">2. Connection Lifecycle Management</h2>
+    <p>A WebSocket connection progresses through distinct states: <strong>CONNECTING</strong>, <strong>OPEN</strong>, <strong>CLOSING</strong>, and <strong>CLOSED</strong>. Production-grade agents must handle all transitions gracefully, including the unexpected drop from OPEN to CLOSED caused by network interruptions, server maintenance, or load balancer timeouts.</p>
+
+    <h3>Connection State Machine</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">connection_lifecycle.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> enum <span class="kw">import</span> Enum, auto
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> websockets
+<span class="kw">import</span> logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, Callable, Awaitable
+
+logger = logging.getLogger(<span class="st">"ws.lifecycle"</span>)
+
+
+<span class="kw">class</span> <span class="cl">ConnectionState</span>(Enum):
+    DISCONNECTED = auto()
+    CONNECTING   = auto()
+    CONNECTED    = auto()
+    RECONNECTING = auto()
+    CLOSING      = auto()
+
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">ConnectionStats</span>:
+    connect_count:    <span class="fn">int</span>   = <span class="nu">0</span>
+    disconnect_count: <span class="fn">int</span>   = <span class="nu">0</span>
+    messages_rx:      <span class="fn">int</span>   = <span class="nu">0</span>
+    bytes_rx:         <span class="fn">int</span>   = <span class="nu">0</span>
+    last_message_at:  Optional[datetime] = <span class="kw">None</span>
+    last_error:       Optional[<span class="fn">str</span>] = <span class="kw">None</span>
+
+
+MessageHandler = Callable[[<span class="fn">str</span>], Awaitable[<span class="kw">None</span>]]
+
+
+<span class="kw">class</span> <span class="cl">ManagedWebSocket</span>:
+    <span class="st">"""Lifecycle-managed WebSocket with automatic state tracking."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        url: <span class="fn">str</span>,
+        on_message: MessageHandler,
+        on_connect: Optional[Callable] = <span class="kw">None</span>,
+        on_disconnect: Optional[Callable] = <span class="kw">None</span>,
+    ):
+        self.url           = url
+        self.on_message    = on_message
+        self.on_connect    = on_connect
+        self.on_disconnect = on_disconnect
+        self.state         = ConnectionState.DISCONNECTED
+        self.stats         = <span class="cl">ConnectionStats</span>()
+        self._ws: Optional[websockets.WebSocketClientProtocol] = <span class="kw">None</span>
+        self._stop_event   = asyncio.Event()
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">is_connected</span>(self) -> <span class="fn">bool</span>:
+        <span class="kw">return</span> self.state == ConnectionState.CONNECTED
+
+    <span class="kw">async def</span> <span class="fn">connect</span>(self) -> <span class="kw">None</span>:
+        self.state = ConnectionState.CONNECTING
+        self._ws = <span class="kw">await</span> websockets.connect(
+            self.url,
+            ping_interval=<span class="nu">20</span>,
+            ping_timeout=<span class="nu">10</span>,
+            close_timeout=<span class="nu">5</span>,
+            max_size=<span class="nu">2**23</span>,   <span class="cm"># 8 MB for large order book snapshots</span>
+        )
+        self.state = ConnectionState.CONNECTED
+        self.stats.connect_count += <span class="nu">1</span>
+        logger.info(<span class="st">f"Connected to {self.url}"</span>)
+        <span class="kw">if</span> self.on_connect:
+            <span class="kw">await</span> self.on_connect()
+
+    <span class="kw">async def</span> <span class="fn">disconnect</span>(self) -> <span class="kw">None</span>:
+        self._stop_event.set()
+        self.state = ConnectionState.CLOSING
+        <span class="kw">if</span> self._ws:
+            <span class="kw">await</span> self._ws.close()
+        self.state = ConnectionState.DISCONNECTED
+        self.stats.disconnect_count += <span class="nu">1</span>
+        <span class="kw">if</span> self.on_disconnect:
+            <span class="kw">await</span> self.on_disconnect()
+
+    <span class="kw">async def</span> <span class="fn">listen</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">async for</span> raw <span class="kw">in</span> self._ws:
+            <span class="kw">if</span> self._stop_event.is_set():
+                <span class="kw">break</span>
+            self.stats.messages_rx += <span class="nu">1</span>
+            self.stats.bytes_rx += <span class="fn">len</span>(raw)
+            self.stats.last_message_at = datetime.utcnow()
+            <span class="kw">await</span> self.on_message(raw)
+</code></pre>
+    </div>
+
+    <h3>Authentication Handshake</h3>
+    <p>Authenticated streams — for private order updates, balance changes, and position events — require the agent to send credentials immediately after the connection opens, before subscribing to any channels. The pattern is: connect, authenticate, await confirmation, then subscribe.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">auth_handshake.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> hmac, hashlib, time, json
+
+<span class="kw">async def</span> <span class="fn">authenticate</span>(ws, api_key: <span class="fn">str</span>, api_secret: <span class="fn">str</span>) -> <span class="fn">bool</span>:
+    timestamp = <span class="fn">str</span>(<span class="fn">int</span>(time.time() * <span class="nu">1000</span>))
+    sign_payload = timestamp + <span class="st">"GET"</span> + <span class="st">"/realtime"</span>
+    signature = hmac.new(
+        api_secret.encode(), sign_payload.encode(), hashlib.sha256
+    ).hexdigest()
+
+    auth_msg = {
+        <span class="st">"op"</span>: <span class="st">"auth"</span>,
+        <span class="st">"args"</span>: [api_key, timestamp, signature]
+    }
+    <span class="kw">await</span> ws.send(json.dumps(auth_msg))
+
+    response = json.loads(<span class="kw">await</span> ws.recv())
+    success = response.get(<span class="st">"success"</span>, <span class="kw">False</span>)
+    <span class="kw">if not</span> success:
+        logger.error(<span class="st">f"Auth failed: {response.get('ret_msg')}"</span>)
+    <span class="kw">return</span> success
+
+
+<span class="kw">async def</span> <span class="fn">subscribe_private</span>(ws) -> <span class="kw">None</span>:
+    sub = {
+        <span class="st">"op"</span>: <span class="st">"subscribe"</span>,
+        <span class="st">"args"</span>: [<span class="st">"order"</span>, <span class="st">"position"</span>, <span class="st">"wallet"</span>]
+    }
+    <span class="kw">await</span> ws.send(json.dumps(sub))
+    logger.info(<span class="st">"Subscribed to private channels"</span>)
+</code></pre>
+    </div>
+
+    <h2 id="heartbeat">3. Heartbeat and Ping-Pong</h2>
+    <p>WebSocket connections sit behind proxies, load balancers, and NAT gateways that may silently drop idle connections after a timeout — typically 30–60 seconds. The <strong>ping-pong mechanism</strong> keeps connections alive and also provides an early warning system when the underlying TCP connection has silently died.</p>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <h4>WebSocket Ping/Pong</h4>
+        <p>Protocol-level frames (opcode 0x9/0xA) sent automatically by the library. No data payload needed. Most libraries handle this transparently.</p>
+      </div>
+      <div class="info-card">
+        <h4>Application Heartbeat</h4>
+        <p>Exchange-specific JSON messages (e.g. <code>{"op":"ping"}</code>) sent on a timer. Response expected within a deadline — absence triggers reconnect.</p>
+      </div>
+      <div class="info-card">
+        <h4>Silent Connection Death</h4>
+        <p>TCP RST packets may not reach the client. The connection appears OPEN but no data flows. Heartbeat timeout detection is the only reliable guard.</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">heartbeat.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio, json, time
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+
+<span class="kw">class</span> <span class="cl">HeartbeatMonitor</span>:
+    <span class="st">"""Application-level heartbeat with dead-connection detection."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        ws,
+        interval: <span class="fn">float</span> = <span class="nu">20.0</span>,
+        timeout: <span class="fn">float</span> = <span class="nu">10.0</span>,
+        on_dead: Optional[callable] = <span class="kw">None</span>,
+    ):
+        self.ws        = ws
+        self.interval  = interval
+        self.timeout   = timeout
+        self.on_dead   = on_dead
+        self._last_pong = time.monotonic()
+        self._task: Optional[asyncio.Task] = <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">record_pong</span>(self) -> <span class="kw">None</span>:
+        <span class="st">"""Call this when any message is received (acts as implicit pong)."""</span>
+        self._last_pong = time.monotonic()
+
+    <span class="kw">async def</span> <span class="fn">_loop</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">while True</span>:
+            <span class="kw">await</span> asyncio.sleep(self.interval)
+            <span class="kw">try</span>:
+                <span class="kw">await</span> self.ws.send(json.dumps({<span class="st">"op"</span>: <span class="st">"ping"</span>}))
+            <span class="kw">except</span> Exception:
+                <span class="kw">break</span>  <span class="cm"># connection already broken</span>
+
+            <span class="cm"># Wait for pong (any message counts)</span>
+            deadline = time.monotonic() + self.timeout
+            <span class="kw">while</span> time.monotonic() < deadline:
+                <span class="kw">if</span> self._last_pong > time.monotonic() - self.timeout:
+                    <span class="kw">break</span>
+                <span class="kw">await</span> asyncio.sleep(<span class="nu">0.5</span>)
+            <span class="kw">else</span>:
+                logger.warning(<span class="st">"Heartbeat timeout — connection dead"</span>)
+                <span class="kw">if</span> self.on_dead:
+                    <span class="kw">await</span> self.on_dead()
+                <span class="kw">break</span>
+
+    <span class="kw">def</span> <span class="fn">start</span>(self) -> <span class="kw">None</span>:
+        self._task = asyncio.create_task(self._loop())
+
+    <span class="kw">def</span> <span class="fn">stop</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">if</span> self._task:
+            self._task.cancel()
+</code></pre>
+    </div>
+
+    <div class="callout callout-warn">
+      <strong>Warning</strong>
+      Never rely solely on the OS to detect a dead TCP connection. Cloud load balancers can drop a session without sending a FIN packet. Your heartbeat monitor is the last line of defense against a zombie connection that receives no data but appears open.
+    </div>
+
+    <h2 id="order-book">4. Order Book Snapshot and Delta Reconstruction</h2>
+    <p>Exchanges transmit order books using a two-phase protocol: an initial <strong>snapshot</strong> containing the full state, followed by a continuous stream of <strong>delta updates</strong> (inserts, updates, deletes at specific price levels). An agent that misses even one delta will have a corrupted view of the book until the next snapshot is requested.</p>
+
+    <h3>Sequence Number Validation</h3>
+    <p>Every delta message carries a sequence number. If <code>delta.seq != last_seq + 1</code>, at least one message was dropped and the book state is invalid. The correct response is to request a fresh snapshot, not to guess at what was missed.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">order_book.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> sortedcontainers <span class="kw">import</span> SortedDict
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, List, Tuple
+<span class="kw">import</span> logging
+
+logger = logging.getLogger(<span class="st">"orderbook"</span>)
+
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">OrderBookLevel</span>:
+    price:    Decimal
+    quantity: Decimal
+
+
+<span class="kw">class</span> <span class="cl">OrderBook</span>:
+    <span class="st">"""L2 order book with snapshot+delta reconstruction and sequence validation."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, symbol: <span class="fn">str</span>, depth: <span class="fn">int</span> = <span class="nu">50</span>):
+        self.symbol  = symbol
+        self.depth   = depth
+        self._bids   = SortedDict(<span class="kw">lambda</span> x: -x)  <span class="cm"># descending</span>
+        self._asks   = SortedDict()                 <span class="cm"># ascending</span>
+        self._seq    = <span class="nu">-1</span>
+        self._synced = <span class="kw">False</span>
+
+    <span class="kw">def</span> <span class="fn">apply_snapshot</span>(self, data: Dict) -> <span class="kw">None</span>:
+        self._bids.clear()
+        self._asks.clear()
+        <span class="kw">for</span> level <span class="kw">in</span> data[<span class="st">"bids"</span>]:
+            p, q = Decimal(level[<span class="nu">0</span>]), Decimal(level[<span class="nu">1</span>])
+            <span class="kw">if</span> q > <span class="nu">0</span>:
+                self._bids[p] = q
+        <span class="kw">for</span> level <span class="kw">in</span> data[<span class="st">"asks"</span>]:
+            p, q = Decimal(level[<span class="nu">0</span>]), Decimal(level[<span class="nu">1</span>])
+            <span class="kw">if</span> q > <span class="nu">0</span>:
+                self._asks[p] = q
+        self._seq    = data[<span class="st">"seq"</span>]
+        self._synced = <span class="kw">True</span>
+        logger.info(<span class="st">f"{self.symbol}: snapshot at seq={self._seq}, "</span>
+                    <span class="st">f"bids={len(self._bids)}, asks={len(self._asks)}"</span>)
+
+    <span class="kw">def</span> <span class="fn">apply_delta</span>(self, data: Dict) -> <span class="fn">bool</span>:
+        <span class="st">"""Returns False if sequence gap detected (snapshot required)."""</span>
+        <span class="kw">if not</span> self._synced:
+            <span class="kw">return False</span>
+
+        incoming_seq = data[<span class="st">"seq"</span>]
+        <span class="kw">if</span> incoming_seq != self._seq + <span class="nu">1</span>:
+            logger.warning(
+                <span class="st">f"{self.symbol}: seq gap {self._seq} -> {incoming_seq}, resyncing"</span>
+            )
+            self._synced = <span class="kw">False</span>
+            <span class="kw">return False</span>
+
+        <span class="kw">for</span> side, book <span class="kw">in</span> ((<span class="st">"bids"</span>, self._bids), (<span class="st">"asks"</span>, self._asks)):
+            <span class="kw">for</span> level <span class="kw">in</span> data.get(side, []):
+                p, q = Decimal(level[<span class="nu">0</span>]), Decimal(level[<span class="nu">1</span>])
+                <span class="kw">if</span> q == <span class="nu">0</span>:
+                    book.pop(p, <span class="kw">None</span>)   <span class="cm"># delete</span>
+                <span class="kw">else</span>:
+                    book[p] = q           <span class="cm"># insert or update</span>
+
+        self._seq = incoming_seq
+        <span class="kw">return True</span>
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">best_bid</span>(self) -> Optional[Decimal]:
+        <span class="kw">return</span> self._bids.keys()[<span class="nu">0</span>] <span class="kw">if</span> self._bids <span class="kw">else None</span>
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">best_ask</span>(self) -> Optional[Decimal]:
+        <span class="kw">return</span> self._asks.keys()[<span class="nu">0</span>] <span class="kw">if</span> self._asks <span class="kw">else None</span>
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">mid_price</span>(self) -> Optional[Decimal]:
+        <span class="kw">if</span> self.best_bid <span class="kw">and</span> self.best_ask:
+            <span class="kw">return</span> (self.best_bid + self.best_ask) / <span class="nu">2</span>
+        <span class="kw">return None</span>
+
+    <span class="dc">@property</span>
+    <span class="kw">def</span> <span class="fn">spread</span>(self) -> Optional[Decimal]:
+        <span class="kw">if</span> self.best_bid <span class="kw">and</span> self.best_ask:
+            <span class="kw">return</span> self.best_ask - self.best_bid
+        <span class="kw">return None</span>
+
+    <span class="kw">def</span> <span class="fn">get_bids</span>(self, n: <span class="fn">int</span> = <span class="nu">10</span>) -> List[Tuple[Decimal, Decimal]]:
+        <span class="kw">return</span> [(p, self._bids[p]) <span class="kw">for</span> p <span class="kw">in</span> self._bids.keys()[:<span class="nu">n</span>]]
+
+    <span class="kw">def</span> <span class="fn">get_asks</span>(self, n: <span class="fn">int</span> = <span class="nu">10</span>) -> List[Tuple[Decimal, Decimal]]:
+        <span class="kw">return</span> [(p, self._asks[p]) <span class="kw">for</span> p <span class="kw">in</span> self._asks.keys()[:<span class="nu">n</span>]]
+</code></pre>
+    </div>
+
+    <h2 id="trade-tape">5. Trade Tape Streaming</h2>
+    <p>The trade tape — the real-time stream of executed transactions — is essential for computing VWAP, detecting unusual volume spikes, and inferring aggressive order flow direction. Each trade message typically contains: timestamp, price, quantity, side (buy/sell), and trade ID.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">trade_tape.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> collections <span class="kw">import</span> deque
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> typing <span class="kw">import</span> Deque, List, Optional
+<span class="kw">import</span> time
+
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Trade</span>:
+    timestamp: <span class="fn">float</span>   <span class="cm"># Unix ms</span>
+    price:     Decimal
+    quantity:  Decimal
+    side:      <span class="fn">str</span>     <span class="cm"># "buy" | "sell"</span>
+    trade_id:  <span class="fn">str</span>
+
+
+<span class="kw">class</span> <span class="cl">TradeTape</span>:
+    <span class="st">"""Rolling trade history with VWAP, flow, and volume analysis."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, window_seconds: <span class="fn">float</span> = <span class="nu">60.0</span>, max_trades: <span class="fn">int</span> = <span class="nu">10_000</span>):
+        self.window_seconds = window_seconds
+        self._trades: Deque[<span class="cl">Trade</span>] = deque(maxlen=max_trades)
+
+    <span class="kw">def</span> <span class="fn">add_trade</span>(self, trade: <span class="cl">Trade</span>) -> <span class="kw">None</span>:
+        self._trades.append(trade)
+
+    <span class="kw">def</span> <span class="fn">_recent</span>(self) -> List[<span class="cl">Trade</span>]:
+        cutoff = (time.time() - self.window_seconds) * <span class="nu">1000</span>
+        <span class="kw">return</span> [t <span class="kw">for</span> t <span class="kw">in</span> self._trades <span class="kw">if</span> t.timestamp >= cutoff]
+
+    <span class="kw">def</span> <span class="fn">vwap</span>(self) -> Optional[Decimal]:
+        trades = self._recent()
+        <span class="kw">if not</span> trades:
+            <span class="kw">return None</span>
+        notional = <span class="fn">sum</span>(t.price * t.quantity <span class="kw">for</span> t <span class="kw">in</span> trades)
+        volume   = <span class="fn">sum</span>(t.quantity <span class="kw">for</span> t <span class="kw">in</span> trades)
+        <span class="kw">return</span> notional / volume
+
+    <span class="kw">def</span> <span class="fn">buy_volume</span>(self) -> Decimal:
+        <span class="kw">return</span> <span class="fn">sum</span>(t.quantity <span class="kw">for</span> t <span class="kw">in</span> self._recent() <span class="kw">if</span> t.side == <span class="st">"buy"</span>)
+
+    <span class="kw">def</span> <span class="fn">sell_volume</span>(self) -> Decimal:
+        <span class="kw">return</span> <span class="fn">sum</span>(t.quantity <span class="kw">for</span> t <span class="kw">in</span> self._recent() <span class="kw">if</span> t.side == <span class="st">"sell"</span>)
+
+    <span class="kw">def</span> <span class="fn">net_delta</span>(self) -> Decimal:
+        <span class="st">"""Positive = buying pressure. Negative = selling pressure."""</span>
+        <span class="kw">return</span> self.buy_volume() - self.sell_volume()
+
+    <span class="kw">def</span> <span class="fn">volume_spike</span>(self, multiplier: <span class="fn">float</span> = <span class="nu">3.0</span>) -> <span class="fn">bool</span>:
+        <span class="st">"""Detect abnormal volume in most recent 5s vs full window average."""</span>
+        recent5s = [
+            t <span class="kw">for</span> t <span class="kw">in</span> self._recent()
+            <span class="kw">if</span> t.timestamp >= (time.time() - <span class="nu">5</span>) * <span class="nu">1000</span>
+        ]
+        <span class="kw">if not</span> recent5s:
+            <span class="kw">return False</span>
+        avg_5s_rate = <span class="fn">float</span>(<span class="fn">sum</span>(t.quantity <span class="kw">for</span> t <span class="kw">in</span> self._recent())) / (self.window_seconds / <span class="nu">5</span>)
+        spike_vol   = <span class="fn">float</span>(<span class="fn">sum</span>(t.quantity <span class="kw">for</span> t <span class="kw">in</span> recent5s))
+        <span class="kw">return</span> spike_vol > avg_5s_rate * multiplier
+</code></pre>
+    </div>
+
+    <h2 id="liquidation-feed">6. Liquidation Feed Monitoring</h2>
+    <p>Liquidation events represent forced position closures when margin falls below maintenance requirements. For a trading agent, tracking liquidations is crucial for two reasons: large liquidations create predictable short-term price impact, and a sudden surge in liquidations can signal the beginning of a cascade — a series of stop-losses that amplify a directional move.</p>
+
+    <div class="callout callout-danger">
+      <strong>Danger</strong>
+      Do not attempt to front-run exchange liquidations. Most exchanges handle liquidations through their insurance funds and are not publicly routable. The feed is for informational signal generation, not order insertion.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">liquidation_monitor.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+<span class="kw">from</span> typing <span class="kw">import</span> Callable, Deque, Optional
+<span class="kw">import</span> time
+
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Liquidation</span>:
+    symbol:        <span class="fn">str</span>
+    side:          <span class="fn">str</span>      <span class="cm"># "long" | "short"</span>
+    price:         Decimal
+    quantity:      Decimal
+    notional_usd:  Decimal
+    timestamp_ms:  <span class="fn">int</span>
+
+
+LiqCallback = Callable[[<span class="cl">Liquidation</span>], <span class="kw">None</span>]
+
+
+<span class="kw">class</span> <span class="cl">LiquidationMonitor</span>:
+    <span class="st">"""Tracks liquidation cascades and computes cluster signals."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        on_cascade: Optional[LiqCallback] = <span class="kw">None</span>,
+        cascade_threshold_usd: Decimal = Decimal(<span class="st">"500000"</span>),
+        window_seconds: <span class="fn">float</span> = <span class="nu">10.0</span>,
+    ):
+        self.on_cascade           = on_cascade
+        self.cascade_threshold    = cascade_threshold_usd
+        self.window_seconds       = window_seconds
+        self._history: Deque[<span class="cl">Liquidation</span>] = deque()
+        self._alerted_at: <span class="fn">float</span>  = <span class="nu">0.0</span>
+
+    <span class="kw">def</span> <span class="fn">ingest</span>(self, liq: <span class="cl">Liquidation</span>) -> <span class="kw">None</span>:
+        self._history.append(liq)
+        self._prune()
+        self._check_cascade(liq)
+
+    <span class="kw">def</span> <span class="fn">_prune</span>(self) -> <span class="kw">None</span>:
+        cutoff = (time.time() - self.window_seconds) * <span class="nu">1000</span>
+        <span class="kw">while</span> self._history <span class="kw">and</span> self._history[<span class="nu">0</span>].timestamp_ms < cutoff:
+            self._history.popleft()
+
+    <span class="kw">def</span> <span class="fn">_check_cascade</span>(self, latest: <span class="cl">Liquidation</span>) -> <span class="kw">None</span>:
+        window_notional = <span class="fn">sum</span>(l.notional_usd <span class="kw">for</span> l <span class="kw">in</span> self._history)
+        <span class="kw">if</span> (window_notional >= self.cascade_threshold
+                <span class="kw">and</span> time.time() - self._alerted_at > <span class="nu">30.0</span>):
+            self._alerted_at = time.time()
+            <span class="kw">if</span> self.on_cascade:
+                self.on_cascade(latest)
+
+    <span class="kw">def</span> <span class="fn">recent_notional</span>(self) -> Decimal:
+        <span class="kw">return</span> <span class="fn">sum</span>(l.notional_usd <span class="kw">for</span> l <span class="kw">in</span> self._history)
+
+    <span class="kw">def</span> <span class="fn">dominant_side</span>(self) -> Optional[<span class="fn">str</span>]:
+        <span class="kw">if not</span> self._history:
+            <span class="kw">return None</span>
+        long_n  = <span class="fn">sum</span>(l.notional_usd <span class="kw">for</span> l <span class="kw">in</span> self._history <span class="kw">if</span> l.side == <span class="st">"long"</span>)
+        short_n = <span class="fn">sum</span>(l.notional_usd <span class="kw">for</span> l <span class="kw">in</span> self._history <span class="kw">if</span> l.side == <span class="st">"short"</span>)
+        <span class="kw">return</span> <span class="st">"long"</span> <span class="kw">if</span> long_n > short_n <span class="kw">else</span> <span class="st">"short"</span>
+</code></pre>
+    </div>
+
+    <h2 id="multiplexer">7. Multi-Exchange Multiplexer</h2>
+    <p>A production trading agent rarely watches a single venue. Cross-exchange arbitrage, best-execution routing, and correlated-market analysis all require simultaneous streams from multiple sources. The multiplexer pattern manages a pool of connections, normalizes their output to a unified message format, and routes events to registered handlers.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">multiplexer.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio, json, logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Callable, Dict, List, Optional
+<span class="kw">import</span> websockets
+
+logger = logging.getLogger(<span class="st">"multiplexer"</span>)
+
+
+<span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="cl">NormalizedEvent</span>:
+    exchange:   <span class="fn">str</span>
+    channel:    <span class="fn">str</span>
+    symbol:     <span class="fn">str</span>
+    event_type: <span class="fn">str</span>   <span class="cm"># "trade" | "orderbook" | "liquidation" | "ticker"</span>
+    payload:    Any
+    timestamp:  <span class="fn">float</span>
+
+
+EventHandler = Callable[[<span class="cl">NormalizedEvent</span>], <span class="kw">None</span>]
+
+
+<span class="kw">class</span> <span class="cl">ExchangeStream</span>:
+    <span class="st">"""Single-exchange WebSocket stream with exchange-specific normalization."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        name: <span class="fn">str</span>,
+        url: <span class="fn">str</span>,
+        subscribe_msg: Dict,
+        normalizer: Callable[[<span class="fn">str</span>, Dict], Optional[<span class="cl">NormalizedEvent</span>]],
+    ):
+        self.name          = name
+        self.url           = url
+        self.subscribe_msg = subscribe_msg
+        self.normalizer    = normalizer
+        self._running      = <span class="kw">False</span>
+
+
+<span class="kw">class</span> <span class="cl">WebSocketMultiplexer</span>:
+    <span class="st">"""Manages N exchange connections and unifies event output."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._streams:  List[<span class="cl">ExchangeStream</span>] = []
+        self._handlers: Dict[<span class="fn">str</span>, List[EventHandler]] = {}
+        self._queue:    asyncio.Queue[<span class="cl">NormalizedEvent</span>] = asyncio.Queue(maxsize=<span class="nu">50_000</span>)
+        self._tasks:    List[asyncio.Task] = []
+
+    <span class="kw">def</span> <span class="fn">add_stream</span>(self, stream: <span class="cl">ExchangeStream</span>) -> <span class="kw">None</span>:
+        self._streams.append(stream)
+
+    <span class="kw">def</span> <span class="fn">on</span>(self, event_type: <span class="fn">str</span>, handler: EventHandler) -> <span class="kw">None</span>:
+        self._handlers.setdefault(event_type, []).append(handler)
+
+    <span class="kw">async def</span> <span class="fn">_stream_worker</span>(self, stream: <span class="cl">ExchangeStream</span>, backoff: <span class="fn">float</span> = <span class="nu">1.0</span>) -> <span class="kw">None</span>:
+        <span class="kw">while</span> stream._running:
+            <span class="kw">try</span>:
+                <span class="kw">async with</span> websockets.connect(stream.url, ping_interval=<span class="nu">20</span>) <span class="kw">as</span> ws:
+                    <span class="kw">await</span> ws.send(json.dumps(stream.subscribe_msg))
+                    backoff = <span class="nu">1.0</span>  <span class="cm"># reset on successful connect</span>
+                    <span class="kw">async for</span> raw <span class="kw">in</span> ws:
+                        <span class="kw">if not</span> stream._running:
+                            <span class="kw">break</span>
+                        <span class="kw">try</span>:
+                            data = json.loads(raw)
+                            event = stream.normalizer(stream.name, data)
+                            <span class="kw">if</span> event:
+                                <span class="kw">await</span> self._queue.put(event)
+                        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                            logger.debug(<span class="st">f"{stream.name}: parse error {e}"</span>)
+            <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                logger.warning(<span class="st">f"{stream.name}: disconnected ({e}), retry in {backoff:.1f}s"</span>)
+                <span class="kw">if</span> stream._running:
+                    <span class="kw">await</span> asyncio.sleep(backoff)
+                    backoff = <span class="fn">min</span>(backoff * <span class="nu">2</span>, <span class="nu">60.0</span>)  <span class="cm"># cap at 60s</span>
+
+    <span class="kw">async def</span> <span class="fn">_dispatch_worker</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">while True</span>:
+            event = <span class="kw">await</span> self._queue.get()
+            <span class="kw">for</span> handler <span class="kw">in</span> self._handlers.get(event.event_type, []):
+                <span class="kw">try</span>:
+                    result = handler(event)
+                    <span class="kw">if</span> asyncio.iscoroutine(result):
+                        <span class="kw">await</span> result
+                <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                    logger.error(<span class="st">f"Handler error for {event.event_type}: {e}"</span>)
+
+    <span class="kw">async def</span> <span class="fn">start</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">for</span> s <span class="kw">in</span> self._streams:
+            s._running = <span class="kw">True</span>
+            self._tasks.append(asyncio.create_task(self._stream_worker(s)))
+        self._tasks.append(asyncio.create_task(self._dispatch_worker()))
+
+    <span class="kw">async def</span> <span class="fn">stop</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">for</span> s <span class="kw">in</span> self._streams:
+            s._running = <span class="kw">False</span>
+        <span class="kw">for</span> t <span class="kw">in</span> self._tasks:
+            t.cancel()
+        <span class="kw">await</span> asyncio.gather(*self._tasks, return_exceptions=<span class="kw">True</span>)
+</code></pre>
+    </div>
+
+    <div class="callout callout-tip">
+      <strong>Tip</strong>
+      Use exponential backoff with jitter for reconnect delays. Without jitter, all agents recovering from a shared outage will reconnect simultaneously, creating a thundering herd that overwhelms the exchange server and degrades everyone's recovery time.
+    </div>
+
+    <h2 id="async-reconnect">8. Full WebSocketAgent with Async Reconnect</h2>
+    <p>The following <code>WebSocketAgent</code> class ties together all the patterns described above into a production-ready implementation. It manages connection lifecycle, heartbeats, order book state, trade tape, and liquidation signals — and exposes a clean async interface for the trading logic layer to consume.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">websocket_agent.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio, json, logging, time
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> typing <span class="kw">import</span> Dict, Optional
+<span class="kw">import</span> websockets
+
+logger = logging.getLogger(<span class="st">"WebSocketAgent"</span>)
+
+
+<span class="kw">class</span> <span class="cl">WebSocketAgent</span>:
+    <span class="st">"""
+    Autonomous trading agent with full WebSocket data integration.
+
+    Features:
+    - Exponential backoff reconnect (1s → 60s cap)
+    - Application heartbeat (20s ping, 10s pong timeout)
+    - Order book snapshot + delta reconstruction
+    - Trade tape VWAP and flow delta
+    - Liquidation cascade detection
+    - Event-driven signal generation
+    """</span>
+
+    BASE_URL = <span class="st">"wss://stream.exchange.example/realtime"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, symbol: <span class="fn">str</span>, api_key: <span class="fn">str</span>, api_secret: <span class="fn">str</span>):
+        self.symbol     = symbol
+        self.api_key    = api_key
+        self.api_secret = api_secret
+
+        <span class="cm"># State components</span>
+        self.order_book  = <span class="cl">OrderBook</span>(symbol)
+        self.trade_tape  = <span class="cl">TradeTape</span>(window_seconds=<span class="nu">60</span>)
+        self.liq_monitor = <span class="cl">LiquidationMonitor</span>(
+            on_cascade=self._on_cascade,
+            cascade_threshold_usd=Decimal(<span class="st">"200000"</span>)
+        )
+
+        <span class="cm"># Connection state</span>
+        self._ws: Optional[websockets.WebSocketClientProtocol] = <span class="kw">None</span>
+        self._running         = <span class="kw">False</span>
+        self._last_msg_at     = time.monotonic()
+        self._reconnect_count = <span class="nu">0</span>
+        self._backoff         = <span class="nu">1.0</span>
+
+    <span class="cm"># ------------------------------------------------------------------ #
+    # Connection management                                              #
+    # ------------------------------------------------------------------ #</span>
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self) -> <span class="kw">None</span>:
+        self._running = <span class="kw">True</span>
+        <span class="kw">while</span> self._running:
+            <span class="kw">try</span>:
+                <span class="kw">await</span> self._connect_and_consume()
+                self._backoff = <span class="nu">1.0</span>
+            <span class="kw">except</span> (websockets.ConnectionClosed, OSError) <span class="kw">as</span> e:
+                self._reconnect_count += <span class="nu">1</span>
+                logger.warning(<span class="st">f"Disconnected ({e}), reconnect #{self._reconnect_count} in {self._backoff:.1f}s"</span>)
+                <span class="kw">if</span> self._running:
+                    <span class="kw">await</span> asyncio.sleep(self._backoff)
+                    self._backoff = <span class="fn">min</span>(self._backoff * <span class="nu">2</span>, <span class="nu">60.0</span>)
+
+    <span class="kw">async def</span> <span class="fn">stop</span>(self) -> <span class="kw">None</span>:
+        self._running = <span class="kw">False</span>
+        <span class="kw">if</span> self._ws:
+            <span class="kw">await</span> self._ws.close()
+
+    <span class="kw">async def</span> <span class="fn">_connect_and_consume</span>(self) -> <span class="kw">None</span>:
+        <span class="kw">async with</span> websockets.connect(
+            self.BASE_URL,
+            ping_interval=<span class="nu">20</span>,
+            ping_timeout=<span class="nu">10</span>,
+            max_size=<span class="nu">2**23</span>,
+        ) <span class="kw">as</span> ws:
+            self._ws = ws
+            logger.info(<span class="st">f"Connected to {self.BASE_URL}"</span>)
+
+            <span class="cm"># Subscribe to public channels</span>
+            <span class="kw">await</span> ws.send(json.dumps({
+                <span class="st">"op"</span>: <span class="st">"subscribe"</span>,
+                <span class="st">"args"</span>: [
+                    <span class="st">f"orderbook.50.{self.symbol}"</span>,
+                    <span class="st">f"publicTrade.{self.symbol}"</span>,
+                    <span class="st">f"allLiquidation.{self.symbol}"</span>,
+                ]
+            }))
+
+            heartbeat_task = asyncio.create_task(self._heartbeat_loop(ws))
+            <span class="kw">try</span>:
+                <span class="kw">async for</span> raw <span class="kw">in</span> ws:
+                    self._last_msg_at = time.monotonic()
+                    <span class="kw">await</span> self._dispatch(raw)
+            <span class="kw">finally</span>:
+                heartbeat_task.cancel()
+
+    <span class="cm"># ------------------------------------------------------------------ #
+    # Heartbeat                                                          #
+    # ------------------------------------------------------------------ #</span>
+
+    <span class="kw">async def</span> <span class="fn">_heartbeat_loop</span>(self, ws) -> <span class="kw">None</span>:
+        <span class="kw">while True</span>:
+            <span class="kw">await</span> asyncio.sleep(<span class="nu">20</span>)
+            <span class="kw">if</span> time.monotonic() - self._last_msg_at > <span class="nu">30</span>:
+                logger.error(<span class="st">"No messages for 30s — forcing reconnect"</span>)
+                <span class="kw">await</span> ws.close()
+                <span class="kw">return</span>
+            <span class="kw">try</span>:
+                <span class="kw">await</span> ws.send(json.dumps({<span class="st">"op"</span>: <span class="st">"ping"</span>}))
+            <span class="kw">except</span> Exception:
+                <span class="kw">return</span>
+
+    <span class="cm"># ------------------------------------------------------------------ #
+    # Message dispatch                                                   #
+    # ------------------------------------------------------------------ #</span>
+
+    <span class="kw">async def</span> <span class="fn">_dispatch</span>(self, raw: <span class="fn">str</span>) -> <span class="kw">None</span>:
+        <span class="kw">try</span>:
+            msg = json.loads(raw)
+        <span class="kw">except</span> json.JSONDecodeError:
+            <span class="kw">return</span>
+
+        topic = msg.get(<span class="st">"topic"</span>, <span class="st">""</span>)
+
+        <span class="kw">if</span> topic.startswith(<span class="st">"orderbook"</span>):
+            <span class="kw">await</span> self._handle_orderbook(msg)
+        <span class="kw">elif</span> topic.startswith(<span class="st">"publicTrade"</span>):
+            <span class="kw">await</span> self._handle_trades(msg)
+        <span class="kw">elif</span> topic.startswith(<span class="st">"allLiquidation"</span>):
+            <span class="kw">await</span> self._handle_liquidation(msg)
+        <span class="kw">elif</span> msg.get(<span class="st">"op"</span>) == <span class="st">"pong"</span>:
+            <span class="kw">pass</span>  <span class="cm"># heartbeat acknowledged</span>
+
+    <span class="kw">async def</span> <span class="fn">_handle_orderbook</span>(self, msg: Dict) -> <span class="kw">None</span>:
+        msg_type = msg.get(<span class="st">"type"</span>)
+        data     = msg.get(<span class="st">"data"</span>, {})
+        <span class="kw">if</span> msg_type == <span class="st">"snapshot"</span>:
+            self.order_book.apply_snapshot(data)
+        <span class="kw">elif</span> msg_type == <span class="st">"delta"</span>:
+            ok = self.order_book.apply_delta(data)
+            <span class="kw">if not</span> ok:
+                <span class="cm"># Request fresh snapshot via REST fallback</span>
+                asyncio.create_task(self._request_snapshot())
+
+    <span class="kw">async def</span> <span class="fn">_handle_trades</span>(self, msg: Dict) -> <span class="kw">None</span>:
+        <span class="kw">for</span> t <span class="kw">in</span> msg.get(<span class="st">"data"</span>, []):
+            trade = <span class="cl">Trade</span>(
+                timestamp=<span class="fn">float</span>(t[<span class="st">"T"</span>]),
+                price=Decimal(t[<span class="st">"p"</span>]),
+                quantity=Decimal(t[<span class="st">"v"</span>]),
+                side=<span class="st">"buy"</span> <span class="kw">if</span> t[<span class="st">"S"</span>] == <span class="st">"Buy"</span> <span class="kw">else</span> <span class="st">"sell"</span>,
+                trade_id=t[<span class="st">"i"</span>],
+            )
+            self.trade_tape.add_trade(trade)
+        <span class="kw">await</span> self._evaluate_signals()
+
+    <span class="kw">async def</span> <span class="fn">_handle_liquidation</span>(self, msg: Dict) -> <span class="kw">None</span>:
+        d = msg.get(<span class="st">"data"</span>, {})
+        liq = <span class="cl">Liquidation</span>(
+            symbol=d.get(<span class="st">"symbol"</span>, self.symbol),
+            side=<span class="st">"long"</span> <span class="kw">if</span> d.get(<span class="st">"side"</span>) == <span class="st">"Sell"</span> <span class="kw">else</span> <span class="st">"short"</span>,
+            price=Decimal(d.get(<span class="st">"price"</span>, <span class="st">"0"</span>)),
+            quantity=Decimal(d.get(<span class="st">"qty"</span>, <span class="st">"0"</span>)),
+            notional_usd=Decimal(d.get(<span class="st">"price"</span>, <span class="st">"0"</span>)) * Decimal(d.get(<span class="st">"qty"</span>, <span class="st">"0"</span>)),
+            timestamp_ms=<span class="fn">int</span>(d.get(<span class="st">"updatedTime"</span>, <span class="num">0</span>)),
+        )
+        self.liq_monitor.ingest(liq)
+
+    <span class="cm"># ------------------------------------------------------------------ #
+    # Signal evaluation                                                  #
+    # ------------------------------------------------------------------ #</span>
+
+    <span class="kw">async def</span> <span class="fn">_evaluate_signals</span>(self) -> <span class="kw">None</span>:
+        mid    = self.order_book.mid_price
+        spread = self.order_book.spread
+        vwap   = self.trade_tape.vwap()
+        delta  = self.trade_tape.net_delta()
+        spike  = self.trade_tape.volume_spike()
+
+        <span class="kw">if not all</span>([mid, spread, vwap]):
+            <span class="kw">return</span>
+
+        <span class="cm"># Log signal snapshot (replace with actual trading logic)</span>
+        <span class="kw">if</span> spike:
+            logger.info(
+                <span class="st">f"SIGNAL | {self.symbol} | mid={mid:.4f} | spread={spread:.4f} | "</span>
+                <span class="st">f"vwap={vwap:.4f} | delta={delta:.2f} | VOLUME_SPIKE=True"</span>
+            )
+
+    <span class="kw">async def</span> <span class="fn">_on_cascade</span>(self, liq: <span class="cl">Liquidation</span>) -> <span class="kw">None</span>:
+        logger.warning(
+            <span class="st">f"LIQUIDATION CASCADE | {liq.symbol} | "</span>
+            <span class="st">f"window_notional=${self.liq_monitor.recent_notional():,.0f} | "</span>
+            <span class="st">f"dominant_side={self.liq_monitor.dominant_side()}"</span>
+        )
+
+    <span class="kw">async def</span> <span class="fn">_request_snapshot</span>(self) -> <span class="kw">None</span>:
+        <span class="cm"># REST fallback to recover from sequence gap</span>
+        logger.info(<span class="st">f"Requesting REST snapshot for {self.symbol}"</span>)
+        <span class="cm"># Implementation: GET /v5/market/orderbook?symbol={symbol}&limit=50</span>
+        <span class="cm"># Then call self.order_book.apply_snapshot(response_data)</span>
+        <span class="kw">pass</span>
+
+
+<span class="cm"># ------------------------------------------------------------------ #
+# Entry point                                                          #
+# ------------------------------------------------------------------ #</span>
+<span class="kw">async def</span> <span class="fn">main</span>():
+    agent = <span class="cl">WebSocketAgent</span>(
+        symbol=<span class="st">"BTCUSDT"</span>,
+        api_key=<span class="st">"YOUR_API_KEY"</span>,
+        api_secret=<span class="st">"YOUR_API_SECRET"</span>,
+    )
+    <span class="kw">await</span> agent.run()
+
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    asyncio.run(main())
+</code></pre>
+    </div>
+
+    <h2 id="data-consistency">9. Maintaining Data Consistency</h2>
+    <p>The hardest problem in WebSocket-based market data is not connectivity — it is correctness. A corrupted order book or missed trade causes subtle, hard-to-diagnose errors in downstream signal computation. The following strategies form a consistency defense layer.</p>
+
+    <h3>Checksum Validation</h3>
+    <p>Many exchanges include a CRC32 checksum of the top N price levels in each delta message. Verify it on every update. A mismatch means the local book has diverged from the server state.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">checksum.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> binascii
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> typing <span class="kw">import</span> List, Tuple
+
+
+<span class="kw">def</span> <span class="fn">compute_book_checksum</span>(
+    bids: List[Tuple[Decimal, Decimal]],
+    asks: List[Tuple[Decimal, Decimal]],
+    depth: <span class="fn">int</span> = <span class="nu">25</span>,
+) -> <span class="fn">int</span>:
+    <span class="st">"""
+    Bybit-style checksum: interleave top-25 bid and ask levels,
+    stringify each as 'price:qty', join with '|', CRC32.
+    """</span>
+    parts: List[<span class="fn">str</span>] = []
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="fn">min</span>(depth, <span class="fn">max</span>(<span class="fn">len</span>(bids), <span class="fn">len</span>(asks)))):
+        <span class="kw">if</span> i < <span class="fn">len</span>(bids):
+            p, q = bids[i]
+            parts.append(<span class="st">f"{p}:{q}"</span>)
+        <span class="kw">if</span> i < <span class="fn">len</span>(asks):
+            p, q = asks[i]
+            parts.append(<span class="st">f"{p}:{q}"</span>)
+    payload = <span class="st">"|"</span>.join(parts)
+    <span class="kw">return</span> binascii.crc32(payload.encode()) & <span class="nu">0xFFFFFFFF</span>
+
+
+<span class="kw">def</span> <span class="fn">verify_checksum</span>(book: <span class="cl">OrderBook</span>, expected: <span class="fn">int</span>) -> <span class="fn">bool</span>:
+    computed = <span class="fn">compute_book_checksum</span>(
+        book.get_bids(<span class="nu">25</span>),
+        book.get_asks(<span class="nu">25</span>),
+    )
+    <span class="kw">if</span> computed != expected:
+        logger.warning(<span class="st">f"Checksum mismatch: got {computed}, expected {expected}"</span>)
+        <span class="kw">return False</span>
+    <span class="kw">return True</span>
+</code></pre>
+    </div>
+
+    <h3>Stale Data Detection</h3>
+    <p>Track the timestamp of the last received message per channel. If more than N seconds pass without an update on an active market, the stream may have silently stalled — even if the WebSocket connection remains open.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">staleness_guard.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> time
+<span class="kw">from</span> typing <span class="kw">import</span> Dict
+
+
+<span class="kw">class</span> <span class="cl">StalenessGuard</span>:
+    <span class="st">"""Raises alert if any channel goes silent past its threshold."""</span>
+
+    THRESHOLDS: Dict[<span class="fn">str</span>, <span class="fn">float</span>] = {
+        <span class="st">"orderbook"</span>:   <span class="nu">5.0</span>,   <span class="cm"># active markets tick every second</span>
+        <span class="st">"trade"</span>:        <span class="nu">10.0</span>,  <span class="cm"># may be quiet on low-volume pairs</span>
+        <span class="st">"liquidation"</span>:  <span class="nu">120.0</span>, <span class="cm"># can be rare</span>
+    }
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._last_seen: Dict[<span class="fn">str</span>, <span class="fn">float</span>] = {}
+
+    <span class="kw">def</span> <span class="fn">touch</span>(self, channel: <span class="fn">str</span>) -> <span class="kw">None</span>:
+        self._last_seen[channel] = time.monotonic()
+
+    <span class="kw">def</span> <span class="fn">check</span>(self) -> Dict[<span class="fn">str</span>, <span class="fn">float</span>]:
+        now  = time.monotonic()
+        stale = {}
+        <span class="kw">for</span> ch, threshold <span class="kw">in</span> self.THRESHOLDS.items():
+            last = self._last_seen.get(ch)
+            <span class="kw">if</span> last <span class="kw">is None or</span> (now - last) > threshold:
+                stale[ch] = now - (last <span class="kw">or</span> <span class="nu">0</span>)
+        <span class="kw">return</span> stale  <span class="cm"># empty dict = all channels healthy</span>
+</code></pre>
+    </div>
+
+    <h2 id="purple-flea-integration">10. Connecting to Purple Flea</h2>
+    <p>Purple Flea's WebSocket endpoint delivers real-time game outcomes for crash, coin flip, and dice — the same event types that a statistical arbitrage agent needs to track edge drift. Once your agent has a wallet (registered via the REST API), it can subscribe to the live game feed and receive crash multipliers, flip results, and dice outcomes as they settle.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang">Python</span>
+        <span class="code-file">purpleflea_stream.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> asyncio, json, websockets
+
+
+<span class="kw">async def</span> <span class="fn">watch_crash_outcomes</span>(agent_token: <span class="fn">str</span>) -> <span class="kw">None</span>:
+    <span class="st">"""Stream Purple Flea crash game outcomes for statistical analysis."""</span>
+    uri = <span class="st">"wss://purpleflea.com/ws/games"</span>
+
+    <span class="kw">async with</span> websockets.connect(uri, ping_interval=<span class="nu">20</span>) <span class="kw">as</span> ws:
+        <span class="cm"># Authenticate agent</span>
+        <span class="kw">await</span> ws.send(json.dumps({
+            <span class="st">"op"</span>:   <span class="st">"auth"</span>,
+            <span class="st">"token"</span>: agent_token
+        }))
+        <span class="cm"># Subscribe to crash outcomes</span>
+        <span class="kw">await</span> ws.send(json.dumps({
+            <span class="st">"op"</span>: <span class="st">"subscribe"</span>,
+            <span class="st">"channels"</span>: [<span class="st">"crash.result"</span>, <span class="st">"coinflip.result"</span>]
+        }))
+
+        <span class="kw">async for</span> raw <span class="kw">in</span> ws:
+            event = json.loads(raw)
+            <span class="kw">if</span> event.get(<span class="st">"channel"</span>) == <span class="st">"crash.result"</span>:
+                multiplier = event[<span class="st">"data"</span>][<span class="st">"multiplier"</span>]
+                print(<span class="st">f"Crash settled at {multiplier:.2f}x"</span>)
+                <span class="cm"># Feed into statistical model to detect hot/cold streaks</span>
+
+
+asyncio.run(watch_crash_outcomes(<span class="st">"your_agent_token_here"</span>))
+</code></pre>
+    </div>
+
+    <div class="cta-box">
+      <h3>Start Streaming with Purple Flea</h3>
+      <p>Register your agent and get $1 USDC free via the faucet. Connect your WebSocket agent to live casino game data and perpetual futures feeds — all in one platform.</p>
+      <a href="https://purpleflea.com/register" class="cta-btn">Register Your Agent</a>
+    </div>
+
+    <h2 id="performance">11. Performance Tuning and Operational Tips</h2>
+
+    <p><strong>Parser performance.</strong> Use <code>ujson</code> or <code>orjson</code> instead of the standard library <code>json</code> module. On high-throughput streams (1,000+ messages/second), the parser is often the bottleneck. <code>orjson</code> is typically 5–10x faster than <code>json</code> for decode-heavy workloads.</p>
+
+    <p><strong>Queue depth monitoring.</strong> Track the size of your internal asyncio queue at regular intervals. If it grows unboundedly, your dispatch or handler code is slower than message arrival. Either speed up handlers or shed load with a backpressure mechanism.</p>
+
+    <p><strong>CPU affinity.</strong> For extremely latency-sensitive agents on multi-core hardware, pin the WebSocket receive loop to a dedicated CPU core. This prevents OS scheduling jitter from adding microseconds to message processing.</p>
+
+    <p><strong>Buffer tuning.</strong> Set <code>max_size</code> on the WebSocket connection to accommodate the largest expected message — typically the initial order book snapshot. A default of 1 MB is usually insufficient; 8 MB is a safe ceiling.</p>
+
+    <p><strong>TLS session resumption.</strong> On reconnect, modern TLS implementations can resume an existing session without a full handshake (TLS 1.3 0-RTT). The <code>websockets</code> library inherits this from the underlying <code>ssl</code> module automatically, but ensure your Python version is 3.11+ where 0-RTT support is stable.</p>
+
+    <p><strong>Separate public and private streams.</strong> Exchange WebSocket endpoints often have separate URLs for public market data versus private account updates. Use distinct connections for each. A private channel authentication failure should never disrupt market data reception.</p>
+
+    <p><strong>Log structured, not string.</strong> Use a JSON-structured logger (e.g., <code>structlog</code>) with fields for exchange, symbol, event_type, and latency. This makes post-hoc analysis of missed events or cascade episodes dramatically faster.</p>
+
+    <div class="callout callout-tip">
+      <strong>Benchmark</strong>
+      A well-tuned Python WebSocket agent using <code>orjson</code>, <code>uvloop</code>, and a dedicated event loop can sustainably process 50,000+ messages per second on commodity hardware. This is more than sufficient for any single-exchange feed and competitive for 3–5 exchange multiplexers.
+    </div>
+
+  </article>
+
+  <aside class="sidebar">
+    <div class="toc-box">
+      <h3>Contents</h3>
+      <ol>
+        <li><a href="#ws-vs-rest">WebSocket vs REST</a></li>
+        <li><a href="#connection-lifecycle">Connection Lifecycle</a></li>
+        <li><a href="#heartbeat">Heartbeat / Ping-Pong</a></li>
+        <li><a href="#order-book">Order Book Reconstruction</a></li>
+        <li><a href="#trade-tape">Trade Tape Streaming</a></li>
+        <li><a href="#liquidation-feed">Liquidation Monitoring</a></li>
+        <li><a href="#multiplexer">Multi-Exchange Multiplexer</a></li>
+        <li><a href="#async-reconnect">Full WebSocketAgent</a></li>
+        <li><a href="#data-consistency">Data Consistency</a></li>
+        <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+        <li><a href="#performance">Performance Tuning</a></li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea. Financial infrastructure for AI agents.</p>
+  <p style="margin-top:0.4rem;">
+    <a href="/">Home</a> &middot;
+    <a href="/docs/">Docs</a> &middot;
+    <a href="/blog/">Blog</a> &middot;
+    <a href="/for-agents/">For Agents</a> &middot;
+    <a href="https://purpleflea.com/register">Register</a>
+  </p>
+</footer>
+
+<script>
+  // Reading progress bar
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = pct + '%';
+  }, { passive: true });
+</script>
+
+</body>
+</html>
