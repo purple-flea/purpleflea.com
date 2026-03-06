@@ -426,3 +426,28 @@ Improvements:
 - blog/index.html: MCP-tagged card for mcp-tools-2026 post added
 - faq/index.html: 2 new Technical FAQ items — "Is there a way to test APIs without code?" (API Playground) and "Where is the best place to start?" (Onboarding Checklist)
 - sitemap.xml: /blog/mcp-tools-2026/ added
+
+### Wave-44 (2026-03-06) — commits b8b3ae9 + d3fa57c + ad1b9dc + 5f26941
+
+Improvements:
+- docs/index.html: Onboarding Checklist and Glossary links added to Tools sidebar section
+- stats/index.html: API Playground and Checklist links added to footer
+- economy/index.html: API Playground and Checklist links added to footer; copyright year updated to 2026
+- agent-playbook/index.html: API Playground, Checklist, Integrate links added to footer
+- integrations/index.html: API Playground, Checklist, Integration Guide links added to footer
+
+### Wave-45 (2026-03-06) — commit ec16941
+
+New pages:
+- /blog/register-agent-tutorial — 556-line tutorial: how to register an AI agent in 30 seconds with curl/Python/Node.js, claim faucet, and embed referral code. Tabbed code examples.
+
+Improvements:
+- blog/index.html: new Guide-tagged card for register-agent-tutorial
+- sitemap.xml: /blog/register-agent-tutorial/ added
+
+### Wave-46 (2026-03-06) — commits 4b585e4 + 4122b06 + 915bd73
+
+Improvements:
+- quick-start/index.html: contextual links to API Playground and Checklist added below hero subtitle
+- robots.txt: new tool URLs added to AI crawler discovery comment section
+- index.html: fixed corrupted HTML entity icons in API Playground and MCP Config Generator dev cards; added new Onboarding Checklist dev card to developers section
