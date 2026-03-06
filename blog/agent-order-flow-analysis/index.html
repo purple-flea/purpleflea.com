@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Flow Analysis for AI Agents | Purple Flea Blog</title>
+<meta name="description" content="What order flow tells you about market direction: volume delta, cumulative delta, footprint charts, VPIN, order flow imbalance, absorptions and exhaustions. Build a real-time order flow analyzer integrated with Purple Flea's trading feed.">
+<link rel="canonical" href="https://purpleflea.com/blog/agent-order-flow-analysis/">
+<meta property="og:title" content="Order Flow Analysis for AI Agents | Purple Flea Blog">
+<meta property="og:description" content="Master volume delta, cumulative delta, VPIN, and footprint charts. Build a real-time order flow analyzer for autonomous trading agents.">
+<meta property="og:url" content="https://purpleflea.com/blog/agent-order-flow-analysis/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Purple Flea">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@purpleflea">
+<meta name="twitter:title" content="Order Flow Analysis for AI Agents">
+<meta name="twitter:description" content="Volume delta, cumulative delta, VPIN, and footprint charts for autonomous trading agents.">
+<meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Order Flow Analysis for AI Agents",
+  "description": "What order flow tells you about market direction: volume delta, cumulative delta, footprint charts, VPIN, order flow imbalance signals, absorptions and exhaustions.",
+  "datePublished": "2026-03-06",
+  "author": { "@type": "Organization", "name": "Purple Flea" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "url": "https://purpleflea.com/blog/agent-order-flow-analysis/",
+  "keywords": ["order flow", "volume delta", "VPIN", "footprint charts", "AI trading", "market microstructure"]
+}
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --green: #22C55E;
+  --red: #EF4444;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.025; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); background-repeat: repeat; background-size: 180px; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
+::selection { background: rgba(168, 85, 247, 0.4); color: white; }
+
+#progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: linear-gradient(90deg, #A855F7, #7C3AED, #A855F7); z-index: 10000; width: 0%; transition: width 0.1s linear; }
+
+nav { position: sticky; top: 0; z-index: 100; background: rgba(9,9,11,0.85); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); }
+.nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { font-size: 1rem; font-weight: 700; text-decoration: none; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.nav-links { display: flex; align-items: center; gap: 24px; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { background: var(--purple); color: white !important; padding: 8px 16px; border-radius: 8px; font-weight: 600 !important; transition: opacity 0.2s !important; }
+.nav-cta:hover { opacity: 0.85; }
+
+.page-wrapper { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr 260px; gap: 48px; align-items: start; }
+@media (max-width: 900px) { .page-wrapper { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+
+.hero { padding: 60px 24px 40px; text-align: center; max-width: 860px; margin: 0 auto; }
+.hero-tags { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+.tag { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.tag-tools { background: rgba(59, 130, 246, 0.12); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.2); }
+.tag-trading { background: rgba(168, 85, 247, 0.15); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.2); }
+.hero h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+.hero h1 span { background: linear-gradient(135deg, #A855F7, #7C3AED); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero-meta { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 16px; }
+.hero-meta span { margin: 0 8px; }
+.hero-desc { color: var(--text-secondary); font-size: 1.05rem; max-width: 680px; margin: 0 auto; }
+
+article { padding: 40px 0 80px; }
+h2 { font-size: 1.5rem; font-weight: 700; margin: 48px 0 16px; color: var(--text); scroll-margin-top: 80px; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 32px 0 12px; color: var(--text); scroll-margin-top: 80px; }
+p { color: var(--text-secondary); margin-bottom: 16px; line-height: 1.75; }
+ul, ol { color: var(--text-secondary); margin: 12px 0 20px 20px; line-height: 1.75; }
+li { margin-bottom: 6px; }
+strong { color: var(--text); font-weight: 600; }
+a { color: var(--purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+pre { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 24px; overflow-x: auto; margin: 24px 0; position: relative; }
+pre code { font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; color: #E2E8F0; }
+code { font-family: var(--mono); font-size: 0.85em; background: rgba(168,85,247,0.1); color: #C084FC; padding: 2px 6px; border-radius: 4px; }
+pre code { background: none; color: #E2E8F0; padding: 0; }
+.code-label { position: absolute; top: 8px; right: 12px; font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); }
+
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 24px 0; }
+.card-title { font-weight: 700; font-size: 1rem; margin-bottom: 12px; color: var(--text); }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 24px 0; }
+.info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; }
+.info-card .label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.info-card .value { font-size: 1.4rem; font-weight: 800; color: var(--purple); }
+.info-card .desc { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+
+.callout { border-left: 3px solid var(--purple); background: var(--purple-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 16px 20px; margin: 24px 0; }
+.callout p { margin: 0; color: var(--text-secondary); }
+.callout-green { border-left-color: var(--green); background: rgba(34,197,94,0.07); }
+.callout-red { border-left-color: var(--red); background: rgba(239,68,68,0.07); }
+
+table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 0.875rem; }
+thead tr { border-bottom: 1px solid var(--border); }
+th { text-align: left; padding: 10px 14px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+td { padding: 12px 14px; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.03); }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+.chart-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 24px 0; overflow-x: auto; }
+.chart-wrap .chart-title { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px; font-weight: 600; }
+
+.toc-sidebar { position: sticky; top: 80px; align-self: start; }
+.toc-inner { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.toc-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 16px; }
+.toc-inner a { display: block; font-size: 0.82rem; color: var(--text-secondary); text-decoration: none; padding: 5px 0; border-left: 2px solid transparent; padding-left: 12px; transition: all 0.2s; line-height: 1.4; }
+.toc-inner a:hover, .toc-inner a.active { color: var(--purple); border-left-color: var(--purple); }
+.toc-inner a.toc-h3 { padding-left: 24px; font-size: 0.78rem; }
+
+.cta-section { background: linear-gradient(135deg, rgba(168,85,247,0.1), rgba(124,58,237,0.05)); border: 1px solid rgba(168,85,247,0.2); border-radius: var(--radius); padding: 40px; text-align: center; margin: 48px 0; }
+.cta-section h2 { font-size: 1.5rem; margin-bottom: 12px; }
+.cta-section p { color: var(--text-secondary); margin-bottom: 24px; max-width: 480px; margin-left: auto; margin-right: auto; }
+.btn-primary { display: inline-block; background: var(--purple); color: white; padding: 12px 28px; border-radius: 10px; font-weight: 700; text-decoration: none; transition: opacity 0.2s; }
+.btn-primary:hover { opacity: 0.85; text-decoration: none; }
+
+.breadcrumb { padding: 20px 24px 0; max-width: 1200px; margin: 0 auto; font-size: 0.8rem; color: var(--text-muted); }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--purple); }
+.breadcrumb span { margin: 0 6px; }
+
+/* Footprint cell grid */
+.footprint-grid { display: grid; grid-template-columns: 80px repeat(5, 1fr); gap: 2px; font-family: var(--mono); font-size: 0.72rem; margin: 16px 0; }
+.fp-header { color: var(--text-muted); padding: 4px 6px; text-align: center; font-weight: 600; }
+.fp-price { color: var(--text-secondary); padding: 4px 6px; text-align: right; }
+.fp-cell { padding: 4px 6px; border-radius: 3px; text-align: center; }
+.fp-buy { background: rgba(34,197,94,0.15); color: #4ADE80; }
+.fp-sell { background: rgba(239,68,68,0.15); color: #F87171; }
+.fp-neutral { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
+.fp-dominant { background: rgba(34,197,94,0.3); color: #86EFAC; font-weight: 700; }
+.fp-dominant-sell { background: rgba(239,68,68,0.3); color: #FCA5A5; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/register" class="nav-cta">Get API Key →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="/">Home</a><span>›</span>
+  <a href="/blog">Blog</a><span>›</span>
+  Order Flow Analysis for AI Agents
+</div>
+
+<div class="hero">
+  <div class="hero-tags">
+    <span class="tag tag-tools">Tools</span>
+    <span class="tag tag-trading">Trading</span>
+  </div>
+  <h1><span>Order Flow Analysis</span> for AI Agents</h1>
+  <div class="hero-meta">
+    <span>March 6, 2026</span>
+    <span>·</span>
+    <span>20 min read</span>
+    <span>·</span>
+    <span>Purple Flea Research</span>
+  </div>
+  <p class="hero-desc">What order flow tells you about market direction: volume delta, cumulative delta, footprint charts, VPIN, order flow imbalance, absorptions and exhaustions. Build a Python order flow analyzer from raw trade data and generate real-time signals via Purple Flea's trading feed.</p>
+</div>
+
+<div class="page-wrapper">
+  <article>
+
+    <h2 id="what-is-order-flow">What Is Order Flow?</h2>
+    <p>Every price move is caused by orders. Order flow analysis studies the <em>sequence and size of individual trades</em> — who is hitting the bid versus lifting the offer, and in what volumes. Unlike candlestick analysis which only shows open, high, low, and close, order flow reveals the aggression and conviction behind each price tick.</p>
+    <p>For an AI agent, order flow is the closest thing to reading the market's mind in real time. It answers questions that price charts cannot: Are buyers aggressive or passive? Is the selling pressure being absorbed? Is this rally running out of steam as participants take profit?</p>
+    <p>The data source is a <strong>tick-by-tick trade feed</strong> — every single executed trade with its price, size, and aggressor direction (buyer-initiated vs. seller-initiated). From this raw stream, we build progressively more powerful indicators.</p>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Core Metric</div>
+        <div class="value">Delta</div>
+        <div class="desc">Buy volume minus sell volume</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Key Pattern</div>
+        <div class="value">Absorption</div>
+        <div class="desc">Delta diverges from price</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Toxicity Metric</div>
+        <div class="value">VPIN</div>
+        <div class="desc">0–1, informed flow intensity</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Signal Latency</div>
+        <div class="value">&lt;50ms</div>
+        <div class="desc">Real-time from WebSocket feed</div>
+      </div>
+    </div>
+
+    <h2 id="volume-delta">Volume Delta</h2>
+    <p>Volume delta is the simplest order flow metric: <strong>delta = buy_volume − sell_volume</strong> for a given candle or time bucket. A positive delta means buyers were more aggressive; negative means sellers were more aggressive.</p>
+    <p>Crucially, delta and price often diverge — and that divergence is the signal:</p>
+    <ul>
+      <li><strong>Bearish divergence:</strong> Price makes a new high, but delta makes a lower high. Buyers are pushing price up with decreasing conviction — reversal risk is elevated.</li>
+      <li><strong>Bullish divergence:</strong> Price makes a new low, but delta makes a higher low. Sellers are pushing price down but losing steam — bounce likely.</li>
+      <li><strong>Delta confirmation:</strong> Price and delta both at new highs — trend continuation is likely.</li>
+    </ul>
+
+    <h3 id="tick-rule">Classifying Trades with the Tick Rule</h3>
+    <p>When a trade feed does not include aggressor direction, use the <strong>tick rule</strong>: if a trade executes above the previous trade price, classify as buyer-initiated; if below, seller-initiated; if at the same price, inherit the previous classification. This achieves ~85% accuracy vs. actual exchange data.</p>
+
+    <pre><code><span class="code-label">tick_rule.py</span>from dataclasses import dataclass
+from typing import List, Literal
+import numpy as np
+
+@dataclass
+class Trade:
+    ts: float       # Unix timestamp
+    price: float
+    size: float
+    side: Literal["buy", "sell", "unknown"] = "unknown"
+
+def classify_trades_tick_rule(trades: List[Trade]) -> List[Trade]:
+    """Classify aggressor direction using the Lee-Ready tick rule."""
+    last_price = None
+    last_side = "buy"
+    result = []
+    for t in trades:
+        if last_price is None or t.price > last_price:
+            side = "buy"
+        elif t.price < last_price:
+            side = "sell"
+        else:
+            side = last_side  # zero-tick: inherit
+        last_price = t.price
+        last_side = side
+        result.append(Trade(ts=t.ts, price=t.price, size=t.size, side=side))
+    return result
+
+def compute_delta(trades: List[Trade]) -> float:
+    """Volume delta for a list of trades."""
+    buy_vol  = sum(t.size for t in trades if t.side == "buy")
+    sell_vol = sum(t.size for t in trades if t.side == "sell")
+    return buy_vol - sell_vol
+
+def compute_imbalance_ratio(trades: List[Trade]) -> float:
+    """Order flow imbalance ratio: (buy_vol - sell_vol) / total_vol. Range [-1, 1]."""
+    buy_vol  = sum(t.size for t in trades if t.side == "buy")
+    sell_vol = sum(t.size for t in trades if t.side == "sell")
+    total = buy_vol + sell_vol
+    if total == 0: return 0.0
+    return (buy_vol - sell_vol) / total</code></pre>
+
+    <h2 id="cumulative-delta">Cumulative Delta</h2>
+    <p>Cumulative delta (CD) is the running total of delta over a session or time window. It provides a continuous "pressure gauge" — think of it as a volume-weighted tide that shows whether buyers or sellers have been in structural control over the entire period.</p>
+    <p>The most powerful signal is a <strong>CD divergence</strong>: when price is trending in one direction but CD is trending in the opposite direction, a reversal is statistically likely within 3–8 candles. This is the order flow equivalent of a bearish/bullish price-momentum divergence.</p>
+
+    <pre><code><span class="code-label">cumulative_delta.py</span>import pandas as pd
+import numpy as np
+from typing import List
+
+def build_ohlcv_delta(trades: List[Trade], freq: str = "1min") -> pd.DataFrame:
+    """
+    Aggregate trades into OHLCV + delta bars.
+    Returns DataFrame with columns: open, high, low, close, volume,
+    buy_vol, sell_vol, delta, cum_delta, imbalance.
+    """
+    df = pd.DataFrame([
+        {"ts": pd.Timestamp(t.ts, unit="s"), "price": t.price,
+         "size": t.size, "side": t.side}
+        for t in trades
+    ])
+    df.set_index("ts", inplace=True)
+    df["buy"]  = df["size"].where(df["side"] == "buy", 0)
+    df["sell"] = df["size"].where(df["side"] == "sell", 0)
+
+    bars = df.resample(freq).agg(
+        open=("price", "first"),
+        high=("price", "max"),
+        low=("price", "min"),
+        close=("price", "last"),
+        volume=("size", "sum"),
+        buy_vol=("buy", "sum"),
+        sell_vol=("sell", "sum"),
+    ).dropna()
+
+    bars["delta"]     = bars["buy_vol"] - bars["sell_vol"]
+    bars["cum_delta"] = bars["delta"].cumsum()
+    bars["imbalance"] = bars["delta"] / (bars["volume"] + 1e-9)
+    return bars
+
+def detect_cd_divergence(bars: pd.DataFrame, lookback: int = 10) -> pd.Series:
+    """
+    Returns a Series of divergence signals:
+    +1 = bullish divergence (price down, CD up)
+    -1 = bearish divergence (price up, CD down)
+     0 = no divergence
+    """
+    price_change = bars["close"].diff(lookback)
+    cd_change    = bars["cum_delta"].diff(lookback)
+    signal = pd.Series(0, index=bars.index)
+    signal[(price_change < 0) & (cd_change > 0)] =  1  # bullish
+    signal[(price_change > 0) & (cd_change < 0)] = -1  # bearish
+    return signal</code></pre>
+
+    <h2 id="footprint">Footprint Charts</h2>
+    <p>A footprint chart shows buy and sell volume at <em>each price level within each candle</em>. It is the highest-resolution visualization of order flow — you can see exactly which price levels attracted the most aggression and where the market found support or resistance.</p>
+    <p>Key patterns in footprint charts:</p>
+    <ul>
+      <li><strong>Stacked imbalances:</strong> Multiple consecutive price levels where buy volume significantly exceeds sell volume (3:1 or better) — indicates strong directional conviction.</li>
+      <li><strong>Absorption:</strong> Large sell volume at a price level but price does not drop — the sell pressure is being absorbed by aggressive buyers. Bullish setup.</li>
+      <li><strong>Exhaustion:</strong> The last few price levels in a move show decreasing delta despite continued price extension — buyers are running out of steam.</li>
+      <li><strong>POC (Point of Control):</strong> The price level with the highest total volume in a candle — acts as a magnet and often becomes future support/resistance.</li>
+    </ul>
+
+    <div class="chart-wrap">
+      <div class="chart-title">Footprint Chart — 1-minute BTC/USD candle at $67,240 (example)</div>
+      <div class="footprint-grid">
+        <div class="fp-header">Price</div>
+        <div class="fp-header">Bid×Ask</div>
+        <div class="fp-header">Delta</div>
+        <div class="fp-header">Total Vol</div>
+        <div class="fp-header">Imbalance</div>
+        <div class="fp-header">Signal</div>
+        <!-- rows -->
+        <div class="fp-price">67,260</div>
+        <div class="fp-sell">18×4</div>
+        <div class="fp-sell">-14</div>
+        <div class="fp-neutral">22</div>
+        <div class="fp-sell">-64%</div>
+        <div class="fp-sell">SELL DOM</div>
+        <div class="fp-price">67,255</div>
+        <div class="fp-sell">34×11</div>
+        <div class="fp-sell">-23</div>
+        <div class="fp-neutral">45</div>
+        <div class="fp-sell">-51%</div>
+        <div class="fp-neutral">–</div>
+        <div class="fp-price">67,250</div>
+        <div class="fp-neutral">28×22</div>
+        <div class="fp-neutral">+6</div>
+        <div class="fp-neutral">50</div>
+        <div class="fp-neutral">+12%</div>
+        <div class="fp-neutral">–</div>
+        <div class="fp-price" style="color:#A855F7;font-weight:700">67,245 ★</div>
+        <div class="fp-buy">12×89</div>
+        <div class="fp-dominant">+77</div>
+        <div class="fp-neutral">101</div>
+        <div class="fp-dominant">+76%</div>
+        <div class="fp-dominant">ABSORB</div>
+        <div class="fp-price">67,240</div>
+        <div class="fp-buy">9×67</div>
+        <div class="fp-buy">+58</div>
+        <div class="fp-neutral">76</div>
+        <div class="fp-buy">+76%</div>
+        <div class="fp-buy">BUY DOM</div>
+        <div class="fp-price">67,235</div>
+        <div class="fp-buy">6×41</div>
+        <div class="fp-buy">+35</div>
+        <div class="fp-neutral">47</div>
+        <div class="fp-buy">+74%</div>
+        <div class="fp-buy">BUY DOM</div>
+      </div>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:12px">★ POC at 67,245: high volume absorption with +77 delta despite sell pressure above. Stacked buy dominance at 67,240–67,245 = bullish setup for continuation.</p>
+    </div>
+
+    <pre><code><span class="code-label">footprint.py</span>from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple
+
+@dataclass
+class FootprintLevel:
+    price: float
+    buy_vol: float = 0.0
+    sell_vol: float = 0.0
+
+    @property
+    def delta(self) -> float: return self.buy_vol - self.sell_vol
+    @property
+    def total(self) -> float: return self.buy_vol + self.sell_vol
+    @property
+    def imbalance(self) -> float:
+        if self.total == 0: return 0.0
+        return self.delta / self.total
+
+@dataclass
+class FootprintCandle:
+    open: float
+    high: float
+    low: float
+    close: float
+    levels: Dict[float, FootprintLevel] = field(default_factory=dict)
+
+    @property
+    def poc(self) -> float:
+        """Price of Control — price level with highest total volume."""
+        if not self.levels: return self.close
+        return max(self.levels, key=lambda p: self.levels[p].total)
+
+    @property
+    def total_delta(self) -> float:
+        return sum(l.delta for l in self.levels.values())
+
+    def stacked_imbalances(self, threshold: float = 0.5,
+                           min_levels: int = 3) -> List[Tuple[str, float, float]]:
+        """
+        Detect stacked imbalances: consecutive levels all biased in same direction.
+        Returns list of (direction, start_price, end_price).
+        """
+        sorted_prices = sorted(self.levels.keys())
+        results = []
+        streak = []
+        streak_dir = None
+        for p in sorted_prices:
+            lvl = self.levels[p]
+            if lvl.imbalance > threshold:
+                d = "buy"
+            elif lvl.imbalance < -threshold:
+                d = "sell"
+            else:
+                d = None
+            if d == streak_dir and d is not None:
+                streak.append(p)
+            else:
+                if streak_dir and len(streak) >= min_levels:
+                    results.append((streak_dir, streak[0], streak[-1]))
+                streak = [p] if d else []
+                streak_dir = d
+        return results
+
+def build_footprint(trades: List[Trade], tick_size: float = 1.0) -> FootprintCandle:
+    """Build a footprint candle from a list of classified trades."""
+    if not trades:
+        raise ValueError("No trades provided")
+    prices = [t.price for t in trades]
+    candle = FootprintCandle(
+        open=prices[0], high=max(prices),
+        low=min(prices), close=prices[-1]
+    )
+    for t in trades:
+        # Round price to nearest tick
+        rounded = round(t.price / tick_size) * tick_size
+        if rounded not in candle.levels:
+            candle.levels[rounded] = FootprintLevel(price=rounded)
+        lvl = candle.levels[rounded]
+        if t.side == "buy":
+            lvl.buy_vol += t.size
+        else:
+            lvl.sell_vol += t.size
+    return candle</code></pre>
+
+    <h2 id="vpin">VPIN: Volume-Synchronized Probability of Informed Trading</h2>
+    <p>VPIN was developed by Easley, de Prado, and O'Hara as a real-time toxicity measure — it estimates the probability that a given trade was placed by an informed participant (someone with an information edge) rather than a noise trader. High VPIN indicates a market dominated by informed flow, which precedes adverse price movements for market makers and liquidity providers.</p>
+    <p>VPIN is computed over volume buckets rather than time buckets. Each bucket contains exactly V units of traded volume. For each bucket, <code>VPIN_bucket = |buy_vol - sell_vol| / V</code>. The rolling VPIN is the average over the last N buckets (typically N = 50).</p>
+    <p>Threshold: VPIN &gt; 0.50 historically precedes significant volatility events within the next 1–4 hours. At VPIN = 0.70+, the market is in a "toxic flow" regime and naive market-making strategies will lose money consistently.</p>
+
+    <pre><code><span class="code-label">vpin.py</span>import numpy as np
+from collections import deque
+from typing import List, Deque
+
+class VPINCalculator:
+    """
+    VPIN (Volume-Synchronized Probability of Informed Trading).
+    Paper: Easley, de Prado, O'Hara (2012).
+    """
+    def __init__(self, bucket_size: float = 50.0, n_buckets: int = 50):
+        self.bucket_size = bucket_size
+        self.n_buckets = n_buckets
+        self._current_bucket_vol = 0.0
+        self._current_buy_vol = 0.0
+        self._bucket_vpins: Deque[float] = deque(maxlen=n_buckets)
+
+    def update(self, trade: Trade) -> float | None:
+        """
+        Process a single trade. Returns current VPIN when a bucket completes,
+        otherwise returns None.
+        """
+        remaining = self.bucket_size - self._current_bucket_vol
+        if trade.size >= remaining:
+            # Fill current bucket
+            fraction = remaining / trade.size
+            if trade.side == "buy":
+                self._current_buy_vol += remaining
+            else:
+                pass  # sell
+            # Complete bucket
+            bucket_vpin = abs(2 * self._current_buy_vol - self.bucket_size) / self.bucket_size
+            self._bucket_vpins.append(bucket_vpin)
+            # Reset
+            leftover = trade.size - remaining
+            self._current_bucket_vol = leftover
+            self._current_buy_vol = leftover if trade.side == "buy" else 0.0
+        else:
+            self._current_bucket_vol += trade.size
+            if trade.side == "buy":
+                self._current_buy_vol += trade.size
+
+        if len(self._bucket_vpins) == self.n_buckets:
+            return float(np.mean(self._bucket_vpins))
+        return None
+
+    @property
+    def current_vpin(self) -> float:
+        if not self._bucket_vpins:
+            return 0.5
+        return float(np.mean(self._bucket_vpins))
+
+    @property
+    def regime(self) -> str:
+        v = self.current_vpin
+        if v < 0.30: return "low_toxicity"
+        if v < 0.50: return "normal"
+        if v < 0.70: return "elevated"
+        return "toxic"</code></pre>
+
+    <h2 id="imbalance-signals">Order Flow Imbalance Signals</h2>
+    <p>Order flow imbalance (OFI) measures the directional pressure on prices at the top of the order book. Unlike volume delta which looks at executed trades, OFI tracks changes in the limit order book — specifically, the net change in bid size minus the net change in ask size each millisecond.</p>
+
+    <div class="callout callout-green">
+      <p><strong>Key insight from Cont, Kukanov, Stoikov (2014):</strong> OFI explains ~50% of the variance in short-term (15-second to 5-minute) price changes. It is the single most predictive microstructure variable for short-horizon price impact.</p>
+    </div>
+
+    <pre><code><span class="code-label">ofi.py</span>from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class BookSnapshot:
+    ts: float
+    best_bid: float
+    best_ask: float
+    bid_size: float
+    ask_size: float
+
+def compute_ofi(prev: BookSnapshot, curr: BookSnapshot) -> float:
+    """
+    Order Flow Imbalance between two consecutive book snapshots.
+    OFI = delta_bid - delta_ask
+    delta_bid = bid_size_change if bid_price unchanged, else +/-bid_size
+    delta_ask = ask_size_change if ask_price unchanged, else +/-ask_size
+    """
+    # Bid side
+    if curr.best_bid > prev.best_bid:
+        delta_bid = curr.bid_size           # new bid level: full size is net new
+    elif curr.best_bid == prev.best_bid:
+        delta_bid = curr.bid_size - prev.bid_size  # same level: net change
+    else:
+        delta_bid = -prev.bid_size          # bid retreated: all size gone
+
+    # Ask side
+    if curr.best_ask < prev.best_ask:
+        delta_ask = curr.ask_size           # new ask level: full size
+    elif curr.best_ask == prev.best_ask:
+        delta_ask = curr.ask_size - prev.ask_size
+    else:
+        delta_ask = -prev.ask_size          # ask retreated
+
+    return delta_bid - delta_ask
+
+class RollingOFI:
+    """Rolling OFI sum over a sliding window of N snapshots."""
+    def __init__(self, window: int = 100):
+        self.window = window
+        self._values: list[float] = []
+        self._prev: Optional[BookSnapshot] = None
+
+    def update(self, snap: BookSnapshot) -> Optional[float]:
+        if self._prev is not None:
+            ofi = compute_ofi(self._prev, snap)
+            self._values.append(ofi)
+            if len(self._values) > self.window:
+                self._values.pop(0)
+        self._prev = snap
+        if len(self._values) == self.window:
+            return sum(self._values)
+        return None</code></pre>
+
+    <h2 id="absorptions-exhaustions">Absorptions and Exhaustions</h2>
+    <p><strong>Absorption</strong> occurs when a large flow of market orders in one direction fails to move the price — the opposing side is providing deep liquidity and absorbing the aggressor. This signals strong directional bias from the absorber and often precedes a sharp reversal.</p>
+    <p>Detection criteria: buy absorption requires delta &gt; threshold AND (close - open) &lt; -0.1% in the same candle. Sell absorption requires delta &lt; -threshold AND (close - open) &gt; 0.1%.</p>
+    <p><strong>Exhaustion</strong> is the opposite: the aggressor is still winning (price moving in their direction) but with decreasing delta over consecutive candles. The move is losing momentum from within — a leading indicator of trend exhaustion before price confirms it.</p>
+
+    <pre><code><span class="code-label">absorption_detection.py</span>import pandas as pd
+import numpy as np
+
+def detect_absorptions(bars: pd.DataFrame,
+                       delta_pct_threshold: float = 0.30,
+                       price_reversal_threshold: float = 0.001) -> pd.DataFrame:
+    """
+    Detect absorption candles.
+    delta_pct_threshold: delta / volume must exceed this (e.g., 0.30 = 30% net bias)
+    price_reversal_threshold: price must move against the delta direction (e.g., 0.1%)
+    """
+    bars = bars.copy()
+    bars["delta_pct"]   = bars["delta"] / (bars["volume"] + 1e-9)
+    bars["price_chg"]   = (bars["close"] - bars["open"]) / bars["open"]
+
+    # Buy absorption: heavy buying, but price fell (sellers absorbed the buying)
+    bars["buy_absorption"] = (
+        (bars["delta_pct"] > delta_pct_threshold) &
+        (bars["price_chg"] < -price_reversal_threshold)
+    )
+    # Sell absorption: heavy selling, but price rose (buyers absorbed the selling)
+    bars["sell_absorption"] = (
+        (bars["delta_pct"] < -delta_pct_threshold) &
+        (bars["price_chg"] > price_reversal_threshold)
+    )
+    return bars
+
+def detect_exhaustion(bars: pd.DataFrame, lookback: int = 4,
+                      min_decline_pct: float = 0.50) -> pd.Series:
+    """
+    Detect delta exhaustion: price in uptrend but delta declining.
+    Returns +1 for sell exhaustion (top signal), -1 for buy exhaustion (bottom signal).
+    """
+    signal = pd.Series(0, index=bars.index)
+    for i in range(lookback, len(bars)):
+        window = bars.iloc[i-lookback:i+1]
+        price_trend = window["close"].iloc[-1] - window["close"].iloc[0]
+        delta_trend = window["delta"].iloc[-1] - window["delta"].iloc[0]
+        # Uptrend with declining delta = sell exhaustion
+        if price_trend > 0 and delta_trend < -abs(price_trend) * min_decline_pct:
+            signal.iloc[i] = 1
+        # Downtrend with rising delta = buy exhaustion
+        elif price_trend < 0 and delta_trend > abs(price_trend) * min_decline_pct:
+            signal.iloc[i] = -1
+    return signal</code></pre>
+
+    <h2 id="full-analyzer">Full Order Flow Analyzer</h2>
+    <p>Combining all the above components into a single <code>OrderFlowAnalyzer</code> class that consumes a WebSocket trade stream and emits real-time signals:</p>
+
+    <pre><code><span class="code-label">order_flow_analyzer.py</span>import asyncio
+import json
+import websockets
+from dataclasses import dataclass, field
+from typing import List, Callable, Optional
+from datetime import datetime
+
+@dataclass
+class OFASignal:
+    ts: datetime
+    price: float
+    delta: float
+    cum_delta: float
+    vpin: float
+    regime: str
+    patterns: List[str]
+    strength: float   # -1 to 1, negative = bearish
+
+class OrderFlowAnalyzer:
+    """
+    Real-time order flow analyzer connected to Purple Flea WebSocket feed.
+    Emits OFASignal on significant order flow events.
+    """
+    def __init__(self, symbol: str = "BTC/USD",
+                 bar_seconds: int = 60,
+                 on_signal: Optional[Callable] = None):
+        self.symbol = symbol
+        self.bar_seconds = bar_seconds
+        self.on_signal = on_signal
+
+        self._trades: List[Trade] = []
+        self._bar_start: Optional[float] = None
+        self._cum_delta = 0.0
+        self._vpin = VPINCalculator(bucket_size=50.0, n_buckets=50)
+        self._prev_bars: List[dict] = []
+
+    async def connect(self, ws_url: str, api_key: str):
+        """Connect to Purple Flea trade feed WebSocket."""
+        async with websockets.connect(ws_url) as ws:
+            await ws.send(json.dumps({
+                "method": "subscribe",
+                "params": {"channel": "trades", "symbol": self.symbol},
+                "auth": api_key
+            }))
+            async for message in ws:
+                data = json.loads(message)
+                if data.get("type") == "trade":
+                    await self._on_trade(Trade(
+                        ts=data["ts"],
+                        price=data["price"],
+                        size=data["size"],
+                        side=data["side"]
+                    ))
+
+    async def _on_trade(self, trade: Trade):
+        now = trade.ts
+        if self._bar_start is None:
+            self._bar_start = now
+
+        # Accumulate trades in current bar
+        self._trades.append(trade)
+
+        # Update VPIN continuously
+        self._vpin.update(trade)
+
+        # Flush bar when time window closes
+        if now - self._bar_start >= self.bar_seconds:
+            await self._flush_bar()
+            self._bar_start = now
+            self._trades = []
+
+    async def _flush_bar(self):
+        if not self._trades:
+            return
+        trades_classified = classify_trades_tick_rule(self._trades)
+        delta = compute_delta(trades_classified)
+        self._cum_delta += delta
+
+        fp = build_footprint(trades_classified)
+        stacked = fp.stacked_imbalances(threshold=0.5, min_levels=3)
+
+        # Build bar dict for exhaustion detection
+        prices = [t.price for t in self._trades]
+        bar = {
+            "open": prices[0], "high": max(prices),
+            "low": min(prices), "close": prices[-1],
+            "delta": delta, "volume": sum(t.size for t in self._trades)
+        }
+        self._prev_bars.append(bar)
+        if len(self._prev_bars) > 20:
+            self._prev_bars.pop(0)
+
+        patterns = []
+        strength = 0.0
+
+        # Absorption
+        if delta > 0 and (bar["close"] < bar["open"]):
+            patterns.append("buy_absorption")
+            strength -= 0.7  # bearish signal
+        elif delta < 0 and (bar["close"] > bar["open"]):
+            patterns.append("sell_absorption")
+            strength += 0.7  # bullish signal
+
+        # Stacked imbalances
+        for direction, p_start, p_end in stacked:
+            if direction == "buy":
+                patterns.append(f"stacked_buy@{p_start:.0f}-{p_end:.0f}")
+                strength += 0.5
+            else:
+                patterns.append(f"stacked_sell@{p_start:.0f}-{p_end:.0f}")
+                strength -= 0.5
+
+        # VPIN regime
+        vpin_val = self._vpin.current_vpin
+        vpin_regime = self._vpin.regime
+        if vpin_regime == "toxic":
+            patterns.append("vpin_toxic")
+
+        signal = OFASignal(
+            ts=datetime.utcnow(),
+            price=bar["close"],
+            delta=delta,
+            cum_delta=self._cum_delta,
+            vpin=vpin_val,
+            regime=vpin_regime,
+            patterns=patterns,
+            strength=max(-1, min(1, strength))
+        )
+        if self.on_signal and patterns:
+            await self.on_signal(signal)
+
+# Entry point
+async def main():
+    def on_signal(sig: OFASignal):
+        print(f"[{sig.ts:%H:%M:%S}] price={sig.price:.0f} "
+              f"delta={sig.delta:+.1f} vpin={sig.vpin:.3f} "
+              f"patterns={sig.patterns} strength={sig.strength:+.2f}")
+    analyzer = OrderFlowAnalyzer(symbol="BTC/USD", on_signal=on_signal)
+    await analyzer.connect(
+        ws_url="wss://purpleflea.com/ws/trades",
+        api_key="pf_live_<your_key>"
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+
+    <h2 id="signal-integration">Real-Time Signal Generation and Trading</h2>
+    <p>The order flow signals from the analyzer feed directly into trade execution logic. The key principle: <strong>never trade against absorption signals</strong>. If you see buy absorption (heavy buying that the market absorbed without moving price up), the smart money is clearly selling into strength — align with them.</p>
+
+    <table>
+      <thead><tr><th>Pattern</th><th>Interpretation</th><th>Trade Action</th><th>Confidence</th></tr></thead>
+      <tbody>
+        <tr><td>Buy absorption</td><td>Sellers absorbing buyers</td><td>Sell / short bias</td><td>High</td></tr>
+        <tr><td>Sell absorption</td><td>Buyers absorbing sellers</td><td>Buy / long bias</td><td>High</td></tr>
+        <tr><td>Stacked buy imbalance</td><td>Aggressive sequential buying</td><td>Buy momentum</td><td>Medium</td></tr>
+        <tr><td>Stacked sell imbalance</td><td>Aggressive sequential selling</td><td>Sell momentum</td><td>Medium</td></tr>
+        <tr><td>CD bearish divergence</td><td>Price up, cumulative delta down</td><td>Reduce longs</td><td>Medium-High</td></tr>
+        <tr><td>VPIN toxic (&gt;0.7)</td><td>Informed flow dominant</td><td>Widen stops, reduce size</td><td>High</td></tr>
+        <tr><td>Delta exhaustion (up)</td><td>Rally losing internal strength</td><td>Tighten profit targets</td><td>Medium</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-red">
+      <p><strong>Important:</strong> Order flow signals are most reliable at key structural price levels (POC from previous session, daily open, high-volume nodes). A buy absorption signal at a weekly POC is far more significant than one in open air. Always combine order flow with structural context.</p>
+    </div>
+
+    <div class="cta-section">
+      <h2>Trade With Purple Flea's Live Feed</h2>
+      <p>Connect your OrderFlowAnalyzer to Purple Flea's real-time WebSocket trade stream. Tick-level data, sub-50ms latency, 6 trading pairs.</p>
+      <a href="https://purpleflea.com/register" class="btn-primary">Get API Key →</a>
+    </div>
+
+    <h2 id="summary">Summary</h2>
+    <p>Order flow analysis gives AI agents a structural edge by revealing the <em>intentions behind price moves</em> rather than just the price itself. The four-layer framework covered here — volume delta for directional pressure, cumulative delta for structural bias, footprint charts for level-by-level precision, and VPIN for toxicity regime detection — provides a complete picture of market microstructure.</p>
+    <p>The <code>OrderFlowAnalyzer</code> class integrates all layers into a real-time signal generator that connects directly to Purple Flea's WebSocket trade feed. Used in combination with the sentiment index and structural price levels, order flow signals form the core of a robust systematic trading framework for autonomous agents.</p>
+
+  </article>
+
+  <aside class="toc-sidebar">
+    <div class="toc-inner">
+      <div class="toc-title">Contents</div>
+      <a href="#what-is-order-flow">What Is Order Flow?</a>
+      <a href="#volume-delta">Volume Delta</a>
+      <a href="#tick-rule" class="toc-h3">Tick Rule Classification</a>
+      <a href="#cumulative-delta">Cumulative Delta</a>
+      <a href="#footprint">Footprint Charts</a>
+      <a href="#vpin">VPIN</a>
+      <a href="#imbalance-signals">Order Flow Imbalance</a>
+      <a href="#absorptions-exhaustions">Absorptions &amp; Exhaustions</a>
+      <a href="#full-analyzer">Full Analyzer</a>
+      <a href="#signal-integration">Signal Integration</a>
+      <a href="#summary">Summary</a>
+    </div>
+  </aside>
+</div>
+
+<script>
+const bar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const total = document.documentElement.scrollHeight - window.innerHeight;
+  bar.style.width = (window.scrollY / total * 100) + '%';
+});
+const headings = document.querySelectorAll('h2[id], h3[id]');
+const tocLinks = document.querySelectorAll('.toc-inner a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      tocLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.toc-inner a[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -75% 0px' });
+headings.forEach(h => obs.observe(h));
+</script>
+</body>
+</html>
