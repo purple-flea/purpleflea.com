@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Securing AI Agent Wallets: Seed Phrases, Key Management, and Best Practices | Purple Flea Blog</title>
+  <meta name="description" content="How AI agents should handle seed phrases, private keys, and wallet security. Best practices for key storage, env-based loading, encrypted key patterns, multi-sig, and emergency recovery.">
+  <meta name="author" content="Purple Flea">
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-seed-phrase-security">
+  <meta property="og:title" content="Securing AI Agent Wallets: Seed Phrases, Key Management, and Best Practices">
+  <meta property="og:description" content="Lost keys mean lost funds with no recovery. Here is how AI agents should handle seed phrases, private keys, and wallet custody.">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-seed-phrase-security">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@purpleflea">
+  <meta name="twitter:title" content="Securing AI Agent Wallets: Seed Phrases, Key Management, and Best Practices">
+  <meta name="twitter:description" content="Lost keys mean lost funds with no recovery. Here is how AI agents should handle seed phrases, private keys, and wallet custody.">
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Securing AI Agent Wallets: Seed Phrases, Key Management, and Best Practices",
+    "description": "How AI agents should handle seed phrases, private keys, and wallet security. Best practices for key storage, env-based loading, encrypted key patterns, multi-sig, and emergency recovery.",
+    "datePublished": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "url": "https://purpleflea.com/blog/agent-seed-phrase-security",
+    "keywords": ["seed phrase security", "AI agent wallets", "key management", "BIP-39", "multi-sig", "Purple Flea", "crypto security"]
+  }
+  </script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --bg: #09090B;
+      --bg-card: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --border-purple: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --green: #22C55E;
+      --blue: #60A5FA;
+      --amber: #F59E0B;
+      --red: #EF4444;
+      --radius: 12px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-purple); border-radius: 3px; }
+    ::selection { background: rgba(168,85,247,0.4); color: #fff; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      font-family: var(--mono);
+      font-size: 0.84em;
+      background: rgba(168,85,247,0.1);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #c084fc;
+    }
+    pre {
+      font-family: var(--mono);
+      font-size: 14px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      overflow-x: auto;
+      color: #e2e8f0;
+      line-height: 1.65;
+      margin: 28px 0;
+    }
+    pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+    .highlight { color: #86EFAC; }
+    .comment { color: #71717A; }
+    .keyword { color: #C084FC; }
+    .string { color: #FDE68A; }
+    .number { color: #60A5FA; }
+
+    #progress-bar {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: linear-gradient(90deg, var(--purple), #ec4899);
+      z-index: 200; transition: width 0.1s linear;
+    }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex; align-items: center; padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1100px; width: 100%; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      text-decoration: none; display: flex; align-items: center; gap: 8px;
+      letter-spacing: -0.02em;
+    }
+    .nav-logo:hover { text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 28px; list-style: none; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    .article-wrap {
+      max-width: 800px; margin: 0 auto;
+      padding: 100px 24px 60px;
+    }
+    .post-meta {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .post-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 20px;
+    }
+    .tag-red {
+      background: rgba(239,68,68,0.12);
+      color: #EF4444;
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+    .tag-blue {
+      background: rgba(96,165,250,0.12);
+      color: #60A5FA;
+      border: 1px solid rgba(96,165,250,0.25);
+    }
+    .post-date { color: var(--text-muted); font-size: 14px; }
+    .post-read { color: var(--text-muted); font-size: 14px; }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 800; line-height: 1.15;
+      letter-spacing: -0.03em; margin-bottom: 24px;
+    }
+    h1 span { color: var(--purple); }
+    .lead {
+      font-size: 19px; color: var(--text-secondary);
+      line-height: 1.7; margin-bottom: 40px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+    }
+    h2 {
+      font-size: 24px; font-weight: 700;
+      letter-spacing: -0.02em; margin: 44px 0 16px;
+    }
+    h3 { font-size: 19px; font-weight: 600; margin: 32px 0 12px; }
+    p { margin-bottom: 20px; color: #D4D4D8; }
+    ul, ol { margin: 16px 0 20px 24px; color: #D4D4D8; }
+    li { margin-bottom: 8px; }
+    strong { color: var(--text); }
+
+    .callout {
+      background: rgba(168,85,247,0.06);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-left: 4px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 20px 24px; margin: 28px 0;
+    }
+    .callout-danger {
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-left: 4px solid var(--red);
+    }
+    .callout-warn {
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-left: 4px solid var(--amber);
+    }
+    .callout-title {
+      font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 8px; color: var(--purple);
+    }
+    .callout-danger .callout-title { color: var(--red); }
+    .callout-warn .callout-title { color: var(--amber); }
+    .callout p { margin: 0; color: var(--text-secondary); font-size: 15px; }
+
+    .checklist {
+      list-style: none; margin-left: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+    }
+    .checklist li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 8px 0; border-bottom: 1px solid var(--border);
+      color: #D4D4D8; margin: 0;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist-icon { color: var(--green); font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+    .checklist-icon-x { color: var(--red); }
+
+    .cta-box {
+      margin: 56px 0 0;
+      background: linear-gradient(135deg, rgba(168,85,247,0.1) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid var(--border-purple);
+      border-radius: 16px;
+      padding: 36px; text-align: center;
+    }
+    .cta-box h3 { margin: 0 0 12px; font-size: 22px; }
+    .cta-box p { margin: 0 0 24px; color: var(--text-secondary); font-size: 16px; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--purple); color: #fff !important;
+      padding: 12px 28px; border-radius: 10px;
+      font-weight: 700; font-size: 15px;
+      text-decoration: none !important;
+      transition: background 0.2s, transform 0.15s;
+      margin: 0 6px;
+    }
+    .cta-btn:hover { background: var(--purple-dim); transform: translateY(-2px); }
+    .cta-btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-purple);
+      color: var(--purple) !important;
+    }
+    .cta-btn-ghost:hover { background: rgba(168,85,247,0.08); transform: translateY(-2px); }
+
+    footer {
+      margin-top: 80px; border-top: 1px solid var(--border);
+      padding: 32px 24px; text-align: center;
+    }
+    .footer-links { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+    .footer-links a { color: var(--text-muted); font-size: 14px; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--text); text-decoration: none; }
+    .footer-copy { color: var(--text-muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/blog">&#8592; Blog</a></li>
+        <li><a href="/crypto-wallet-api">Wallet API</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/register" style="background:var(--purple);color:#fff;padding:8px 18px;border-radius:8px;font-weight:600;">Get Started</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="article-wrap">
+    <div class="post-meta">
+      <span class="post-tag tag-red">Security</span>
+      <span class="post-date">March 6, 2026</span>
+      <span class="post-read">9 min read</span>
+    </div>
+
+    <h1>Securing AI Agent Wallets: <span>Seed Phrases, Key Management, and Best Practices</span></h1>
+
+    <p class="lead">Crypto private keys have one immutable property: if they are lost or stolen, there is no recovery path. No customer support ticket, no password reset, no insurance claim. For AI agents holding real funds, wallet security is not optional — it is the foundation that everything else is built on.</p>
+
+    <h2>Why Agent Wallet Security Is Different</h2>
+    <p>Human wallet security is hard. Agent wallet security is harder. Agents run continuously, often unattended, and interact with many external services. They also typically store credentials in configuration files, environment variables, or databases — all of which are attack surfaces that a human wallet owner would never encounter.</p>
+    <p>The threat model for an AI agent wallet includes:</p>
+    <ul>
+      <li>Compromised environment variables (leaked in logs, error messages, or CI/CD systems)</li>
+      <li>Supply chain attacks (malicious npm/pip package reading env variables)</li>
+      <li>Process memory dumps exposing keys at runtime</li>
+      <li>Insecure key storage in configuration files committed to version control</li>
+      <li>Long-running process compromise giving an attacker persistent access</li>
+    </ul>
+
+    <div class="callout callout-danger">
+      <div class="callout-title">No Recovery Exists</div>
+      <p>A compromised or lost private key means total and permanent loss of any funds held at that address. There is no exception to this rule in any major cryptocurrency. Design your key management accordingly.</p>
+    </div>
+
+    <h2>Purple Flea Handles Custody — Here Is What That Means</h2>
+    <p>When an agent registers on Purple Flea and uses the multi-chain wallet API, <strong>Purple Flea holds the private keys server-side</strong>. Your agent authenticates with an API key and never sees the raw seed phrase or private key for its Purple Flea wallet. This is the custodial model — simpler for agents, and Purple Flea's security infrastructure protects the keys.</p>
+    <p>This means your agent's primary security concern for Purple Flea funds is protecting its <code>PURPLEFLEA_API_KEY</code> — not a seed phrase. Rotate this key immediately if you suspect compromise.</p>
+    <p>However, many agents also maintain <strong>external wallets</strong> — Bitcoin nodes, Monero wallets, on-chain DeFi signers — where they do control raw private keys. For these, the following practices apply.</p>
+
+    <h2>BIP-39 Seed Phrase Generation</h2>
+    <p>If your agent generates its own wallet, always use BIP-39 compliant 24-word seed phrases (256 bits of entropy). Never use 12-word phrases for high-value wallets. The additional 128 bits of entropy matters at scale.</p>
+
+<pre><code><span class="comment"># Install: pip install mnemonic</span>
+<span class="keyword">from</span> mnemonic <span class="keyword">import</span> Mnemonic
+<span class="keyword">import</span> secrets
+
+<span class="keyword">def</span> <span class="highlight">generate_secure_seed</span>():
+    <span class="comment"># Use system CSPRNG — never use random.random() for key generation</span>
+    mnemo = Mnemonic(<span class="string">"english"</span>)
+    entropy = secrets.token_bytes(<span class="number">32</span>)  <span class="comment"># 256 bits</span>
+    words = mnemo.to_mnemonic(entropy)
+    <span class="keyword">return</span> words  <span class="comment"># 24-word phrase</span>
+
+<span class="comment"># NEVER do this:</span>
+<span class="comment"># seed = "abandon abandon abandon..."  # hardcoded — catastrophic</span>
+<span class="comment"># seed = os.environ.get("SEED", "abandon abandon abandon...")  # default is a trap</span></code></pre>
+
+    <h2>Secure Key Loading from Environment Variables</h2>
+    <p>The minimum viable secure pattern for agent key storage is environment variables loaded at process start — never hardcoded, never written to disk in plaintext, never logged.</p>
+
+<pre><code><span class="keyword">import</span> os
+<span class="keyword">import</span> sys
+
+<span class="keyword">def</span> <span class="highlight">load_keys_from_env</span>():
+    <span class="comment"># Fail loudly if any required key is missing — never use defaults</span>
+    required = [
+        <span class="string">"PURPLEFLEA_API_KEY"</span>,
+        <span class="string">"BTC_WALLET_SEED"</span>,       <span class="comment"># optional: only if using self-custodied BTC</span>
+    ]
+    keys = {}
+    missing = []
+    <span class="keyword">for</span> key <span class="keyword">in</span> required:
+        val = os.environ.get(key)
+        <span class="keyword">if</span> <span class="keyword">not</span> val:
+            missing.append(key)
+        <span class="keyword">else</span>:
+            keys[key] = val
+
+    <span class="keyword">if</span> missing:
+        print(<span class="string">f"ERROR: Missing required env vars: {', '.join(missing)}"</span>, file=sys.stderr)
+        <span class="comment"># Do NOT print which keys are present — that leaks partial information</span>
+        sys.exit(<span class="number">1</span>)
+
+    <span class="keyword">return</span> keys
+
+<span class="keyword">def</span> <span class="highlight">sanitize_logs</span>(message: str, keys: dict) -> str:
+    <span class="comment"># Redact any key material before logging</span>
+    <span class="keyword">for</span> val <span class="keyword">in</span> keys.values():
+        <span class="keyword">if</span> val <span class="keyword">and</span> len(val) > <span class="number">8</span>:
+            message = message.replace(val, <span class="string">"[REDACTED]"</span>)
+    <span class="keyword">return</span> message</code></pre>
+
+    <h2>Encrypted Key Storage for Persistent Agents</h2>
+    <p>For agents that need to persist keys across restarts without relying solely on env vars, use encrypted key storage with a key-encryption-key (KEK) derived from a passphrase stored separately.</p>
+
+<pre><code><span class="comment"># Install: pip install cryptography</span>
+<span class="keyword">from</span> cryptography.fernet <span class="keyword">import</span> Fernet
+<span class="keyword">from</span> cryptography.hazmat.primitives.kdf.pbkdf2 <span class="keyword">import</span> PBKDF2HMAC
+<span class="keyword">from</span> cryptography.hazmat.primitives <span class="keyword">import</span> hashes
+<span class="keyword">import</span> base64, os, json
+
+<span class="keyword">def</span> <span class="highlight">derive_key</span>(passphrase: str, salt: bytes) -> bytes:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=<span class="number">32</span>,
+        salt=salt,
+        iterations=<span class="number">480000</span>  <span class="comment"># OWASP 2026 recommendation</span>
+    )
+    <span class="keyword">return</span> base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
+
+<span class="keyword">def</span> <span class="highlight">encrypt_keystore</span>(seeds: dict, passphrase: str, path: str):
+    salt = os.urandom(<span class="number">16</span>)
+    key = derive_key(passphrase, salt)
+    f = Fernet(key)
+    ciphertext = f.encrypt(json.dumps(seeds).encode())
+    <span class="keyword">with</span> open(path, <span class="string">"wb"</span>) <span class="keyword">as</span> fp:
+        fp.write(salt + ciphertext)
+    os.chmod(path, <span class="number">0o600</span>)  <span class="comment"># owner read-write only</span>
+
+<span class="keyword">def</span> <span class="highlight">decrypt_keystore</span>(passphrase: str, path: str) -> dict:
+    <span class="keyword">with</span> open(path, <span class="string">"rb"</span>) <span class="keyword">as</span> fp:
+        data = fp.read()
+    salt, ciphertext = data[:<span class="number">16</span>], data[<span class="number">16</span>:]
+    key = derive_key(passphrase, salt)
+    f = Fernet(key)
+    <span class="keyword">return</span> json.loads(f.decrypt(ciphertext))
+
+<span class="comment"># Key rotation: generate new seed, re-encrypt, update on-chain if needed</span>
+<span class="keyword">def</span> <span class="highlight">rotate_key</span>(old_pass: str, new_pass: str, path: str):
+    seeds = decrypt_keystore(old_pass, path)
+    <span class="comment"># Optionally generate new seeds here and transfer funds</span>
+    encrypt_keystore(seeds, new_pass, path)
+    print(<span class="string">"Key rotation complete."</span>)</code></pre>
+
+    <h2>Multi-Signature for High-Value Agent Wallets</h2>
+    <p>For agents holding significant funds (above $10,000 equivalent), consider a 2-of-3 multi-sig setup. This means any transaction requires signatures from 2 out of 3 keys. Even if one key is compromised, an attacker cannot drain funds.</p>
+    <p>A practical 2-of-3 split for an autonomous agent:</p>
+    <ul>
+      <li><strong>Key 1:</strong> Hot key — held in the agent's encrypted keystore, used for routine operations</li>
+      <li><strong>Key 2:</strong> Operator key — held by the agent's owner, required to authorize large withdrawals</li>
+      <li><strong>Key 3:</strong> Recovery key — stored offline in cold storage, used only for emergency recovery</li>
+    </ul>
+    <p>This setup lets the agent operate autonomously for small transactions while requiring human sign-off for large moves — a natural circuit breaker against both bugs and compromise.</p>
+
+    <h2>Best Practices Checklist</h2>
+    <ul class="checklist">
+      <li><span class="checklist-icon">&#10003;</span> <span>Generate keys using a CSPRNG (Python <code>secrets</code> module, not <code>random</code>)</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Never hardcode seed phrases or private keys in source code</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Load keys exclusively from environment variables or encrypted keystores</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Redact all key material before writing to logs or error messages</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Rotate API keys and seed phrases periodically (or immediately after any suspected exposure)</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Use 2-of-3 multi-sig for wallets holding more than $10,000</span></li>
+      <li><span class="checklist-icon">&#10003;</span> <span>Keep the recovery key offline and physically separate from the hot and operator keys</span></li>
+      <li><span class="checklist-icon checklist-icon-x">&#10007;</span> <span>Never commit <code>.env</code> files or keystores to version control</span></li>
+      <li><span class="checklist-icon checklist-icon-x">&#10007;</span> <span>Never log the full API response if it might contain sensitive fields</span></li>
+      <li><span class="checklist-icon checklist-icon-x">&#10007;</span> <span>Never use test seed phrases in production (even briefly)</span></li>
+    </ul>
+
+    <h2>Emergency Recovery Plan</h2>
+    <p>If your agent process crashes mid-transaction, two scenarios require immediate attention:</p>
+    <p><strong>Transaction broadcast but not confirmed:</strong> The transaction is in the mempool. Query the blockchain explorer with the transaction hash. If it is stuck (insufficient fees), use Replace-By-Fee (RBF) on Bitcoin or speed up on EVM chains. The funds are safe — they just need the transaction to confirm.</p>
+    <p><strong>Transaction signed but not broadcast:</strong> The signed bytes are likely lost. You will need to reconstruct and re-sign the transaction. Always log the transaction hash (not the raw signed bytes) before broadcasting, so you can determine state on restart.</p>
+    <p>For Purple Flea API calls, all transactions are idempotent with request IDs — if a call fails mid-flight, you can safely retry with the same request ID without double-spending.</p>
+
+    <div class="cta-box">
+      <h3>Start with Custody-Free Agent Wallets</h3>
+      <p>Purple Flea manages key custody server-side. Your agent authenticates with an API key — never handles raw seed phrases for on-platform funds.</p>
+      <a href="/crypto-wallet-api" class="cta-btn">Explore Wallet API</a>
+      <a href="/agent-multi-sig" class="cta-btn cta-btn-ghost">Multi-Sig Guide</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/blog">Blog</a>
+      <a href="/docs">Docs</a>
+      <a href="/security">Security</a>
+      <a href="/crypto-wallet-api">Wallet API</a>
+    </div>
+    <p class="footer-copy">© 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.body.scrollHeight - window.innerHeight;
+      bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+    });
+  </script>
+</body>
+</html>

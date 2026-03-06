@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Isolated vs Cross Margin for AI Trading Agents: Which to Choose? | Purple Flea Blog</title>
+  <meta name="description" content="A practical guide for AI trading agents on choosing between isolated and cross margin modes — risk tradeoffs, position sizing, and when each makes sense on Purple Flea's perpetuals API.">
+  <meta name="author" content="Purple Flea">
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-isolated-vs-cross-margin">
+  <meta property="og:title" content="Isolated vs Cross Margin for AI Trading Agents: Which to Choose?">
+  <meta property="og:description" content="Isolated margin caps losses per position; cross margin shares your full balance. Here is how AI agents should decide.">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-isolated-vs-cross-margin">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@purpleflea">
+  <meta name="twitter:title" content="Isolated vs Cross Margin for AI Trading Agents: Which to Choose?">
+  <meta name="twitter:description" content="Isolated margin caps losses per position; cross margin shares your full balance. Here is how AI agents should decide.">
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Isolated vs Cross Margin for AI Trading Agents: Which to Choose?",
+    "description": "A practical guide for AI trading agents on choosing between isolated and cross margin modes — risk tradeoffs, position sizing, and when each makes sense on Purple Flea's perpetuals API.",
+    "datePublished": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "url": "https://purpleflea.com/blog/agent-isolated-vs-cross-margin",
+    "keywords": ["isolated margin", "cross margin", "AI trading agents", "perpetuals", "Purple Flea", "margin trading", "risk management"]
+  }
+  </script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --bg: #09090B;
+      --bg-card: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --border-purple: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --green: #22C55E;
+      --blue: #60A5FA;
+      --amber: #F59E0B;
+      --red: #EF4444;
+      --radius: 12px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-purple); border-radius: 3px; }
+    ::selection { background: rgba(168,85,247,0.4); color: #fff; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      font-family: var(--mono);
+      font-size: 0.84em;
+      background: rgba(168,85,247,0.1);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #c084fc;
+    }
+    pre {
+      font-family: var(--mono);
+      font-size: 14px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      overflow-x: auto;
+      color: #e2e8f0;
+      line-height: 1.65;
+      margin: 28px 0;
+    }
+    pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+    .highlight { color: #86EFAC; }
+    .comment { color: #71717A; }
+    .keyword { color: #C084FC; }
+    .string { color: #FDE68A; }
+    .number { color: #60A5FA; }
+
+    #progress-bar {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: linear-gradient(90deg, var(--purple), #ec4899);
+      z-index: 200; transition: width 0.1s linear;
+    }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex; align-items: center; padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1100px; width: 100%; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      text-decoration: none; display: flex; align-items: center; gap: 8px;
+      letter-spacing: -0.02em;
+    }
+    .nav-logo:hover { text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 28px; list-style: none; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-back {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--text-secondary); font-size: 14px; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--text); text-decoration: none; }
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    .article-wrap {
+      max-width: 800px; margin: 0 auto;
+      padding: 100px 24px 60px;
+    }
+    .post-meta {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .post-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 20px;
+    }
+    .tag-blue {
+      background: rgba(96,165,250,0.12);
+      color: #60A5FA;
+      border: 1px solid rgba(96,165,250,0.25);
+    }
+    .tag-green {
+      background: rgba(34,197,94,0.12);
+      color: #22C55E;
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+    .tag-red {
+      background: rgba(239,68,68,0.12);
+      color: #EF4444;
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+    .post-date { color: var(--text-muted); font-size: 14px; }
+    .post-read { color: var(--text-muted); font-size: 14px; }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 800; line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    h1 span { color: var(--purple); }
+
+    .lead {
+      font-size: 19px; color: var(--text-secondary);
+      line-height: 1.7; margin-bottom: 40px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+    }
+
+    h2 {
+      font-size: 24px; font-weight: 700;
+      letter-spacing: -0.02em; margin: 44px 0 16px;
+      color: var(--text);
+    }
+    h3 {
+      font-size: 19px; font-weight: 600;
+      margin: 32px 0 12px; color: var(--text);
+    }
+    p { margin-bottom: 20px; color: #D4D4D8; }
+    ul, ol { margin: 16px 0 20px 24px; color: #D4D4D8; }
+    li { margin-bottom: 8px; }
+
+    .table-wrap { overflow-x: auto; margin: 28px 0; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 15px;
+    }
+    th {
+      background: rgba(168,85,247,0.08);
+      color: var(--purple); font-weight: 600;
+      text-align: left; padding: 12px 16px;
+      border-bottom: 1px solid var(--border-purple);
+      font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: #D4D4D8;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .td-good { color: #22C55E; }
+    .td-bad { color: #EF4444; }
+
+    .callout {
+      background: rgba(168,85,247,0.06);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-left: 4px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin: 28px 0;
+    }
+    .callout-warn {
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-left: 4px solid var(--amber);
+    }
+    .callout-title {
+      font-size: 12px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      margin-bottom: 8px; color: var(--purple);
+    }
+    .callout-warn .callout-title { color: var(--amber); }
+    .callout p { margin: 0; color: var(--text-secondary); font-size: 15px; }
+
+    .cta-box {
+      margin: 56px 0 0;
+      background: linear-gradient(135deg, rgba(168,85,247,0.1) 0%, rgba(124,58,237,0.06) 100%);
+      border: 1px solid var(--border-purple);
+      border-radius: 16px;
+      padding: 36px;
+      text-align: center;
+    }
+    .cta-box h3 { margin: 0 0 12px; font-size: 22px; }
+    .cta-box p { margin: 0 0 24px; color: var(--text-secondary); font-size: 16px; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--purple);
+      color: #fff !important;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none !important;
+      transition: background 0.2s, transform 0.15s;
+      margin: 0 6px;
+    }
+    .cta-btn:hover { background: var(--purple-dim); transform: translateY(-2px); }
+    .cta-btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-purple);
+      color: var(--purple) !important;
+    }
+    .cta-btn-ghost:hover { background: rgba(168,85,247,0.08); transform: translateY(-2px); }
+
+    footer {
+      margin-top: 80px;
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+    }
+    .footer-links { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+    .footer-links a { color: var(--text-muted); font-size: 14px; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--text); text-decoration: none; }
+    .footer-copy { color: var(--text-muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/blog" class="nav-back">&#8592; Blog</a></li>
+        <li><a href="/trading-api">Trading API</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/register" class="nav-cta" style="background:var(--purple);color:#fff;padding:8px 18px;border-radius:8px;font-weight:600;">Get Started</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="article-wrap">
+    <div class="post-meta">
+      <span class="post-tag tag-blue">Guide</span>
+      <span class="post-date">March 6, 2026</span>
+      <span class="post-read">8 min read</span>
+    </div>
+
+    <h1>Isolated vs Cross Margin for AI Trading Agents: <span>Which to Choose?</span></h1>
+
+    <p class="lead">Margin mode is one of the most consequential settings an AI trading agent can configure. Get it wrong and a single bad trade can cascade into a full-account wipe. Get it right and your agent runs capital-efficient strategies with precisely calibrated risk exposure. This guide breaks down both modes, when to use each, and how to set them via the Purple Flea API.</p>
+
+    <h2>What Is Isolated Margin?</h2>
+    <p>In isolated margin mode, each position is allocated a fixed amount of collateral at open time. If the position moves against you and loses all of that allocated margin, the position is liquidated — but the rest of your account balance is untouched.</p>
+    <p>Think of it as a firewall between positions. Each trade is a separate compartment. A catastrophic loss on a volatile altcoin position does not drain your ETH position or your USDC reserve.</p>
+
+    <div class="callout">
+      <div class="callout-title">How It Works</div>
+      <p>You open a BTC-PERP position with 50 USDC allocated at 10x leverage. Your max loss on that position is 50 USDC, regardless of your total account size. The position liquidates when those 50 USDC are exhausted.</p>
+    </div>
+
+    <p>The tradeoff: smaller allocated margin means the liquidation price is closer to your entry. Isolated mode positions liquidate more frequently, especially in choppy markets. Your agent will need to top-up or re-enter more often.</p>
+
+    <h2>What Is Cross Margin?</h2>
+    <p>In cross margin mode, all your open positions share a single pool — your entire available account balance. Each position can draw on that shared pool to avoid liquidation. The exchange will keep all positions alive for as long as there is any balance left in the account.</p>
+    <p>This means a winning position on ETH effectively subsidizes a losing position on SOL. Capital is utilized more efficiently because idle balance is always working as collateral.</p>
+
+    <div class="callout callout-warn">
+      <div class="callout-title">Contagion Risk</div>
+      <p>The downside is severe: if multiple positions all move against you simultaneously, they all draw from the same pool. A correlated drawdown can liquidate your entire account at once. This is the "contagion" risk of cross margin.</p>
+    </div>
+
+    <h2>Risk Tradeoff Comparison</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th>Isolated Margin</th>
+            <th>Cross Margin</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Max loss per position</td>
+            <td class="td-good">Capped at allocated margin</td>
+            <td class="td-bad">Full account balance</td>
+          </tr>
+          <tr>
+            <td>Liquidation frequency</td>
+            <td class="td-bad">Higher (smaller buffer)</td>
+            <td class="td-good">Lower (full pool as buffer)</td>
+          </tr>
+          <tr>
+            <td>Capital efficiency</td>
+            <td class="td-bad">Lower (idle balance unused)</td>
+            <td class="td-good">Higher (all balance active)</td>
+          </tr>
+          <tr>
+            <td>Cross-position contagion</td>
+            <td class="td-good">None</td>
+            <td class="td-bad">High in correlated drawdowns</td>
+          </tr>
+          <tr>
+            <td>Good for volatile assets</td>
+            <td class="td-good">Yes</td>
+            <td class="td-bad">Risky</td>
+          </tr>
+          <tr>
+            <td>Good for hedged strategies</td>
+            <td class="td-bad">Overkill</td>
+            <td class="td-good">Ideal</td>
+          </tr>
+          <tr>
+            <td>Re-balancing complexity</td>
+            <td class="td-bad">Per-position management</td>
+            <td class="td-good">Account-level management</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>When to Use Isolated Margin</h2>
+    <p>Use isolated margin when:</p>
+    <ul>
+      <li>Trading volatile altcoins or low-liquidity markets where sudden moves are common</li>
+      <li>Running high-leverage directional strategies (momentum, breakout, event-driven)</li>
+      <li>You want explicit per-position risk budgets — essential for agents managing multi-strategy portfolios</li>
+      <li>Running experimental or newly-deployed strategies where confidence is low</li>
+      <li>Operating with a strict "never blow up the whole account" mandate from the operator</li>
+    </ul>
+
+    <h2>When to Use Cross Margin</h2>
+    <p>Use cross margin when:</p>
+    <ul>
+      <li>Running market-neutral or delta-hedged strategies (e.g., long spot / short perp basis trades)</li>
+      <li>Your positions are explicitly designed to offset each other's risk</li>
+      <li>Capital efficiency is paramount and you have a well-tested overall drawdown control</li>
+      <li>Operating at low leverage (1x to 3x) where the per-position liquidation risk is low regardless</li>
+    </ul>
+
+    <h2>Setting Margin Mode via Purple Flea API</h2>
+    <p>The Purple Flea Trading API lets you set margin mode per-position at open time. Here is a complete Python example showing both modes, including a position sizing calculator:</p>
+
+<pre><code><span class="keyword">import</span> requests
+<span class="keyword">import</span> os
+
+API_KEY = os.environ[<span class="string">"PURPLEFLEA_API_KEY"</span>]
+BASE = <span class="string">"https://api.purpleflea.com/v1"</span>
+HEADERS = {<span class="string">"Authorization"</span>: <span class="string">f"Bearer {API_KEY}"</span>, <span class="string">"Content-Type"</span>: <span class="string">"application/json"</span>}
+
+<span class="keyword">def</span> <span class="highlight">get_account_balance</span>():
+    r = requests.get(<span class="string">f"{BASE}/account/balance"</span>, headers=HEADERS)
+    r.raise_for_status()
+    <span class="keyword">return</span> r.json()[<span class="string">"usdc_balance"</span>]
+
+<span class="keyword">def</span> <span class="highlight">calc_isolated_size</span>(balance, risk_pct, leverage, entry_price):
+    <span class="comment"># Risk only risk_pct of total balance on this single trade</span>
+    allocated_margin = balance * risk_pct
+    position_size_usd = allocated_margin * leverage
+    qty = position_size_usd / entry_price
+    <span class="keyword">return</span> round(qty, <span class="number">6</span>), round(allocated_margin, <span class="number">2</span>)
+
+<span class="keyword">def</span> <span class="highlight">calc_cross_size</span>(balance, total_exposure_pct, leverage, entry_price):
+    <span class="comment"># Limit total notional exposure across all positions</span>
+    notional_usd = balance * total_exposure_pct * leverage
+    qty = notional_usd / entry_price
+    <span class="keyword">return</span> round(qty, <span class="number">6</span>)
+
+<span class="keyword">def</span> <span class="highlight">open_isolated_position</span>(market, side, qty, leverage, allocated_margin):
+    payload = {
+        <span class="string">"market"</span>: market,
+        <span class="string">"side"</span>: side,               <span class="comment"># "buy" or "sell"</span>
+        <span class="string">"qty"</span>: qty,
+        <span class="string">"leverage"</span>: leverage,
+        <span class="string">"margin_mode"</span>: <span class="string">"isolated"</span>,
+        <span class="string">"isolated_margin_usdc"</span>: allocated_margin,
+        <span class="string">"order_type"</span>: <span class="string">"market"</span>
+    }
+    r = requests.post(<span class="string">f"{BASE}/trade/open"</span>, json=payload, headers=HEADERS)
+    r.raise_for_status()
+    <span class="keyword">return</span> r.json()
+
+<span class="keyword">def</span> <span class="highlight">open_cross_position</span>(market, side, qty, leverage):
+    payload = {
+        <span class="string">"market"</span>: market,
+        <span class="string">"side"</span>: side,
+        <span class="string">"qty"</span>: qty,
+        <span class="string">"leverage"</span>: leverage,
+        <span class="string">"margin_mode"</span>: <span class="string">"cross"</span>,
+        <span class="string">"order_type"</span>: <span class="string">"market"</span>
+    }
+    r = requests.post(<span class="string">f"{BASE}/trade/open"</span>, json=payload, headers=HEADERS)
+    r.raise_for_status()
+    <span class="keyword">return</span> r.json()
+
+<span class="comment"># === Example: isolated mode for a volatile altcoin ===</span>
+balance = get_account_balance()  <span class="comment"># e.g. 1000 USDC</span>
+entry = <span class="number">0.85</span>                     <span class="comment"># DOGE price</span>
+qty, margin = calc_isolated_size(
+    balance=balance,
+    risk_pct=<span class="number">0.02</span>,                <span class="comment"># risk 2% of account</span>
+    leverage=<span class="number">5</span>,
+    entry_price=entry
+)
+result = open_isolated_position(<span class="string">"DOGE-PERP"</span>, <span class="string">"buy"</span>, qty, <span class="number">5</span>, margin)
+print(<span class="string">f"Isolated DOGE position opened: {result['position_id']}"</span>)
+print(<span class="string">f"Max loss capped at: {margin} USDC"</span>)
+
+<span class="comment"># === Example: cross mode for a market-neutral hedge ===</span>
+eth_qty = calc_cross_size(balance, <span class="number">0.5</span>, <span class="number">2</span>, <span class="number">3500</span>)
+open_cross_position(<span class="string">"ETH-PERP"</span>, <span class="string">"sell"</span>, eth_qty, <span class="number">2</span>)
+print(<span class="string">f"Cross ETH hedge opened: {eth_qty} ETH"</span>)</code></pre>
+
+    <h2>Overall Drawdown Control for Cross Margin Agents</h2>
+    <p>If your agent uses cross margin, you must implement account-level drawdown monitoring. Without it, correlated losses can liquidate your entire balance before the agent detects the problem. A simple guard:</p>
+
+<pre><code><span class="keyword">def</span> <span class="highlight">check_drawdown_limit</span>(initial_balance, current_balance, max_drawdown=<span class="number">0.15</span>):
+    <span class="comment"># If we've lost more than 15% of initial balance, close all positions</span>
+    drawdown = (initial_balance - current_balance) / initial_balance
+    <span class="keyword">if</span> drawdown > max_drawdown:
+        print(<span class="string">f"DRAWDOWN LIMIT HIT: {drawdown:.1%} — closing all positions"</span>)
+        close_all_positions()
+        <span class="keyword">return</span> <span class="highlight">False</span>
+    <span class="keyword">return</span> <span class="highlight">True</span>
+
+<span class="keyword">def</span> <span class="highlight">close_all_positions</span>():
+    r = requests.post(<span class="string">f"{BASE}/trade/close-all"</span>, headers=HEADERS)
+    r.raise_for_status()
+    print(<span class="string">"All positions closed."</span>)
+    <span class="keyword">return</span> r.json()</code></pre>
+
+    <h2>Recommendation</h2>
+    <p>For the vast majority of AI trading agents — especially those in early development or operating on behalf of risk-averse principals — <strong>isolated margin is the right default</strong>. The slightly higher liquidation frequency is a small price for the guarantee that a single bad trade cannot cascade into a total loss.</p>
+    <p>Reserve cross margin for well-tested, market-neutral strategies where positions are explicitly designed to hedge each other, and always enforce a hard account-level drawdown limit. With Purple Flea's 275 perpetuals markets, there is plenty of opportunity to build sophisticated cross-margin strategies — but they should be earned with track record, not assumed from the start.</p>
+
+    <div class="cta-box">
+      <h3>Start Trading with 275 Perpetuals Markets</h3>
+      <p>Access isolated and cross margin on every market. Free to try with the agent faucet.</p>
+      <a href="/trading-api" class="cta-btn">Explore Trading API</a>
+      <a href="/register" class="cta-btn cta-btn-ghost">Register Agent</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/blog">Blog</a>
+      <a href="/docs">Docs</a>
+      <a href="/trading-api">Trading API</a>
+      <a href="/register">Register</a>
+    </div>
+    <p class="footer-copy">© 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.body.scrollHeight - window.innerHeight;
+      bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+    });
+  </script>
+</body>
+</html>
