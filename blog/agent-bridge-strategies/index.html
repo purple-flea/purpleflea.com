@@ -714,6 +714,136 @@ if __name__ == "__main__":
         <p>Purple Flea's faucet at <a href="/faucet">/faucet</a> provides new agents with $1 USDC to test the flow end-to-end before bridging real capital — a zero-risk way to verify your bridge-to-deposit pipeline is working correctly.</p>
       </section>
 
+      <section>
+        <h2>Bridge Fee Optimization: Advanced Techniques</h2>
+        <p>Beyond selecting the cheapest individual route, experienced agents apply several techniques to reduce aggregate bridging costs across a portfolio of transactions.</p>
+
+        <h3>Batching Small Transfers</h3>
+        <p>Bridge fees often have a fixed component (gas) plus a variable component (percentage fee). For small transfers, the fixed gas cost dominates — making it more efficient to batch multiple small transfers into fewer, larger ones. An agent that bridges $200 ten times per day ($60 fixed gas each = $600 total) would save significantly by batching into one $2,000 transfer per day ($60 total gas).</p>
+        <p>Implement a transfer queue with a flush trigger: flush when total queued amount exceeds $500 or when the oldest item in the queue is more than 4 hours old.</p>
+
+        <h3>Time-of-Day Fee Optimization</h3>
+        <p>Gas prices on Ethereum mainnet follow predictable daily patterns. Gas is lowest during UTC late-night / early morning hours (roughly 02:00–08:00 UTC on weekdays) and highest during US/European business hours. An agent bridging through Ethereum as source or destination can save 30–60% on gas by scheduling non-urgent bridges during low-gas windows.</p>
+
+        <pre><code>import asyncio
+from datetime import datetime, timezone
+
+async def wait_for_low_gas(w3, max_gwei: float = 8.0, timeout_seconds: int = 3600):
+    """Wait until mainnet gas drops below max_gwei or timeout."""
+    start = asyncio.get_event_loop().time()
+    while True:
+        base_fee = w3.eth.get_block("latest")["baseFeePerGas"]
+        gwei = base_fee / 1e9
+        hour_utc = datetime.now(timezone.utc).hour
+        if gwei <= max_gwei:
+            print(f"[Gas] Current: {gwei:.1f} gwei — proceeding")
+            return True
+        if 2 <= hour_utc <= 8:
+            print(f"[Gas] In low window but {gwei:.1f} gwei > target — retrying in 2min")
+        else:
+            print(f"[Gas] {gwei:.1f} gwei, off-peak (UTC {hour_utc}) — retrying in 5min")
+        if asyncio.get_event_loop().time() - start > timeout_seconds:
+            print(f"[Gas] Timeout — proceeding anyway at {gwei:.1f} gwei")
+            return False
+        await asyncio.sleep(120 if 2 <= hour_utc <= 8 else 300)</code></pre>
+
+        <h3>Capital Netting</h3>
+        <p>An agent running strategies on multiple chains should track its net daily flows: how much needs to move from chain A to chain B, and how much simultaneously needs to move from B to A. Rather than bridging both directions, net the flows and only bridge the difference. A $10,000 need to bridge A→B and a simultaneous $8,000 need to bridge B→A reduces to a single $2,000 net bridge A→B.</p>
+
+        <h3>Liquidity Pool Monitoring</h3>
+        <p>Liquidity pool bridges (Across, Hop) can become expensive or slow when their LP pools are depleted on one side. Monitor pool utilization ratios through bridge APIs and deprioritize routes where the destination-chain LP is below 30% utilization (high demand, likely depleted). Aggregators handle this automatically for most cases, but for direct integrations, implement it explicitly.</p>
+
+        <h3>Bridge Allowance Management</h3>
+        <p>ERC-20 tokens require approval transactions before bridging. These cost gas and add latency. Use unlimited approvals (<code>type(uint256).max</code>) for trusted bridge contracts to avoid repeated approval transactions — but only for contracts that you have independently verified as non-upgradeable or audited. Track approvals granted so you don't re-approve unnecessarily.</p>
+
+        <table>
+          <thead>
+            <tr><th>Optimization</th><th>Typical Savings</th><th>Implementation Complexity</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Transfer batching</td><td>40–70% on gas</td><td>Low</td></tr>
+            <tr><td>Low-gas window scheduling</td><td>30–60% on gas</td><td>Low</td></tr>
+            <tr><td>Capital netting</td><td>Up to 90% on bilateral flows</td><td>Medium</td></tr>
+            <tr><td>LP pool monitoring</td><td>5–15% on bridge fee</td><td>Medium</td></tr>
+            <tr><td>CCTP for large USDC transfers</td><td>100% of bridge fee</td><td>Medium</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Bridge Strategies by Agent Type</h2>
+        <p>Different agent archetypes have fundamentally different bridging needs. A yield-farming agent rebalancing weekly has very different constraints from an arbitrage agent that needs to move capital in seconds. Below is a practical guide mapped to agent strategy type.</p>
+
+        <h3>Arbitrage Agents</h3>
+        <p>Cross-chain arbitrage agents must execute bridges faster than the price discrepancy closes. For most asset pairs, a 5-30 second bridge window is viable — Across and Stargate cover this range. Key considerations:</p>
+        <ul>
+          <li>Pre-position capital on both chains to avoid needing to bridge at the moment of opportunity</li>
+          <li>Bridge asynchronously to restore target allocation after an opportunity is captured</li>
+          <li>Use Across for ETH and native USDC routes — its relayer model provides the lowest and most predictable latency</li>
+          <li>Keep 20-30% buffer on each chain to handle opportunity bursts before rebalancing bridges catch up</li>
+        </ul>
+
+        <h3>Yield Farming / Liquidity Provision Agents</h3>
+        <p>Yield agents rebalance capital across chains weekly or when yield differentials exceed a threshold. Time is not critical — cost optimization dominates. Recommended strategy:</p>
+        <ul>
+          <li>Use Circle CCTP for all USDC moves &gt;$5,000 — zero bridge fee means pure gas cost</li>
+          <li>Schedule bridges during low-gas windows (02:00–08:00 UTC)</li>
+          <li>Batch multiple small rebalances into single large transfers</li>
+          <li>Maintain a "bridging budget" — maximum annual spend on bridging as % of yield earned</li>
+        </ul>
+
+        <h3>Trading Agents (Purple Flea-focused)</h3>
+        <p>Agents focused on perpetual trading at Purple Flea need to move USDC from their source chain to Purple Flea's deposit chain reliably and cheaply. The recommended stack:</p>
+        <ul>
+          <li>Maintain a standing float of USDC on the deposit chain — bridge to refill when balance falls below 30% of target</li>
+          <li>Use LI.FI aggregator as the default route — it auto-selects CCTP for large amounts, Across for speed-sensitive refills</li>
+          <li>Set a maximum bridge fee of 0.2% — if all routes exceed this, wait or queue for next low-gas window</li>
+          <li>After bridge confirms, verify Purple Flea account balance before resuming active trading</li>
+        </ul>
+
+        <h3>Multi-Agent Economy Participants</h3>
+        <p>Agents using Purple Flea's Escrow service need reliable cross-chain USDC to fund escrow contracts on demand. Since escrow creation is typically not time-critical (agreed in advance), CCTP is nearly always the optimal route — zero bridge fee maximizes the net value transferred to the counterparty agent. The escrow contract address can be funded directly from the bridge output in a single transaction using a bridge-and-call pattern supported by LI.FI.</p>
+
+        <table>
+          <thead>
+            <tr><th>Agent Type</th><th>Bridge Priority</th><th>Preferred Protocol</th><th>Frequency</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Arbitrage</td><td>Speed</td><td>Across Protocol</td><td>Continuous</td></tr>
+            <tr><td>Yield farming</td><td>Cost</td><td>Circle CCTP</td><td>Weekly</td></tr>
+            <tr><td>Trading (PF)</td><td>Reliability</td><td>LI.FI aggregator</td><td>Daily–weekly</td></tr>
+            <tr><td>Escrow participant</td><td>Cost</td><td>Circle CCTP</td><td>Per-escrow</td></tr>
+            <tr><td>Casino agent</td><td>Speed + cost</td><td>Across or CCTP</td><td>Per-session</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Testing Your Bridge Pipeline End-to-End</h2>
+        <p>Before deploying a bridge agent with real capital, validate the full pipeline using small test amounts. Purple Flea's faucet provides $1 USDC specifically for this purpose — it is the minimum viable test amount for verifying a bridge-to-deposit flow without risking meaningful capital.</p>
+
+        <h3>Test Checklist</h3>
+        <ol>
+          <li><strong>Approval transaction:</strong> Verify the ERC-20 approval for the bridge contract succeeds and the allowance is correctly set</li>
+          <li><strong>Quote accuracy:</strong> Compare the quoted output amount to the actual received amount — track slippage versus estimate</li>
+          <li><strong>Confirmation latency:</strong> Measure actual bridge time from tx submission to funds arriving on destination chain</li>
+          <li><strong>Status polling:</strong> Confirm the LI.FI or bridge-native status endpoint correctly transitions from PENDING → DONE</li>
+          <li><strong>Failure handling:</strong> Simulate a gas underpricing scenario and confirm the agent's failure-recovery logic executes correctly</li>
+          <li><strong>Deposit confirmation:</strong> After bridge, confirm the receiving protocol (Purple Flea) correctly credits the received funds to the agent's account</li>
+        </ol>
+
+        <h3>Monitoring in Production</h3>
+        <p>Once deployed, maintain a bridge monitoring dashboard tracking:</p>
+        <ul>
+          <li>Bridge success rate (target: &gt;99%)</li>
+          <li>Average actual latency vs. quoted latency</li>
+          <li>Actual fees vs. quoted fees (slippage)</li>
+          <li>Failed or stuck transactions (require manual intervention)</li>
+          <li>Bridge TVL alerts (auto-deprioritize bridges below $1M TVL)</li>
+        </ul>
+        <p>Use a webhook notification system to alert on any bridge transaction that has not confirmed within 3x the quoted time. Stuck transactions on optimistic bridges sometimes require manual claiming on the destination chain.</p>
+      </section>
+
       <div class="cta-box">
         <h2>Ready to Bridge Smarter?</h2>
         <p>Get free USDC from the faucet to test your bridging pipeline. Then deploy real capital on Purple Flea's 275+ perpetual markets — no KYC, API-first, agent-native.</p>

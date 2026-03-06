@@ -752,6 +752,116 @@ f = <span class="fn">kelly_fraction_condor</span>(<span class="nu">0.68</span>, 
             <span class="st">'expectancy'</span>: total_pnl / <span class="fn">len</span>(<span class="kw">self</span>.trades)
         }</pre>
 
+  <!-- SECTION 9 -->
+  <h2>9. Backtesting Framework for Iron Condor Agents</h2>
+  <p>
+    Before deploying live capital, every iron condor agent should be validated against historical data. A proper backtest simulates realistic entry conditions, bid-ask spreads, and management actions rather than just checking theoretical payoffs.
+  </p>
+
+  <h3>Realistic Backtest Assumptions</h3>
+  <ul>
+    <li><strong>Use mid-price with 10-20% slippage:</strong> Never assume perfect fills at mid. Real executions often land 10-15% worse than mid on multi-leg options orders.</li>
+    <li><strong>Model commissions:</strong> Even $0.65/contract adds up across four legs opened and four legs closed = $5.20 round-trip minimum.</li>
+    <li><strong>Include assignment risk:</strong> Short options that go deeply ITM near expiration may be assigned early. Model this in your last-5-DTE window.</li>
+    <li><strong>Use IV surface, not single IV:</strong> Calls and puts of the same DTE but different strikes trade at different IVs (volatility skew). Use actual surface data, not ATM IV for all legs.</li>
+  </ul>
+
+  <pre><span class="kw">class</span> <span class="cl">IronCondorBacktester</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, price_history: pd.DataFrame, iv_history: pd.DataFrame):
+        <span class="kw">self</span>.prices = price_history
+        <span class="kw">self</span>.ivs = iv_history
+        <span class="kw">self</span>.results = []
+        <span class="kw">self</span>.slippage = <span class="nu">0.15</span>        <span class="cm"># 15% worse than mid</span>
+        <span class="kw">self</span>.commission_per_leg = <span class="nu">0.65</span>
+
+    <span class="kw">def</span> <span class="fn">run</span>(<span class="kw">self</span>, ivr_threshold: <span class="fn">float</span> = <span class="nu">50</span>, target_dte: <span class="fn">int</span> = <span class="nu">40</span>,
+             profit_target_pct: <span class="fn">float</span> = <span class="nu">0.50</span>, stop_pct: <span class="fn">float</span> = <span class="nu">2.0</span>):
+        <span class="cm">"""Iterate over historical data, simulate condor entries and exits."""</span>
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nu">60</span>, <span class="fn">len</span>(<span class="kw">self</span>.prices)):
+            row = <span class="kw">self</span>.prices.<span class="fn">iloc</span>[i]
+            iv_row = <span class="kw">self</span>.ivs.<span class="fn">iloc</span>[i]
+            ivr = <span class="fn">iv_rank</span>(iv_row[<span class="st">'atm_iv'</span>], iv_row[<span class="st">'iv_52w_high'</span>], iv_row[<span class="st">'iv_52w_low'</span>])
+
+            <span class="kw">if</span> ivr < ivr_threshold:
+                <span class="kw">continue</span>   <span class="cm"># no entry signal</span>
+
+            S = row[<span class="st">'close'</span>]
+            sigma = iv_row[<span class="st">'atm_iv'</span>]
+            T = target_dte / <span class="nu">365</span>
+            one_std = S * sigma * (T ** <span class="nu">0.5</span>)
+
+            sc = <span class="fn">round</span>(S + one_std)
+            lc = sc + <span class="nu">5</span>
+            sp = <span class="fn">round</span>(S - one_std)
+            lp = sp - <span class="nu">5</span>
+
+            <span class="cm"># Estimate entry credit (simplified BS)</span>
+            sc_prem = <span class="fn">max</span>(<span class="nu">0.01</span>, S * sigma * (T**<span class="nu">0.5</span>) * <span class="nu">0.10</span>)
+            sp_prem = <span class="fn">max</span>(<span class="nu">0.01</span>, S * sigma * (T**<span class="nu">0.5</span>) * <span class="nu">0.10</span>)
+            credit = (sc_prem + sp_prem) * (<span class="nu">1</span> - <span class="kw">self</span>.slippage)
+            commission = <span class="kw">self</span>.commission_per_leg * <span class="nu">4</span>
+            net_credit = credit - commission / <span class="nu">100</span>
+            max_loss = <span class="nu">5</span> - net_credit
+
+            <span class="cm"># Simulate forward price path over DTE days</span>
+            end_idx = <span class="fn">min</span>(i + target_dte, <span class="fn">len</span>(<span class="kw">self</span>.prices) - <span class="nu">1</span>)
+            outcome_price = <span class="kw">self</span>.prices.<span class="fn">iloc</span>[end_idx][<span class="st">'close'</span>]
+
+            <span class="kw">if</span> sp <= outcome_price <= sc:
+                pnl = net_credit   <span class="cm"># full profit</span>
+                result = <span class="st">'max_profit'</span>
+            <span class="kw">elif</span> outcome_price > sc + net_credit:
+                pnl = -max_loss
+                result = <span class="st">'max_loss_call'</span>
+            <span class="kw">elif</span> outcome_price < sp - net_credit:
+                pnl = -max_loss
+                result = <span class="st">'max_loss_put'</span>
+            <span class="kw">else</span>:
+                <span class="cm"># Partial profit/loss in breakeven zone</span>
+                pnl = net_credit - <span class="fn">max</span>(<span class="nu">0</span>, <span class="fn">abs</span>(outcome_price - sc) - net_credit,
+                                         <span class="fn">abs</span>(outcome_price - sp) - net_credit)
+                result = <span class="st">'partial'</span>
+
+            <span class="kw">self</span>.results.<span class="fn">append</span>({
+                <span class="st">'entry_date'</span>: row.<span class="fn">get</span>(<span class="st">'date'</span>, i), <span class="st">'entry_price'</span>: S,
+                <span class="st">'ivr'</span>: ivr, <span class="st">'net_credit'</span>: net_credit,
+                <span class="st">'pnl'</span>: pnl, <span class="st">'result'</span>: result
+            })
+
+    <span class="kw">def</span> <span class="fn">summary</span>(<span class="kw">self</span>) -> <span class="fn">dict</span>:
+        <span class="kw">if</span> <span class="kw">not</span> <span class="kw">self</span>.results:
+            <span class="kw">return</span> {}
+        total = <span class="fn">len</span>(<span class="kw">self</span>.results)
+        wins = [r <span class="kw">for</span> r <span class="kw">in</span> <span class="kw">self</span>.results <span class="kw">if</span> r[<span class="st">'pnl'</span>] > <span class="nu">0</span>]
+        total_pnl = <span class="fn">sum</span>(r[<span class="st">'pnl'</span>] <span class="kw">for</span> r <span class="kw">in</span> <span class="kw">self</span>.results)
+        <span class="kw">return</span> {
+            <span class="st">'total_trades'</span>: total,
+            <span class="st">'win_rate'</span>: <span class="fn">len</span>(wins) / total,
+            <span class="st">'expectancy_per_trade'</span>: total_pnl / total,
+            <span class="st">'total_pnl'</span>: total_pnl,
+            <span class="st">'avg_win'</span>: <span class="fn">sum</span>(r[<span class="st">'pnl'</span>] <span class="kw">for</span> r <span class="kw">in</span> wins) / (<span class="fn">len</span>(wins) <span class="kw">or</span> <span class="nu">1</span>)
+        }</pre>
+
+  <!-- SECTION 10 -->
+  <h2>10. Multi-Asset Portfolio of Iron Condors</h2>
+  <p>
+    Running a single iron condor at a time leaves capital idle between cycles. A portfolio approach runs multiple condors simultaneously across uncorrelated assets, smoothing returns and improving capital utilization.
+  </p>
+
+  <h3>Portfolio Construction Rules</h3>
+  <ul>
+    <li><strong>Maximum 3 condors per correlated sector:</strong> Energy, tech, financials should each have at most 3 simultaneous positions. A sector shock creates correlated losses.</li>
+    <li><strong>Stagger expirations:</strong> Do not let multiple condors expire on the same date. Spread expirations across weekly and monthly cycles to smooth cash flow.</li>
+    <li><strong>Ladder entry across IV environments:</strong> If IV is elevated across the board, scale in over multiple sessions rather than deploying all capital at one IV level.</li>
+    <li><strong>Monitor portfolio-level delta:</strong> Sum the net delta across all positions. If the portfolio is net long or short delta by more than 0.5% of notional, add a hedge.</li>
+    <li><strong>Maintain cash reserve of 20%:</strong> Keep 20% of total capital undeployed for adjustment capital. Rolling legs requires buying power.</li>
+  </ul>
+
+  <div class="callout success">
+    <div class="callout-title">Portfolio Expectancy</div>
+    <p>A diversified portfolio of 5 iron condors across uncorrelated assets, with an average 65% win rate and 2:1 loss-to-win ratio, produces a positive expectancy of approximately $0.18 per dollar of max risk deployed per cycle — before compounding. Over 12-15 cycles per year per symbol, the math favors systematic deployment.</p>
+  </div>
+
   <div class="cta-box">
     <h2>Deploy Your Iron Condor Agent</h2>
     <p>Access 275+ perpetual markets for options-like volatility plays. Fund your agent wallet, register, and start collecting theta decay systematically.</p>

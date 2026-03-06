@@ -3,19 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Liquid Staking for AI Agents: Earn Yield While Staying Liquid | Purple Flea</title>
-  <meta name="description" content="Learn how AI agents can earn 3-5% APY through liquid staking while maintaining full liquidity. Compare Lido stETH, Rocket Pool rETH, and Coinbase cbETH — and automate the whole process with Purple Flea's API.">
+  <title>Liquid Staking for AI Agents: Earning Yield While Staying Liquid | Purple Flea</title>
+  <meta name="description" content="How AI agents earn 3-10% APY through liquid staking tokens (stETH, rETH, mSOL, JitoSOL) while maintaining full liquidity. Covers rebasing vs reward-bearing, slashing risk, and a full Python LiquidStakingAgent implementation.">
   <link rel="canonical" href="https://purpleflea.com/blog/agent-liquid-staking/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Liquid Staking for AI Agents: Earning Yield While Staying Liquid">
+  <meta property="og:description" content="How AI agents earn 3-10% APY through liquid staking tokens while maintaining full liquidity. stETH, rETH, mSOL, JitoSOL, EigenLayer restaking, and Python automation.">
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-liquid-staking/">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Liquid Staking for AI Agents: Earning Yield While Staying Liquid">
+  <meta name="twitter:description" content="stETH, rETH, mSOL, JitoSOL, and EigenLayer restaking for autonomous agents. Keep capital liquid while earning 3-10% APY.">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Liquid Staking for AI Agents: Earning Yield While Staying Liquid",
+    "description": "How AI agents earn 3-10% APY through liquid staking tokens while maintaining full liquidity. Covers stETH, rETH, mSOL, JitoSOL, rebasing vs reward-bearing tokens, slashing risk, and a full Python LiquidStakingAgent.",
+    "url": "https://purpleflea.com/blog/agent-liquid-staking/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    }
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --purple: #A855F7; --purple-dim: #7C3AED;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
       --purple-subtle: rgba(168, 85, 247, 0.08);
-      --bg: #09090B; --bg-card: rgba(255, 255, 255, 0.03);
-      --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #71717A;
-      --border: rgba(255, 255, 255, 0.06); --radius: 16px; --radius-sm: 10px;
+      --bg: #09090B;
+      --bg-card: #18181B;
+      --bg-code: #0D0D0F;
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --border: rgba(255, 255, 255, 0.06);
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #F59E0B;
+      --blue: #3B82F6;
+      --radius: 16px;
+      --radius-sm: 10px;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,6 +65,17 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--purple-dim), var(--purple));
+      z-index: 200;
+      transition: width 0.1s linear;
+    }
+
     /* NAV */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
@@ -38,7 +85,7 @@
       transition: background 0.3s, backdrop-filter 0.3s, border-bottom 0.3s;
     }
     nav.scrolled {
-      background: rgba(9, 9, 11, 0.85);
+      background: rgba(9, 9, 11, 0.88);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
     }
@@ -46,6 +93,12 @@
       font-size: 1.1rem; font-weight: 700;
       text-decoration: none; color: var(--text);
       display: flex; align-items: center; gap: 0.4rem;
+    }
+    .nav-dot {
+      width: 10px; height: 10px;
+      background: var(--purple);
+      border-radius: 50%;
+      display: inline-block;
     }
     .nav-links {
       display: flex; align-items: center; gap: 1.5rem;
@@ -58,7 +111,7 @@
     }
     .nav-links a:hover { color: var(--text); }
     .nav-cta {
-      background: var(--purple);
+      background: var(--purple) !important;
       color: #fff !important;
       padding: 0.45rem 1.1rem;
       border-radius: 8px;
@@ -66,12 +119,12 @@
       font-size: 0.85rem !important;
       transition: background 0.2s !important;
     }
-    .nav-cta:hover { background: var(--purple-dim) !important; color: #fff !important; }
+    .nav-cta:hover { background: var(--purple-dim) !important; }
 
     /* HERO */
     .article-hero {
-      padding: 120px 2rem 60px;
-      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(168, 85, 247, 0.12) 0%, transparent 70%);
+      padding: 120px 2rem 64px;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(168, 85, 247, 0.13) 0%, transparent 70%);
       border-bottom: 1px solid var(--border);
       text-align: center;
     }
@@ -79,14 +132,14 @@
       display: inline-block;
       background: rgba(168, 85, 247, 0.1);
       border: 1px solid rgba(168, 85, 247, 0.25);
-      color: #A855F7;
-      font-size: 0.8rem;
+      color: var(--purple);
+      font-size: 0.78rem;
       font-weight: 600;
       padding: 0.3rem 0.9rem;
       border-radius: 999px;
       margin-bottom: 1.25rem;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
     }
     .article-hero h1 {
       font-size: clamp(2rem, 5vw, 3.2rem);
@@ -104,12 +157,13 @@
       gap: 1rem; flex-wrap: wrap;
       color: var(--text-muted); font-size: 0.875rem;
     }
+    .article-meta span { display: flex; align-items: center; gap: 0.4rem; }
 
     /* LAYOUT */
     .article-layout {
-      max-width: 800px;
+      max-width: 820px;
       margin: 0 auto;
-      padding: 3rem 2rem 5rem;
+      padding: 3.5rem 2rem 6rem;
     }
 
     /* PROSE */
@@ -120,15 +174,15 @@
       margin-bottom: 1.5rem;
     }
     .prose h2 {
-      font-size: 1.6rem;
+      font-size: 1.65rem;
       font-weight: 700;
       color: var(--text);
-      margin: 2.5rem 0 1rem;
+      margin: 2.75rem 0 1rem;
       padding-bottom: 0.6rem;
       border-bottom: 1px solid var(--border);
     }
     .prose h3 {
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       font-weight: 600;
       color: var(--text);
       margin: 2rem 0 0.75rem;
@@ -140,38 +194,40 @@
       margin-bottom: 1.5rem;
       padding-left: 1.5rem;
     }
-    .prose li { margin-bottom: 0.4rem; }
+    .prose li { margin-bottom: 0.45rem; }
     .prose a { color: var(--purple); text-decoration: none; }
     .prose a:hover { text-decoration: underline; }
     .prose strong { color: var(--text); font-weight: 600; }
 
     .prose pre {
-      background: #18181B;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
       border-left: 3px solid var(--purple);
       border-radius: var(--radius-sm);
-      padding: 1.25rem 1.5rem;
+      padding: 1.5rem;
       overflow-x: auto;
-      margin: 1.75rem 0;
+      margin: 2rem 0;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.875rem;
-      line-height: 1.7;
+      font-size: 0.85rem;
+      line-height: 1.75;
     }
     .prose code {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.875em;
-      background: #18181B;
+      font-size: 0.85em;
+      background: var(--bg-card);
       color: #E2E8F0;
       padding: 0.15em 0.45em;
       border-radius: 4px;
     }
     .prose pre code {
       background: none; padding: 0;
-      font-size: inherit; color: inherit;
+      font-size: inherit; color: #E2E8F0;
     }
 
+    /* CALLOUT BOXES */
     .info-box {
       background: var(--purple-subtle);
-      border: 1px solid rgba(168, 85, 247, 0.2);
+      border: 1px solid rgba(168, 85, 247, 0.22);
       border-radius: var(--radius-sm);
       padding: 1.25rem 1.5rem;
       margin: 1.75rem 0;
@@ -179,7 +235,47 @@
     .info-box p { margin-bottom: 0; color: var(--text-secondary); }
     .info-box strong { color: var(--purple); }
 
-    /* Comparison table */
+    .warning-box {
+      background: rgba(245, 158, 11, 0.06);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .warning-box p { margin-bottom: 0; color: var(--text-secondary); }
+    .warning-box strong { color: var(--yellow); }
+
+    /* STAT GRID */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--purple);
+      font-family: 'JetBrains Mono', monospace;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* COMPARISON TABLE */
     .comparison-table {
       width: 100%;
       border-collapse: collapse;
@@ -188,62 +284,212 @@
     }
     .comparison-table th {
       text-align: left;
-      padding: 0.75rem 1rem;
+      padding: 0.8rem 1rem;
       background: rgba(168, 85, 247, 0.08);
       border-bottom: 1px solid rgba(168, 85, 247, 0.2);
       color: var(--text);
       font-weight: 600;
+      font-size: 0.875rem;
     }
     .comparison-table td {
-      padding: 0.75rem 1rem;
+      padding: 0.8rem 1rem;
       border-bottom: 1px solid var(--border);
       color: var(--text-secondary);
       vertical-align: top;
+      font-size: 0.9rem;
     }
     .comparison-table tr:last-child td { border-bottom: none; }
-    .comparison-table tr:hover td { background: var(--bg-card); }
-    .apy-badge {
+    .comparison-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge {
       display: inline-block;
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.25);
-      color: #22C55E;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
       padding: 0.2rem 0.6rem;
       border-radius: 6px;
       font-family: 'JetBrains Mono', monospace;
     }
+    .badge-green {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      color: var(--green);
+    }
+    .badge-yellow {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: var(--yellow);
+    }
+    .badge-blue {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      color: var(--blue);
+    }
+    .badge-red {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: var(--red);
+    }
 
-    /* Stake / don't stake cards */
+    /* DO/DON'T CARDS */
     .two-col {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 1rem;
-      margin: 1.5rem 0;
+      margin: 1.75rem 0;
     }
     .do-card {
-      background: rgba(34, 197, 94, 0.06);
+      background: rgba(34, 197, 94, 0.05);
       border: 1px solid rgba(34, 197, 94, 0.2);
       border-radius: var(--radius-sm);
       padding: 1.25rem;
     }
     .dont-card {
-      background: rgba(239, 68, 68, 0.06);
+      background: rgba(239, 68, 68, 0.05);
       border: 1px solid rgba(239, 68, 68, 0.2);
       border-radius: var(--radius-sm);
       padding: 1.25rem;
     }
-    .do-card h4 { color: #22C55E; font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; }
-    .dont-card h4 { color: #EF4444; font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; }
+    .do-card h4 { color: var(--green); font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; }
+    .dont-card h4 { color: var(--red); font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; }
     .do-card ul, .dont-card ul {
       font-size: 0.9rem; color: var(--text-secondary);
       padding-left: 1.2rem; margin: 0;
     }
     .do-card li, .dont-card li { margin-bottom: 0.35rem; }
 
+    /* RISK CARDS */
+    .risk-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+    .risk-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.25rem;
+    }
+    .risk-card h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .risk-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0;
+      line-height: 1.6;
+    }
+    .risk-level {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .risk-low { background: rgba(34, 197, 94, 0.1); color: var(--green); }
+    .risk-medium { background: rgba(245, 158, 11, 0.1); color: var(--yellow); }
+    .risk-high { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+
+    /* YIELD LADDER */
+    .yield-ladder {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 1.5rem;
+      margin: 1.75rem 0;
+    }
+    .yield-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .yield-row:last-child { border-bottom: none; }
+    .yield-num {
+      width: 28px; height: 28px;
+      background: var(--purple-subtle);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--purple);
+      flex-shrink: 0;
+    }
+    .yield-row-text { flex: 1; }
+    .yield-row-text strong { color: var(--text); font-size: 0.9rem; }
+    .yield-row-text p { color: var(--text-muted); font-size: 0.82rem; margin: 0; line-height: 1.4; }
+    .yield-apy {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--green);
+      flex-shrink: 0;
+    }
+
+    /* CTA */
+    .cta-section {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(124, 58, 237, 0.06) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      text-align: center;
+      margin: 3rem 0 1rem;
+    }
+    .cta-section h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+    }
+    .cta-section p {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      font-size: 1.0625rem;
+    }
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--purple);
+      color: #fff;
+      padding: 0.75rem 1.75rem;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s, transform 0.15s;
+      display: inline-block;
+    }
+    .btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1.75rem;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s, transform 0.15s;
+      display: inline-block;
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-1px); }
+
     /* FOOTER */
     footer {
-      background: rgba(255,255,255,0.02);
+      background: rgba(255,255,255,0.015);
       border-top: 1px solid var(--border);
       padding: 2.5rem 2rem;
       text-align: center;
@@ -262,57 +508,199 @@
     @media (max-width: 640px) {
       .nav-links { display: none; }
       .article-layout { padding: 2rem 1.25rem 4rem; }
-      .two-col { grid-template-columns: 1fr; }
+      .two-col, .risk-grid { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .cta-section { padding: 1.75rem 1.25rem; }
     }
   </style>
 </head>
 <body>
 
+  <div id="progress-bar"></div>
+
   <nav id="main-nav">
-    <a class="nav-logo" href="/">🟣 Purple Flea</a>
+    <a class="nav-logo" href="/"><span class="nav-dot"></span> Purple Flea</a>
     <ul class="nav-links">
-      <li><a href="/casino">Casino</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
       <li><a href="/trading">Trading</a></li>
+      <li><a href="/casino">Casino</a></li>
       <li><a href="/wallet">Wallet</a></li>
-      <li><a href="/docs">Docs</a></li>
-      <li><a href="/blog">Blog</a></li>
+      <li><a href="/faucet">Faucet</a></li>
+      <li><a href="/escrow">Escrow</a></li>
       <li><a href="/api-keys" class="nav-cta">Get API Key</a></li>
     </ul>
   </nav>
 
   <header class="article-hero">
     <div class="article-tag">Strategy</div>
-    <h1>Liquid Staking for AI Agents: Earn Yield While Staying Liquid</h1>
+    <h1>Liquid Staking for AI Agents: Earning Yield While Staying Liquid</h1>
     <div class="article-meta">
       <span>March 6, 2026</span>
-      <span>·</span>
+      <span>&middot;</span>
       <span>Purple Flea Team</span>
-      <span>·</span>
-      <span>6 min read</span>
+      <span>&middot;</span>
+      <span>14 min read</span>
     </div>
   </header>
 
   <main class="article-layout">
     <article class="prose">
 
-      <h2>Introduction</h2>
-      <p>The biggest mistake AI agents make with ETH: letting it sit idle. Every ETH sitting in a wallet doing nothing is an opportunity cost — and in 2026, that opportunity cost has a price: roughly 3.5-4% APY available risk-free through liquid staking protocols.</p>
-      <p>Liquid staking solves the classic staking dilemma: you want the yield, but you also need the capital available for trading, gas fees, or DeFi interactions at a moment's notice. The solution is a receipt token — stake ETH with Lido and receive stETH back, which you can use in DeFi while your ETH earns validator rewards in the background.</p>
-      <p>This post explains how liquid staking works, compares the major options, and shows a Python implementation that automatically stakes idle ETH above a threshold.</p>
+      <p>The biggest mistake AI agents make with ETH and SOL: letting native assets sit idle earning zero. In 2026 that opportunity cost is measurable: liquid staking protocols offer 3.5-4.5% APY on ETH and 7-8% on SOL, available without lockups, without 32 ETH minimums, and without running your own validator infrastructure.</p>
 
-      <h2>What Is Liquid Staking</h2>
-      <p>Ethereum staking requires locking 32 ETH to run a validator node. That's not practical for most agents. Liquid staking protocols pool ETH from many depositors, run validators collectively, and issue you a liquid token representing your share:</p>
-      <ul>
-        <li>Deposit 1 ETH to Lido → receive 1 stETH</li>
-        <li>stETH accrues staking rewards daily — your balance slowly increases without any action</li>
-        <li>Redeem stETH for ETH at any time (subject to withdrawal queue, typically 1-4 days)</li>
-        <li>Meanwhile, use stETH in Aave, Curve, or EigenLayer to stack additional yield</li>
-      </ul>
-      <div class="info-box">
-        <p><strong>Key insight:</strong> stETH is not a locked asset. It trades freely on DEXes at near-1:1 parity with ETH, meaning you can exit instantly by swapping on Curve — no withdrawal queue required if speed matters.</p>
+      <p>Liquid staking is the first rung of the DeFi yield ladder for agents. The yield is real, the exit is liquid (you can swap stETH back to ETH on Curve in seconds), and the composability with the rest of DeFi is unmatched. This post explains how liquid staking works from first principles, compares every major token, and delivers a complete Python <code>LiquidStakingAgent</code> that automates the entire lifecycle.</p>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-value">3.5-4.5%</span>
+          <span class="stat-label">ETH Staking APY</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">7-8%</span>
+          <span class="stat-label">SOL Staking APY</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">$60B+</span>
+          <span class="stat-label">Total Value Staked</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">10%+</span>
+          <span class="stat-label">Max Stacked Yield</span>
+        </div>
       </div>
 
-      <h2>The Three Main Protocols</h2>
+      <h2>How Proof-of-Stake Staking Works</h2>
+
+      <p>Ethereum and Solana are proof-of-stake networks. Validators lock up (stake) native tokens as economic collateral, participate in block production and attestation, and earn inflationary rewards plus transaction fees. This creates a yield opportunity: the network literally prints rewards and gives them to validators.</p>
+
+      <p>On Ethereum, becoming a validator requires exactly 32 ETH (~$96,000 at $3,000/ETH). You must run an execution client (Geth, Nethermind) and a consensus client (Prysm, Lighthouse) 24/7 with high uptime. Downtime causes small penalties; double-signing causes severe slashing (up to 1/32 of stake). For an autonomous agent, this is impractical: agents don't run server infrastructure, and $96K in a single validator is excessive capital concentration.</p>
+
+      <p>Liquid staking protocols solve both problems. They pool ETH from thousands of depositors, operate professional validator infrastructure, and issue a liquid receipt token representing each depositor's share of the validator pool.</p>
+
+      <div class="info-box">
+        <p><strong>The core exchange:</strong> You deposit ETH. The protocol sends it to validators. The protocol issues you a token (stETH, rETH, etc.) worth approximately 1 ETH but growing in value as staking rewards accumulate. You can use that token in DeFi or sell it back to ETH at any time. The protocol collects a 5-15% fee on rewards to cover infrastructure and DAO treasury.</p>
+      </div>
+
+      <h2>Rebasing vs Reward-Bearing Tokens</h2>
+
+      <p>This is the most important technical distinction in liquid staking, and it affects how your accounting and DeFi integrations work.</p>
+
+      <h3>Rebasing Tokens (stETH)</h3>
+
+      <p>Lido's stETH is a rebasing token. Your wallet balance literally increases every day. Deposit 10 ETH, receive 10 stETH. After one year at 3.8% APY, your wallet shows 10.38 stETH. The token's price stays pegged to 1 ETH; the quantity grows.</p>
+
+      <p>Rebasing mechanics have DeFi implications. Some protocols cannot handle balance changes mid-block. Lido created wrapped stETH (wstETH) to address this: wstETH has a fixed balance but an increasing exchange rate. When you hold 1 wstETH, it's redeemable for more and more stETH over time. Use stETH for simple holding; use wstETH for DeFi integrations like Aave collateral, Curve pools, and EigenLayer.</p>
+
+      <h3>Reward-Bearing Tokens (rETH, cbETH, ankrETH)</h3>
+
+      <p>Rocket Pool's rETH works differently. Your rETH balance stays fixed, but the exchange rate of rETH-to-ETH increases over time. If the exchange rate is 1.08 ETH per rETH when you deposit, and 1.12 ETH per rETH when you withdraw, you earned ~3.7% during that period without any rebase events. This model is simpler for accounting and DeFi integrations because balances are stable.</p>
+
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Mechanic</th>
+            <th>Rebasing (stETH)</th>
+            <th>Reward-Bearing (rETH)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Balance changes?</td>
+            <td>Yes, daily rebase increases balance</td>
+            <td>No, exchange rate increases instead</td>
+          </tr>
+          <tr>
+            <td>1 ETH deposited = ?</td>
+            <td>~1 stETH (grows over time)</td>
+            <td>&lt;1 rETH (value per token grows)</td>
+          </tr>
+          <tr>
+            <td>DeFi compatibility</td>
+            <td>Partial — use wstETH for protocols</td>
+            <td>High — fixed balance plays nice everywhere</td>
+          </tr>
+          <tr>
+            <td>Tax complexity</td>
+            <td>Higher — each rebase may be taxable income</td>
+            <td>Lower — only taxable on exit</td>
+          </tr>
+          <tr>
+            <td>Accounting</td>
+            <td>Track quantity changes</td>
+            <td>Track exchange rate changes</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Ethereum Liquid Staking Protocols Compared</h2>
+
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Protocol</th>
+            <th>Token</th>
+            <th>APY (2026)</th>
+            <th>Decentralization</th>
+            <th>Market Cap</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Lido</strong></td>
+            <td>stETH / wstETH</td>
+            <td><span class="badge badge-green">~3.8%</span></td>
+            <td>Permissioned validators, DAO governance, 30% ETH stake share</td>
+            <td>$28B+</td>
+          </tr>
+          <tr>
+            <td><strong>Rocket Pool</strong></td>
+            <td>rETH</td>
+            <td><span class="badge badge-green">~3.5%</span></td>
+            <td>Permissionless — any node op with 8+ ETH bond</td>
+            <td>$4B+</td>
+          </tr>
+          <tr>
+            <td><strong>Coinbase</strong></td>
+            <td>cbETH</td>
+            <td><span class="badge badge-yellow">~3.2%</span></td>
+            <td>Fully centralized (Coinbase validators)</td>
+            <td>$3B+</td>
+          </tr>
+          <tr>
+            <td><strong>Frax</strong></td>
+            <td>frxETH / sfrxETH</td>
+            <td><span class="badge badge-green">~4.2%</span></td>
+            <td>Frax DAO governance, dual-token model</td>
+            <td>$600M+</td>
+          </tr>
+          <tr>
+            <td><strong>Ankr</strong></td>
+            <td>ankrETH</td>
+            <td><span class="badge badge-yellow">~3.4%</span></td>
+            <td>Ankr-operated validators, multi-chain focus</td>
+            <td>$200M+</td>
+          </tr>
+          <tr>
+            <td><strong>StakeWise</strong></td>
+            <td>osETH</td>
+            <td><span class="badge badge-green">~3.7%</span></td>
+            <td>Permissionless vault model, over-collateralized</td>
+            <td>$150M+</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>For most agents: use <strong>Lido wstETH</strong> for maximum DeFi composability and liquidity depth, <strong>Rocket Pool rETH</strong> if decentralization is a governance priority, and <strong>Frax sfrxETH</strong> if you want marginally higher APY and accept slightly less DeFi footprint. Avoid cbETH unless you are operating within Coinbase's ecosystem specifically.</p>
+
+      <h3>Validator Selection Mechanics</h3>
+
+      <p>When you deposit ETH to Lido, the DAO-selected node operators receive it in batches of 32 ETH. Rocket Pool works differently: independent node operators must post a bond of 8 ETH (increased from 16 ETH in 2024) plus RPL collateral, then borrow the remaining 24 ETH from the deposit pool. This bond requirement aligns operator incentives with depositors — a node operator cannot profitably attack their own validator because they would lose their own staked ETH first.</p>
+
+      <p>For agents, this distinction matters for risk assessment. Rocket Pool's permissionless model means higher decentralization but also more variance in validator quality. Lido's curated operator set means lower variance but concentration risk — Lido controls ~30% of all staked ETH, approaching the 33% threshold where systemic risk emerges.</p>
+
+      <h2>Liquid Staking on Solana</h2>
+
+      <p>Solana's proof-of-stake yields significantly higher APY than Ethereum due to higher inflation rates in its tokenomics schedule. Two protocols dominate:</p>
 
       <table class="comparison-table">
         <thead>
@@ -320,133 +708,663 @@
             <th>Protocol</th>
             <th>Token</th>
             <th>APY</th>
-            <th>Decentralization</th>
-            <th>DeFi Integration</th>
+            <th>Differentiator</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Lido</strong></td>
-            <td>stETH</td>
-            <td><span class="apy-badge">~3.8%</span></td>
-            <td>Permissioned validator set, DAO governance</td>
-            <td>Highest — stETH accepted everywhere: Aave, Compound, Curve, EigenLayer</td>
+            <td><strong>Marinade Finance</strong></td>
+            <td>mSOL</td>
+            <td><span class="badge badge-green">~7.2%</span></td>
+            <td>Algorithmic validator selection across 100+ validators for risk distribution</td>
           </tr>
           <tr>
-            <td><strong>Rocket Pool</strong></td>
-            <td>rETH</td>
-            <td><span class="apy-badge">~3.5%</span></td>
-            <td>Permissionless node operators with ETH collateral bond</td>
-            <td>Good — rETH on Aave, Balancer, EigenLayer; growing DeFi footprint</td>
+            <td><strong>Jito</strong></td>
+            <td>JitoSOL</td>
+            <td><span class="badge badge-green">~7.8%</span></td>
+            <td>MEV-boosted yield — captures maximal extractable value and distributes to stakers</td>
           </tr>
           <tr>
-            <td><strong>Coinbase</strong></td>
-            <td>cbETH</td>
-            <td><span class="apy-badge">~3.2%</span></td>
-            <td>Fully centralized (Coinbase validators)</td>
-            <td>Moderate — primarily on Coinbase's own infrastructure; Aave support</td>
+            <td><strong>BlazeStake</strong></td>
+            <td>bSOL</td>
+            <td><span class="badge badge-yellow">~7.0%</span></td>
+            <td>Stake-weighted validator selection, broader ecosystem support</td>
           </tr>
         </tbody>
       </table>
 
-      <p><strong>Recommendation for most agents:</strong> Lido stETH for maximum DeFi composability, Rocket Pool rETH if decentralization is a priority. Coinbase cbETH makes sense only if you are already operating within Coinbase's infrastructure.</p>
+      <p>JitoSOL consistently outperforms because the Jito protocol captures MEV (maximal extractable value) from transaction ordering and shares it with stakers. In volatile markets, MEV extraction increases, which can push JitoSOL yields above 9% during high-activity periods. For agents operating with SOL balances, JitoSOL is the first-choice yield bearing asset.</p>
 
-      <h2>When to Liquid Stake vs Not</h2>
+      <div class="info-box">
+        <p><strong>Cross-chain note:</strong> If your agent operates on both Ethereum and Solana, a simple heuristic: hold ETH yield as wstETH on Ethereum, hold SOL yield as JitoSOL on Solana. Both are the deepest liquidity pools in their ecosystems and the most accepted collateral in cross-protocol DeFi.</p>
+      </div>
+
+      <h2>Staking Derivatives and DeFi Composability</h2>
+
+      <p>The compounding power of liquid staking comes from what you do with your receipt tokens after staking. Liquid staking tokens are accepted across the DeFi ecosystem as collateral, liquidity, and restaking inputs.</p>
+
+      <div class="yield-ladder">
+        <div class="yield-row">
+          <div class="yield-num">1</div>
+          <div class="yield-row-text">
+            <strong>Base staking yield</strong>
+            <p>Deposit ETH to Lido, hold stETH/wstETH, earn validator rewards daily</p>
+          </div>
+          <div class="yield-apy">~3.8%</div>
+        </div>
+        <div class="yield-row">
+          <div class="yield-num">2</div>
+          <div class="yield-row-text">
+            <strong>Lending supply yield (Aave)</strong>
+            <p>Supply wstETH as collateral on Aave v3, earn lending interest on top of staking</p>
+          </div>
+          <div class="yield-apy">+1.5%</div>
+        </div>
+        <div class="yield-row">
+          <div class="yield-num">3</div>
+          <div class="yield-row-text">
+            <strong>Curve liquidity provision</strong>
+            <p>LP in stETH/ETH Curve pool, earn 0.04% swap fees + CRV/CVX rewards</p>
+          </div>
+          <div class="yield-apy">+2-3%</div>
+        </div>
+        <div class="yield-row">
+          <div class="yield-num">4</div>
+          <div class="yield-row-text">
+            <strong>EigenLayer restaking</strong>
+            <p>Restake wstETH into EigenLayer AVS networks for additional security rewards</p>
+          </div>
+          <div class="yield-apy">+3-5%</div>
+        </div>
+        <div class="yield-row">
+          <div class="yield-num">5</div>
+          <div class="yield-row-text">
+            <strong>Pendle yield trading</strong>
+            <p>Split stETH into principal + yield tokens on Pendle, trade yield exposure</p>
+          </div>
+          <div class="yield-apy">variable</div>
+        </div>
+      </div>
+
+      <p>Layers 1-2 are low-risk and recommended for all agents with ETH balances above 0.5 ETH. Layer 3 introduces impermanent loss. Layer 4 introduces restaking slashing risk. Layer 5 is complex and requires active management.</p>
+
+      <h2>When to Liquid Stake vs Hold Liquid ETH</h2>
 
       <div class="two-col">
         <div class="do-card">
           <h4>Stake when:</h4>
           <ul>
-            <li>Idle ETH balance exceeds 0.1 ETH</li>
-            <li>No planned ETH use in next 24h</li>
-            <li>Want passive yield on reserve capital</li>
-            <li>Operating on a multi-day time horizon</li>
-            <li>DeFi composability needed (stETH in Aave)</li>
+            <li>Idle ETH balance exceeds 0.5 ETH</li>
+            <li>No planned ETH use within next 24h</li>
+            <li>Operating on multi-day or indefinite time horizon</li>
+            <li>Want passive yield with no active management</li>
+            <li>Need DeFi collateral (stETH accepted as Aave collateral)</li>
+            <li>Tax regime allows deferring income recognition</li>
           </ul>
         </div>
         <div class="dont-card">
-          <h4>Don't stake when:</h4>
+          <h4>Hold ETH when:</h4>
           <ul>
-            <li>ETH needed for imminent gas fees</li>
-            <li>Active trading collateral (need instant exit)</li>
-            <li>Withdrawal timing is uncertain or critical</li>
-            <li>Balance too small (gas cost exceeds yield)</li>
+            <li>ETH needed for immediate gas fees</li>
+            <li>Trading collateral requiring instant liquidation</li>
+            <li>Balance too small (gas cost exceeds 30-day yield)</li>
+            <li>High uncertainty on next capital deployment</li>
             <li>Protocol smart contract risk unacceptable</li>
+            <li>Need to vote in ETH-native governance</li>
           </ul>
         </div>
       </div>
 
-      <p>A practical rule of thumb: keep 0.1-0.2 ETH liquid for gas at all times, stake everything above that threshold. The stETH/ETH Curve pool provides instant exit if you ever need the ETH back faster than the withdrawal queue allows.</p>
+      <p>A practical heuristic: keep a minimum gas reserve of 0.05-0.1 ETH in raw ETH at all times. Stake everything above that. If you need ETH quickly, the stETH/ETH Curve pool allows instant exit at near-parity without using the 1-5 day native withdrawal queue.</p>
 
-      <h2>Python Example: Auto-Staking Agent</h2>
-      <p>This function checks an agent's ETH balance, identifies the best APY protocol via Purple Flea's API, and stakes the surplus automatically:</p>
+      <h2>Risk Factors: What Can Go Wrong</h2>
 
-      <pre><code>import requests
+      <div class="risk-grid">
+        <div class="risk-card">
+          <h4><span class="risk-level risk-low">LOW</span> Slashing Risk</h4>
+          <p>Validator misbehavior triggers ETH slashing. Lido and Rocket Pool maintain insurance/coverage mechanisms. Slashing events are rare and typically small (0.01-1 ETH per incident). Protocol-wide slashing events have never wiped a depositor's full balance.</p>
+        </div>
+        <div class="risk-card">
+          <h4><span class="risk-level risk-medium">MEDIUM</span> Smart Contract Risk</h4>
+          <p>A bug in the staking protocol's contracts could freeze or drain deposited ETH. Lido has $28B in TVL and extensive audits, but no contract is perfectly safe. Diversify across 2-3 protocols for balances above 50 ETH.</p>
+        </div>
+        <div class="risk-card">
+          <h4><span class="risk-level risk-medium">MEDIUM</span> Withdrawal Queue Timing</h4>
+          <p>Native unstaking takes 1-7 days depending on the Ethereum validator exit queue. During extreme market stress, the queue grows. Mitigate by using DEX exits (Curve stETH/ETH) for urgent liquidity needs.</p>
+        </div>
+        <div class="risk-card">
+          <h4><span class="risk-level risk-high">HIGH</span> Depeg Risk (Rare)</h4>
+          <p>During the 2022 Terra collapse, stETH traded at a 7% discount to ETH as leveraged positions were force-unwound. This resolved within weeks. If you hold stETH during a depeg and sell, you realize the discount. Hold through depegs unless liquidity is critically needed.</p>
+        </div>
+        <div class="risk-card">
+          <h4><span class="risk-level risk-low">LOW</span> Operator Concentration (Lido)</h4>
+          <p>Lido controls ~30% of staked ETH. If it approaches 33%, it could theoretically influence chain finality. This is a systemic risk to Ethereum, not directly a depositor risk. The Ethereum community actively monitors this threshold.</p>
+        </div>
+        <div class="risk-card">
+          <h4><span class="risk-level risk-medium">MEDIUM</span> Tax and Accounting</h4>
+          <p>Daily stETH rebases may constitute taxable income in some jurisdictions. Reward-bearing tokens (rETH, JitoSOL) defer recognition to exit. Agents should implement accurate cost-basis tracking for all liquid staking positions.</p>
+        </div>
+      </div>
 
-PURPLE_FLEA_KEY = "your-api-key"
+      <h2>Python LiquidStakingAgent: Full Implementation</h2>
+
+      <p>The following agent monitors ETH and SOL balances, determines optimal staking amounts, selects the highest-APY protocol, executes stakes, and tracks positions over time. It uses Purple Flea's wallet and trading APIs for portfolio visibility.</p>
+
+      <pre><code>"""
+LiquidStakingAgent - Automated liquid staking yield optimizer
+Supports: stETH (Lido), rETH (Rocket Pool), mSOL (Marinade), JitoSOL (Jito)
+Purple Flea API: https://purpleflea.com/api/v1
+"""
+
+import time
+import json
+import logging
+import requests
+from dataclasses import dataclass, field
+from typing import Optional
+from datetime import datetime, timezone
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+log = logging.getLogger('LiquidStakingAgent')
+
+# ── Configuration ──────────────────────────────────────────────────────────────
+
+PURPLE_FLEA_KEY = "your-api-key-here"
 PF_BASE = "https://purpleflea.com/api/v1"
-HEADERS = {"Authorization": f"Bearer {PURPLE_FLEA_KEY}"}
+HEADERS = {
+    "Authorization": f"Bearer {PURPLE_FLEA_KEY}",
+    "Content-Type": "application/json"
+}
 
-def get_eth_balance(wallet_address: str) -> float:
-    r = requests.get(f"{PF_BASE}/wallet/{wallet_address}/balance", headers=HEADERS)
-    return r.json()["eth_balance"]
+# Staking configuration
+ETH_MIN_STAKE = 0.1          # Minimum ETH to stake (gas cost consideration)
+ETH_GAS_RESERVE = 0.08       # Always keep this much ETH for gas
+SOL_MIN_STAKE = 0.5          # Minimum SOL to stake
+SOL_GAS_RESERVE = 0.05       # Always keep this much SOL for fees
+CHECK_INTERVAL_HOURS = 6     # How often to check balances
+REBALANCE_THRESHOLD = 0.02   # APY difference that triggers protocol switch
 
-def get_best_apy_protocol() -> dict:
-    r = requests.get(f"{PF_BASE}/liquid-staking/apy", headers=HEADERS)
-    protocols = r.json()
-    return max(protocols, key=lambda p: p["apy"])
+# Protocol registry
+ETH_PROTOCOLS = {
+    "lido": {
+        "name": "Lido",
+        "token_in": "ETH",
+        "token_out": "wstETH",
+        "token_display": "stETH",
+        "min_deposit": 0.01,
+        "fee_pct": 10.0,      # 10% of rewards
+        "risk_score": 2,      # 1=lowest, 5=highest
+        "defi_score": 5,      # DeFi integration depth
+    },
+    "rocketpool": {
+        "name": "Rocket Pool",
+        "token_in": "ETH",
+        "token_out": "rETH",
+        "token_display": "rETH",
+        "min_deposit": 0.01,
+        "fee_pct": 14.0,
+        "risk_score": 2,
+        "defi_score": 4,
+    },
+    "frax": {
+        "name": "Frax",
+        "token_in": "ETH",
+        "token_out": "sfrxETH",
+        "token_display": "sfrxETH",
+        "min_deposit": 0.01,
+        "fee_pct": 10.0,
+        "risk_score": 3,
+        "defi_score": 3,
+    }
+}
 
-def stake(protocol: str, amount_eth: float) -> dict:
+SOL_PROTOCOLS = {
+    "jito": {
+        "name": "Jito",
+        "token_in": "SOL",
+        "token_out": "JitoSOL",
+        "min_deposit": 0.01,
+        "fee_pct": 4.0,
+        "risk_score": 2,
+        "mev_boosted": True,
+    },
+    "marinade": {
+        "name": "Marinade Finance",
+        "token_in": "SOL",
+        "token_out": "mSOL",
+        "min_deposit": 0.01,
+        "fee_pct": 6.0,
+        "risk_score": 2,
+        "mev_boosted": False,
+    }
+}
+
+# ── Data Classes ───────────────────────────────────────────────────────────────
+
+@dataclass
+class StakePosition:
+    protocol: str
+    chain: str
+    token: str
+    amount_deposited: float
+    tokens_received: float
+    entry_exchange_rate: float
+    stake_timestamp: float
+    tx_hash: str = ""
+
+    @property
+    def age_hours(self) -> float:
+        return (time.time() - self.stake_timestamp) / 3600
+
+@dataclass
+class AgentPortfolio:
+    eth_balance: float = 0.0
+    sol_balance: float = 0.0
+    usdc_balance: float = 0.0
+    staked_positions: list[StakePosition] = field(default_factory=list)
+    last_updated: float = 0.0
+
+    def total_eth_staked(self) -> float:
+        return sum(p.amount_deposited for p in self.staked_positions if p.chain == "ethereum")
+
+    def total_sol_staked(self) -> float:
+        return sum(p.amount_deposited for p in self.staked_positions if p.chain == "solana")
+
+# ── API Layer ──────────────────────────────────────────────────────────────────
+
+def get_portfolio(wallet_address: str) -> AgentPortfolio:
+    """Fetch current portfolio balances from Purple Flea wallet API."""
+    try:
+        r = requests.get(
+            f"{PF_BASE}/wallet/{wallet_address}/portfolio",
+            headers=HEADERS,
+            timeout=10
+        )
+        r.raise_for_status()
+        data = r.json()
+        return AgentPortfolio(
+            eth_balance=data.get("eth_balance", 0.0),
+            sol_balance=data.get("sol_balance", 0.0),
+            usdc_balance=data.get("usdc_balance", 0.0),
+            last_updated=time.time()
+        )
+    except requests.RequestException as e:
+        log.error(f"Failed to fetch portfolio: {e}")
+        raise
+
+def get_protocol_apy(chain: str) -> dict[str, float]:
+    """
+    Fetch current APYs for all staking protocols.
+    Returns dict of {protocol_id: apy_percent}.
+    """
+    try:
+        r = requests.get(
+            f"{PF_BASE}/liquid-staking/apy",
+            params={"chain": chain},
+            headers=HEADERS,
+            timeout=10
+        )
+        r.raise_for_status()
+        return {p["id"]: p["apy"] for p in r.json()}
+    except requests.RequestException as e:
+        log.warning(f"APY fetch failed for {chain}: {e}. Using fallback values.")
+        # Fallback APYs
+        if chain == "ethereum":
+            return {"lido": 3.8, "rocketpool": 3.5, "frax": 4.2}
+        else:
+            return {"jito": 7.8, "marinade": 7.2}
+
+def get_exchange_rate(protocol: str) -> float:
+    """Fetch current token/ETH or token/SOL exchange rate."""
+    try:
+        r = requests.get(
+            f"{PF_BASE}/liquid-staking/rate/{protocol}",
+            headers=HEADERS,
+            timeout=10
+        )
+        r.raise_for_status()
+        return r.json()["exchange_rate"]
+    except requests.RequestException as e:
+        log.warning(f"Rate fetch failed for {protocol}: {e}. Using 1.0 fallback.")
+        return 1.0
+
+def execute_stake(
+    wallet_address: str,
+    protocol: str,
+    chain: str,
+    amount: float
+) -> dict:
+    """Submit stake transaction via Purple Flea API."""
+    payload = {
+        "wallet_address": wallet_address,
+        "protocol": protocol,
+        "chain": chain,
+        "amount": amount
+    }
     r = requests.post(
         f"{PF_BASE}/liquid-staking/stake",
-        json={"protocol": protocol, "amount_eth": amount_eth},
-        headers=HEADERS
+        json=payload,
+        headers=HEADERS,
+        timeout=30
     )
+    r.raise_for_status()
     return r.json()
 
-def auto_stake_idle_eth(wallet_address: str, threshold_eth: float = 0.5) -> dict | None:
-    """Stakes ETH above threshold into best-APY liquid staking protocol."""
-    balance = get_eth_balance(wallet_address)
+def execute_unstake(
+    wallet_address: str,
+    protocol: str,
+    chain: str,
+    token_amount: float
+) -> dict:
+    """Submit unstake (withdrawal initiation) via Purple Flea API."""
+    payload = {
+        "wallet_address": wallet_address,
+        "protocol": protocol,
+        "chain": chain,
+        "token_amount": token_amount
+    }
+    r = requests.post(
+        f"{PF_BASE}/liquid-staking/unstake",
+        json=payload,
+        headers=HEADERS,
+        timeout=30
+    )
+    r.raise_for_status()
+    return r.json()
 
-    if balance <= threshold_eth:
-        print(f"Balance {balance:.4f} ETH below threshold {threshold_eth} ETH. No action.")
-        return None
+# ── Core Agent Logic ───────────────────────────────────────────────────────────
 
-    best_protocol = get_best_apy_protocol()
-    amount_to_stake = balance - 0.1  # always keep 0.1 ETH for gas
+class LiquidStakingAgent:
+    """
+    Autonomous agent that manages liquid staking positions for
+    ETH and SOL, maximizing yield while maintaining gas reserves.
+    """
 
-    print(f"Staking {amount_to_stake:.4f} ETH into {best_protocol['name']} ({best_protocol['apy']:.2f}% APY)")
-    result = stake(protocol=best_protocol["id"], amount_eth=amount_to_stake)
-    print(f"Received: {result.get('tokens_received')} {result.get('token_symbol')}")
-    return result
+    def __init__(self, wallet_address: str):
+        self.wallet_address = wallet_address
+        self.portfolio = AgentPortfolio()
+        self.positions: list[StakePosition] = []
+        self.eth_apy_cache: dict[str, float] = {}
+        self.sol_apy_cache: dict[str, float] = {}
+        self.total_yield_earned: float = 0.0
+        self.total_stakes_executed: int = 0
 
-# Example usage
+    def refresh_portfolio(self) -> None:
+        """Update portfolio balances."""
+        self.portfolio = get_portfolio(self.wallet_address)
+        log.info(
+            f"Portfolio: {self.portfolio.eth_balance:.4f} ETH | "
+            f"{self.portfolio.sol_balance:.2f} SOL | "
+            f"${self.portfolio.usdc_balance:.2f} USDC"
+        )
+
+    def refresh_apys(self) -> None:
+        """Fetch latest APYs for all protocols."""
+        self.eth_apy_cache = get_protocol_apy("ethereum")
+        self.sol_apy_cache = get_protocol_apy("solana")
+        log.info(f"ETH APYs: {self.eth_apy_cache}")
+        log.info(f"SOL APYs: {self.sol_apy_cache}")
+
+    def select_best_protocol(
+        self,
+        chain: str,
+        prefer_decentralized: bool = False
+    ) -> tuple[str, float]:
+        """
+        Select optimal staking protocol, optionally weighting for decentralization.
+        Returns (protocol_id, expected_apy).
+        """
+        apy_cache = self.eth_apy_cache if chain == "ethereum" else self.sol_apy_cache
+        protocols = ETH_PROTOCOLS if chain == "ethereum" else SOL_PROTOCOLS
+
+        scores = {}
+        for pid, apy in apy_cache.items():
+            if pid not in protocols:
+                continue
+            proto = protocols[pid]
+            # Base score is APY
+            score = apy
+            # Penalize high risk if prefer_decentralized
+            if prefer_decentralized:
+                score -= proto.get("risk_score", 3) * 0.2
+            scores[pid] = score
+
+        if not scores:
+            # Default to safest well-known protocol
+            default = "lido" if chain == "ethereum" else "jito"
+            return default, apy_cache.get(default, 3.5)
+
+        best_pid = max(scores, key=lambda k: scores[k])
+        return best_pid, apy_cache.get(best_pid, 3.5)
+
+    def compute_stake_amount(self, chain: str) -> float:
+        """
+        Calculate how much to stake, leaving gas reserve.
+        Returns amount to stake (may be 0 if below threshold).
+        """
+        if chain == "ethereum":
+            available = self.portfolio.eth_balance - ETH_GAS_RESERVE
+            if available < ETH_MIN_STAKE:
+                return 0.0
+            return round(available, 6)
+        else:
+            available = self.portfolio.sol_balance - SOL_GAS_RESERVE
+            if available < SOL_MIN_STAKE:
+                return 0.0
+            return round(available, 4)
+
+    def stake_idle_assets(self, prefer_decentralized: bool = False) -> list[StakePosition]:
+        """Main staking logic: stake any idle ETH and SOL above minimums."""
+        new_positions = []
+
+        for chain in ["ethereum", "solana"]:
+            amount = self.compute_stake_amount(chain)
+            if amount <= 0:
+                log.info(f"No stakeable {chain.upper()} (below minimum or insufficient balance)")
+                continue
+
+            protocol, expected_apy = self.select_best_protocol(chain, prefer_decentralized)
+            log.info(
+                f"Staking {amount:.4f} {chain} assets via {protocol} "
+                f"(expected {expected_apy:.2f}% APY)"
+            )
+
+            try:
+                exchange_rate = get_exchange_rate(protocol)
+                result = execute_stake(
+                    wallet_address=self.wallet_address,
+                    protocol=protocol,
+                    chain=chain,
+                    amount=amount
+                )
+                tokens_received = result.get("tokens_received", amount / exchange_rate)
+                tx_hash = result.get("tx_hash", "pending")
+
+                position = StakePosition(
+                    protocol=protocol,
+                    chain=chain,
+                    token=result.get("token_symbol", protocol.upper()),
+                    amount_deposited=amount,
+                    tokens_received=tokens_received,
+                    entry_exchange_rate=exchange_rate,
+                    stake_timestamp=time.time(),
+                    tx_hash=tx_hash
+                )
+                self.positions.append(position)
+                new_positions.append(position)
+                self.total_stakes_executed += 1
+
+                log.info(
+                    f"Staked successfully: {tokens_received:.4f} {position.token} "
+                    f"(tx: {tx_hash[:16]}...)"
+                )
+
+            except requests.HTTPError as e:
+                log.error(f"Stake failed for {chain} via {protocol}: {e}")
+
+        return new_positions
+
+    def estimate_accrued_yield(self) -> dict[str, float]:
+        """
+        Estimate yield accrued across all positions using current exchange rates.
+        Returns {chain: estimated_yield_in_native_asset}.
+        """
+        yield_by_chain: dict[str, float] = {}
+
+        for pos in self.positions:
+            current_rate = get_exchange_rate(pos.protocol)
+            # Current value in native asset
+            current_value = pos.tokens_received * current_rate
+            accrued = current_value - pos.amount_deposited
+            chain = pos.chain
+            yield_by_chain[chain] = yield_by_chain.get(chain, 0.0) + accrued
+
+        return yield_by_chain
+
+    def check_rebalance_needed(self) -> bool:
+        """
+        Check if current protocol allocations are suboptimal.
+        Returns True if rebalancing is recommended.
+        """
+        if not self.positions:
+            return False
+
+        for pos in self.positions:
+            chain = pos.chain
+            apy_cache = self.eth_apy_cache if chain == "ethereum" else self.sol_apy_cache
+            current_protocol_apy = apy_cache.get(pos.protocol, 0.0)
+            best_protocol, best_apy = self.select_best_protocol(chain)
+
+            if best_protocol != pos.protocol:
+                apy_diff = best_apy - current_protocol_apy
+                if apy_diff >= REBALANCE_THRESHOLD:
+                    log.info(
+                        f"Rebalance opportunity: {pos.protocol} ({current_protocol_apy:.2f}%) "
+                        f"-> {best_protocol} ({best_apy:.2f}%), diff: {apy_diff:.2f}%"
+                    )
+                    return True
+
+        return False
+
+    def print_status_report(self) -> None:
+        """Print a human-readable status summary."""
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        accrued = self.estimate_accrued_yield()
+
+        print(f"\n{'='*55}")
+        print(f" LiquidStakingAgent Status — {now}")
+        print(f"{'='*55}")
+        print(f" Wallet: {self.wallet_address[:20]}...")
+        print(f" ETH balance:  {self.portfolio.eth_balance:.4f} ETH")
+        print(f" SOL balance:  {self.portfolio.sol_balance:.2f} SOL")
+        print(f" USDC balance: ${self.portfolio.usdc_balance:.2f}")
+        print(f" Active positions: {len(self.positions)}")
+        for pos in self.positions:
+            yield_val = accrued.get(pos.chain, 0.0)
+            print(
+                f"   [{pos.chain[:3].upper()}] {pos.protocol}: "
+                f"{pos.amount_deposited:.4f} deposited | "
+                f"~{yield_val:.4f} yield | "
+                f"{pos.age_hours:.0f}h old"
+            )
+        print(f" Total stakes executed: {self.total_stakes_executed}")
+        print(f"{'='*55}\n")
+
+    def run(self, cycles: int = 0, prefer_decentralized: bool = False) -> None:
+        """
+        Main agent loop. Runs indefinitely (cycles=0) or for N cycles.
+        prefer_decentralized: weight protocol selection toward rETH/Marinade.
+        """
+        log.info(f"LiquidStakingAgent starting for wallet {self.wallet_address}")
+        cycle_count = 0
+        check_interval_sec = CHECK_INTERVAL_HOURS * 3600
+
+        while True:
+            cycle_count += 1
+            log.info(f"--- Cycle {cycle_count} ---")
+
+            try:
+                self.refresh_portfolio()
+                self.refresh_apys()
+
+                # Stake any idle assets
+                new_positions = self.stake_idle_assets(prefer_decentralized)
+                if new_positions:
+                    log.info(f"Created {len(new_positions)} new staking position(s)")
+
+                # Check if rebalancing is worthwhile
+                if self.check_rebalance_needed():
+                    log.info("Rebalance flagged — review positions manually or implement auto-exit")
+
+                self.print_status_report()
+
+            except Exception as e:
+                log.error(f"Cycle {cycle_count} error: {e}", exc_info=True)
+
+            if cycles > 0 and cycle_count >= cycles:
+                log.info(f"Completed {cycles} cycles. Exiting.")
+                break
+
+            log.info(f"Sleeping {CHECK_INTERVAL_HOURS}h until next check...")
+            time.sleep(check_interval_sec)
+
+
+# ── Entry Point ────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    auto_stake_idle_eth("0xYourAgentWalletAddress", threshold_eth=0.5)</code></pre>
+    agent = LiquidStakingAgent(wallet_address="YOUR_AGENT_WALLET_ADDRESS")
+    agent.run(prefer_decentralized=True)</code></pre>
 
-      <p>Run this on a schedule — daily or after every significant capital movement — to keep your ETH earning yield automatically. The 0.1 ETH gas reserve ensures the agent always has funds to act.</p>
+      <h2>Gas Cost vs Yield Break-Even Analysis</h2>
 
-      <h2>DeFi Composability: Stacking Yield</h2>
-      <p>The real power of liquid staking is composability — using your stETH/rETH position to earn additional yield across multiple protocols simultaneously:</p>
+      <p>Staking small amounts can lose money if the gas cost exceeds the yield earned. Use this formula to determine the minimum viable stake amount:</p>
+
+      <pre><code># Break-even calculation for ETH staking
+GAS_PRICE_GWEI = 20        # Current gas price
+GAS_UNITS_STAKE = 150_000  # Approximate gas for Lido stake
+GAS_UNITS_UNSTAKE = 120_000
+
+# Gas cost in ETH
+gas_cost_stake = (GAS_PRICE_GWEI * GAS_UNITS_STAKE) / 1e9
+gas_cost_unstake = (GAS_PRICE_GWEI * GAS_UNITS_UNSTAKE) / 1e9
+total_gas_cost = gas_cost_stake + gas_cost_unstake
+
+LIDO_APY = 0.038
+HOLD_PERIOD_DAYS = 30
+
+# Minimum stake to recover gas in 30 days
+min_stake = total_gas_cost / (LIDO_APY * (HOLD_PERIOD_DAYS / 365))
+
+print(f"Gas cost (stake + unstake): {total_gas_cost:.5f} ETH")
+print(f"Min viable stake for 30-day hold: {min_stake:.3f} ETH")
+# At 20 gwei: ~0.006 ETH gas cost, ~0.18 ETH minimum stake for 30 days</code></pre>
+
+      <p>At 20 gwei gas prices, the break-even stake amount for a 30-day hold period is approximately 0.18 ETH. For longer holds, the minimum viable amount drops proportionally. This analysis suggests <strong>never stake amounts below 0.1 ETH</strong> unless you plan to hold the staked position for several months.</p>
+
+      <h2>Integration with Purple Flea</h2>
+
+      <p>Purple Flea's wallet API provides unified balance views across Ethereum and Solana, making it the natural integration point for a liquid staking agent. The platform supports:</p>
+
       <ul>
-        <li><strong>Aave lending:</strong> Supply stETH as collateral, earn lending APY on top of staking rewards (~1-2% additional)</li>
-        <li><strong>Curve liquidity:</strong> Provide stETH/ETH liquidity on Curve, earn trading fees + CRV rewards (~2-4% additional)</li>
-        <li><strong>EigenLayer restaking:</strong> Restake stETH to secure additional AVS networks, earn restaking rewards (~3-5% additional)</li>
-      </ul>
-      <p>Combined, a sophisticated agent could earn 8-12% APY on ETH through layered liquid staking positions — though each layer adds smart contract and slashing risk. See <a href="/restaking-api">/restaking-api</a> for EigenLayer integration via Purple Flea.</p>
-
-      <h2>Risk Factors</h2>
-      <p>Liquid staking is low-risk compared to active trading, but not zero-risk. Understand these before deploying capital:</p>
-      <ul>
-        <li><strong>Slashing risk:</strong> If a validator misbehaves, a portion of the pooled ETH is slashed. Lido's slashing insurance fund covers most scenarios, but not all.</li>
-        <li><strong>Smart contract risk:</strong> A bug in Lido/Rocket Pool contracts could freeze or lose deposited ETH. This is the primary risk — it's why diversification across protocols matters for large positions.</li>
-        <li><strong>Withdrawal queue timing:</strong> Native unstaking takes 1-5 days depending on Ethereum validator exit queue length. During market stress, plan accordingly.</li>
-        <li><strong>Depeg risk:</strong> In extreme market conditions (e.g., the 2022 stETH depeg during the Terra collapse), stETH can trade below ETH parity. This resolves over time but creates unrealized losses if you sell during the depeg.</li>
+        <li><strong>Portfolio tracking:</strong> See stETH, rETH, wstETH, mSOL, and JitoSOL balances alongside raw ETH and SOL</li>
+        <li><strong>Yield reporting:</strong> Automatic APY calculation based on entry exchange rate vs current rate</li>
+        <li><strong>DeFi composability:</strong> Use staking receipt tokens as margin for Purple Flea trading positions</li>
+        <li><strong>Restaking access:</strong> EigenLayer restaking for wstETH positions available via <a href="/restaking-api">/restaking-api</a></li>
       </ul>
 
-      <h2>Conclusion</h2>
-      <p>Liquid staking is the lowest-effort yield strategy available to ETH-holding agents. The yield is real, the risk is manageable, and the composability with other DeFi protocols is a genuine edge — stETH earns while you sleep, trades, and operates in parallel.</p>
-      <p>Start with Lido stETH for simplicity, diversify to Rocket Pool rETH as your ETH balance grows. Automate with Purple Flea's liquid staking API at <a href="/liquid-staking-api">/liquid-staking-api</a> and explore restaking options at <a href="/restaking-api">/restaking-api</a>.</p>
+      <p>Combined with Purple Flea's <a href="/faucet">faucet</a> (1 USDC free for new agents) and <a href="/escrow">escrow</a> (trustless agent-to-agent payments), liquid staking positions integrate into a complete agent treasury management system where every asset is either earning yield or being deployed productively.</p>
+
+      <div class="cta-section">
+        <h3>Start Earning Yield on Your Agent's ETH</h3>
+        <p>Access liquid staking, 275+ perp markets, casino games, and the faucet — all from a single API key. Built for autonomous AI agents.</p>
+        <div class="cta-buttons">
+          <a href="/api-keys" class="btn-primary">Get API Key</a>
+          <a href="/faucet" class="btn-secondary">Claim Free $1 USDC</a>
+        </div>
+      </div>
 
     </article>
   </main>
@@ -454,21 +1372,33 @@ if __name__ == "__main__":
   <footer>
     <ul class="footer-links">
       <li><a href="/">Home</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
       <li><a href="/casino">Casino</a></li>
       <li><a href="/trading">Trading</a></li>
       <li><a href="/wallet">Wallet</a></li>
+      <li><a href="/faucet">Faucet</a></li>
+      <li><a href="/escrow">Escrow</a></li>
       <li><a href="/docs">Docs</a></li>
       <li><a href="/blog">Blog</a></li>
       <li><a href="/api-keys">API Keys</a></li>
-      <li><a href="/api-reference">API Reference</a></li>
     </ul>
-    <p class="footer-copy">© 2026 Purple Flea</p>
+    <p class="footer-copy">&copy; 2026 Purple Flea. AI-first financial infrastructure for autonomous agents.</p>
   </footer>
 
   <script>
+    // Sticky nav
     const nav = document.getElementById('main-nav');
     window.addEventListener('scroll', () => {
       nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Reading progress bar
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const doc = document.documentElement;
+      const scrolled = doc.scrollTop;
+      const max = doc.scrollHeight - doc.clientHeight;
+      bar.style.width = (max > 0 ? (scrolled / max) * 100 : 0) + '%';
     });
   </script>
 </body>

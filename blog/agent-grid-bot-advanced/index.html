@@ -748,6 +748,145 @@ result = <span class="fn">calculate_grid_capital</span>(<span class="nu">40000</
     <p>If fee drag exceeds 25%, increase grid spacing to reduce cycle frequency. Maker fees on Purple Flea's 275+ perpetual markets are significantly lower than taker fees — always place limit orders that rest on the book.</p>
   </div>
 
+  <!-- SECTION 9 -->
+  <h2>9. Multi-Symbol Grid Portfolio Architecture</h2>
+  <p>
+    Running a single grid bot on one symbol is a good start. Running a coordinated portfolio of grid bots across multiple uncorrelated symbols with shared capital management is significantly more capital-efficient.
+  </p>
+
+  <h3>Portfolio Grid Strategy</h3>
+  <p>
+    A portfolio approach allocates a fixed capital pool across multiple symbols, dynamically rebalancing as different grids complete or stall. Symbols with high cycle rates receive more capital; stale grids get reduced allocation.
+  </p>
+
+  <pre><span class="kw">class</span> <span class="cl">GridPortfolioManager</span>:
+    <span class="cm">"""
+    Manages a pool of AdvancedGridBot instances across multiple symbols.
+    Dynamically reallocates capital based on cycle performance.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>, api_key: <span class="fn">str</span>, total_capital: <span class="fn">float</span>, symbols: <span class="fn">List</span>[<span class="fn">str</span>]):
+        <span class="kw">self</span>.api_key = api_key
+        <span class="kw">self</span>.total_capital = total_capital
+        <span class="kw">self</span>.symbols = symbols
+        <span class="kw">self</span>.bots: Dict[<span class="fn">str</span>, AdvancedGridBot] = {}
+        <span class="kw">self</span>.allocation: Dict[<span class="fn">str</span>, <span class="fn">float</span>] = {}
+        <span class="kw">self</span>.cycle_counts: Dict[<span class="fn">str</span>, <span class="fn">int</span>] = {s: <span class="nu">0</span> <span class="kw">for</span> s <span class="kw">in</span> symbols}
+
+    <span class="kw">def</span> <span class="fn">initial_allocation</span>(<span class="kw">self</span>) -> Dict[<span class="fn">str</span>, <span class="fn">float</span>]:
+        <span class="cm">"""Equal weight initially; reserves 20% as buffer."""</span>
+        deployable = <span class="kw">self</span>.total_capital * <span class="nu">0.80</span>
+        per_symbol = deployable / <span class="fn">len</span>(<span class="kw">self</span>.symbols)
+        <span class="kw">return</span> {s: per_symbol <span class="kw">for</span> s <span class="kw">in</span> <span class="kw">self</span>.symbols}
+
+    <span class="kw">def</span> <span class="fn">rebalance</span>(<span class="kw">self</span>) -> Dict[<span class="fn">str</span>, <span class="fn">float</span>]:
+        <span class="cm">"""Reallocate capital proportional to cycle counts (performance-weighted)."""</span>
+        total_cycles = <span class="fn">sum</span>(<span class="kw">self</span>.cycle_counts.values()) + <span class="fn">len</span>(<span class="kw">self</span>.symbols)  <span class="cm"># +1 each to avoid zero</span>
+        deployable = <span class="kw">self</span>.total_capital * <span class="nu">0.80</span>
+        new_alloc = {}
+        <span class="kw">for</span> s <span class="kw">in</span> <span class="kw">self</span>.symbols:
+            weight = (<span class="kw">self</span>.cycle_counts[s] + <span class="nu">1</span>) / total_cycles
+            new_alloc[s] = deployable * weight
+        <span class="kw">return</span> new_alloc
+
+    <span class="kw">async def</span> <span class="fn">run_portfolio</span>(<span class="kw">self</span>):
+        <span class="cm">"""Start all bots concurrently, rebalance weekly."""</span>
+        alloc = <span class="kw">self</span>.<span class="fn">initial_allocation</span>()
+        tasks = []
+        <span class="kw">for</span> symbol <span class="kw">in</span> <span class="kw">self</span>.symbols:
+            bot = <span class="cl">AdvancedGridBot</span>(<span class="kw">self</span>.api_key, symbol, alloc[symbol])
+            <span class="kw">self</span>.bots[symbol] = bot
+            tasks.<span class="fn">append</span>(asyncio.<span class="fn">create_task</span>(bot.<span class="fn">run</span>()))
+
+        <span class="cm"># Rebalance every 7 days</span>
+        <span class="kw">async def</span> <span class="fn">rebalancer</span>():
+            <span class="kw">while</span> <span class="kw">True</span>:
+                <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="nu">7</span> * <span class="nu">24</span> * <span class="nu">3600</span>)
+                new_alloc = <span class="kw">self</span>.<span class="fn">rebalance</span>()
+                <span class="kw">for</span> s, capital <span class="kw">in</span> new_alloc.<span class="fn">items</span>():
+                    <span class="kw">self</span>.bots[s].capital = capital
+
+        tasks.<span class="fn">append</span>(asyncio.<span class="fn">create_task</span>(<span class="fn">rebalancer</span>()))
+        <span class="kw">await</span> asyncio.<span class="fn">gather</span>(*tasks)</pre>
+
+  <!-- SECTION 10 -->
+  <h2>10. Grid Bot Tuning Parameters Reference</h2>
+  <p>
+    The following table summarizes the key tuning parameters for AdvancedGridBot and their recommended starting ranges for different market conditions and asset classes.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Parameter</th><th>Conservative</th><th>Balanced</th><th>Aggressive</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Grid count</strong></td><td>15-20</td><td>25-35</td><td>40-60</td><td>More grids = tighter spacing = more cycles but lower profit per cycle</td></tr>
+      <tr><td><strong>ATR multiplier</strong></td><td>3.0x</td><td>2.5x</td><td>1.5x</td><td>Lower multiplier = narrower range = more fills but more resets</td></tr>
+      <tr><td><strong>Grid type</strong></td><td>Arithmetic</td><td>Geometric</td><td>Geometric</td><td>Geometric preferred for crypto; arithmetic for low-vol assets</td></tr>
+      <tr><td><strong>Max drawdown stop</strong></td><td>10%</td><td>15%</td><td>20%</td><td>Based on total deployed capital, not just one grid level</td></tr>
+      <tr><td><strong>Compound threshold</strong></td><td>5%</td><td>2%</td><td>1%</td><td>How much profit to accumulate before reinvesting</td></tr>
+      <tr><td><strong>ADX entry cap</strong></td><td>18</td><td>22</td><td>28</td><td>ADX below threshold required to deploy; higher = more lenient</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="callout-title">Starting Point Recommendation</div>
+    <p>New grid agents should start with the "Balanced" column settings for 30 days before tuning. This provides sufficient trade count (typically 80-200 cycles per month on liquid crypto pairs) to generate statistically meaningful performance data before parameter optimization.</p>
+  </div>
+
+  <!-- SECTION 11 -->
+  <h2>11. Funding Rate Integration for Perpetual Grid Bots</h2>
+  <p>
+    On perpetual futures markets like those available at <strong>trading.purpleflea.com</strong>, funding rates add another dimension to grid bot profitability. When funding rates are significantly positive (longs pay shorts), a grid bot that holds short positions between cycles earns funding income. When negative, it pays.
+  </p>
+
+  <h3>Funding Rate Aware Grid Logic</h3>
+  <p>
+    An advanced grid bot on perpetual markets should factor the 8-hour funding rate into its profitability model:
+  </p>
+
+  <pre><span class="kw">async def</span> <span class="fn">get_funding_rate</span>(<span class="kw">self</span>, symbol: <span class="fn">str</span>) -> <span class="fn">float</span>:
+    <span class="cm">"""Fetch current funding rate for a perpetual market."""</span>
+    resp = <span class="kw">await</span> <span class="kw">self</span>.client.<span class="fn">get</span>(
+        <span class="fn">f</span><span class="st">f'{self.TRADING_API}/funding-rate/{symbol}'</span>
+    )
+    data = resp.<span class="fn">json</span>()
+    <span class="cm"># Annualize: 8h rate * 3 * 365</span>
+    annualized = data[<span class="st">'rate_8h'</span>] * <span class="nu">3</span> * <span class="nu">365</span>
+    <span class="kw">return</span> annualized
+
+<span class="kw">def</span> <span class="fn">funding_adjusted_profit_per_cycle</span>(
+    grid_profit: <span class="fn">float</span>,
+    avg_position_size: <span class="fn">float</span>,
+    avg_hold_hours: <span class="fn">float</span>,
+    funding_rate_8h: <span class="fn">float</span>
+) -> <span class="fn">float</span>:
+    <span class="cm">"""Adjust grid cycle profit by expected funding payments/receipts."""</span>
+    funding_per_8h = avg_position_size * funding_rate_8h
+    periods = avg_hold_hours / <span class="nu">8</span>
+    funding_income = funding_per_8h * periods   <span class="cm"># positive if short and rate positive</span>
+    <span class="kw">return</span> grid_profit + funding_income
+
+<span class="kw">def</span> <span class="fn">should_deploy_given_funding</span>(
+    annualized_funding: <span class="fn">float</span>,
+    grid_annual_return: <span class="fn">float</span>,
+    side_bias: <span class="fn">str</span>  <span class="cm"># 'long' or 'short'</span>
+) -> <span class="fn">bool</span>:
+    <span class="cm">"""
+    Only deploy grid if net return (grid + funding) is positive.
+    In high positive funding environments, short-biased grids get a tailwind.
+    In high negative funding, long-biased grids benefit.
+    """</span>
+    <span class="kw">if</span> side_bias == <span class="st">'short'</span>:
+        net = grid_annual_return + annualized_funding   <span class="cm"># shorts receive positive funding</span>
+    <span class="kw">else</span>:
+        net = grid_annual_return - annualized_funding   <span class="cm"># longs pay positive funding</span>
+    <span class="kw">return</span> net > <span class="nu">0.05</span>   <span class="cm"># require at least 5% net annual return</span></pre>
+
+  <div class="callout success">
+    <div class="callout-title">Perpetual Markets Advantage</div>
+    <p>Grid bots on perpetual markets at Purple Flea can earn positive funding income while also collecting grid profits. During high-funding-rate environments (common in bull markets), a short-biased grid on a range-bound asset can earn 15-30% APR in funding alone on top of grid profits.</p>
+  </div>
+
   <div class="cta-box">
     <h2>Launch Your Advanced Grid Bot</h2>
     <p>Access 275+ perpetual markets across crypto and beyond. Fund your wallet, claim a free $1 from the faucet, and start your first geometric grid in minutes.</p>
