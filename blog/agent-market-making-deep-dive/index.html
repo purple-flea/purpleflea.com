@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep Dive: Running a Market Making Agent on Perpetual Futures | Purple Flea</title>
+  <meta name="description" content="Comprehensive guide to building a perpetual futures market making agent. Covers spread calculation, inventory management, delta hedging, maker rebates, and risk controls — with Python code and Purple Flea's market making API." />
+  <meta property="og:title" content="Deep Dive: Running a Market Making Agent on Perpetual Futures" />
+  <meta property="og:description" content="Comprehensive guide to building a perpetual futures market making agent. Covers spread calculation, inventory management, delta hedging, maker rebates, and risk controls — with Python code and Purple Flea's market making API." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-market-making-deep-dive/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-market-making-deep-dive/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Deep Dive: Running a Market Making Agent on Perpetual Futures",
+    "description": "Comprehensive guide to building a perpetual futures market making agent. Covers spread calculation, inventory management, delta hedging, maker rebates, and risk controls — with Python code and Purple Flea's market making API.",
+    "url": "https://purpleflea.com/blog/agent-market-making-deep-dive/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea Team",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["market making", "perpetual futures", "AI trading agent", "spread calculation", "inventory management", "delta hedging", "Hyperliquid", "maker rebates"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --purple: #A855F7; --purple-dim: #7C3AED;
+      --purple-subtle: rgba(168, 85, 247, 0.08);
+      --bg: #09090B; --bg-card: rgba(255, 255, 255, 0.03);
+      --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #71717A;
+      --border: rgba(255, 255, 255, 0.06); --radius: 16px; --radius-sm: 10px;
+      --green: #22C55E;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.6; }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; transition: background 0.2s, border-color 0.2s; }
+    nav.scrolled { background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; text-decoration: none; color: var(--text); }
+    .nav-links { display: flex; gap: 1.75rem; list-style: none; }
+    .nav-links a { color: var(--text-secondary); font-size: 0.875rem; text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 0.45rem 1.1rem; border-radius: 8px; font-weight: 600 !important; font-size: 0.875rem !important; text-decoration: none; }
+    .article-hero { padding: 120px 2rem 60px; text-align: center; background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(34,197,94,0.10) 0%, transparent 70%); border-bottom: 1px solid var(--border); }
+    .article-tag { display: inline-block; border-radius: 999px; padding: 0.3rem 1rem; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1.5rem; }
+    .tag-guide { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #22C55E; }
+    .article-hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; line-height: 1.15; max-width: 820px; margin: 0 auto 1.25rem; background: linear-gradient(135deg, #FAFAFA 0%, #22C55E 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .article-meta { display: flex; align-items: center; justify-content: center; gap: 1rem; flex-wrap: wrap; color: var(--text-muted); font-size: 0.875rem; }
+    .article-meta span::before { content: '·'; margin-right: 1rem; }
+    .article-meta span:first-child::before { content: ''; margin-right: 0; }
+    .article-layout { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .prose p { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.8; margin-bottom: 1.5rem; }
+    .prose h2 { font-size: 1.6rem; font-weight: 700; color: var(--text); margin: 2.75rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+    .prose h3 { font-size: 1.15rem; font-weight: 600; color: var(--text); margin: 1.5rem 0 0.5rem; }
+    .prose ul, .prose ol { padding-left: 1.5rem; color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.8; margin-bottom: 1.5rem; }
+    .prose li { margin-bottom: 0.4rem; }
+    .prose a { color: var(--purple); text-decoration: none; }
+    .prose a:hover { text-decoration: underline; }
+    .prose strong { color: var(--text); font-weight: 600; }
+    .prose pre { background: #18181B; border-left: 3px solid var(--green); border-radius: 10px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.75rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; line-height: 1.7; }
+    .prose code { font-family: 'JetBrains Mono', monospace; font-size: 0.875em; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; }
+    .prose pre code { background: none; padding: 0; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.75rem 0; }
+    .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--green); display: block; margin-bottom: 0.25rem; }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+    .callout { background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.2); border-radius: var(--radius-sm); padding: 1.25rem 1.5rem; margin: 1.75rem 0; }
+    .callout p { color: var(--text-secondary); margin-bottom: 0; }
+    .callout strong { color: var(--green); }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { padding-left: 1.75rem; position: relative; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 1.0625rem; }
+    .checklist li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 2rem; text-align: center; }
+    .footer-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 1.5rem; list-style: none; margin-bottom: 1.25rem; }
+    .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { color: var(--text-muted); font-size: 0.8rem; }
+    @media (max-width: 640px) { .nav-links { display: none; } .article-layout { padding: 2rem 1.25rem; } .stats-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav id="main-nav">
+    <a href="/" class="nav-logo">Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/trading-api">Trading</a></li>
+      <li><a href="/escrow-api">Escrow</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/register" class="nav-cta">Get API Key</a></li>
+    </ul>
+  </nav>
+
+  <header class="article-hero">
+    <span class="article-tag tag-guide">Guide</span>
+    <h1>Deep Dive: Running a Market Making Agent on Perpetual Futures</h1>
+    <div class="article-meta">
+      <span>March 6, 2026</span>
+      <span>Purple Flea Team</span>
+      <span>10 min read</span>
+    </div>
+  </header>
+
+  <main class="article-layout">
+    <article class="prose">
+
+      <h2>Introduction</h2>
+      <p>Market makers earn by providing liquidity — posting both buy and sell limit orders simultaneously and capturing the bid-ask spread when both sides fill. On Hyperliquid's perpetual futures market, professional market makers also earn <strong>maker rebates of -0.025% of trade value</strong>: rather than paying a fee, they receive a credit each time a limit order they posted gets filled. This passive rebate income on top of spread capture makes market making one of the most systematic and scalable strategies available to AI agents.</p>
+      <p>This guide builds a professional-grade market making agent from first principles — covering spread sizing, inventory management, delta hedging, and a complete Python implementation using <a href="/trading-api">Purple Flea's trading API</a>.</p>
+
+      <h2>The Economics of Market Making</h2>
+      <p>Understanding the P&amp;L components of market making is essential before writing a single line of code:</p>
+      <ul>
+        <li><strong>Gross spread income:</strong> (sell price – buy price) × volume filled on both sides</li>
+        <li><strong>Rebate income:</strong> –0.025% × volume (you receive this as a credit, not a payment)</li>
+        <li><strong>Inventory risk loss:</strong> when your accumulated inventory moves against you before you can hedge it</li>
+        <li><strong>Net PnL = spread income + rebates – inventory losses</strong></li>
+      </ul>
+      <p>In a perfectly balanced world where every buy order is matched by an equal sell order at a slightly different price, inventory never accumulates and you capture pure spread. In reality, fills are asymmetric — you might fill 10 buys and 3 sells in a row. Managing this inventory imbalance before it becomes a directional loss is the primary skill of a market maker.</p>
+
+      <h2>Spread Sizing: The Core Decision</h2>
+      <p>Getting the spread right is the most important decision in market making. Too narrow and you get adversely selected — informed traders (or other algorithms) pick off your quotes before you can update them, leaving you holding inventory at bad prices. Too wide and your orders never get filled.</p>
+      <h3>The Fundamental Framework</h3>
+      <pre><code>spread_bps = base_spread + vol_premium + inventory_premium</code></pre>
+      <ul>
+        <li><strong>base_spread:</strong> The minimum spread you are willing to offer — typically 5–10 bps for liquid perps</li>
+        <li><strong>vol_premium:</strong> A component that widens the spread when volatility is high. A simple formula: 50% of the realized hourly volatility expressed in bps</li>
+        <li><strong>inventory_premium:</strong> Widens the spread when inventory is large, reducing the chance of accumulating more of the same position</li>
+      </ul>
+      <p>During a quiet low-volatility market, your spread might be 5 bps. During high volatility when BTC moves 2% per hour, it would widen to 15–20 bps automatically. This dynamic sizing protects against being picked off during volatile conditions.</p>
+
+      <h2>Inventory Management</h2>
+      <p>The goal of inventory management is to stay as close to delta-neutral as possible — meaning you have equal exposure to both long and short positions, netting close to zero directional risk.</p>
+      <p>After asymmetric fills, your inventory accumulates in one direction. Left unchecked, a long inventory position in a falling market produces losses that can dwarf the spread income. The response is <strong>inventory leaning</strong>: when you are long, adjust your quotes to offer a better ask price (to attract sellers) and a worse bid price (to discourage more buyers). This naturally rebalances the inventory via market forces.</p>
+      <p>When leaning is not fast enough, you hedge with a market order — accepting the taker fee as the cost of eliminating inventory risk.</p>
+
+      <h2>Full Market Maker Implementation</h2>
+      <pre><code>import requests
+import time
+import math
+
+PF_BASE = "https://purpleflea.com/api"
+PF_KEY = "your-api-key"
+HEADERS = {"Authorization": f"Bearer {PF_KEY}", "Content-Type": "application/json"}
+
+class PerpMarketMaker:
+    def __init__(self, symbol: str, base_spread_bps: float = 5.0):
+        self.symbol = symbol
+        self.base_spread_bps = base_spread_bps
+        self.inventory = 0.0      # Current directional exposure in USD
+        self.max_inventory = 1000  # $1000 max
+        self.quote_size = 100      # $100 per side
+
+    def get_mid_price(self) -> float:
+        r = requests.get(f"{PF_BASE}/v1/markets/{self.symbol}/price", headers=HEADERS)
+        return r.json()["mid"]
+
+    def get_realized_vol_1h(self) -> float:
+        r = requests.get(f"{PF_BASE}/v1/markets/{self.symbol}/volatility",
+            params={"period": "1h"}, headers=HEADERS)
+        return r.json()["realized_vol"]  # As a decimal, e.g. 0.015 = 1.5%
+
+    def get_spread(self) -> float:
+        """Dynamic spread: base + vol premium + inventory premium"""
+        vol = self.get_realized_vol_1h()
+        vol_premium = vol * 100 * 0.5       # 50% of hourly vol in bps
+        inv_ratio = abs(self.inventory) / self.max_inventory
+        inventory_premium = inv_ratio * 5    # Up to 5 extra bps at max inventory
+        total = self.base_spread_bps + vol_premium + inventory_premium
+        return min(total, 50.0)  # Hard cap at 50 bps
+
+    def refresh_quotes(self):
+        mid = self.get_mid_price()
+        spread = self.get_spread()
+        half = mid * (spread / 10000) / 2
+
+        # Lean quotes based on inventory to encourage rebalancing
+        # Positive inventory (long) → lean prices down to attract sellers
+        inventory_lean = -(self.inventory / self.max_inventory) * half * 0.3
+
+        bid = mid - half + inventory_lean
+        ask = mid + half + inventory_lean
+
+        # Cancel all existing orders, then post fresh quotes
+        requests.delete(f"{PF_BASE}/v1/mm/cancel-all",
+            json={"symbol": self.symbol}, headers=HEADERS)
+
+        requests.post(f"{PF_BASE}/v1/mm/quote",
+            json={
+                "symbol": self.symbol,
+                "bid": round(bid, 2),
+                "ask": round(ask, 2),
+                "size": self.quote_size
+            }, headers=HEADERS)
+
+        print(f"[{self.symbol}] mid={mid:.2f} spread={spread:.1f}bps bid={bid:.2f} ask={ask:.2f} inv=${self.inventory:.0f}")
+
+    def update_inventory(self):
+        """Fetch current net position from exchange"""
+        r = requests.get(f"{PF_BASE}/v1/positions/{self.symbol}", headers=HEADERS)
+        pos = r.json()
+        self.inventory = pos.get("net_usd", 0.0)
+
+    def hedge_inventory(self):
+        """Reduce inventory with a market order when it exceeds threshold"""
+        if abs(self.inventory) < self.max_inventory * 0.8:
+            return
+        hedge_side = "short" if self.inventory > 0 else "long"
+        hedge_size = abs(self.inventory) * 0.5  # Hedge 50% of excess
+        requests.post(f"{PF_BASE}/v1/trade",
+            json={"symbol": self.symbol, "side": hedge_side, "size_usd": hedge_size, "leverage": 1},
+            headers=HEADERS)
+        print(f"Hedged ${hedge_size:.0f} {hedge_side} to reduce inventory")
+
+    def run(self):
+        print(f"Market maker starting on {self.symbol}")
+        while True:
+            try:
+                self.refresh_quotes()
+                self.update_inventory()
+                self.hedge_inventory()
+            except Exception as e:
+                print(f"Error: {e}")
+            time.sleep(3)  # Refresh every 3 seconds
+
+if __name__ == "__main__":
+    mm = PerpMarketMaker("BTC-PERP", base_spread_bps=5.0)
+    mm.run()</code></pre>
+
+      <h2>Delta Hedging</h2>
+      <p>Delta hedging is the process of actively offsetting inventory risk using market orders when leaning alone is not sufficient to restore neutrality quickly enough.</p>
+      <p>The key decisions are:</p>
+      <ul>
+        <li><strong>When to hedge:</strong> When inventory exceeds 80% of the maximum. At this point the directional risk outweighs the cost of the taker fee.</li>
+        <li><strong>How much to hedge:</strong> Hedging 50% of the excess is a good starting point — it reduces risk without fully closing the position (which could reverse immediately if the market turns).</li>
+        <li><strong>Hedge cost:</strong> A taker fee of 0.025% on a $500 hedge costs $0.125. If holding the position would expose you to 0.1% adverse moves on $500 (= $0.50 loss), the hedge is worth it.</li>
+      </ul>
+
+      <h2>Hypothetical Backtest Results</h2>
+      <p>To calibrate expectations, here is a hypothetical scenario for a $10,000 capital base running on BTC-PERP with a 5 bps spread, operating 8 hours per day:</p>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value">$50K</span>
+          <span class="stat-label">Daily volume</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">$37.50</span>
+          <span class="stat-label">Daily gross income (spread + rebates)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">~100%</span>
+          <span class="stat-label">Projected annual APY on capital</span>
+        </div>
+      </div>
+
+      <p>Breaking down the daily income: spread income of ~$25 (0.05% on $50K volume) plus rebate income of ~$12.50 (0.025% on $50K) equals $37.50 gross. After inventory losses of approximately $10 on active trading days, the net is roughly $27.50 per day. Annualized across 365 days with an average of 8 active hours, that approaches $10,000 — a 100% APY on the deployed capital. These numbers are illustrative; actual results depend heavily on fill rates, volatility regime, and competition from other market makers.</p>
+
+      <h2>Risk Controls Checklist</h2>
+      <ul class="checklist">
+        <li>Maximum single position: never exceed 20% of total capital in one direction</li>
+        <li>Volatility circuit breaker: widen spread to 50 bps or stop quoting entirely during extreme moves (&gt;5% per hour)</li>
+        <li>Daily loss limit: kill switch activates if daily PnL exceeds –3% of capital</li>
+        <li>Stale quote protection: cancel and repost all quotes every 3 seconds regardless of fills</li>
+        <li>Rate limit monitoring: track API call frequency to stay within exchange limits</li>
+        <li>Error handling: always cancel outstanding orders on any unhandled exception</li>
+      </ul>
+
+      <div class="callout">
+        <p><strong>Adverse selection is the hidden cost.</strong> If your fill rate is suspiciously high — say 90%+ of your quotes filling immediately — it likely means informed traders are picking off your stale prices rather than genuine two-sided flow. Widen your spread and add a small random delay to quote timing to reduce predictability.</p>
+      </div>
+
+      <h2>Conclusion</h2>
+      <p>Market making is one of the few strategies where an AI agent's advantages — speed, consistency, 24/7 operation, and zero emotional bias — directly translate to better execution than human traders. A well-configured market making agent running on perpetual futures can generate substantial yield on deployed capital while providing a genuine service to the market.</p>
+      <p>The key to success is disciplined spread sizing, aggressive inventory management, and a robust risk framework that prevents any single adverse event from undoing weeks of accumulated gains.</p>
+      <p>Get started with the <a href="/agent-market-maker">market maker API</a>, <a href="/trading-api">trading API</a>, and <a href="/orderbook-api">orderbook API</a>. Register your agent at <a href="/register">purpleflea.com/register</a>.</p>
+
+    </article>
+  </main>
+
+  <footer>
+    <ul class="footer-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/trading-api">Trading API</a></li>
+      <li><a href="/escrow-api">Escrow API</a></li>
+      <li><a href="/faucet">Faucet</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/register">Register</a></li>
+      <li><a href="/docs">Docs</a></li>
+    </ul>
+    <p class="footer-copy">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+  </footer>
+
+  <script>
+    const nav = document.getElementById('main-nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+  </script>
+</body>
+</html>
