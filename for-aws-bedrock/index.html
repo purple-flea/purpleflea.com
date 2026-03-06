@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS Bedrock + Purple Flea | Agent Financial Infrastructure on Amazon</title>
+<meta name="description" content="Integration guide for AWS Bedrock AI agents with Purple Flea financial services. Quickstart with boto3, Bedrock Agent action groups, Lambda handlers, IAM permissions, and production architecture for casino, trading, wallet, escrow, and faucet.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/for-aws-bedrock/">
+<meta property="og:title" content="AWS Bedrock + Purple Flea | Agent Financial Infrastructure on Amazon">
+<meta property="og:description" content="Give your AWS Bedrock agents economic superpowers with Purple Flea. Full integration guide: action groups, Lambda handlers, Secrets Manager, and production architecture.">
+<meta property="og:url" content="https://purpleflea.com/for-aws-bedrock/">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090B; --bg-card: #111118; --border: rgba(255,255,255,0.06);
+  --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #5a5a72;
+  --purple: #A855F7; --purple-dim: rgba(168,85,247,0.12);
+  --green: #22c55e; --amber: #f59e0b; --red: #ef4444; --blue: #3b82f6;
+  --aws: #FF9900; --aws-dim: rgba(255,153,0,0.12);
+  --mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+nav { border-bottom: 1px solid var(--border); padding: 14px 0; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.nav-inner { max-width: 900px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { text-decoration: none; color: var(--text); font-weight: 700; font-size: 0.95rem; }
+.nav-links { display: flex; gap: 20px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.825rem; }
+.nav-links a:hover { color: var(--text); }
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+/* Hero */
+.hero { padding: 72px 0 56px; border-bottom: 1px solid var(--border); }
+.badge-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.06em; }
+.badge-aws { background: var(--aws-dim); border: 1px solid rgba(255,153,0,0.25); color: var(--aws); }
+.badge-pf { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); color: var(--purple); }
+.hero h1 { font-size: clamp(1.8rem, 4.5vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 20px; }
+.hero h1 span { color: var(--purple); }
+.hero-sub { font-size: 1.1rem; color: var(--text-secondary); max-width: 600px; margin-bottom: 32px; line-height: 1.6; }
+.cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; text-decoration: none; transition: opacity 0.15s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: var(--purple); color: white; }
+.btn-secondary { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); }
+
+/* Sections */
+.section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+.section:last-of-type { border-bottom: none; }
+.section-tag { font-size: 0.72rem; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+.section h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 14px; }
+.section p { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 14px; }
+.section ul, .section ol { color: var(--text-secondary); margin: 0 0 16px 1.2rem; font-size: 0.95rem; }
+.section li { margin-bottom: 6px; }
+.section h3 { font-size: 1.05rem; font-weight: 600; margin: 28px 0 10px; color: var(--text); }
+.section a { color: var(--purple); text-decoration: none; }
+.section a:hover { text-decoration: underline; }
+
+/* Benefit grid */
+.benefit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0; }
+@media (max-width: 700px) { .benefit-grid { grid-template-columns: 1fr 1fr; } }
+.benefit-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.benefit-icon { font-size: 1.4rem; margin-bottom: 10px; }
+.benefit-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.benefit-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* Code */
+.code-block { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 20px 0; overflow-x: auto; }
+.code-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+pre { font-family: var(--mono); font-size: 0.825rem; line-height: 1.7; color: #c9c9e0; }
+.kw { color: #c792ea; } .fn { color: #82aaff; } .st { color: #c3e88d; }
+.cm { color: #546e7a; font-style: italic; } .nm { color: #f78c6c; }
+.tp { color: #ffcb6b; } .dc { color: #89ddff; }
+
+/* Callouts */
+.callout { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-title { font-size: 0.8rem; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.callout p { margin: 0; font-size: 0.9rem; }
+.callout-aws { background: var(--aws-dim); border: 1px solid rgba(255,153,0,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-aws .callout-title { color: var(--aws); }
+.callout-aws p { margin: 0; font-size: 0.9rem; }
+.callout-green { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+.callout-green .callout-title { color: var(--green); }
+.callout-green p { margin: 0; font-size: 0.9rem; }
+
+/* ASCII diagram */
+.diagram { background: #0d0d14; border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin: 24px 0; overflow-x: auto; }
+.diagram pre { color: #c9c9e0; font-size: 0.8rem; }
+
+/* Services table */
+.services-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.875rem; }
+.services-table th { text-align: left; padding: 10px 14px; color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); }
+.services-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-secondary); }
+.services-table td:first-child { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 0.825rem; }
+.services-table td code { font-family: var(--mono); font-size: 0.8rem; color: var(--purple); }
+.services-table tr:last-child td { border-bottom: none; }
+
+/* CTA section */
+.cta-section { background: var(--purple-dim); border: 1px solid rgba(168,85,247,0.15); border-radius: 16px; padding: 40px; margin: 48px 0; text-align: center; }
+.cta-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; }
+.cta-section p { color: var(--text-secondary); margin-bottom: 24px; }
+
+footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; }
+footer p { color: var(--text-muted); font-size: 0.8rem; }
+footer a { color: var(--purple); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">&#9679; Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="container">
+    <div class="badge-row">
+      <span class="badge badge-aws">AWS Bedrock</span>
+      <span class="badge badge-pf">Purple Flea</span>
+    </div>
+    <h1>Give Your Bedrock Agents<br><span>Economic Superpowers</span></h1>
+    <p class="hero-sub">Connect AWS Bedrock AI agents to Purple Flea's 6-service financial platform. Casino, Trading, Wallet, Domains, Faucet, and Escrow — all accessible via standard REST APIs your Bedrock Lambda actions can call in seconds.</p>
+    <div class="cta-row">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Claim $1 Free USDC</a>
+      <a href="/docs" class="btn btn-secondary">View API Docs</a>
+    </div>
+  </div>
+</div>
+
+<!-- Section 1: Why Bedrock + Purple Flea -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">The Case For It</div>
+    <h2>Enterprise AWS Infrastructure Meets Autonomous Finance</h2>
+    <p>AWS Bedrock is where enterprise AI agents live: Claude 3, Titan, Llama 3, and Mistral models running inside your VPC with full IAM control, CloudTrail audit logs, and GuardDuty threat detection. It is production-grade AI infrastructure trusted by thousands of enterprises.</p>
+    <p>Purple Flea is where those agents earn money. Six financial services purpose-built for autonomous agents — no KYC, no minimum balances, no human approval required. REST APIs that respond in under 200ms. USDC-native, provably fair, trustless.</p>
+    <p>Together, they give you the full stack: AWS Bedrock handles the intelligence and compliance; Purple Flea handles the economics. Your Bedrock agent can reason about markets, place trades, manage a casino bankroll, and pay other agents for services — all within a single orchestrated workflow.</p>
+
+    <div class="benefit-grid">
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9650;</div>
+        <div class="benefit-title">Enterprise IAM</div>
+        <div class="benefit-desc">Purple Flea API keys stored in AWS Secrets Manager. Role-based access for each Lambda function. Full audit trail in CloudTrail.</div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9679;</div>
+        <div class="benefit-title">Any Bedrock Model</div>
+        <div class="benefit-desc">Works with Claude 3 Sonnet, Haiku, Llama 3, Mistral, and Titan. The Purple Flea action group is model-agnostic.</div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9670;</div>
+        <div class="benefit-title">USDC Native</div>
+        <div class="benefit-desc">All 6 Purple Flea services use USDC. Your agent's P&amp;L is always in stable dollars — no FX risk, no volatile crypto denominator.</div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9650;</div>
+        <div class="benefit-title">Sub-200ms Latency</div>
+        <div class="benefit-desc">Purple Flea APIs respond in under 200ms from us-east-1 and eu-west-1. Low enough for agentic loops with multiple API calls per reasoning step.</div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9679;</div>
+        <div class="benefit-title">$1 Free to Start</div>
+        <div class="benefit-desc">The faucet gives every new agent $1 USDC free — no credit card, no approval. Your Bedrock agent can claim it on first run.</div>
+      </div>
+      <div class="benefit-card">
+        <div class="benefit-icon">&#9670;</div>
+        <div class="benefit-title">15% Referral Revenue</div>
+        <div class="benefit-desc">Agents that refer other agents earn 15% of escrow fees generated. Build multi-agent networks that generate passive USDC income.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Quickstart -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Quickstart</div>
+    <h2>Python with boto3 + Bedrock Agent + Purple Flea</h2>
+    <p>The fastest path to a Bedrock agent with financial capabilities. This example creates an agent session, invokes a prompt that triggers a Purple Flea API call, and processes the response. Total setup time: under 15 minutes.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Invoke Bedrock Agent with Purple Flea Tools</div>
+      <pre><span class="kw">import</span> boto3, json, uuid
+
+<span class="cm"># Initialize Bedrock Agents Runtime client</span>
+client = boto3.<span class="fn">client</span>(<span class="st">"bedrock-agent-runtime"</span>, region_name=<span class="st">"us-east-1"</span>)
+
+<span class="cm"># IDs from your Bedrock console after creating agent + action group</span>
+AGENT_ID    = <span class="st">"YOUR_BEDROCK_AGENT_ID"</span>
+AGENT_ALIAS = <span class="st">"TSTALIASID"</span>  <span class="cm"># or your production alias</span>
+SESSION_ID  = str(uuid.<span class="fn">uuid4</span>())
+
+<span class="kw">def</span> <span class="fn">invoke_financial_agent</span>(prompt: <span class="tp">str</span>) -> <span class="tp">str</span>:
+    <span class="st">"""Invoke Bedrock agent with a financial task prompt."""</span>
+    response = client.<span class="fn">invoke_agent</span>(
+        agentId=AGENT_ID,
+        agentAliasId=AGENT_ALIAS,
+        sessionId=SESSION_ID,
+        inputText=prompt,
+    )
+
+    <span class="cm"># Stream the response chunks</span>
+    completion = <span class="st">""</span>
+    <span class="kw">for</span> event <span class="kw">in</span> response[<span class="st">"completion"</span>]:
+        chunk = event.<span class="fn">get</span>(<span class="st">"chunk"</span>, {})
+        <span class="kw">if</span> <span class="st">"bytes"</span> <span class="kw">in</span> chunk:
+            completion += chunk[<span class="st">"bytes"</span>].<span class="fn">decode</span>()
+
+    <span class="kw">return</span> completion
+
+<span class="cm"># Example: Ask the agent to check balance and place a casino bet</span>
+result = <span class="fn">invoke_financial_agent</span>(
+    <span class="st">"Check my Purple Flea wallet balance, then place a $0.50 coin flip bet. "</span>
+    <span class="st">"Report the outcome and my new balance."</span>
+)
+<span class="fn">print</span>(result)</pre>
+    </div>
+
+    <p>The agent automatically decides which Purple Flea API to call based on the prompt. The action group definition (below) tells Bedrock exactly which operations are available and what parameters they require.</p>
+  </div>
+</div>
+
+<!-- Section 3: Action Group OpenAPI -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Configuration</div>
+    <h2>Bedrock Agent Action Group: Purple Flea OpenAPI Schema</h2>
+    <p>Bedrock Agents use OpenAPI schemas to understand what APIs they can call. The following schema covers the core Purple Flea operations. Upload this to your Bedrock Agent action group in the AWS Console or via the CLI.</p>
+
+    <div class="code-block">
+      <div class="code-label">YAML — OpenAPI Schema for Purple Flea Action Group</div>
+      <pre>openapi: <span class="st">"3.0.0"</span>
+info:
+  title: Purple Flea Financial API
+  version: <span class="st">"1.0"</span>
+  description: Financial services for AI agents - casino, trading, wallet, escrow, faucet
+
+paths:
+  /wallet/balance:
+    get:
+      operationId: getWalletBalance
+      summary: Get agent USDC wallet balance
+      responses:
+        <span class="st">"200"</span>:
+          description: Current balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  usdc: {type: number}
+                  agent_id: {type: string}
+
+  /casino/bet:
+    post:
+      operationId: placeCasinoBet
+      summary: Place a bet on a casino game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [game, amount, choice]
+              properties:
+                game:
+                  type: string
+                  enum: [coin, dice, roulette, crash]
+                amount:
+                  type: number
+                  minimum: 0.01
+                choice:
+                  type: string
+      responses:
+        <span class="st">"200"</span>:
+          description: Bet result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  outcome: {type: string}
+                  payout_usdc: {type: number}
+                  new_balance: {type: number}
+                  proof: {type: string}
+
+  /trading/open:
+    post:
+      operationId: openTradePosition
+      summary: Open a trading position
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, side, size_usd]
+              properties:
+                symbol: {type: string, example: BTCUSDT}
+                side: {type: string, enum: [LONG, SHORT]}
+                size_usd: {type: number, minimum: 1}
+                stop_loss_pct: {type: number}
+                take_profit_pct: {type: number}
+      responses:
+        <span class="st">"200"</span>:
+          description: Position opened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  position_id: {type: string}
+                  entry_price: {type: number}
+                  size_usd: {type: number}
+
+  /escrow/create:
+    post:
+      operationId: createEscrow
+      summary: Create trustless USDC escrow for agent-to-agent payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient, amount, condition]
+              properties:
+                recipient: {type: string}
+                amount: {type: number, minimum: 0.01}
+                condition: {type: string}
+                deadline_hours: {type: integer, default: 24}
+      responses:
+        <span class="st">"200"</span>:
+          description: Escrow created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  escrow_id: {type: string}
+                  locked_amount: {type: number}
+                  fee_usdc: {type: number}
+
+  /faucet/claim:
+    post:
+      operationId: claimFaucet
+      summary: Claim $1 free USDC (new agents only)
+      responses:
+        <span class="st">"200"</span>:
+          description: Faucet claimed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  claimed: {type: boolean}
+                  amount_usdc: {type: number}
+                  balance: {type: number}</pre>
+    </div>
+
+    <div class="callout-aws">
+      <div class="callout-title">Uploading the Schema</div>
+      <p>In the Bedrock console, go to your Agent → Action Groups → Create action group. Select "Define with API schemas" and upload this YAML. Set the Lambda function to your Purple Flea handler (see next section). The agent will automatically route relevant prompts to the appropriate API operation.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Section 4: Lambda Handler -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Lambda</div>
+    <h2>Lambda Function Handler for Purple Flea API Calls</h2>
+    <p>Bedrock Agents call Lambda functions to execute action group operations. The following handler processes all Purple Flea operations and retrieves the API key securely from AWS Secrets Manager.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Lambda Handler (lambda_function.py)</div>
+      <pre><span class="kw">import</span> json, boto3, requests, os
+
+<span class="cm"># Lazy-load secret to take advantage of Lambda execution environment reuse</span>
+_api_key: str | <span class="kw">None</span> = <span class="kw">None</span>
+
+<span class="kw">def</span> <span class="fn">get_api_key</span>() -> <span class="tp">str</span>:
+    <span class="kw">global</span> _api_key
+    <span class="kw">if</span> _api_key <span class="kw">is not</span> <span class="kw">None</span>:
+        <span class="kw">return</span> _api_key
+
+    sm = boto3.<span class="fn">client</span>(<span class="st">"secretsmanager"</span>)
+    secret = sm.<span class="fn">get_secret_value</span>(SecretId=os.environ[<span class="st">"PF_SECRET_ARN"</span>])
+    _api_key = json.<span class="fn">loads</span>(secret[<span class="st">"SecretString"</span>])[<span class="st">"api_key"</span>]
+    <span class="kw">return</span> _api_key
+
+PF_HOSTS = {
+    <span class="st">"wallet"</span>: <span class="st">"https://wallet.purpleflea.com/api/v1"</span>,
+    <span class="st">"casino"</span>: <span class="st">"https://casino.purpleflea.com/api/v1"</span>,
+    <span class="st">"trading"</span>: <span class="st">"https://trading.purpleflea.com/api/v1"</span>,
+    <span class="st">"escrow"</span>: <span class="st">"https://escrow.purpleflea.com/api/v1"</span>,
+    <span class="st">"faucet"</span>: <span class="st">"https://faucet.purpleflea.com/api/v1"</span>,
+}
+
+OPERATION_MAP = {
+    <span class="st">"getWalletBalance"</span>: (<span class="st">"wallet"</span>, <span class="st">"GET"</span>, <span class="st">"/balance"</span>),
+    <span class="st">"placeCasinoBet"</span>: (<span class="st">"casino"</span>, <span class="st">"POST"</span>, <span class="st">"/bet"</span>),
+    <span class="st">"openTradePosition"</span>: (<span class="st">"trading"</span>, <span class="st">"POST"</span>, <span class="st">"/open"</span>),
+    <span class="st">"createEscrow"</span>: (<span class="st">"escrow"</span>, <span class="st">"POST"</span>, <span class="st">"/create"</span>),
+    <span class="st">"claimFaucet"</span>: (<span class="st">"faucet"</span>, <span class="st">"POST"</span>, <span class="st">"/claim"</span>),
+}
+
+<span class="kw">def</span> <span class="fn">lambda_handler</span>(event: <span class="tp">dict</span>, context) -> <span class="tp">dict</span>:
+    operation = event[<span class="st">"actionGroup"</span>] + <span class="st">"/"</span> + event[<span class="st">"function"</span>]
+    function = event[<span class="st">"function"</span>]
+    body = {p[<span class="st">"name"</span>]: p[<span class="st">"value"</span>] <span class="kw">for</span> p <span class="kw">in</span> event.<span class="fn">get</span>(<span class="st">"parameters"</span>, [])}
+
+    <span class="kw">if</span> function <span class="kw">not in</span> OPERATION_MAP:
+        <span class="kw">return</span> {<span class="st">"statusCode"</span>: <span class="nm">400</span>, <span class="st">"body"</span>: <span class="st">f"Unknown operation: {function}"</span>}
+
+    service, method, path = OPERATION_MAP[function]
+    url = PF_HOSTS[service] + path
+    headers = {<span class="st">"X-API-Key"</span>: <span class="fn">get_api_key</span>(), <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>}
+
+    <span class="kw">if</span> method == <span class="st">"GET"</span>:
+        resp = requests.<span class="fn">get</span>(url, headers=headers)
+    <span class="kw">else</span>:
+        resp = requests.<span class="fn">post</span>(url, json=body, headers=headers)
+
+    resp.<span class="fn">raise_for_status</span>()
+    data = resp.<span class="fn">json</span>()
+
+    <span class="cm"># Bedrock expects this exact response structure</span>
+    <span class="kw">return</span> {
+        <span class="st">"messageVersion"</span>: <span class="st">"1.0"</span>,
+        <span class="st">"response"</span>: {
+            <span class="st">"actionGroup"</span>: event[<span class="st">"actionGroup"</span>],
+            <span class="st">"function"</span>: function,
+            <span class="st">"functionResponse"</span>: {
+                <span class="st">"responseBody"</span>: {<span class="st">"TEXT"</span>: {<span class="st">"body"</span>: json.<span class="fn">dumps</span>(data)}}
+            },
+        },
+    }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- Section 5: Knowledge Base + RAG -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Knowledge Base</div>
+    <h2>Bedrock Knowledge Base + Purple Flea Transaction History (RAG)</h2>
+    <p>AWS Bedrock Knowledge Bases allow agents to query documents using semantic search. Connecting your Purple Flea transaction history to a Bedrock Knowledge Base lets your agent answer questions like "What was my win rate in casino games last month?" or "Which trading symbols have generated the most profit?" using retrieval-augmented generation.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Sync Purple Flea History to Bedrock Knowledge Base</div>
+      <pre><span class="kw">import</span> boto3, json, requests
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+
+<span class="kw">def</span> <span class="fn">export_history_to_s3</span>(api_key: <span class="tp">str</span>, s3_bucket: <span class="tp">str</span>, s3_prefix: <span class="tp">str</span>):
+    <span class="st">"""Export Purple Flea trade/bet history to S3 for Bedrock RAG indexing."""</span>
+    resp = requests.<span class="fn">get</span>(
+        <span class="st">"https://wallet.purpleflea.com/api/v1/transactions"</span>,
+        headers={<span class="st">"X-API-Key"</span>: api_key},
+        params={<span class="st">"days"</span>: <span class="nm">90</span>},
+    )
+    transactions = resp.<span class="fn">json</span>()[<span class="st">"transactions"</span>]
+
+    <span class="cm"># Convert to natural language chunks for better RAG retrieval</span>
+    s3 = boto3.<span class="fn">client</span>(<span class="st">"s3"</span>)
+    chunks = []
+    <span class="kw">for</span> tx <span class="kw">in</span> transactions:
+        chunk = (
+            <span class="st">f"On {tx['timestamp']}, {tx['type']} transaction: "</span>
+            <span class="st">f"amount ${tx['amount_usdc']} USDC, service: {tx['service']}, "</span>
+            <span class="st">f"outcome: {tx.get('outcome', 'N/A')}, balance after: ${tx['balance_after']} USDC."</span>
+        )
+        chunks.<span class="fn">append</span>(chunk)
+
+    <span class="cm"># Upload as single document (Bedrock will chunk it automatically)</span>
+    content = <span class="st">"\n\n"</span>.<span class="fn">join</span>(chunks)
+    key = <span class="st">f"{s3_prefix}/transactions_{datetime.utcnow().strftime('%Y%m%d')}.txt"</span>
+    s3.<span class="fn">put_object</span>(Bucket=s3_bucket, Key=key, Body=content.<span class="fn">encode</span>())
+    <span class="fn">print</span>(<span class="st">f"Uploaded {len(chunks)} transactions to s3://{s3_bucket}/{key}"</span>)
+
+<span class="kw">def</span> <span class="fn">trigger_kb_sync</span>(knowledge_base_id: <span class="tp">str</span>, data_source_id: <span class="tp">str</span>):
+    <span class="st">"""Trigger Bedrock Knowledge Base re-index after new data is uploaded."""</span>
+    bedrock = boto3.<span class="fn">client</span>(<span class="st">"bedrock-agent"</span>)
+    bedrock.<span class="fn">start_ingestion_job</span>(
+        knowledgeBaseId=knowledge_base_id,
+        dataSourceId=data_source_id,
+    )
+    <span class="fn">print</span>(<span class="st">"Knowledge base sync triggered."</span>)</pre>
+    </div>
+
+    <p>Schedule this sync daily using EventBridge. Your agent will then be able to answer performance questions using its own trading and betting history as context, without needing to call the Purple Flea API on every query.</p>
+  </div>
+</div>
+
+<!-- Section 6: IAM and Secrets Manager -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Security</div>
+    <h2>IAM Permissions and API Key Management with Secrets Manager</h2>
+    <p>Never hardcode your Purple Flea API key. Store it in AWS Secrets Manager and reference it by ARN. Grant your Lambda function's execution role the minimum permissions required to read the secret and call Purple Flea APIs.</p>
+
+    <div class="code-block">
+      <div class="code-label">JSON — IAM Policy for Purple Flea Lambda</div>
+      <pre>{
+  <span class="dc">"Version"</span>: <span class="st">"2012-10-17"</span>,
+  <span class="dc">"Statement"</span>: [
+    {
+      <span class="dc">"Sid"</span>: <span class="st">"ReadPurpleFleavKey"</span>,
+      <span class="dc">"Effect"</span>: <span class="st">"Allow"</span>,
+      <span class="dc">"Action"</span>: [<span class="st">"secretsmanager:GetSecretValue"</span>],
+      <span class="dc">"Resource"</span>: <span class="st">"arn:aws:secretsmanager:us-east-1:ACCOUNT:secret:purpleflea-api-key-*"</span>
+    },
+    {
+      <span class="dc">"Sid"</span>: <span class="st">"AllowBedrockInvoke"</span>,
+      <span class="dc">"Effect"</span>: <span class="st">"Allow"</span>,
+      <span class="dc">"Action"</span>: [
+        <span class="st">"bedrock:InvokeAgent"</span>,
+        <span class="st">"bedrock:InvokeModel"</span>
+      ],
+      <span class="dc">"Resource"</span>: <span class="st">"*"</span>
+    },
+    {
+      <span class="dc">"Sid"</span>: <span class="st">"S3KnowledgeBase"</span>,
+      <span class="dc">"Effect"</span>: <span class="st">"Allow"</span>,
+      <span class="dc">"Action"</span>: [<span class="st">"s3:PutObject"</span>, <span class="st">"s3:GetObject"</span>],
+      <span class="dc">"Resource"</span>: <span class="st">"arn:aws:s3:::your-kb-bucket/purpleflea/*"</span>
+    },
+    {
+      <span class="dc">"Sid"</span>: <span class="st">"LogsWrite"</span>,
+      <span class="dc">"Effect"</span>: <span class="st">"Allow"</span>,
+      <span class="dc">"Action"</span>: [<span class="st">"logs:CreateLogGroup"</span>, <span class="st">"logs:CreateLogStream"</span>, <span class="st">"logs:PutLogEvents"</span>],
+      <span class="dc">"Resource"</span>: <span class="st">"arn:aws:logs:*:*:*"</span>
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-label">Shell — Store Purple Flea API Key in Secrets Manager</div>
+      <pre><span class="cm"># Create the secret (run once)</span>
+aws secretsmanager create-secret \
+  --name purpleflea-api-key \
+  --description <span class="st">"Purple Flea API key for Bedrock agent"</span> \
+  --secret-string <span class="st">'{"api_key":"pf_live_your_key_here"}'</span> \
+  --region us-east-1
+
+<span class="cm"># Rotate the key (run anytime you issue a new key)</span>
+aws secretsmanager update-secret \
+  --secret-id purpleflea-api-key \
+  --secret-string <span class="st">'{"api_key":"pf_live_new_key_here"}'</span></pre>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">Key Naming Convention</div>
+      <p>Purple Flea API keys use the prefix <code>pf_live_</code> for production and <code>pf_test_</code> for sandbox. Never use generic key names like <code>sk_*</code>. The <code>pf_live_</code> prefix makes it immediately clear in logs and code reviews that the credential is a Purple Flea key.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Section 7: Cost Optimization -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Cost</div>
+    <h2>Cost Optimization: Caching Purple Flea Responses to Reduce Bedrock Token Usage</h2>
+    <p>Bedrock charges per input and output token. Every tool call result that gets included in the conversation context consumes tokens. If your agent checks its wallet balance 50 times per day, that is 50 redundant API calls and 50 * ~200 tokens of context each time the balance appears in the prompt.</p>
+    <p>A simple in-memory cache with TTL reduces both Bedrock token costs and Purple Flea API calls. For data that changes slowly (balance, open positions), a 60-second TTL is typically sufficient.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — TTL Cache Layer for Purple Flea API</div>
+      <pre><span class="kw">import</span> time
+<span class="kw">from</span> functools <span class="kw">import</span> wraps
+
+<span class="kw">class</span> <span class="tp">TTLCache</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._store: <span class="tp">dict</span> = {}
+
+    <span class="kw">def</span> <span class="fn">get</span>(self, key: <span class="tp">str</span>, ttl: <span class="tp">int</span>) -> <span class="tp">tuple</span>[<span class="tp">bool</span>, object]:
+        <span class="kw">if</span> key <span class="kw">not in</span> self._store:
+            <span class="kw">return</span> <span class="kw">False</span>, <span class="kw">None</span>
+        value, ts = self._store[key]
+        <span class="kw">if</span> <span class="fn">time.time</span>() - ts > ttl:
+            <span class="kw">del</span> self._store[key]
+            <span class="kw">return</span> <span class="kw">False</span>, <span class="kw">None</span>
+        <span class="kw">return</span> <span class="kw">True</span>, value
+
+    <span class="kw">def</span> <span class="fn">set</span>(self, key: <span class="tp">str</span>, value: object):
+        self._store[key] = (value, <span class="fn">time.time</span>())
+
+_cache = <span class="tp">TTLCache</span>()
+
+<span class="kw">def</span> <span class="fn">cached_wallet_balance</span>(api_key: <span class="tp">str</span>, ttl: <span class="tp">int</span> = <span class="nm">60</span>) -> <span class="tp">float</span>:
+    <span class="st">"""Balance cached for 60s. Avoids redundant API calls in rapid agent loops."""</span>
+    cache_key = <span class="st">f"balance_{api_key[-8:]}"</span>
+    hit, value = _cache.<span class="fn">get</span>(cache_key, ttl)
+    <span class="kw">if</span> hit:
+        <span class="kw">return</span> value
+
+    <span class="kw">import</span> requests
+    resp = requests.<span class="fn">get</span>(
+        <span class="st">"https://wallet.purpleflea.com/api/v1/balance"</span>,
+        headers={<span class="st">"X-API-Key"</span>: api_key},
+    )
+    balance = resp.<span class="fn">json</span>()[<span class="st">"usdc"</span>]
+    _cache.<span class="fn">set</span>(cache_key, balance)
+    <span class="kw">return</span> balance</pre>
+    </div>
+
+    <div class="callout-aws">
+      <div class="callout-title">AWS Lambda Caching</div>
+      <p>In Lambda, execution environment reuse means that module-level variables persist between warm invocations. The <code>TTLCache</code> above lives at module level and survives across multiple Lambda invocations in the same execution environment — giving you free in-memory caching without ElastiCache or DynamoDB for low-concurrency functions.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Section 8: Production Architecture -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Architecture</div>
+    <h2>Production Architecture Diagram</h2>
+    <p>The following ASCII diagram shows the recommended production architecture for a Bedrock agent integrated with Purple Flea. Each component maps to AWS managed services, minimizing operational overhead.</p>
+
+    <div class="diagram">
+      <pre>
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                        AWS VPC                                  │
+  │                                                                 │
+  │  ┌─────────────┐    invoke     ┌──────────────────────┐        │
+  │  │  EventBridge │──────────────▶ Bedrock Agent          │        │
+  │  │  (scheduler) │               │ (Claude 3 Sonnet)     │        │
+  │  └─────────────┘               │                      │        │
+  │                                │  Orchestration Loop  │        │
+  │  ┌─────────────┐   query KB    │  1. Reason about task│        │
+  │  │  Bedrock    │◀──────────────│  2. Select action    │        │
+  │  │  Knowledge  │               │  3. Call Lambda      │        │
+  │  │  Base (S3)  │               │  4. Process result   │        │
+  │  └─────────────┘               └──────────┬───────────┘        │
+  │                                           │ action group call   │
+  │  ┌─────────────┐  get secret  ┌──────────▼───────────┐        │
+  │  │  Secrets    │◀─────────────│  Lambda Function      │        │
+  │  │  Manager    │               │  (pf_handler.py)     │        │
+  │  │  pf_live_*  │               └──────────┬───────────┘        │
+  │  └─────────────┘                          │ HTTPS              │
+  │                                           │                    │
+  │  ┌─────────────┐                          │                    │
+  │  │  CloudWatch │◀────── logs ─────────────┘                    │
+  │  │  (metrics,  │                                               │
+  │  │   alerts)   │                                               │
+  │  └─────────────┘                                               │
+  └──────────────────────────────────┬──────────────────────────────┘
+                                     │ HTTPS / REST API
+                                     ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                    purpleflea.com services                      │
+  │                                                                 │
+  │  casino.purpleflea.com    trading.purpleflea.com               │
+  │  wallet.purpleflea.com    escrow.purpleflea.com                │
+  │  faucet.purpleflea.com    domains.purpleflea.com               │
+  └─────────────────────────────────────────────────────────────────┘
+      </pre>
+    </div>
+
+    <h3>Service Map</h3>
+    <table class="services-table">
+      <thead>
+        <tr>
+          <th>AWS Component</th>
+          <th>Purpose</th>
+          <th>Purple Flea Interaction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Bedrock Agent</td>
+          <td>Orchestrates reasoning and tool use</td>
+          <td>Decides which PF service to call</td>
+        </tr>
+        <tr>
+          <td>Lambda</td>
+          <td>Executes Purple Flea API calls</td>
+          <td>All 6 services via HTTP</td>
+        </tr>
+        <tr>
+          <td>Secrets Manager</td>
+          <td>Stores <code>pf_live_*</code> API key</td>
+          <td>Key injected at Lambda runtime</td>
+        </tr>
+        <tr>
+          <td>Bedrock Knowledge Base</td>
+          <td>RAG over transaction history</td>
+          <td>Fed by PF Wallet transaction export</td>
+        </tr>
+        <tr>
+          <td>EventBridge</td>
+          <td>Triggers scheduled agent runs</td>
+          <td>Daily strategy execution, KB sync</td>
+        </tr>
+        <tr>
+          <td>CloudWatch</td>
+          <td>Metrics, logs, alerts</td>
+          <td>PF API response times, error rates</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Section 9: Register + Claim -->
+<div class="section">
+  <div class="container">
+    <div class="section-tag">Get Started</div>
+    <h2>Register Your Bedrock Agent and Claim $1 Free USDC</h2>
+    <p>Before your Bedrock agent can use Purple Flea services, it needs a registered agent ID and an API key. The faucet registration endpoint handles both in a single call. Add this as an initialization step in your Lambda function — it is idempotent, so calling it on every cold start is safe.</p>
+
+    <div class="code-block">
+      <div class="code-label">Python — Bedrock Agent Initialization with Faucet Claim</div>
+      <pre><span class="kw">import</span> boto3, json, os, requests
+
+<span class="kw">def</span> <span class="fn">initialize_agent</span>(agent_name: <span class="tp">str</span>) -> <span class="tp">dict</span>:
+    <span class="st">"""
+    Register agent and claim $1 USDC on first run.
+    Returns: {"agent_id": ..., "api_key": ..., "balance": ...}
+    """</span>
+    <span class="cm"># Check if already registered (stored in SSM Parameter Store)</span>
+    ssm = boto3.<span class="fn">client</span>(<span class="st">"ssm"</span>)
+    param_name = <span class="st">f"/purpleflea/agents/{agent_name}/api_key"</span>
+    <span class="kw">try</span>:
+        existing = ssm.<span class="fn">get_parameter</span>(Name=param_name, WithDecryption=<span class="kw">True</span>)
+        api_key = existing[<span class="st">"Parameter"</span>][<span class="st">"Value"</span>]
+        <span class="fn">print</span>(<span class="st">f"Agent already registered: {agent_name}"</span>)
+        <span class="kw">return</span> {<span class="st">"agent_id"</span>: agent_name, <span class="st">"api_key"</span>: api_key, <span class="st">"fresh"</span>: <span class="kw">False</span>}
+    <span class="kw">except</span> ssm.exceptions.ParameterNotFound:
+        <span class="kw">pass</span>
+
+    <span class="cm"># Register and claim faucet</span>
+    resp = requests.<span class="fn">post</span>(<span class="st">"https://faucet.purpleflea.com/api/v1/register"</span>, json={
+        <span class="st">"agent_id"</span>: agent_name,
+        <span class="st">"description"</span>: <span class="st">f"AWS Bedrock agent: {agent_name}"</span>,
+    })
+    data = resp.<span class="fn">json</span>()
+    api_key = data[<span class="st">"api_key"</span>]  <span class="cm"># e.g. pf_live_xxxxxxxxxxxx</span>
+
+    <span class="cm"># Claim $1 USDC</span>
+    claim = requests.<span class="fn">post</span>(
+        <span class="st">"https://faucet.purpleflea.com/api/v1/claim"</span>,
+        headers={<span class="st">"X-API-Key"</span>: api_key},
+    ).<span class="fn">json</span>()
+
+    <span class="cm"># Store API key in SSM for future runs</span>
+    ssm.<span class="fn">put_parameter</span>(
+        Name=param_name, Value=api_key,
+        Type=<span class="st">"SecureString"</span>, Overwrite=<span class="kw">False</span>,
+    )
+
+    <span class="fn">print</span>(<span class="st">f"Registered {agent_name}. Claimed ${claim['amount_usdc']} USDC."</span>)
+    <span class="kw">return</span> {<span class="st">"agent_id"</span>: agent_name, <span class="st">"api_key"</span>: api_key, <span class="st">"fresh"</span>: <span class="kw">True</span>,
+            <span class="st">"balance"</span>: claim.<span class="fn">get</span>(<span class="st">"balance"</span>)}</pre>
+    </div>
+
+    <div class="cta-section">
+      <h2>Ready to Give Your Bedrock Agent Economic Power?</h2>
+      <p>Get your API key, explore the docs, and claim your $1 free USDC in under 2 minutes.</p>
+      <div class="cta-row" style="justify-content:center;">
+        <a href="https://faucet.purpleflea.com" class="btn btn-primary">Register + Claim $1 USDC</a>
+        <a href="/docs" class="btn btn-secondary">Read API Docs</a>
+        <a href="/blog/register-agent-tutorial/" class="btn btn-secondary">Full Tutorial</a>
+      </div>
+    </div>
+
+    <h3>Related Integrations</h3>
+    <ul>
+      <li><a href="/for-agents">General agent integration guide</a></li>
+      <li><a href="/blog/openai-agents-sdk-crypto/">OpenAI Agents SDK + Purple Flea</a></li>
+      <li><a href="/blog/langchain-crypto-tools/">LangChain + Purple Flea crypto tools</a></li>
+      <li><a href="/blog/google-adk-trading/">Google ADK + Purple Flea trading</a></li>
+      <li><a href="/blog/mcp-servers-ai-agents/">Purple Flea MCP server setup</a></li>
+    </ul>
+
+  </div>
+</div>
+
+<footer>
+  <div class="container">
+    <p><a href="/">Purple Flea</a> — Financial infrastructure for AI agents. &copy; 2026</p>
+  </div>
+</footer>
+</body>
+</html>
