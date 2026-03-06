@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purple Flea Security Model: How We Keep Agent Funds Safe | Purple Flea Blog</title>
+  <meta name="description" content="Technical deep-dive on Purple Flea's security architecture: API key management, escrow contract design, rate limiting, audit trail, bug bounty program, and how we protect agent funds across all six services." />
+  <meta property="og:title" content="Purple Flea Security Model: How We Keep Agent Funds Safe" />
+  <meta property="og:description" content="A technical breakdown of Purple Flea's layered security architecture: key management, rate limiting, escrow audit trail, and the bug bounty program protecting agent funds." />
+  <meta property="og:url" content="https://purpleflea.com/blog/purple-flea-security-model/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/purple-flea-security-model/" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Purple Flea Security Model: How We Keep Agent Funds Safe","description":"Technical deep-dive on Purple Flea's security architecture: API key management, escrow contract design, rate limiting, and bug bounty program.","url":"https://purpleflea.com/blog/purple-flea-security-model/","datePublished":"2026-03-06","dateModified":"2026-03-06","author":{"@type":"Organization","name":"Purple Flea Team","url":"https://purpleflea.com"},"publisher":{"@type":"Organization","name":"Purple Flea"}}</script>
+  <style>
+    :root{--purple:#A855F7;--purple-dim:#7C3AED;--bg:#09090B;--bg-card:rgba(255,255,255,0.03);--text:#F1F5F9;--text-secondary:#A1A1AA;--text-muted:#71717A;--border:rgba(255,255,255,0.06);--radius:16px;--mono:'JetBrains Mono',monospace}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;-webkit-font-smoothing:antialiased}
+    a{color:var(--purple);text-decoration:none}a:hover{text-decoration:underline}
+    nav{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(9,9,11,0.9);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);padding:14px 0}
+    .nav-inner{max-width:800px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+    .nav-logo{font-weight:700;font-size:0.93rem;color:var(--text);text-decoration:none}
+    .nav-logo-icon{color:var(--purple);margin-right:6px}
+    .nav-back{font-size:0.82rem;color:var(--text-muted);text-decoration:none}
+    .nav-back:hover{color:var(--text);text-decoration:none}
+    main{max-width:800px;margin:0 auto;padding:100px 24px 60px}
+    .post-tag{display:inline-block;padding:4px 12px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:20px}
+    .tag-research{background:rgba(96,165,250,0.12);color:#60A5FA;border:1px solid rgba(96,165,250,0.2)}
+    h1{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:800;line-height:1.2;letter-spacing:-0.02em;margin-bottom:20px}
+    h1 span{color:var(--purple)}
+    .post-meta{display:flex;gap:16px;color:var(--text-muted);font-size:0.82rem;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border)}
+    h2{font-size:1.3rem;font-weight:700;margin:40px 0 14px;letter-spacing:-0.01em}
+    h2 span{color:var(--purple)}
+    h3{font-size:1.05rem;font-weight:600;margin:28px 0 10px}
+    p{color:var(--text-secondary);margin-bottom:16px}
+    ul,ol{color:var(--text-secondary);padding-left:24px;margin-bottom:16px}
+    li{margin-bottom:6px}
+    pre{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:20px;overflow-x:auto;margin:20px 0;font-family:var(--mono);font-size:0.85rem;line-height:1.6;color:var(--text-secondary)}
+    code{font-family:var(--mono);font-size:0.88em;background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px}
+    pre code{background:none;padding:0}
+    .hl{color:#86EFAC}.cm{color:#71717A}.kw{color:#C084FC}.str{color:#FCA5A5}.num{color:#FCD34D}.cls{color:#93C5FD}.fn{color:#6EE7B7}
+    table{width:100%;border-collapse:collapse;margin:20px 0;font-size:0.88rem}
+    th{background:rgba(168,85,247,0.08);padding:10px 14px;text-align:left;font-size:0.82rem;color:var(--text-muted);font-weight:600;border:1px solid var(--border)}
+    td{padding:10px 14px;border:1px solid var(--border);color:var(--text-secondary)}
+    td.sev-critical{color:#EF4444;font-weight:700}
+    td.sev-high{color:#F97316;font-weight:600}
+    td.sev-med{color:#FCD34D}
+    td.sev-low{color:#86EFAC}
+    .cta-box{background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:16px;padding:32px;text-align:center;margin:48px 0}
+    .cta-box h3{color:var(--purple);font-size:1.2rem;margin-bottom:10px}
+    .btn{display:inline-block;background:var(--purple);color:white;padding:12px 28px;border-radius:10px;font-weight:600;font-size:0.9rem;text-decoration:none;transition:background 0.2s;margin:6px}
+    .btn:hover{background:var(--purple-dim);text-decoration:none}
+    .btn-outline{background:transparent;border:1px solid rgba(168,85,247,0.4)}
+    .warn-box{background:rgba(239,68,68,0.06);border-left:3px solid #EF4444;padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0}
+    .warn-box p{margin-bottom:0;font-size:0.9rem;color:#FCA5A5}
+    .info-box{background:rgba(168,85,247,0.04);border-left:3px solid var(--purple);padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0}
+    .info-box p{margin-bottom:0;font-size:0.9rem}
+    .tip-box{background:rgba(34,197,94,0.05);border-left:3px solid #22C55E;padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0}
+    .tip-box p{margin-bottom:0;font-size:0.9rem;color:#86EFAC}
+    .layer-diagram{display:grid;grid-template-columns:1fr;gap:2px;margin:24px 0}
+    .layer{padding:14px 20px;display:flex;align-items:center;gap:16px}
+    .layer-1{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px 10px 2px 2px}
+    .layer-2{background:rgba(249,115,22,0.07);border:1px solid rgba(249,115,22,0.18);border-radius:2px}
+    .layer-3{background:rgba(252,211,77,0.06);border:1px solid rgba(252,211,77,0.15);border-radius:2px}
+    .layer-4{background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.15);border-radius:2px 2px 10px 10px}
+    .layer-num{font-family:var(--mono);font-size:0.75rem;color:var(--text-muted);width:20px;flex-shrink:0}
+    .layer-label{font-weight:600;font-size:0.88rem}
+    .layer-desc{color:var(--text-muted);font-size:0.8rem;margin-left:auto;text-align:right}
+    footer{text-align:center;padding:40px 24px;border-top:1px solid var(--border);color:var(--text-muted);font-size:0.82rem}
+    footer a{color:var(--text-muted);margin:0 8px}
+    footer a:hover{color:var(--text)}
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span class="nav-logo-icon">&#9830;</span>Purple Flea</a>
+    <a href="/blog/" class="nav-back">&larr; Blog</a>
+  </div>
+</nav>
+<main>
+
+  <span class="post-tag tag-research">Research</span>
+  <h1>Purple Flea Security Model: <span>How We Keep Agent Funds Safe</span></h1>
+  <div class="post-meta">
+    <span>March 6, 2026</span>
+    <span>24 min read</span>
+    <span>Purple Flea Team</span>
+  </div>
+
+  <p>When AI agents operate financial accounts autonomously — placing trades, holding balances, entering escrow contracts — the security model underneath them matters more than any single feature. A bug in authentication, a race condition in the escrow state machine, or a missing rate limit can drain an agent's entire balance before any human notices.</p>
+
+  <p>This post is a transparent technical overview of how Purple Flea is built to resist those failure modes. We describe our layered defense architecture, the specific controls applied to each of our six services, our incident response posture, and our bug bounty program.</p>
+
+  <h2>1. The <span>Defense-in-Depth Stack</span></h2>
+
+  <p>Security at Purple Flea is layered: no single control is trusted to prevent all attacks. Each layer assumes the one above it can be bypassed.</p>
+
+  <div class="layer-diagram">
+    <div class="layer layer-1">
+      <span class="layer-num">L1</span>
+      <div>
+        <div class="layer-label">API Authentication &amp; Key Scoping</div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:2px">Stateless JWT + HMAC-signed agent keys, per-service scope enforcement</div>
+      </div>
+      <div class="layer-desc">Outermost</div>
+    </div>
+    <div class="layer layer-2">
+      <span class="layer-num">L2</span>
+      <div>
+        <div class="layer-label">Rate Limiting &amp; Anomaly Detection</div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:2px">Per-agent sliding window limits, statistical outlier detection, circuit breakers</div>
+      </div>
+      <div class="layer-desc">Traffic layer</div>
+    </div>
+    <div class="layer layer-3">
+      <span class="layer-num">L3</span>
+      <div>
+        <div class="layer-label">Balance Invariant Checks</div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:2px">Double-entry ledger, immutable transaction log, pre-commit balance assertions</div>
+      </div>
+      <div class="layer-desc">Financial layer</div>
+    </div>
+    <div class="layer layer-4">
+      <span class="layer-num">L4</span>
+      <div>
+        <div class="layer-label">Escrow State Machine &amp; Audit Trail</div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:2px">Deterministic state transitions, cryptographic event log, multi-party release conditions</div>
+      </div>
+      <div class="layer-desc">Innermost</div>
+    </div>
+  </div>
+
+  <h2>2. API Authentication: <span>Key Scoping and HMAC Signing</span></h2>
+
+  <p>Every Purple Flea API key is a compound credential: a randomly generated 32-byte key ID bound at issuance to a specific agent identity and a specific set of permitted service scopes. A key issued for the Trading API cannot call the Escrow API, even with a valid signature.</p>
+
+  <h3>Key Structure</h3>
+
+  <pre><code><span class="cm"># API key anatomy</span>
+<span class="cm"># pf_live_[agentId:8]_[scope:8]_[secret:32]</span>
+<span class="cm">#          ^^^^^^^^   ^^^^^^^   ^^^^^^^^</span>
+<span class="cm">#          agent id   service   HMAC secret</span>
+<span class="cm">#                     scope     (64-char hex)</span>
+<span class="cm">#                     flags</span>
+
+<span class="cm"># Example scopes (bitmask packed into 4 bytes)</span>
+<span class="hl">SCOPE_CASINO</span>   = <span class="num">0x01</span>
+<span class="hl">SCOPE_TRADING</span>  = <span class="num">0x02</span>
+<span class="hl">SCOPE_WALLET</span>   = <span class="num">0x04</span>
+<span class="hl">SCOPE_ESCROW</span>   = <span class="num">0x08</span>
+<span class="hl">SCOPE_DOMAINS</span>  = <span class="num">0x10</span>
+<span class="hl">SCOPE_FAUCET</span>   = <span class="num">0x20</span>
+<span class="hl">SCOPE_ALL</span>      = <span class="num">0x3F</span>
+
+<span class="cm"># Every request must include HMAC-SHA256 of:</span>
+<span class="cm"># method + path + body_hash + unix_timestamp</span>
+<span class="cm"># Requests older than 30 seconds are rejected (replay attack prevention)</span></code></pre>
+
+  <h3>Request Signing</h3>
+
+  <pre><code><span class="kw">import</span> hmac, hashlib, time, json
+
+<span class="kw">def</span> <span class="fn">sign_request</span>(api_key: str, method: str, path: str, body: dict) -> dict:
+    secret = api_key.split(<span class="str">"_"</span>)[<span class="num">-1</span>].encode()
+    ts = str(int(time.time()))
+    body_json = json.dumps(body, separators=(<span class="str">","</span>, <span class="str">":"</span>), sort_keys=<span class="kw">True</span>)
+    body_hash = hashlib.sha256(body_json.encode()).hexdigest()
+    payload = f<span class="str">"{method.upper()}\n{path}\n{body_hash}\n{ts}"</span>
+    sig = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+    <span class="kw">return</span> {
+        <span class="str">"X-PF-API-Key"</span>: api_key,
+        <span class="str">"X-PF-Timestamp"</span>: ts,
+        <span class="str">"X-PF-Signature"</span>: sig,
+        <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+    }</code></pre>
+
+  <div class="info-box">
+    <p>Timestamp binding prevents replay attacks: an attacker who intercepts a signed request cannot reuse it after 30 seconds. Combined with nonce tracking for high-frequency endpoints, this eliminates the replay attack surface completely.</p>
+  </div>
+
+  <h2>3. Rate Limiting: <span>Per-Agent Sliding Windows</span></h2>
+
+  <p>Rate limits are enforced per-agent-key, not per-IP. An agent with multiple IP addresses (common for distributed deployments) is still governed by a single limit. This prevents limit evasion via IP rotation.</p>
+
+  <table>
+    <tr>
+      <th>Service</th>
+      <th>Requests / Minute</th>
+      <th>Requests / Hour</th>
+      <th>Max Concurrent</th>
+    </tr>
+    <tr><td>Casino</td><td>60</td><td>600</td><td>5</td></tr>
+    <tr><td>Trading API</td><td>120</td><td>2,000</td><td>10</td></tr>
+    <tr><td>Wallet API</td><td>30</td><td>300</td><td>3</td></tr>
+    <tr><td>Escrow</td><td>20</td><td>200</td><td>2</td></tr>
+    <tr><td>Domains</td><td>10</td><td>100</td><td>1</td></tr>
+    <tr><td>Faucet</td><td>5</td><td>5</td><td>1</td></tr>
+  </table>
+
+  <p>Limits use a sliding window algorithm: the rate is measured over the last 60 seconds, not over a fixed clock minute. This prevents the "boundary burst" attack where agents flood requests at the 59-second mark of each clock minute.</p>
+
+  <h3>Anomaly Detection Circuit Breaker</h3>
+
+  <p>Beyond fixed limits, a statistical anomaly detector runs per-agent. If an agent's request volume is more than 3 standard deviations above its own 7-day rolling average, the circuit breaker trips and requires a cooldown period before service resumes. This handles agents that have been compromised and are issuing malformed high-volume requests.</p>
+
+  <h2>4. Financial Layer: <span>Double-Entry Ledger and Balance Invariants</span></h2>
+
+  <p>Every balance movement in Purple Flea is recorded as a double-entry accounting event, not a single debit/credit. The invariant — that the sum of all entries must equal zero — is checked before committing any transaction to persistent storage.</p>
+
+  <pre><code><span class="cm"># Pseudocode: balance invariant check before commit</span>
+<span class="kw">class</span> <span class="cls">BalanceLedger</span>:
+    <span class="kw">def</span> <span class="fn">apply_transaction</span>(self, tx: <span class="cls">Transaction</span>) -> <span class="cls">Result</span>:
+        entries = tx.to_double_entries()
+
+        <span class="cm"># Invariant: debits must equal credits</span>
+        total = sum(e.amount <span class="kw">for</span> e <span class="kw">in</span> entries)
+        <span class="kw">if</span> total != <span class="cls">Decimal</span>(<span class="str">'0'</span>):
+            <span class="kw">raise</span> <span class="cls">LedgerInvariantError</span>(
+                f<span class="str">"Transaction {tx.id} violates balance invariant: sum={total}"</span>
+            )
+
+        <span class="cm"># Check no account goes negative</span>
+        <span class="kw">for</span> entry <span class="kw">in</span> entries:
+            projected = self._balance(entry.account_id) + entry.amount
+            <span class="kw">if</span> projected < <span class="cls">Decimal</span>(<span class="str">'0'</span>):
+                <span class="kw">raise</span> <span class="cls">InsufficientFundsError</span>(
+                    f<span class="str">"Account {entry.account_id} would go negative"</span>
+                )
+
+        <span class="cm"># All checks passed — commit atomically</span>
+        <span class="kw">with</span> self.db.transaction():
+            <span class="kw">for</span> entry <span class="kw">in</span> entries:
+                self.db.insert_entry(entry)
+            self.db.insert_tx_log(tx)
+
+        <span class="kw">return</span> <span class="cls">Result</span>.ok(tx.id)</code></pre>
+
+  <p>The transaction log is append-only and hash-chained: each entry includes the SHA-256 hash of the previous entry. This means the log cannot be modified retroactively without breaking the chain — any tampering is immediately detectable.</p>
+
+  <h2>5. Escrow: <span>State Machine and Multi-Party Release</span></h2>
+
+  <p>The Escrow service is Purple Flea's most security-critical service because funds are held by the platform on behalf of two parties. The state machine design ensures funds can only move along pre-authorized paths.</p>
+
+  <pre><code><span class="cm"># Escrow state machine — valid transitions only</span>
+<span class="hl">STATES</span> = {
+    <span class="str">"CREATED"</span>:    [<span class="str">"FUNDED"</span>, <span class="str">"EXPIRED"</span>],
+    <span class="str">"FUNDED"</span>:     [<span class="str">"RELEASED"</span>, <span class="str">"DISPUTED"</span>, <span class="str">"REFUNDED"</span>],
+    <span class="str">"DISPUTED"</span>:   [<span class="str">"RELEASED"</span>, <span class="str">"REFUNDED"</span>],
+    <span class="str">"RELEASED"</span>:   [],   <span class="cm"># Terminal state</span>
+    <span class="str">"REFUNDED"</span>:   [],   <span class="cm"># Terminal state</span>
+    <span class="str">"EXPIRED"</span>:    [],   <span class="cm"># Terminal state</span>
+}
+
+<span class="cm"># RELEASED requires: signature from depositor OR</span>
+<span class="cm"># (timeout exceeded AND no dispute filed)</span>
+
+<span class="cm"># REFUNDED requires: signature from beneficiary OR</span>
+<span class="cm"># (dispute resolved in depositor's favor)</span>
+
+<span class="cm"># DISPUTED requires: signature from either party +</span>
+<span class="cm"># evidence submission within 72-hour window</span></code></pre>
+
+  <h3>Cryptographic Release Conditions</h3>
+
+  <p>Release conditions are cryptographically committed at contract creation time. The depositor and beneficiary each sign the contract terms with their agent private key. The signature is stored with the contract. Release can only be triggered by a valid signature from the appropriate party, preventing server-side logic bugs from releasing funds to the wrong party.</p>
+
+  <div class="warn-box">
+    <p><strong>Dispute resolution is time-bounded.</strong> If a dispute is filed but neither party submits evidence within 72 hours, the escrow reverts to the depositor. Agents entering high-value escrow contracts should monitor contract status via the API and respond to dispute notifications within the window.</p>
+  </div>
+
+  <h2>6. Bug Bounty <span>Program</span></h2>
+
+  <p>We invite security researchers and agents to test Purple Flea's production environment within the rules of engagement below. Qualifying vulnerabilities are rewarded in USDC within 7 days of validation.</p>
+
+  <table>
+    <tr>
+      <th>Severity</th>
+      <th>Description</th>
+      <th>Reward Range</th>
+    </tr>
+    <tr>
+      <td class="sev-critical">Critical</td>
+      <td>Unauthorized fund extraction, authentication bypass, escrow state machine exploit</td>
+      <td class="sev-critical">$500–$2,000 USDC</td>
+    </tr>
+    <tr>
+      <td class="sev-high">High</td>
+      <td>Rate limit bypass, balance manipulation, API key privilege escalation</td>
+      <td class="sev-high">$100–$500 USDC</td>
+    </tr>
+    <tr>
+      <td class="sev-med">Medium</td>
+      <td>Information disclosure, anomaly detector evasion, logging gaps</td>
+      <td class="sev-med">$25–$100 USDC</td>
+    </tr>
+    <tr>
+      <td class="sev-low">Low</td>
+      <td>Minor misconfigurations, non-exploitable error messages, UX issues</td>
+      <td class="sev-low">$5–$25 USDC</td>
+    </tr>
+  </table>
+
+  <p><strong>Rules of engagement:</strong> Only test against accounts you own. Do not disrupt service for other agents. Do not exfiltrate other agents' data. Report via <a href="mailto:security@purpleflea.com">security@purpleflea.com</a> with a clear reproduction path.</p>
+
+  <h2>7. Incident Response <span>Posture</span></h2>
+
+  <p>Purple Flea operates a 24/7 automated incident detection system. Any of the following events triggers an automated freeze and alert:</p>
+
+  <ul>
+    <li>Balance invariant violation detected in ledger (immediate halt)</li>
+    <li>More than 5 failed authentication attempts on a single agent key in 60 seconds</li>
+    <li>Escrow state machine transition rejected more than 3 times for the same contract</li>
+    <li>Any API response with a 5xx error rate above 2% over a 5-minute window</li>
+    <li>Anomaly detector circuit breaker trips for more than 10 agents simultaneously</li>
+  </ul>
+
+  <p>Response target: automated mitigation within 30 seconds of detection; human review within 15 minutes; full post-incident report published within 48 hours.</p>
+
+  <div class="tip-box">
+    <p><strong>For agents.</strong> If you suspect your API key has been compromised, revoke it immediately via <code>DELETE /v1/keys/{keyId}</code>. Key revocation takes effect within 5 seconds across all edge nodes. Generate a new key with a fresh scope assignment. Do not reuse key IDs.</p>
+  </div>
+
+  <h2>8. What We Don't <span>Protect Against</span></h2>
+
+  <p>Transparency matters. Purple Flea's security model does not cover:</p>
+
+  <ul>
+    <li><strong>Agent-side key compromise.</strong> If your agent's API key is extracted from memory or storage by an attacker with access to the agent's runtime, we cannot prevent unauthorized API calls.</li>
+    <li><strong>Intentional loss.</strong> Casino wagers, trading losses, and domain registrations that result in loss are not security incidents. Purple Flea does not offer loss protection on financial activity.</li>
+    <li><strong>Smart contract risk on external protocols.</strong> If an agent uses Purple Flea Wallet API to interact with external DeFi protocols, risks on those protocols are outside our security perimeter.</li>
+    <li><strong>Social engineering of support.</strong> We do not have a human support channel that can override cryptographic release conditions. No one can "recover your escrow funds" by calling us.</li>
+  </ul>
+
+  <div class="cta-box">
+    <h3>Audit Purple Flea's Security</h3>
+    <p style="color:var(--text-secondary);margin-bottom:20px">Read our full security documentation, review our API authentication spec, or submit a bug bounty report. We welcome scrutiny from the agent developer community.</p>
+    <a href="/security" class="btn">Security Docs</a>
+    <a href="mailto:security@purpleflea.com" class="btn btn-outline">Submit Report</a>
+  </div>
+
+</main>
+<footer>
+  <a href="/">Home</a><a href="/blog/">Blog</a><a href="/docs">Docs</a><a href="/for-agents">For Agents</a><a href="/stats">Stats</a>
+  <p style="margin-top:16px">&copy; 2026 Purple Flea. AI-first infrastructure for autonomous agents.</p>
+</footer>
+</body>
+</html>
