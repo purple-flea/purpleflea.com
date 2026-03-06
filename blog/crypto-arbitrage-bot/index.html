@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Build a Crypto Arbitrage Bot with Purple Flea | Strategy Guide</title>
+  <meta name="description" content="Three arbitrage strategies using Purple Flea: funding rate arbitrage, cross-market price arbitrage, and statistical pair trading. Full Python implementation with realistic profit calculations." />
+  <meta property="og:title" content="Build a Crypto Arbitrage Bot with Purple Flea" />
+  <meta property="og:description" content="Funding rate arb, cross-market price arb, and statistical pair trading via Purple Flea's 275-market trading API. Full Python code with realistic P&L math." />
+  <meta property="og:url" content="https://purpleflea.com/blog/crypto-arbitrage-bot/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/crypto-arbitrage-bot/" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Build a Crypto Arbitrage Bot with Purple Flea",
+    "description": "Three arbitrage strategies: funding rate arbitrage, cross-market price arbitrage, and statistical pair trading. Full Python code with realistic P&L calculations.",
+    "url": "https://purpleflea.com/blog/crypto-arbitrage-bot/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "keywords": ["crypto arbitrage bot", "funding rate arbitrage", "statistical arbitrage", "Purple Flea trading", "perpetual futures arbitrage"]
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B; --surface: #111113; --border: #27272A;
+      --accent: #A855F7; --accent-dim: #7C3AED;
+      --text: #FAFAFA; --muted: #A1A1AA;
+      --green: #22C55E; --blue: #3B82F6; --red: #EF4444; --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; }
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
+    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; }
+    .nav-brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper { max-width: 860px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    .content pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; line-height: 1.65; color: #E4E4E7; }
+    .content code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; color: var(--accent); }
+    .kw { color: #C084FC; } .fn { color: #60a5fa; } .str { color: #86EFAC; } .cm { color: #64748B; font-style: italic; } .num { color: #FCA5A5; }
+    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    .arb-card { background: #111113; border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin: 1.5rem 0; }
+    .arb-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .arb-card-title { font-size: 1.05rem; font-weight: 700; }
+    .arb-badge { font-size: 0.72rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; padding: 3px 10px; border-radius: 6px; }
+    .badge-low-risk { background: rgba(34,197,94,0.15); color: var(--green); }
+    .badge-med-risk { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    .badge-high-risk { background: rgba(239,68,68,0.15); color: var(--red); }
+    .arb-meta { display: flex; gap: 1.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+    .arb-metric { font-size: 0.8rem; color: var(--muted); }
+    .arb-metric strong { color: var(--text); font-size: 0.9rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-outline { background: transparent; border: 1px solid rgba(168,85,247,0.4); color: var(--accent); margin-left: 0.75rem; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    @media (max-width: 640px) { .nav-links { display: none; } }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-brand">◆ <span>Purple Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/trading">Trading API</a></li>
+      <li><a href="/register">Get API Key</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-wrapper">
+  <article>
+    <a href="/blog" class="back-link">← Back to Blog</a>
+
+    <div class="post-tags">
+      <span class="tag">Strategy</span>
+      <span class="tag">Arbitrage</span>
+      <span class="tag">Trading</span>
+    </div>
+
+    <h1>Build a Crypto Arbitrage Bot with Purple Flea</h1>
+
+    <div class="post-meta">
+      <span>March 6, 2026</span>
+      <span>·</span>
+      <span>13 min read</span>
+      <span>·</span>
+      <span>Purple Flea Trading</span>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="content">
+
+      <p>Arbitrage is one of the oldest trading strategies — and one of the few where you can earn without directional market risk. Purple Flea's 275-market perpetual trading API creates three distinct arbitrage opportunities accessible to AI agents. This guide covers each with full Python implementations and realistic profit calculations.</p>
+
+      <h2>The Three Arbitrage Types</h2>
+
+      <div class="arb-card">
+        <div class="arb-card-header">
+          <div class="arb-card-title">1. Funding Rate Arbitrage</div>
+          <span class="arb-badge badge-low-risk">LOW RISK</span>
+        </div>
+        <p style="color:#D4D4D8;font-size:0.9rem;margin:0 0 0.5rem">When perpetual funding rates are positive, shorts collect fees from longs every 8 hours. Enter a short perp position and hedge with a spot long to capture funding with minimal market exposure.</p>
+        <div class="arb-meta">
+          <div class="arb-metric">Expected APY: <strong>15–80%</strong></div>
+          <div class="arb-metric">Capital required: <strong>$10+</strong></div>
+          <div class="arb-metric">Execution time: <strong>Minutes</strong></div>
+        </div>
+      </div>
+
+      <div class="arb-card">
+        <div class="arb-card-header">
+          <div class="arb-card-title">2. Cross-Market Price Arbitrage</div>
+          <span class="arb-badge badge-med-risk">MEDIUM RISK</span>
+        </div>
+        <p style="color:#D4D4D8;font-size:0.9rem;margin:0 0 0.5rem">With 275 markets, price discrepancies occasionally appear between related pairs. Buy the underpriced pair, sell the overpriced one, profit from convergence. Speed is critical — these windows close in seconds.</p>
+        <div class="arb-meta">
+          <div class="arb-metric">Expected yield: <strong>0.1–0.5% per trade</strong></div>
+          <div class="arb-metric">Frequency: <strong>0–10 opportunities/day</strong></div>
+          <div class="arb-metric">Execution speed required: <strong>&lt;2 seconds</strong></div>
+        </div>
+      </div>
+
+      <div class="arb-card">
+        <div class="arb-card-header">
+          <div class="arb-card-title">3. Statistical Arbitrage (Pair Trading)</div>
+          <span class="arb-badge badge-med-risk">MEDIUM RISK</span>
+        </div>
+        <p style="color:#D4D4D8;font-size:0.9rem;margin:0 0 0.5rem">BTC and ETH are highly correlated. When their spread deviates beyond 2 standard deviations from the mean, bet on reversion: long the underperformer, short the outperformer.</p>
+        <div class="arb-meta">
+          <div class="arb-metric">Expected win rate: <strong>60–70%</strong></div>
+          <div class="arb-metric">Avg trade duration: <strong>4–48 hours</strong></div>
+          <div class="arb-metric">Sharpe ratio: <strong>1.5–2.5</strong></div>
+        </div>
+      </div>
+
+      <h2>Strategy 1: Funding Rate Arbitrage</h2>
+
+      <p>Perpetual futures maintain price parity with spot via a funding mechanism: when the perp trades above spot, longs pay shorts every 8 hours. When funding is positive and above your borrowing cost, you can earn passively by holding a short perp position.</p>
+
+      <p><strong>The math:</strong> BTC-USD funding rate is 0.01% every 8 hours = 0.03% daily = ~10.95% APY. On $100 of short exposure, that's $10.95/year in pure funding income, market-neutral.</p>
+
+<pre><code><span class="kw">import</span> requests
+<span class="kw">import</span> time
+
+PF_KEY = <span class="str">"pf_live_your_key"</span>
+PF_BASE = <span class="str">"https://purpleflea.com/api"</span>
+
+pf = requests.Session()
+pf.headers[<span class="str">"Authorization"</span>] = <span class="str">f"Bearer {PF_KEY}"</span>
+
+MIN_FUNDING_APY = <span class="num">20.0</span>  <span class="cm"># Only enter if annualized rate > 20%</span>
+POSITION_SIZE = <span class="num">10.0</span>   <span class="cm"># $10 per position</span>
+
+<span class="kw">def</span> <span class="fn">get_funding_rates</span>() -> list:
+    <span class="str">"""Fetch funding rates for all perp markets."""</span>
+    r = pf.get(<span class="str">f"{PF_BASE}/trading/funding-rates"</span>)
+    <span class="kw">return</span> r.json()
+
+<span class="kw">def</span> <span class="fn">funding_rate_to_apy</span>(rate_8h: float) -> float:
+    <span class="str">"""Convert 8-hour funding rate to annualized percentage."""</span>
+    <span class="kw">return</span> rate_8h * <span class="num">3</span> * <span class="num">365</span> * <span class="num">100</span>
+
+<span class="kw">def</span> <span class="fn">find_funding_opportunities</span>() -> list:
+    <span class="str">"""Find markets with attractive positive funding rates."""</span>
+    rates = get_funding_rates()
+    opportunities = []
+    <span class="kw">for</span> market <span class="kw">in</span> rates:
+        apy = funding_rate_to_apy(market[<span class="str">"funding_rate"</span>])
+        <span class="kw">if</span> apy >= MIN_FUNDING_APY:
+            opportunities.append({
+                <span class="str">"symbol"</span>: market[<span class="str">"symbol"</span>],
+                <span class="str">"funding_rate_8h"</span>: market[<span class="str">"funding_rate"</span>],
+                <span class="str">"apy"</span>: apy,
+                <span class="str">"next_funding_time"</span>: market.get(<span class="str">"next_funding_time"</span>)
+            })
+    <span class="kw">return</span> sorted(opportunities, key=<span class="kw">lambda</span> x: -x[<span class="str">"apy"</span>])
+
+<span class="kw">def</span> <span class="fn">enter_funding_arb</span>(symbol: str, size_usd: float):
+    <span class="str">"""Enter a funding rate arbitrage: short perp (collects funding)."""</span>
+    <span class="cm"># Note: In a full implementation, you'd also buy spot to hedge</span>
+    <span class="cm"># Here we show the perp short (the funding-collecting leg)</span>
+    r = pf.post(<span class="str">f"{PF_BASE}/trading/perp/order"</span>, json={
+        <span class="str">"symbol"</span>: symbol,
+        <span class="str">"side"</span>: <span class="str">"short"</span>,
+        <span class="str">"size_usd"</span>: size_usd,
+        <span class="str">"leverage"</span>: <span class="num">1</span>,  <span class="cm"># No leverage — this is a carry trade</span>
+        <span class="str">"reduce_only"</span>: <span class="kw">False</span>
+    })
+    <span class="kw">return</span> r.json()
+
+<span class="cm"># Funding rate arb scanner loop</span>
+<span class="kw">def</span> <span class="fn">run_funding_arb_bot</span>():
+    positions = {}  <span class="cm"># Track active arb positions</span>
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        opps = find_funding_opportunities()
+        print(<span class="str">f"\nFunding opportunities: {len(opps)}"</span>)
+
+        <span class="kw">for</span> opp <span class="kw">in</span> opps[:<span class="num">3</span>]:  <span class="cm"># Max 3 simultaneous positions</span>
+            sym = opp[<span class="str">"symbol"</span>]
+            print(<span class="str">f"  {sym}: {opp['apy']:.1f}% APY (8h rate: {opp['funding_rate_8h']*100:.4f}%)"</span>)
+
+            <span class="kw">if</span> sym <span class="kw">not in</span> positions:
+                result = enter_funding_arb(sym, POSITION_SIZE)
+                positions[sym] = result
+                print(<span class="str">f"  → Entered funding arb: {sym} ${POSITION_SIZE} short"</span>)
+
+        <span class="cm"># Close positions where funding has dropped below threshold</span>
+        active_syms = {o[<span class="str">"symbol"</span>] <span class="kw">for</span> o <span class="kw">in</span> opps}
+        <span class="kw">for</span> sym <span class="kw">in</span> list(positions.keys()):
+            <span class="kw">if</span> sym <span class="kw">not in</span> active_syms:
+                pf.post(<span class="str">f"{PF_BASE}/trading/perp/close"</span>, json={<span class="str">"symbol"</span>: sym})
+                <span class="kw">del</span> positions[sym]
+                print(<span class="str">f"  ← Closed {sym} (funding dropped below threshold)"</span>)
+
+        time.sleep(<span class="num">3600</span>)  <span class="cm"># Check every hour</span>
+</code></pre>
+
+      <h2>Strategy 2: Cross-Market Price Arbitrage</h2>
+
+      <p>With 275 markets, you can occasionally find price discrepancies between related pairs. The most reliable version involves triangular arbitrage: if BTC-USD × ETH-BTC ≠ ETH-USD (after fees), there's a risk-free profit.</p>
+
+<pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> aiohttp
+
+FEE_RATE = <span class="num">0.001</span>  <span class="cm"># 0.1% taker fee per leg</span>
+MIN_PROFIT_PCT = <span class="num">0.3</span>  <span class="cm"># Minimum 0.3% profit after fees</span>
+
+<span class="kw">async def</span> <span class="fn">get_prices_concurrent</span>(session, symbols: list) -> dict:
+    <span class="str">"""Fetch multiple prices concurrently for speed."""</span>
+    tasks = [
+        session.get(
+            <span class="str">f"{PF_BASE}/trading/price/{sym}"</span>,
+            headers={<span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_KEY}"</span>}
+        )
+        <span class="kw">for</span> sym <span class="kw">in</span> symbols
+    ]
+    responses = <span class="kw">await</span> asyncio.gather(*tasks)
+    prices = {}
+    <span class="kw">for</span> sym, resp <span class="kw">in</span> zip(symbols, responses):
+        data = <span class="kw">await</span> resp.json()
+        prices[sym] = data[<span class="str">"price"</span>]
+    <span class="kw">return</span> prices
+
+<span class="kw">async def</span> <span class="fn">scan_triangular_arb</span>():
+    <span class="str">"""Scan for triangular arbitrage opportunities across BTC/ETH/SOL."""</span>
+    <span class="kw">async with</span> aiohttp.ClientSession() <span class="kw">as</span> session:
+        <span class="cm"># Fetch all relevant prices simultaneously</span>
+        prices = <span class="kw">await</span> get_prices_concurrent(session, [
+            <span class="str">"BTC-USD"</span>, <span class="str">"ETH-USD"</span>, <span class="str">"SOL-USD"</span>,
+            <span class="str">"ETH-BTC"</span>, <span class="str">"SOL-BTC"</span>, <span class="str">"SOL-ETH"</span>
+        ])
+
+        <span class="cm"># Check: BTC/USD → ETH/BTC → ETH/USD triangle</span>
+        btc_usd = prices[<span class="str">"BTC-USD"</span>]
+        eth_btc = prices[<span class="str">"ETH-BTC"</span>]
+        eth_usd_implied = btc_usd * eth_btc
+        eth_usd_direct = prices[<span class="str">"ETH-USD"</span>]
+
+        <span class="cm"># Account for 3-leg fees: (1-fee)^3</span>
+        fee_adj = (<span class="num">1</span> - FEE_RATE) ** <span class="num">3</span>
+        profit_pct = (eth_usd_direct / eth_usd_implied - <span class="num">1</span>) * fee_adj * <span class="num">100</span>
+
+        <span class="kw">if</span> abs(profit_pct) >= MIN_PROFIT_PCT:
+            direction = <span class="str">"BTC→ETH→USD"</span> <span class="kw">if</span> profit_pct > <span class="num">0</span> <span class="kw">else</span> <span class="str">"USD→ETH→BTC"</span>
+            print(<span class="str">f"ARB SIGNAL: {direction} | {profit_pct:+.3f}% | Implied ETH/USD: ${eth_usd_implied:.2f} vs ${eth_usd_direct:.2f}"</span>)
+            <span class="kw">return</span> {<span class="str">"direction"</span>: direction, <span class="str">"profit_pct"</span>: profit_pct, <span class="str">"size"</span>: <span class="num">5.0</span>}
+
+        <span class="kw">return</span> <span class="kw">None</span>
+
+<span class="kw">async def</span> <span class="fn">arb_scanner_loop</span>():
+    <span class="kw">while</span> <span class="kw">True</span>:
+        opp = <span class="kw">await</span> scan_triangular_arb()
+        <span class="kw">if</span> opp:
+            print(<span class="str">f"Executing arb: {opp['profit_pct']:+.3f}% expected profit"</span>)
+            <span class="cm"># Execute the arbitrage legs</span>
+        <span class="kw">await</span> asyncio.sleep(<span class="num">2</span>)  <span class="cm"># Scan every 2 seconds</span>
+</code></pre>
+
+      <h2>Strategy 3: Statistical Arbitrage — BTC/ETH Pair Trade</h2>
+
+      <p>BTC and ETH have a historical correlation of ~0.85. When the spread between their returns deviates significantly, it tends to revert. This is the basis of statistical arbitrage.</p>
+
+<pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="cm"># Rolling window for spread statistics</span>
+LOOKBACK = <span class="num">50</span>          <span class="cm"># 50 price observations</span>
+ENTRY_ZSCORE = <span class="num">2.0</span>    <span class="cm"># Enter when z-score exceeds ±2.0</span>
+EXIT_ZSCORE = <span class="num">0.5</span>     <span class="cm"># Exit when z-score reverts to ±0.5</span>
+POSITION_USD = <span class="num">5.0</span>    <span class="cm"># $5 per leg</span>
+
+btc_prices = deque(maxlen=LOOKBACK)
+eth_prices = deque(maxlen=LOOKBACK)
+current_position = <span class="kw">None</span>  <span class="cm"># "long_eth_short_btc" or "short_eth_long_btc"</span>
+
+<span class="kw">def</span> <span class="fn">compute_spread_zscore</span>() -> float:
+    <span class="str">"""Calculate z-score of current ETH/BTC spread vs historical."""</span>
+    <span class="kw">if</span> len(btc_prices) < LOOKBACK:
+        <span class="kw">return</span> <span class="num">0.0</span>
+
+    btc_arr = np.array(btc_prices)
+    eth_arr = np.array(eth_prices)
+
+    <span class="cm"># Log returns spread</span>
+    btc_returns = np.log(btc_arr[<span class="num">1</span>:] / btc_arr[:-<span class="num">1</span>])
+    eth_returns = np.log(eth_arr[<span class="num">1</span>:] / eth_arr[:-<span class="num">1</span>])
+
+    spread = eth_returns - btc_returns
+    zscore = (spread[-<span class="num">1</span>] - spread.mean()) / (spread.std() + <span class="num">1e-10</span>)
+    <span class="kw">return</span> zscore
+
+<span class="kw">def</span> <span class="fn">stat_arb_signal</span>(btc_price: float, eth_price: float) -> str:
+    <span class="str">"""Returns trade signal based on current spread z-score."""</span>
+    <span class="kw">global</span> current_position
+
+    btc_prices.append(btc_price)
+    eth_prices.append(eth_price)
+
+    zscore = compute_spread_zscore()
+    print(<span class="str">f"BTC=${btc_price:,.0f} ETH=${eth_price:,.0f} Spread z-score: {zscore:+.2f}"</span>)
+
+    <span class="cm"># Entry signals</span>
+    <span class="kw">if</span> current_position <span class="kw">is None</span>:
+        <span class="kw">if</span> zscore > ENTRY_ZSCORE:
+            <span class="cm"># ETH is overperforming → short ETH, long BTC</span>
+            <span class="kw">return</span> <span class="str">"short_eth_long_btc"</span>
+        <span class="kw">elif</span> zscore < -ENTRY_ZSCORE:
+            <span class="cm"># BTC is overperforming → short BTC, long ETH</span>
+            <span class="kw">return</span> <span class="str">"long_eth_short_btc"</span>
+
+    <span class="cm"># Exit signals</span>
+    <span class="kw">elif</span> abs(zscore) < EXIT_ZSCORE:
+        prev = current_position
+        current_position = <span class="kw">None</span>
+        <span class="kw">return</span> <span class="str">f"close_{prev}"</span>
+
+    <span class="kw">return</span> <span class="str">"hold"</span>
+
+<span class="kw">def</span> <span class="fn">execute_pair_trade</span>(signal: str):
+    <span class="str">"""Execute a pair trade based on signal."""</span>
+    <span class="kw">global</span> current_position
+
+    <span class="kw">if</span> signal == <span class="str">"long_eth_short_btc"</span>:
+        pf.post(<span class="str">f"{PF_BASE}/trading/perp/order"</span>, json={<span class="str">"symbol"</span>: <span class="str">"ETH-USD"</span>, <span class="str">"side"</span>: <span class="str">"long"</span>, <span class="str">"size_usd"</span>: POSITION_USD, <span class="str">"leverage"</span>: <span class="num">1</span>})
+        pf.post(<span class="str">f"{PF_BASE}/trading/perp/order"</span>, json={<span class="str">"symbol"</span>: <span class="str">"BTC-USD"</span>, <span class="str">"side"</span>: <span class="str">"short"</span>, <span class="str">"size_usd"</span>: POSITION_USD, <span class="str">"leverage"</span>: <span class="num">1</span>})
+        current_position = <span class="str">"long_eth_short_btc"</span>
+        print(<span class="str">"  Entered: LONG ETH / SHORT BTC"</span>)
+
+    <span class="kw">elif</span> signal == <span class="str">"short_eth_long_btc"</span>:
+        pf.post(<span class="str">f"{PF_BASE}/trading/perp/order"</span>, json={<span class="str">"symbol"</span>: <span class="str">"ETH-USD"</span>, <span class="str">"side"</span>: <span class="str">"short"</span>, <span class="str">"size_usd"</span>: POSITION_USD, <span class="str">"leverage"</span>: <span class="num">1</span>})
+        pf.post(<span class="str">f"{PF_BASE}/trading/perp/order"</span>, json={<span class="str">"symbol"</span>: <span class="str">"BTC-USD"</span>, <span class="str">"side"</span>: <span class="str">"long"</span>, <span class="str">"size_usd"</span>: POSITION_USD, <span class="str">"leverage"</span>: <span class="num">1</span>})
+        current_position = <span class="str">"short_eth_long_btc"</span>
+        print(<span class="str">"  Entered: SHORT ETH / LONG BTC"</span>)
+
+    <span class="kw">elif</span> signal.startswith(<span class="str">"close_"</span>):
+        pf.post(<span class="str">f"{PF_BASE}/trading/perp/close-all"</span>)
+        print(<span class="str">"  Closed pair trade position"</span>)
+</code></pre>
+
+      <h2>Profit Calculations and Realistic Expectations</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Capital ($)</th>
+              <th>Expected Monthly Return</th>
+              <th>Main Risk</th>
+              <th>Execution Frequency</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Funding Rate Arb</td>
+              <td>$100</td>
+              <td style="color:#22C55E">$1.25–$6.67</td>
+              <td>Funding rate reversal</td>
+              <td>Hold continuously</td>
+            </tr>
+            <tr>
+              <td>Triangular Arb</td>
+              <td>$20</td>
+              <td style="color:#22C55E">$0.20–$1.00</td>
+              <td>Execution slippage</td>
+              <td>0–10 trades/day</td>
+            </tr>
+            <tr>
+              <td>Stat Arb (BTC/ETH)</td>
+              <td>$10 per leg</td>
+              <td style="color:#22C55E">$0.50–$2.00</td>
+              <td>Correlation breakdown</td>
+              <td>2–8 round trips/month</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout red">
+        <div class="callout-title">Risk Warning</div>
+        <p>Arbitrage profits are smaller than they appear in backtests. Execution slippage, funding rate reversals, and correlation breakdowns all erode returns. These strategies work best with small, diversified positions. Never size positions so large that a single loss is catastrophic.</p>
+      </div>
+
+      <div class="cta-box">
+        <h3>Start arbitrage trading on Purple Flea</h3>
+        <p>Get API access to all 275 perp markets, funding rate data, and real-time prices. Start with $1 free from the faucet.</p>
+        <a href="https://purpleflea.com/register" class="btn">Get Free API Key →</a>
+        <a href="/trading" class="btn btn-outline">Trading API Docs</a>
+      </div>
+
+    </div>
+  </article>
+</div>
+
+<footer>
+  <div>© 2026 Purple Flea · Financial Infrastructure for AI Agents</div>
+  <div class="footer-links">
+    <a href="/blog">Blog</a>
+    <a href="/trading">Trading API</a>
+    <a href="/for-agents">For Agents</a>
+    <a href="/faucet">Faucet</a>
+    <a href="/docs">Docs</a>
+  </div>
+</footer>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const scrolled = window.scrollY;
+    const total = document.body.scrollHeight - window.innerHeight;
+    document.getElementById('progress-bar').style.width = (scrolled / total * 100) + '%';
+  });
+</script>
+
+</body>
+</html>

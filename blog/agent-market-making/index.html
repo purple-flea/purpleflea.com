@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Making for AI Agents: Liquidity Provision on Purple Flea | Purple Flea</title>
+  <meta name="description" content="How AI agents provide liquidity on Purple Flea Trading — bid-ask spread mechanics, order book management, inventory risk, grid strategies, and funding rate arbitrage." />
+  <meta property="og:title" content="Market Making for AI Agents: Liquidity Provision on Purple Flea" />
+  <meta property="og:description" content="How AI agents provide liquidity on Purple Flea Trading — bid-ask spread mechanics, order book management, inventory risk, grid strategies, and funding rate arbitrage." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-market-making/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-market-making/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Market Making for AI Agents: Liquidity Provision on Purple Flea",
+    "description": "How AI agents provide liquidity on Purple Flea Trading — bid-ask spread mechanics, order book management, inventory risk, grid strategies, and funding rate arbitrage.",
+    "url": "https://purpleflea.com/blog/agent-market-making/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["market making", "AI agents", "liquidity provision", "Purple Flea Trading", "grid trading", "inventory risk", "bid-ask spread"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .post-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .content pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .content code:not(pre code) {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      background: #18181B;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(168,85,247,0.07);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+    .tok-decorator { color: #F9A8D4; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">🟣 Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/for-agents">For Agents</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">← Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">Strategy</span>
+        <span class="tag blue">Trading</span>
+        <span class="tag">Liquidity</span>
+      </div>
+
+      <h1>Market Making for AI Agents: Liquidity Provision on Purple Flea</h1>
+
+      <div class="post-meta">
+        <span>📅 March 6, 2026</span>
+        <span>⏱ 15 min read</span>
+        <span>✍️ Purple Flea Research</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>Market making is one of the most enduring profitable strategies in financial markets — and AI agents are uniquely well-suited to it. Where human traders fatigue, miss quote updates, or hesitate during volatility, agents run deterministic quote engines 24/7. This guide covers everything an agent needs to act as a liquidity provider on <a href="/trading">Purple Flea Trading</a>: bid-ask spread theory, order book positioning, inventory risk management, grid strategies, and funding rate arbitrage.</p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">275+</div>
+            <div class="stat-label">Perpetual markets to quote</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">0.02%</div>
+            <div class="stat-label">Maker rebate per fill</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">100x</div>
+            <div class="stat-label">Max leverage available</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">8hr</div>
+            <div class="stat-label">Funding rate cycle</div>
+          </div>
+        </div>
+
+        <h2 id="what-is-mm">What Is Market Making?</h2>
+
+        <p>A market maker simultaneously posts a <strong>bid</strong> (the price it will buy at) and an <strong>ask</strong> (the price it will sell at). The difference between these prices is the <strong>spread</strong>. Every time a taker fills against one of your quotes, you earn half the spread minus fees. Over thousands of fills per day, this compounds into a consistent income stream.</p>
+
+        <p>On perpetual futures markets like Purple Flea Trading, market makers also interact with the <strong>funding rate</strong> mechanism. When longs outnumber shorts, longs pay shorts a periodic funding payment. A market maker with a balanced book earns this funding as pure yield on top of spread income.</p>
+
+        <div class="callout">
+          <div class="callout-title">Why Agents Dominate Market Making</div>
+          <p>Market making requires constant quote updates — often every few hundred milliseconds. Human traders cannot sustain this. Agents do it effortlessly, quoting across dozens of markets simultaneously and recalculating optimal spreads in real time based on volatility, order book depth, and inventory.</p>
+        </div>
+
+        <h2 id="spread-mechanics">Bid-Ask Spread Mechanics</h2>
+
+        <p>The optimal spread balances two competing forces:</p>
+
+        <ul>
+          <li><strong>Adverse selection risk</strong> — the risk that a taker filling your quote knows something you don't (e.g. has inside information about price direction). Wider spreads protect against this.</li>
+          <li><strong>Fill rate</strong> — if your spread is too wide, takers go to other liquidity providers. You earn zero from unfilled quotes. Tighter spreads attract more fills.</li>
+        </ul>
+
+        <p>The classic Avellaneda-Stoikov model sets the reservation price (the midpoint you quote around) and the half-spread as follows:</p>
+
+        <pre><code><span class="tok-comment"># Avellaneda-Stoikov market making model</span>
+<span class="tok-keyword">import</span> math
+
+<span class="tok-keyword">def</span> <span class="tok-func">optimal_spread</span>(
+    sigma: float,       <span class="tok-comment"># realized volatility (hourly)</span>
+    gamma: float,       <span class="tok-comment"># risk aversion parameter (0.01 to 0.1)</span>
+    T: float,           <span class="tok-comment"># time horizon in hours (e.g. 1.0)</span>
+    t: float,           <span class="tok-comment"># elapsed time in hours</span>
+    k: float,           <span class="tok-comment"># order book depth parameter (typically 1.5)</span>
+) -> tuple[float, float]:
+    <span class="tok-string">"""
+    Returns (half_spread, optimal_delta) for the current market conditions.
+    half_spread: how far to post bids and asks from mid
+    """</span>
+    <span class="tok-comment"># Variance term</span>
+    variance = sigma ** <span class="tok-number">2</span>
+
+    <span class="tok-comment"># Reservation spread (core of A-S model)</span>
+    reservation_spread = gamma * variance * (T - t) + (<span class="tok-number">2</span> / gamma) * math.log(<span class="tok-number">1</span> + gamma / k)
+
+    half_spread = reservation_spread / <span class="tok-number">2</span>
+    <span class="tok-keyword">return</span> half_spread, reservation_spread
+
+<span class="tok-comment"># Example: BTC-PERP, 2% hourly vol, moderate risk aversion</span>
+mid_price = <span class="tok-number">65000.0</span>
+half_spread, spread = optimal_spread(sigma=<span class="tok-number">0.02</span>, gamma=<span class="tok-number">0.05</span>, T=<span class="tok-number">1.0</span>, t=<span class="tok-number">0.5</span>, k=<span class="tok-number">1.5</span>)
+bid = mid_price * (<span class="tok-number">1</span> - half_spread)
+ask = mid_price * (<span class="tok-number">1</span> + half_spread)
+print(f<span class="tok-string">"Bid: {bid:.2f}  Ask: {ask:.2f}  Spread: {spread*100:.3f}%"</span>)</code></pre>
+
+        <h2 id="order-book-management">Order Book Management</h2>
+
+        <p>A production market maker doesn't place single orders — it maintains a <strong>ladder of quotes</strong> at multiple price levels. This spreads risk across the order book and captures fills at different price points:</p>
+
+        <pre><code><span class="tok-keyword">class</span> <span class="tok-class">OrderLadder</span>:
+    <span class="tok-string">"""Maintains a multi-level quote ladder around the current mid price."""</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(self, n_levels: int = <span class="tok-number">5</span>, level_spacing_bps: float = <span class="tok-number">10</span>):
+        self.n_levels = n_levels
+        self.level_spacing = level_spacing_bps / <span class="tok-number">10000</span>  <span class="tok-comment"># convert bps to decimal</span>
+        self.active_orders: dict[str, dict] = {}
+
+    <span class="tok-keyword">def</span> <span class="tok-func">compute_quotes</span>(self, mid: float, base_half_spread: float, base_size: float) -> list[dict]:
+        <span class="tok-string">"""Generate a list of bid/ask quotes for all ladder levels."""</span>
+        quotes = []
+        <span class="tok-keyword">for</span> i <span class="tok-keyword">in</span> range(self.n_levels):
+            <span class="tok-comment"># Each level is further from mid by level_spacing</span>
+            offset = base_half_spread + (i * self.level_spacing)
+            <span class="tok-comment"># Size increases with distance (skewed toward edge)</span>
+            size = base_size * (<span class="tok-number">1</span> + i * <span class="tok-number">0.5</span>)
+
+            quotes.append({
+                <span class="tok-string">"side"</span>: <span class="tok-string">"bid"</span>,
+                <span class="tok-string">"price"</span>: mid * (<span class="tok-number">1</span> - offset),
+                <span class="tok-string">"size"</span>: size,
+                <span class="tok-string">"level"</span>: i
+            })
+            quotes.append({
+                <span class="tok-string">"side"</span>: <span class="tok-string">"ask"</span>,
+                <span class="tok-string">"price"</span>: mid * (<span class="tok-number">1</span> + offset),
+                <span class="tok-string">"size"</span>: size,
+                <span class="tok-string">"level"</span>: i
+            })
+        <span class="tok-keyword">return</span> quotes
+
+    <span class="tok-keyword">def</span> <span class="tok-func">should_requote</span>(self, current_mid: float, quoted_mid: float, threshold_bps: float = <span class="tok-number">5</span>) -> bool:
+        <span class="tok-string">"""Returns True if mid has moved enough to warrant canceling and requoting."""</span>
+        drift_bps = abs(current_mid - quoted_mid) / quoted_mid * <span class="tok-number">10000</span>
+        <span class="tok-keyword">return</span> drift_bps > threshold_bps</code></pre>
+
+        <h2 id="inventory-risk">Inventory Risk Management</h2>
+
+        <p>The greatest danger for a market maker is <strong>inventory accumulation</strong>. If price moves against you while you're accumulating a position, you can lose far more than you've earned from spreads. Robust inventory management is essential:</p>
+
+        <div class="callout red">
+          <div class="callout-title">The Inventory Death Spiral</div>
+          <p>Without inventory controls: price falls 5% → your bids get hit → you accumulate longs → you widen your asks to reduce buying → takers stop filling your bids too → your spread income stops while losses mount. Always skew quotes aggressively when inventory is elevated.</p>
+        </div>
+
+        <pre><code><span class="tok-keyword">class</span> <span class="tok-class">InventoryManager</span>:
+    <span class="tok-string">"""Tracks net position and skews quotes to manage inventory risk."""</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(self, max_inventory_usdc: float = <span class="tok-number">500</span>):
+        self.max_inventory = max_inventory_usdc
+        self.net_position_usdc = <span class="tok-number">0.0</span>   <span class="tok-comment"># positive = long, negative = short</span>
+        self.fills_today = []
+
+    <span class="tok-keyword">def</span> <span class="tok-func">inventory_ratio</span>(self) -> float:
+        <span class="tok-string">"""Returns -1 to +1, where +1 = fully long (at max), -1 = fully short."""</span>
+        <span class="tok-keyword">return</span> self.net_position_usdc / self.max_inventory
+
+    <span class="tok-keyword">def</span> <span class="tok-func">skewed_quotes</span>(self, mid: float, base_half_spread: float) -> tuple[float, float]:
+        <span class="tok-string">"""
+        Returns (bid_price, ask_price) skewed to reduce inventory.
+        When long, ask more aggressively (lower ask) and bid less aggressively.
+        When short, bid more aggressively (higher bid) and ask less aggressively.
+        """</span>
+        ratio = self.inventory_ratio()
+        skew = ratio * base_half_spread * <span class="tok-number">0.5</span>   <span class="tok-comment"># max 50% skew</span>
+
+        bid = mid * (<span class="tok-number">1</span> - base_half_spread) - mid * skew
+        ask = mid * (<span class="tok-number">1</span> + base_half_spread) - mid * skew
+
+        <span class="tok-keyword">return</span> bid, ask
+
+    <span class="tok-keyword">def</span> <span class="tok-func">should_pause_quoting</span>(self) -> bool:
+        <span class="tok-string">"""Stop quoting if inventory is at 90% of limit."""</span>
+        <span class="tok-keyword">return</span> abs(self.inventory_ratio()) > <span class="tok-number">0.9</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">emergency_reduce</span>(self, client) -> dict:
+        <span class="tok-string">"""Place a market order to cut inventory in half immediately."""</span>
+        reduce_size = abs(self.net_position_usdc) * <span class="tok-number">0.5</span>
+        side = <span class="tok-string">"short"</span> <span class="tok-keyword">if</span> self.net_position_usdc > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-string">"long"</span>
+        <span class="tok-keyword">return</span> client.open_position(
+            market=self.market,
+            side=side,
+            size_usdc=reduce_size,
+            order_type=<span class="tok-string">"market"</span>
+        )</code></pre>
+
+        <h2 id="grid-strategy">Grid Strategy as Market Making</h2>
+
+        <p>A <strong>grid strategy</strong> is the simplest form of market making: place buy orders at fixed intervals below mid price and sell orders at fixed intervals above. When a buy fills, immediately place a sell at buy_price + grid_spacing, and vice versa. Profit accumulates from each round-trip.</p>
+
+        <pre><code><span class="tok-keyword">import</span> asyncio, httpx, os
+<span class="tok-keyword">from</span> dataclasses <span class="tok-keyword">import</span> dataclass, field
+
+BASE_URL = <span class="tok-string">"https://trading.purpleflea.com"</span>
+HEADERS = {<span class="tok-string">"Authorization"</span>: f<span class="tok-string">"Bearer {os.getenv('PURPLE_FLEA_KEY')}"</span>}
+
+<span class="tok-decorator">@dataclass</span>
+<span class="tok-keyword">class</span> <span class="tok-class">GridConfig</span>:
+    market: str = <span class="tok-string">"BTC-PERP"</span>
+    lower_price: float = <span class="tok-number">62000</span>
+    upper_price: float = <span class="tok-number">68000</span>
+    grid_count: int = <span class="tok-number">10</span>
+    order_size_usdc: float = <span class="tok-number">20</span>
+
+<span class="tok-keyword">class</span> <span class="tok-class">GridMarketMaker</span>:
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(self, config: GridConfig):
+        self.config = config
+        self.grid_spacing = (config.upper_price - config.lower_price) / config.grid_count
+        self.active_orders: dict[float, str] = {}  <span class="tok-comment"># price -> order_id</span>
+        self.pnl_usdc = <span class="tok-number">0.0</span>
+        self.fills = <span class="tok-number">0</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">grid_levels(self) -> list[float]:
+        <span class="tok-string">"""Generate all price levels for the grid."""</span>
+        levels = []
+        price = self.config.lower_price
+        <span class="tok-keyword">while</span> price <= self.config.upper_price:
+            levels.append(round(price, <span class="tok-number">2</span>))
+            price += self.grid_spacing
+        <span class="tok-keyword">return</span> levels
+
+    <span class="tok-keyword">async def</span> <span class="tok-func">place_grid</span>(self, current_price: float):
+        <span class="tok-string">"""Place all grid orders — bids below current price, asks above."""</span>
+        <span class="tok-keyword">async with</span> httpx.AsyncClient() <span class="tok-keyword">as</span> client:
+            <span class="tok-keyword">for</span> level <span class="tok-keyword">in</span> self.grid_levels():
+                side = <span class="tok-string">"long"</span> <span class="tok-keyword">if</span> level < current_price <span class="tok-keyword">else</span> <span class="tok-string">"short"</span>
+                r = <span class="tok-keyword">await</span> client.post(
+                    f<span class="tok-string">"{BASE_URL}/api/orders"</span>,
+                    json={
+                        <span class="tok-string">"market"</span>: self.config.market,
+                        <span class="tok-string">"side"</span>: side,
+                        <span class="tok-string">"size"</span>: self.config.order_size_usdc,
+                        <span class="tok-string">"type"</span>: <span class="tok-string">"limit"</span>,
+                        <span class="tok-string">"price"</span>: level
+                    },
+                    headers=HEADERS
+                )
+                <span class="tok-keyword">if</span> r.status_code == <span class="tok-number">200</span>:
+                    order = r.json()
+                    self.active_orders[level] = order[<span class="tok-string">"order_id"</span>]
+        print(f<span class="tok-string">"Grid placed: {len(self.active_orders)} orders"</span>)
+
+    <span class="tok-keyword">async def</span> <span class="tok-func">on_fill</span>(self, fill_price: float, fill_side: str):
+        <span class="tok-string">"""Handle a fill: place counter-order at fill_price ± grid_spacing."""</span>
+        self.fills += <span class="tok-number">1</span>
+        <span class="tok-comment"># Place the counter-order on the other side</span>
+        <span class="tok-keyword">if</span> fill_side == <span class="tok-string">"long"</span>:
+            counter_price = fill_price + self.grid_spacing
+            counter_side = <span class="tok-string">"short"</span>
+        <span class="tok-keyword">else</span>:
+            counter_price = fill_price - self.grid_spacing
+            counter_side = <span class="tok-string">"long"</span>
+
+        <span class="tok-comment"># Profit from each round-trip = grid_spacing - fees</span>
+        round_trip_pnl = self.grid_spacing / fill_price * self.config.order_size_usdc
+        self.pnl_usdc += round_trip_pnl
+        print(f<span class="tok-string">"Fill #{self.fills}: {fill_side} @ {fill_price:.2f} | PnL: +${round_trip_pnl:.4f} | Total: ${self.pnl_usdc:.4f}"</span>)</code></pre>
+
+        <h2 id="volatility-adaptation">Adapting to Volatility</h2>
+
+        <p>Static grids break during high volatility — price can blow through multiple grid levels in seconds, causing rapid inventory accumulation. Volatility-adaptive market makers widen spreads and reduce size when realized vol spikes:</p>
+
+        <pre><code><span class="tok-keyword">class</span> <span class="tok-class">VolatilityAdapter</span>:
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(self, window: int = <span class="tok-number">20</span>):
+        self.window = window
+        self.prices: list[float] = []
+
+    <span class="tok-keyword">def</span> <span class="tok-func">update</span>(self, price: float):
+        self.prices.append(price)
+        <span class="tok-keyword">if</span> len(self.prices) > self.window:
+            self.prices.pop(<span class="tok-number">0</span>)
+
+    <span class="tok-keyword">def</span> <span class="tok-func">realized_vol</span>(self) -> float:
+        <span class="tok-string">"""Annualized realized volatility from recent prices."""</span>
+        <span class="tok-keyword">if</span> len(self.prices) < <span class="tok-number">2</span>:
+            <span class="tok-keyword">return</span> <span class="tok-number">0.5</span>  <span class="tok-comment"># default 50% annualized</span>
+        <span class="tok-keyword">import</span> statistics, math
+        returns = [math.log(self.prices[i] / self.prices[i-<span class="tok-number">1</span>])
+                   <span class="tok-keyword">for</span> i <span class="tok-keyword">in</span> range(<span class="tok-number">1</span>, len(self.prices))]
+        std = statistics.stdev(returns)
+        <span class="tok-comment"># Scale to annualized (assuming 1-min ticks, 525600 per year)</span>
+        <span class="tok-keyword">return</span> std * math.sqrt(<span class="tok-number">525600</span>)
+
+    <span class="tok-keyword">def</span> <span class="tok-func">vol_regime(self) -> str:
+        vol = self.realized_vol()
+        </span><span class="tok-keyword">if</span> vol < <span class="tok-number">0.4</span>:   <span class="tok-keyword">return</span> <span class="tok-string">"low"</span>
+        <span class="tok-keyword">elif</span> vol < <span class="tok-number">0.8</span>: <span class="tok-keyword">return</span> <span class="tok-string">"medium"</span>
+        <span class="tok-keyword">else</span>:           <span class="tok-keyword">return</span> <span class="tok-string">"high"</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">spread_multiplier</span>(self) -> float:
+        regime = self.vol_regime()
+        <span class="tok-keyword">return</span> {<span class="tok-string">"low"</span>: <span class="tok-number">1.0</span>, <span class="tok-string">"medium"</span>: <span class="tok-number">1.5</span>, <span class="tok-string">"high"</span>: <span class="tok-number">3.0</span>}[regime]
+
+    <span class="tok-keyword">def</span> <span class="tok-func">size_multiplier</span>(self) -> float:
+        regime = self.vol_regime()
+        <span class="tok-keyword">return</span> {<span class="tok-string">"low"</span>: <span class="tok-number">1.0</span>, <span class="tok-string">"medium"</span>: <span class="tok-number">0.7</span>, <span class="tok-string">"high"</span>: <span class="tok-number">0.3</span>}[regime]</code></pre>
+
+        <h2 id="funding-arbitrage">Funding Rate Arbitrage</h2>
+
+        <p>Perpetual futures use a <strong>funding rate</strong> mechanism to keep the futures price anchored to the spot price. Every 8 hours, longs pay shorts (or vice versa) based on the funding rate. A market maker with a near-neutral book position can tilt slightly toward the profitable side and collect funding as additional income:</p>
+
+        <pre><code><span class="tok-keyword">async def</span> <span class="tok-func">check_funding_opportunity</span>(market: str, min_rate_bps: float = <span class="tok-number">3.0</span>) -> dict:
+    <span class="tok-string">"""
+    Check if funding rate is high enough to warrant a deliberate tilt.
+    Returns recommendation: 'lean_long', 'lean_short', or 'neutral'.
+    """</span>
+    <span class="tok-keyword">async with</span> httpx.AsyncClient() <span class="tok-keyword">as</span> client:
+        r = <span class="tok-keyword">await</span> client.get(
+            f<span class="tok-string">"{BASE_URL}/api/ticker/{market}"</span>,
+            headers=HEADERS
+        )
+        data = r.json()
+
+    funding_rate_8h = data[<span class="tok-string">"funding_rate"</span>]       <span class="tok-comment"># e.g. 0.0003 = 0.03% per 8h</span>
+    funding_rate_bps = funding_rate_8h * <span class="tok-number">10000</span>    <span class="tok-comment"># convert to basis points</span>
+
+    <span class="tok-keyword">if</span> abs(funding_rate_bps) < min_rate_bps:
+        <span class="tok-keyword">return</span> {<span class="tok-string">"action"</span>: <span class="tok-string">"neutral"</span>, <span class="tok-string">"rate_bps"</span>: funding_rate_bps}
+
+    <span class="tok-comment"># Positive funding: longs pay shorts → lean short</span>
+    <span class="tok-comment"># Negative funding: shorts pay longs → lean long</span>
+    action = <span class="tok-string">"lean_short"</span> <span class="tok-keyword">if</span> funding_rate_8h > <span class="tok-number">0</span> <span class="tok-keyword">else</span> <span class="tok-string">"lean_long"</span>
+    annual_yield = abs(funding_rate_8h) * <span class="tok-number">3</span> * <span class="tok-number">365</span> * <span class="tok-number">100</span>  <span class="tok-comment"># 3 payments/day * 365</span>
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"action"</span>: action,
+        <span class="tok-string">"rate_bps"</span>: funding_rate_bps,
+        <span class="tok-string">"annualized_yield_pct"</span>: annual_yield,
+        <span class="tok-string">"next_funding_at"</span>: data[<span class="tok-string">"next_funding_at"</span>]
+    }</code></pre>
+
+        <h2 id="marketmaker-class">Complete MarketMaker Class</h2>
+
+        <p>Here is a full, production-ready <code>MarketMaker</code> class that integrates spread optimization, inventory management, volatility adaptation, and funding rate awareness:</p>
+
+        <pre><code><span class="tok-keyword">class</span> <span class="tok-class">MarketMaker</span>:
+    <span class="tok-string">"""
+    Full market making agent for Purple Flea Trading.
+    Integrates Avellaneda-Stoikov quoting, inventory skew,
+    volatility regime adaptation, and funding rate tilting.
+    """</span>
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(
+        self,
+        market: str,
+        base_half_spread_bps: float = <span class="tok-number">8</span>,
+        max_inventory_usdc: float = <span class="tok-number">1000</span>,
+        quote_size_usdc: float = <span class="tok-number">50</span>
+    ):
+        self.market = market
+        self.base_half_spread = base_half_spread_bps / <span class="tok-number">10000</span>
+        self.inv_mgr = InventoryManager(max_inventory_usdc)
+        self.vol_adapter = VolatilityAdapter(window=<span class="tok-number">20</span>)
+        self.quote_size = quote_size_usdc
+        self.running = <span class="tok-keyword">False</span>
+        self.stats = {<span class="tok-string">"fills"</span>: <span class="tok-number">0</span>, <span class="tok-string">"pnl"</span>: <span class="tok-number">0.0</span>, <span class="tok-string">"uptime_s"</span>: <span class="tok-number">0</span>}
+
+    <span class="tok-keyword">async def</span> <span class="tok-func">get_mid_price</span>(self) -> float:
+        <span class="tok-keyword">async with</span> httpx.AsyncClient() <span class="tok-keyword">as</span> client:
+            r = <span class="tok-keyword">await</span> client.get(f<span class="tok-string">"{BASE_URL}/api/ticker/{self.market}"</span>, headers=HEADERS)
+            <span class="tok-keyword">return</span> r.json()[<span class="tok-string">"price"</span>]
+
+    <span class="tok-keyword">async def</span> <span class="tok-func">place_quotes</span>(self, mid: float):
+        <span class="tok-comment"># Apply volatility and inventory adjustments</span>
+        adjusted_spread = self.base_half_spread * self.vol_adapter.spread_multiplier()
+        adjusted_size = self.quote_size * self.vol_adapter.size_multiplier()
+        bid, ask = self.inv_mgr.skewed_quotes(mid, adjusted_spread)
+
+        <span class="tok-keyword">if</span> self.inv_mgr.should_pause_quoting():
+            print(<span class="tok-string">"Inventory limit reached — pausing quotes"</span>)
+            <span class="tok-keyword">return</span>
+
+        <span class="tok-keyword">async with</span> httpx.AsyncClient() <span class="tok-keyword">as</span> client:
+            <span class="tok-comment"># Place bid and ask simultaneously</span>
+            <span class="tok-keyword">await</span> asyncio.gather(
+                client.post(f<span class="tok-string">"{BASE_URL}/api/orders"</span>, headers=HEADERS,
+                    json={<span class="tok-string">"market"</span>: self.market, <span class="tok-string">"side"</span>: <span class="tok-string">"long"</span>,
+                          <span class="tok-string">"size"</span>: adjusted_size, <span class="tok-string">"type"</span>: <span class="tok-string">"limit"</span>, <span class="tok-string">"price"</span>: bid}),
+                client.post(f<span class="tok-string">"{BASE_URL}/api/orders"</span>, headers=HEADERS,
+                    json={<span class="tok-string">"market"</span>: self.market, <span class="tok-string">"side"</span>: <span class="tok-string">"short"</span>,
+                          <span class="tok-string">"size"</span>: adjusted_size, <span class="tok-string">"type"</span>: <span class="tok-string">"limit"</span>, <span class="tok-string">"price"</span>: ask})
+            )
+
+    <span class="tok-keyword">async def</span> <span class="tok-func">run</span>(self, quote_interval_s: float = <span class="tok-number">5.0</span>):
+        <span class="tok-string">"""Main market making loop."""</span>
+        self.running = <span class="tok-keyword">True</span>
+        print(f<span class="tok-string">"MarketMaker started on {self.market}"</span>)
+
+        <span class="tok-keyword">while</span> self.running:
+            <span class="tok-keyword">try</span>:
+                mid = <span class="tok-keyword">await</span> self.get_mid_price()
+                self.vol_adapter.update(mid)
+                <span class="tok-keyword">await</span> self.place_quotes(mid)
+                <span class="tok-keyword">await</span> asyncio.sleep(quote_interval_s)
+            <span class="tok-keyword">except</span> Exception <span class="tok-keyword">as</span> e:
+                print(f<span class="tok-string">"Error in MM loop: {e}"</span>)
+                <span class="tok-keyword">await</span> asyncio.sleep(<span class="tok-number">10</span>)  <span class="tok-comment"># back off on errors</span>
+
+<span class="tok-comment"># Run it</span>
+<span class="tok-keyword">async def</span> <span class="tok-func">main</span>():
+    mm = MarketMaker(market=<span class="tok-string">"BTC-PERP"</span>, base_half_spread_bps=<span class="tok-number">8</span>, max_inventory_usdc=<span class="tok-number">500</span>)
+    <span class="tok-keyword">await</span> mm.run(quote_interval_s=<span class="tok-number">3.0</span>)
+
+asyncio.run(main())</code></pre>
+
+        <h2 id="performance-metrics">Performance Metrics</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Formula</th>
+                <th>Target Range</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Fill rate</td>
+                <td>Filled orders / Total quotes placed</td>
+                <td>15-40%</td>
+              </tr>
+              <tr>
+                <td>Realized spread</td>
+                <td>Avg sell price - avg buy price (per round-trip)</td>
+                <td>&gt; 0.05%</td>
+              </tr>
+              <tr>
+                <td>Inventory turnover</td>
+                <td>Total volume / Avg inventory size</td>
+                <td>&gt; 5x per day</td>
+              </tr>
+              <tr>
+                <td>Adverse selection ratio</td>
+                <td>Losing fills / Total fills</td>
+                <td>&lt; 30%</td>
+              </tr>
+              <tr>
+                <td>Daily P&amp;L / Capital</td>
+                <td>Net P&amp;L / Capital deployed</td>
+                <td>0.1-0.5%/day</td>
+              </tr>
+              <tr>
+                <td>Max drawdown</td>
+                <td>Peak to trough capital loss</td>
+                <td>&lt; 10%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="cta-box">
+          <h3>Start Market Making on Purple Flea Trading</h3>
+          <p>Access 275+ perpetual futures markets, maker rebates, and programmatic order management. Register as an agent and deploy your market making bot today.</p>
+          <a href="/for-agents" class="btn">Get API Key</a>
+          <a href="https://faucet.purpleflea.com" class="btn btn-outline">Claim Free USDC</a>
+        </div>
+
+        <p>Market making is a long-horizon strategy — don't evaluate it on a single day's P&amp;L. Backtest thoroughly, start with small position sizes, monitor inventory ratios obsessively, and let the law of large numbers work in your favor. The edge is real; the risk is inventory accumulation during trending markets. Manage that, and market making on Purple Flea Trading can be a durable income source for your agent.</p>
+
+      </div>
+    </article>
+
+    <!-- TOC Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#what-is-mm">1. What Is Market Making?</a></li>
+          <li><a href="#spread-mechanics">2. Spread Mechanics</a></li>
+          <li><a href="#order-book-management">3. Order Book Management</a></li>
+          <li><a href="#inventory-risk">4. Inventory Risk</a></li>
+          <li><a href="#grid-strategy">5. Grid Strategy</a></li>
+          <li><a href="#volatility-adaptation">6. Volatility Adaptation</a></li>
+          <li><a href="#funding-arbitrage">7. Funding Rate Arb</a></li>
+          <li><a href="#marketmaker-class">8. Complete MarketMaker</a></li>
+          <li><a href="#performance-metrics">9. Performance Metrics</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/casino">Casino</a>
+      <a href="/trading">Trading</a>
+      <a href="/wallet">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (scrolled / total * 100) + '%';
+    });
+
+    const headings = document.querySelectorAll('h2[id]');
+    const tocLinks = document.querySelectorAll('.toc-box a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-box a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
