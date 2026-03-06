@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Microstructure for AI Agents | Purple Flea</title>
+  <meta name="description" content="Deep dive into order book mechanics, bid-ask spreads, market impact, slippage modeling, and optimal execution algorithms for AI trading agents." />
+  <meta property="og:title" content="Market Microstructure for AI Agents" />
+  <meta property="og:description" content="Order book mechanics, market impact, slippage modeling, and optimal execution for AI agents on Purple Flea." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-market-microstructure/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-market-microstructure/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Market Microstructure for AI Agents",
+    "description": "Order book mechanics, bid-ask spread analysis, market impact, slippage modeling, and optimal execution algorithms for AI trading agents.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/agent-market-microstructure/",
+    "keywords": ["market microstructure", "order book", "AI agents", "trading", "slippage", "VWAP", "TWAP"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --surface2: #18181B;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    /* Progress bar */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.85rem !important;
+    }
+    .nav-cta:hover { background: var(--accent-dim) !important; }
+    /* Layout */
+    .page-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 4rem;
+      align-items: start;
+    }
+    /* Article */
+    article { min-width: 0; }
+    .tag-chip {
+      display: inline-block;
+      background: rgba(59,130,246,0.15);
+      color: var(--blue);
+      border: 1px solid rgba(59,130,246,0.3);
+      padding: 0.2rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .meta span::before { content: '· '; }
+    .meta span:first-child::before { content: ''; }
+    .lead {
+      font-size: 1.15rem;
+      color: var(--muted);
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 3rem 0 1rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: var(--text);
+    }
+    p { margin-bottom: 1.2rem; color: #D4D4D8; }
+    ul, ol { margin: 1rem 0 1.2rem 1.5rem; color: #D4D4D8; }
+    li { margin-bottom: 0.4rem; }
+    strong { color: var(--text); font-weight: 600; }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: var(--surface2);
+      color: var(--accent);
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      position: relative;
+    }
+    pre code {
+      background: none;
+      color: #E4E4E7;
+      font-size: 0.82rem;
+      padding: 0;
+    }
+    .callout {
+      background: rgba(168,85,247,0.08);
+      border: 1px solid rgba(168,85,247,0.25);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin: 2rem 0;
+    }
+    .callout-title {
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .callout p { color: #D4D4D8; margin: 0; }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+    .data-table th {
+      background: var(--surface2);
+      color: var(--muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .data-table td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: #D4D4D8;
+    }
+    .data-table tr:hover td { background: var(--surface); }
+    .highlight { color: var(--accent); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    /* TOC Sidebar */
+    .toc-sidebar {
+      position: sticky;
+      top: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .toc-list { list-style: none; margin: 0; padding: 0; }
+    .toc-list li { margin-bottom: 0.1rem; }
+    .toc-list a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      display: block;
+      padding: 0.3rem 0.5rem;
+      border-radius: 6px;
+      transition: all 0.2s;
+      border-left: 2px solid transparent;
+    }
+    .toc-list a:hover { color: var(--text); background: var(--surface2); }
+    .toc-list a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: rgba(168,85,247,0.08);
+    }
+    .toc-sub { padding-left: 0.75rem !important; font-size: 0.78rem !important; }
+    /* Formula box */
+    .formula {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin: 1rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--text);
+      text-align: center;
+    }
+    @media (max-width: 900px) {
+      .page-wrap { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🟣 Purple Flea</a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/register" class="nav-cta">Get API Key →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <article>
+    <div class="tag-chip">Trading</div>
+    <h1>Market Microstructure for AI Agents</h1>
+    <div class="meta">
+      <span>Purple Flea Research</span>
+      <span>March 6, 2026</span>
+      <span>22 min read</span>
+    </div>
+    <p class="lead">
+      Order books, bid-ask spreads, market impact, slippage, and optimal execution are the hidden mechanics that determine whether an AI agent profits or bleeds on every trade. This guide dismantles market microstructure from first principles and shows exactly how Purple Flea's trading engine handles agent order execution.
+    </p>
+
+    <!-- SECTION 1 -->
+    <h2 id="what-is-microstructure">What Is Market Microstructure?</h2>
+    <p>
+      Market microstructure is the study of the processes and outcomes of exchanging assets under explicit trading rules. For AI agents, understanding microstructure is not academic — it directly determines execution quality, costs, and ultimately P&amp;L. An agent that ignores microstructure will be systematically exploited by those who understand it.
+    </p>
+    <p>
+      The key questions microstructure answers for agents are: <strong>Where does the bid-ask spread come from?</strong> What happens to prices when you trade? How should you split a large order? When is a limit order better than a market order?
+    </p>
+    <div class="callout">
+      <div class="callout-title">Core Insight</div>
+      <p>Every trade you execute moves the market against you. Microstructure theory tells you by how much, why it happens, and how to minimize it. Ignoring this can turn a profitable strategy into a losing one.</p>
+    </div>
+
+    <h3>The Three Frictions</h3>
+    <p>All trading costs can be decomposed into three microstructure frictions:</p>
+    <ol>
+      <li><strong>Bid-ask spread</strong> — the explicit cost of immediacy paid to market makers</li>
+      <li><strong>Market impact</strong> — the price movement caused by your order informing the market</li>
+      <li><strong>Opportunity cost</strong> — the cost of not trading when you wanted to (unfilled limit orders)</li>
+    </ol>
+
+    <!-- SECTION 2 -->
+    <h2 id="order-book-mechanics">Order Book Mechanics</h2>
+    <p>
+      The limit order book (LOB) is the central data structure of modern markets. It aggregates all outstanding limit orders — intentions to buy or sell at a specific price — and matches them against incoming market orders.
+    </p>
+
+    <h3>Book Structure</h3>
+    <p>An order book has two sides:</p>
+    <ul>
+      <li><strong>Bid side</strong> — buyers offering to purchase at prices up to X. Sorted descending. Best bid is the highest price someone will pay.</li>
+      <li><strong>Ask side</strong> — sellers offering to sell at prices from Y upward. Sorted ascending. Best ask is the lowest price someone will accept.</li>
+    </ul>
+    <pre><code>Order Book Snapshot — BTC/USD
+
+ASK SIDE (sellers)
+Price       Size        Cumulative
+$97,450     0.8 BTC     4.2 BTC
+$97,420     1.2 BTC     3.4 BTC
+$97,400     0.5 BTC     2.2 BTC    ← Best Ask
+─────────────────────────────────
+  SPREAD: $97,400 - $97,385 = $15
+─────────────────────────────────
+$97,385     1.0 BTC     1.0 BTC    ← Best Bid
+$97,360     0.8 BTC     1.8 BTC
+$97,340     2.5 BTC     4.3 BTC
+
+BID SIDE (buyers)</code></pre>
+
+    <h3>Price Levels and Depth</h3>
+    <p>
+      Each price level aggregates all orders at that exact price. Market depth refers to how much volume sits at various price levels. Thin books (shallow depth) amplify market impact; deep books absorb large orders with minimal price movement.
+    </p>
+    <p>
+      The <strong>mid-price</strong> is the average of best bid and best ask: <code>(97400 + 97385) / 2 = $97,392.50</code>. It is the theoretical "fair value" from which slippage is measured.
+    </p>
+
+    <h3>Order Arrival Process</h3>
+    <p>
+      Market makers continuously post limit orders on both sides. Their goal is to earn the spread. Market takers arrive with market orders and consume liquidity. The book replenishes after each trade. High-frequency market makers can re-quote in microseconds; agent strategies typically operate on millisecond-to-second timescales.
+    </p>
+
+    <!-- SECTION 3 -->
+    <h2 id="bid-ask-spread">Bid-Ask Spread Analysis</h2>
+    <p>
+      The bid-ask spread is not random noise — it has economic components that reveal market information. The Glosten-Milgrom model decomposes the spread into:
+    </p>
+    <ul>
+      <li><strong>Adverse selection component</strong> — compensation for trading against informed agents (those who know the true value)</li>
+      <li><strong>Inventory component</strong> — compensation for bearing inventory risk while waiting for offsetting orders</li>
+      <li><strong>Order processing component</strong> — fixed operational costs of running a market-making operation</li>
+    </ul>
+
+    <div class="formula">
+      Spread = 2 × (α × λ + (1−α) × 0) = 2αλ
+      <br/>
+      where α = probability of informed trader, λ = information asymmetry parameter
+    </div>
+
+    <h3>Spread Dynamics Across Sessions</h3>
+    <p>Spreads widen predictably during:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Condition</th>
+          <th>Spread Effect</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Pre-announcement period</td><td class="red">+200-500%</td><td>High adverse selection risk</td></tr>
+        <tr><td>Low volume periods</td><td class="red">+50-150%</td><td>Inventory costs dominate</td></tr>
+        <tr><td>High volatility</td><td class="red">+100-300%</td><td>Both components rise</td></tr>
+        <tr><td>Deep liquid markets</td><td class="green">Minimal</td><td>Competition forces tight spreads</td></tr>
+        <tr><td>Post-open/pre-close</td><td class="green">Narrows</td><td>High volume, low maker risk</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Effective vs Quoted Spread</h3>
+    <p>
+      The <strong>quoted spread</strong> is the difference between best ask and best bid. The <strong>effective spread</strong> is twice the distance from mid-price to actual execution price. For small orders, these are equal. For large orders, effective spread exceeds quoted spread due to market impact — your order consumes multiple price levels.
+    </p>
+
+    <!-- SECTION 4 -->
+    <h2 id="market-impact">Market Impact of Agent Trades</h2>
+    <p>
+      When you buy, prices move up. When you sell, prices move down. This is market impact — the price response to your order flow. It has two components:
+    </p>
+    <ul>
+      <li><strong>Temporary impact</strong> — price displacement that reverts after the order is absorbed (liquidity is replenished)</li>
+      <li><strong>Permanent impact</strong> — price change that persists because your order was informative about fundamental value</li>
+    </ul>
+
+    <h3>The Square Root Law</h3>
+    <p>
+      Empirically, market impact follows a concave power law. The Almgren-Chriss square root law is the most widely validated model:
+    </p>
+    <div class="formula">
+      Market Impact ≈ σ × √(Q / ADV) × η
+      <br/>
+      where σ = daily volatility, Q = order size, ADV = average daily volume, η = market impact coefficient
+    </div>
+    <p>
+      The square root relationship means doubling your order size increases impact by only ~41%, not 100%. But this concavity has limits — very large orders face super-linear impact as they exhaust available liquidity.
+    </p>
+
+    <h3>Impact Simulation</h3>
+    <pre><code>import numpy as np
+
+def estimate_market_impact(
+    order_size_usd: float,
+    adv_usd: float,
+    daily_vol: float,
+    eta: float = 0.1
+) -> float:
+    """
+    Estimate market impact using square root law.
+    Returns expected price slippage as fraction of mid-price.
+    """
+    participation_rate = order_size_usd / adv_usd
+    impact = daily_vol * np.sqrt(participation_rate) * eta
+    return impact
+
+# Example: $50k order in a $2M/day market
+impact = estimate_market_impact(50_000, 2_000_000, 0.02)
+print(f"Estimated impact: {impact*100:.3f}%")
+# → Estimated impact: 0.316%
+# On a $50k order, that's $158 of market impact cost
+
+def total_execution_cost(
+    order_size_usd: float,
+    adv_usd: float,
+    daily_vol: float,
+    bid_ask_spread_bps: float,
+    commission_bps: float = 3.0
+) -> dict:
+    impact_frac = estimate_market_impact(order_size_usd, adv_usd, daily_vol)
+    spread_cost = (bid_ask_spread_bps / 10000) / 2  # pay half the spread
+    commission = commission_bps / 10000
+    total = impact_frac + spread_cost + commission
+    return {
+        "market_impact_bps": impact_frac * 10000,
+        "spread_cost_bps": spread_cost * 10000,
+        "commission_bps": commission_bps,
+        "total_cost_bps": total * 10000,
+        "total_cost_usd": order_size_usd * total
+    }
+
+costs = total_execution_cost(50_000, 2_000_000, 0.02, bid_ask_spread_bps=5)
+for k, v in costs.items():
+    print(f"  {k}: {v:.2f}")</code></pre>
+
+    <!-- SECTION 5 -->
+    <h2 id="order-types">Order Types: When to Use Each</h2>
+    <p>
+      Choosing the wrong order type is one of the most common agent trading mistakes. Each type has different cost/fill-rate tradeoffs.
+    </p>
+
+    <h3>Market Orders</h3>
+    <p>
+      Execute immediately at best available price. <strong>Guaranteed fill, no price guarantee.</strong> Market orders always pay the spread and impose market impact. Use only when immediacy is critical — reacting to fast-moving events where a missed execution is worse than a few basis points of slippage.
+    </p>
+    <pre><code># Purple Flea market order
+import requests
+
+def place_market_order(api_key: str, side: str, amount: float) -> dict:
+    resp = requests.post(
+        "https://purpleflea.com/api/v1/trade/order",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "type": "market",
+            "side": side,       # "buy" | "sell"
+            "amount": amount,
+        }
+    )
+    return resp.json()
+
+# result = place_market_order("pf_live_<your_key>", "buy", 0.1)</code></pre>
+
+    <h3>Limit Orders</h3>
+    <p>
+      Execute only at your specified price or better. <strong>No fill guarantee, price is guaranteed.</strong> Limit orders earn the spread when filled (maker rebates) but may not fill if price moves away. Optimal for patient agents who can afford to wait.
+    </p>
+
+    <h3>Stop Orders</h3>
+    <p>
+      Dormant until a trigger price is hit, then convert to market orders. Used for stop-loss risk management. Beware: stop orders are vulnerable to <strong>stop hunting</strong> — large players deliberately moving price to trigger cascades of stops before reversing. Agents should use wide stops or alternative risk management.
+    </p>
+
+    <h3>Immediate-or-Cancel (IOC) and Fill-or-Kill (FOK)</h3>
+    <p>
+      IOC: Fill as much as possible immediately, cancel remainder. Useful for partial execution without lingering open orders that reveal intent.
+    </p>
+    <p>
+      FOK: Fill the entire order immediately or cancel entirely. Prevents partial fills when a complete position is required. Higher cancel rate but no partial exposure risk.
+    </p>
+
+    <table class="data-table">
+      <thead>
+        <tr><th>Order Type</th><th>Fill Rate</th><th>Price Control</th><th>Speed</th><th>Best For</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Market</td><td class="green">100%</td><td class="red">None</td><td>Instant</td><td>News reactions</td></tr>
+        <tr><td>Limit</td><td class="yellow">Variable</td><td class="green">Exact</td><td>Async</td><td>Patient strategies</td></tr>
+        <tr><td>Stop</td><td class="green">High</td><td class="red">None at trigger</td><td>Delayed</td><td>Risk management</td></tr>
+        <tr><td>IOC</td><td class="yellow">Partial ok</td><td class="green">At limit</td><td>Instant</td><td>Large orders</td></tr>
+        <tr><td>FOK</td><td class="red">Low</td><td class="green">Exact</td><td>Instant</td><td>All-or-nothing</td></tr>
+      </tbody>
+    </table>
+
+    <!-- SECTION 6 -->
+    <h2 id="slippage-modeling">Slippage Modeling</h2>
+    <p>
+      Slippage is the difference between your expected execution price and your actual execution price. It arises from market impact, queue position, and timing. Accurate slippage modeling is essential for strategy evaluation.
+    </p>
+    <pre><code>from dataclasses import dataclass
+from typing import List, Tuple
+import numpy as np
+
+@dataclass
+class OrderBookLevel:
+    price: float
+    size: float
+
+def simulate_market_order_slippage(
+    order_size: float,
+    order_book: List[Tuple[float, float]],
+    side: str = "buy"
+) -> dict:
+    """
+    Walk the order book to simulate realistic slippage.
+    order_book: list of (price, size) tuples at each level
+    Returns slippage statistics.
+    """
+    remaining = order_size
+    total_cost = 0.0
+    levels_consumed = 0
+    execution_prices = []
+
+    for price, size in order_book:
+        if remaining <= 0:
+            break
+        fill = min(remaining, size)
+        total_cost += fill * price
+        execution_prices.append((price, fill))
+        remaining -= fill
+        levels_consumed += 1
+
+    if remaining > 0:
+        raise ValueError(f"Insufficient liquidity: {remaining:.4f} units unfilled")
+
+    avg_price = total_cost / order_size
+    best_price = order_book[0][0]
+    slippage_bps = abs(avg_price - best_price) / best_price * 10000
+
+    return {
+        "avg_execution_price": avg_price,
+        "best_available_price": best_price,
+        "slippage_bps": slippage_bps,
+        "slippage_usd": abs(avg_price - best_price) * order_size,
+        "levels_consumed": levels_consumed,
+        "execution_breakdown": execution_prices
+    }
+
+# Example order book (ask side for a buy order)
+ask_book = [
+    (97400, 0.5),
+    (97420, 1.2),
+    (97450, 0.8),
+    (97500, 2.0),
+    (97550, 1.5),
+]
+
+result = simulate_market_order_slippage(3.5, ask_book, "buy")
+print(f"Average price: ${result['avg_execution_price']:.2f}")
+print(f"Slippage: {result['slippage_bps']:.2f} bps")
+print(f"Slippage cost: ${result['slippage_usd']:.2f}")</code></pre>
+
+    <h3>Predictive Slippage Model</h3>
+    <p>
+      Real agents need to predict slippage <em>before</em> placing an order. A practical model uses order-to-ADV ratio as the primary predictor, with volatility and spread as secondary factors:
+    </p>
+    <div class="formula">
+      E[Slippage] = α × (Q/ADV)^β × σ^γ × Spread^δ
+    </div>
+    <p>
+      Calibrated on historical fills, typical parameters are α≈0.5, β≈0.6, γ≈0.8, δ≈0.3. Agents can estimate expected slippage before submission and decide whether the trade is still worth executing.
+    </p>
+
+    <!-- SECTION 7 -->
+    <h2 id="dark-pools">Dark Pools vs Lit Markets</h2>
+    <p>
+      Lit markets (exchanges) display all orders publicly in the order book. Dark pools execute trades without pre-trade price transparency — orders are matched internally at the midpoint, with results reported only after execution.
+    </p>
+    <p>
+      Dark pool advantages for large orders:
+    </p>
+    <ul>
+      <li><strong>Zero pre-trade information leakage</strong> — competitors cannot front-run your order</li>
+      <li><strong>Midpoint execution</strong> — cross the spread without paying it, saving half the bid-ask</li>
+      <li><strong>Reduced market impact</strong> — large blocks can execute without moving the public market</li>
+    </ul>
+    <p>
+      Dark pool disadvantages:
+    </p>
+    <ul>
+      <li><strong>Non-guaranteed fills</strong> — if no counterparty appears, the order doesn't fill</li>
+      <li><strong>Adverse selection risk</strong> — counterparties who want to dark-pool with you are often better informed</li>
+      <li><strong>Fragmented liquidity</strong> — harder to execute very time-sensitive trades</li>
+    </ul>
+    <div class="callout">
+      <div class="callout-title">Purple Flea Order Routing</div>
+      <p>Purple Flea's trading engine first attempts dark-pool matching for orders above 0.5 BTC equivalent. If no internal match is found within 200ms, the order is routed to lit execution with VWAP slicing. Agents can override this routing with the <code>routing</code> parameter.</p>
+    </div>
+
+    <!-- SECTION 8 -->
+    <h2 id="queue-priority">Queue Priority and Maker/Taker Dynamics</h2>
+    <p>
+      In price-time priority markets (the most common), orders at the same price are filled in time order — first in, first out. Queue position dramatically affects limit order fill rates and effective execution prices.
+    </p>
+    <h3>Maker/Taker Fee Structure</h3>
+    <p>
+      Most modern exchanges charge takers (market order submitters) and rebate or discount makers (limit order submitters who add liquidity). The economics:
+    </p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Role</th><th>How</th><th>Typical Fee</th><th>Execution Speed</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Taker</td><td>Market orders / crossing the spread</td><td class="red">−5 to −25 bps</td><td>Immediate</td></tr>
+        <tr><td>Maker</td><td>Passive limit orders resting in book</td><td class="green">0 to +5 bps rebate</td><td>Uncertain</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Agents with directional alpha should use maker orders when the signal has sufficient time horizon. Agents with short-lived signals must take liquidity immediately, absorbing the taker fee. The break-even signal strength for maker vs taker depends on expected fill probability and holding period.
+    </p>
+
+    <h3>Queue Position Modeling</h3>
+    <pre><code>def expected_fill_probability(
+    queue_position: int,
+    total_queue_size: float,
+    arrival_rate: float,
+    departure_rate: float,
+    time_horizon: float
+) -> float:
+    """
+    Simplified Poisson queue model for limit order fill probability.
+    Assumes order arrivals follow Poisson process.
+    """
+    # Volume that needs to transact at or through our level
+    required_volume = queue_position  # units ahead of us in queue
+    # Expected volume arriving in time_horizon
+    expected_arrivals = arrival_rate * time_horizon
+    # P(fill) ≈ P(cumulative arrivals >= queue_position)
+    from scipy.stats import poisson
+    prob = 1 - poisson.cdf(required_volume - 1, expected_arrivals)
+    return prob</code></pre>
+
+    <!-- SECTION 9 -->
+    <h2 id="optimal-execution">Optimal Execution Algorithms</h2>
+    <p>
+      For any order larger than ~0.1% of ADV, naive market execution is suboptimal. The Almgren-Chriss framework provides the theoretical foundation for optimal execution scheduling.
+    </p>
+
+    <h3>VWAP (Volume-Weighted Average Price)</h3>
+    <p>
+      VWAP execution targets the volume-weighted average price over a period, participating in proportion to the expected volume at each time interval. It minimizes deviation from the market's natural average, making it popular as a benchmark.
+    </p>
+    <pre><code>import numpy as np
+from typing import List
+
+def vwap_schedule(
+    total_quantity: float,
+    intraday_volume_profile: List[float],
+    num_buckets: int = 24
+) -> List[float]:
+    """
+    Generate VWAP execution schedule.
+    volume_profile: expected fraction of daily volume in each bucket.
+    Returns list of quantities to execute in each bucket.
+    """
+    profile = np.array(intraday_volume_profile)
+    profile = profile / profile.sum()  # normalize to sum to 1
+    schedule = total_quantity * profile
+    return schedule.tolist()
+
+# Typical U-shaped intraday volume profile (more volume at open/close)
+volume_profile = [
+    0.08, 0.06, 0.04, 0.03, 0.03, 0.03,  # hours 0-5
+    0.04, 0.04, 0.04, 0.04, 0.04, 0.04,  # hours 6-11
+    0.04, 0.04, 0.04, 0.04, 0.05, 0.05,  # hours 12-17
+    0.06, 0.06, 0.06, 0.07, 0.07, 0.07   # hours 18-23
+]
+schedule = vwap_schedule(10.0, volume_profile)
+print("VWAP Schedule (BTC per hour):")
+for i, qty in enumerate(schedule):
+    print(f"  Hour {i:02d}: {qty:.4f} BTC")</code></pre>
+
+    <h3>TWAP (Time-Weighted Average Price)</h3>
+    <p>
+      TWAP divides the order evenly over time, regardless of volume. Simpler than VWAP, it works well in stable markets but may execute at bad prices during volume spikes. Best for predictable, low-urgency execution.
+    </p>
+    <pre><code>def twap_schedule(
+    total_quantity: float,
+    num_intervals: int,
+    add_randomization: bool = True,
+    randomization_factor: float = 0.15
+) -> List[float]:
+    """
+    TWAP with optional randomization to reduce gaming.
+    Randomization prevents other agents from anticipating your order flow.
+    """
+    base_qty = total_quantity / num_intervals
+    if not add_randomization:
+        return [base_qty] * num_intervals
+
+    # Add uniform random noise but maintain total
+    noise = np.random.uniform(
+        -randomization_factor, randomization_factor, num_intervals
+    )
+    schedule = base_qty * (1 + noise)
+    # Rescale to preserve total quantity
+    schedule = schedule * (total_quantity / schedule.sum())
+    return schedule.clip(min=0).tolist()</code></pre>
+
+    <h3>Implementation Shortfall</h3>
+    <p>
+      Also called arrival price algorithm, implementation shortfall minimizes the difference between the decision price (when you decided to trade) and the final execution price. It trades faster at the start to reduce timing risk, accepting higher initial impact in exchange for certainty.
+    </p>
+    <div class="formula">
+      IS = (P_execution − P_decision) × Q = Delay Cost + Market Impact + Opportunity Cost
+    </div>
+
+    <h3>Almgren-Chriss Optimal Trajectory</h3>
+    <pre><code>def almgren_chriss_schedule(
+    total_quantity: float,
+    time_horizon: float,
+    n_steps: int,
+    sigma: float,      # price volatility (annualized)
+    eta: float,        # temporary impact coefficient
+    gamma: float,      # permanent impact coefficient
+    risk_aversion: float = 0.01  # lambda: tradeoff impact vs timing risk
+) -> dict:
+    """
+    Almgren-Chriss optimal liquidation trajectory.
+    Returns the optimal execution schedule minimizing E[Cost] + lambda * Var[Cost].
+    """
+    dt = time_horizon / n_steps
+    times = np.linspace(0, time_horizon, n_steps + 1)
+
+    # Characteristic time scale
+    kappa = np.sqrt(risk_aversion * sigma**2 / eta)
+
+    # Optimal inventory trajectory: hyperbolic sine decay
+    X = total_quantity * np.sinh(kappa * (time_horizon - times)) / np.sinh(kappa * time_horizon)
+    trades = -np.diff(X)  # sell schedule
+
+    expected_cost = (
+        gamma / 2 * total_quantity**2 +
+        eta * total_quantity / time_horizon * np.sum(trades**2) +
+        0.5 * risk_aversion * sigma**2 * np.sum(X[1:]**2) * dt
+    )
+
+    return {
+        "schedule": trades.tolist(),
+        "inventory_path": X.tolist(),
+        "expected_cost": expected_cost,
+        "times": times.tolist()
+    }
+
+result = almgren_chriss_schedule(
+    total_quantity=100.0,
+    time_horizon=1.0,
+    n_steps=20,
+    sigma=0.02,
+    eta=0.1,
+    gamma=0.01
+)
+print("Optimal execution schedule:")
+for i, trade in enumerate(result["schedule"][:5]):
+    print(f"  Step {i}: sell {trade:.4f} units")</code></pre>
+
+    <!-- SECTION 10 -->
+    <h2 id="purple-flea-execution">Purple Flea Trading Execution Deep-Dive</h2>
+    <p>
+      Purple Flea's trading API exposes microstructure-aware execution parameters that most agent platforms hide. This section covers how to use them.
+    </p>
+
+    <h3>Order Book Snapshot API</h3>
+    <pre><code>import requests
+
+API_KEY = "pf_live_<your_key>"
+BASE_URL = "https://purpleflea.com/api/v1"
+
+def get_order_book(symbol: str, depth: int = 20) -> dict:
+    resp = requests.get(
+        f"{BASE_URL}/market/orderbook",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        params={"symbol": symbol, "depth": depth}
+    )
+    data = resp.json()
+    return data
+
+def analyze_book(book: dict) -> dict:
+    bids = book["bids"]  # [[price, size], ...]
+    asks = book["asks"]
+    best_bid = bids[0][0]
+    best_ask = asks[0][0]
+    mid = (best_bid + best_ask) / 2
+    spread_bps = (best_ask - best_bid) / mid * 10000
+
+    bid_depth = sum(p * s for p, s in bids[:10])
+    ask_depth = sum(p * s for p, s in asks[:10])
+    imbalance = (bid_depth - ask_depth) / (bid_depth + ask_depth)
+
+    return {
+        "mid_price": mid,
+        "spread_bps": spread_bps,
+        "bid_depth_usd": bid_depth,
+        "ask_depth_usd": ask_depth,
+        "order_book_imbalance": imbalance,  # positive = buy pressure
+        "estimated_slippage_1btc": spread_bps + 5,  # rough estimate
+    }
+
+book = get_order_book("BTC-USD")
+analysis = analyze_book(book)
+print(f"Mid: ${analysis['mid_price']:.2f}")
+print(f"Spread: {analysis['spread_bps']:.2f} bps")
+print(f"Imbalance: {analysis['order_book_imbalance']:.3f}")</code></pre>
+
+    <h3>Smart Order Routing</h3>
+    <pre><code>def smart_execute(
+    api_key: str,
+    side: str,
+    total_amount: float,
+    urgency: str = "normal"  # "low" | "normal" | "high"
+) -> dict:
+    """
+    Use Purple Flea's smart order routing with microstructure awareness.
+    urgency affects aggressiveness vs cost optimization tradeoff.
+    """
+    routing_params = {
+        "low": {
+            "algorithm": "vwap",
+            "duration_minutes": 60,
+            "max_participation_rate": 0.05,
+            "use_dark_pool": True,
+        },
+        "normal": {
+            "algorithm": "twap",
+            "duration_minutes": 15,
+            "max_participation_rate": 0.15,
+            "use_dark_pool": True,
+        },
+        "high": {
+            "algorithm": "is",  # implementation shortfall
+            "duration_minutes": 3,
+            "max_participation_rate": 0.40,
+            "use_dark_pool": False,
+        }
+    }
+
+    resp = requests.post(
+        "https://purpleflea.com/api/v1/trade/smart-order",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "side": side,
+            "total_amount": total_amount,
+            **routing_params[urgency]
+        }
+    )
+    return resp.json()</code></pre>
+
+    <!-- SECTION 11 -->
+    <h2 id="python-simulator">Python Order Book Simulator</h2>
+    <p>
+      This complete order book simulator lets agents test strategies against realistic microstructure before deploying capital.
+    </p>
+    <pre><code>import heapq
+import random
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Optional
+import numpy as np
+
+@dataclass(order=True)
+class Order:
+    price: float
+    timestamp: float
+    order_id: int = field(compare=False)
+    side: str = field(compare=False)
+    size: float = field(compare=False)
+    order_type: str = field(compare=False)
+
+class OrderBookSimulator:
+    def __init__(self, initial_price: float = 50000.0, tick_size: float = 0.01):
+        self.mid_price = initial_price
+        self.tick_size = tick_size
+        self.bids = []  # max-heap (negated prices)
+        self.asks = []  # min-heap
+        self.orders = {}
+        self.next_id = 1
+        self.trades = []
+        self.time = 0.0
+        self._seed_book()
+
+    def _seed_book(self):
+        spread_ticks = 5
+        for i in range(20):
+            price = self.mid_price - (spread_ticks + i) * self.tick_size
+            size = random.uniform(0.1, 2.0)
+            self.add_limit_order("buy", price, size)
+        for i in range(20):
+            price = self.mid_price + (spread_ticks + i) * self.tick_size
+            size = random.uniform(0.1, 2.0)
+            self.add_limit_order("sell", price, size)
+
+    def add_limit_order(self, side: str, price: float, size: float) -> int:
+        oid = self.next_id
+        self.next_id += 1
+        order = Order(
+            price=-price if side == "buy" else price,
+            timestamp=self.time,
+            order_id=oid,
+            side=side,
+            size=size,
+            order_type="limit"
+        )
+        self.orders[oid] = order
+        if side == "buy":
+            heapq.heappush(self.bids, order)
+        else:
+            heapq.heappush(self.asks, order)
+        return oid
+
+    def market_order(self, side: str, size: float) -> dict:
+        fills = []
+        remaining = size
+        book = self.asks if side == "buy" else self.bids
+
+        while remaining > 0 and book:
+            best = book[0]
+            actual_price = -best.price if side == "sell" else best.price
+            fill_size = min(remaining, best.size)
+            fills.append({"price": actual_price, "size": fill_size})
+            remaining -= fill_size
+
+            if fill_size >= best.size:
+                heapq.heappop(book)
+                del self.orders[best.order_id]
+            else:
+                best.size -= fill_size
+
+        if fills:
+            avg_price = sum(f["price"] * f["size"] for f in fills) / size
+            best_price = fills[0]["price"]
+            slippage_bps = abs(avg_price - best_price) / best_price * 10000
+            self.trades.append({
+                "side": side, "size": size - remaining,
+                "avg_price": avg_price, "slippage_bps": slippage_bps
+            })
+            self.mid_price = avg_price  # simplified price update
+            return {"fills": fills, "avg_price": avg_price, "slippage_bps": slippage_bps}
+        return {"fills": [], "avg_price": None, "slippage_bps": None}
+
+# Run a quick simulation
+sim = OrderBookSimulator(initial_price=97000.0)
+result = sim.market_order("buy", 1.5)
+print(f"Bought 1.5 BTC @ avg ${result['avg_price']:.2f}")
+print(f"Slippage: {result['slippage_bps']:.2f} bps")
+print(f"Fills: {len(result['fills'])} levels")</code></pre>
+
+    <!-- SECTION 12 -->
+    <h2 id="summary">Key Takeaways for Agent Developers</h2>
+    <p>
+      Market microstructure is not an optional refinement — it is the difference between a strategy that works in simulation and one that works with real capital. The core lessons:
+    </p>
+    <ol>
+      <li><strong>Always model all-in execution costs</strong> — spread + impact + commission. Strategies that look profitable gross often aren't net.</li>
+      <li><strong>Order size relative to ADV is the critical variable.</strong> Above 1% of ADV, use algorithmic execution. Above 5%, use specialized dark-pool routing.</li>
+      <li><strong>Limit orders are cheaper but risky.</strong> Use them when your signal has a holding period longer than the expected fill time.</li>
+      <li><strong>VWAP for benchmarking, TWAP for simplicity, IS for time-sensitive signals.</strong> Match the algorithm to the signal's urgency.</li>
+      <li><strong>Order book imbalance is a leading indicator.</strong> Strong bid-side imbalance predicts short-term price appreciation — factor this into entry timing.</li>
+      <li><strong>Purple Flea's smart routing handles this automatically</strong> — but understanding the mechanics lets you tune urgency and routing parameters optimally for your strategy.</li>
+    </ol>
+
+    <div class="callout">
+      <div class="callout-title">Get Started with Purple Flea Trading</div>
+      <p>Register at <strong>purpleflea.com/register</strong>, claim your API key, and access the full trading engine with live order book data, smart routing, and microstructure analytics. Your key prefix will be <code>pf_live_</code>.</p>
+    </div>
+  </article>
+
+  <!-- TOC SIDEBAR -->
+  <aside class="toc-sidebar">
+    <div class="toc-title">Contents</div>
+    <ul class="toc-list">
+      <li><a href="#what-is-microstructure">What Is Microstructure?</a></li>
+      <li><a href="#order-book-mechanics">Order Book Mechanics</a></li>
+      <li><a href="#bid-ask-spread">Bid-Ask Spread Analysis</a></li>
+      <li><a href="#market-impact">Market Impact</a></li>
+      <li><a href="#order-types">Order Types</a></li>
+      <li><a href="#slippage-modeling">Slippage Modeling</a></li>
+      <li><a href="#dark-pools">Dark Pools vs Lit Markets</a></li>
+      <li><a href="#queue-priority">Queue Priority</a></li>
+      <li><a href="#optimal-execution">Optimal Execution</a></li>
+      <li><a href="#purple-flea-execution">Purple Flea Execution</a></li>
+      <li><a href="#python-simulator">Python Simulator</a></li>
+      <li><a href="#summary">Key Takeaways</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer style="border-top:1px solid #27272A;padding:2rem;text-align:center;color:#71717A;font-size:0.85rem;margin-top:4rem;">
+  <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents. <a href="/" style="color:#A855F7;text-decoration:none;">purpleflea.com</a></p>
+</footer>
+
+<script>
+  // Reading progress bar
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const max = document.body.scrollHeight - window.innerHeight;
+    bar.style.width = (window.scrollY / max * 100) + '%';
+  });
+
+  // TOC IntersectionObserver
+  const headings = document.querySelectorAll('h2[id]');
+  const tocLinks = document.querySelectorAll('.toc-list a');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        tocLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -75% 0px' });
+  headings.forEach(h => observer.observe(h));
+</script>
+</body>
+</html>
