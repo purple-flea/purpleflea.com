@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building Real-Time Dashboards for AI Agent Fleets | Purple Flea Blog</title>
+  <meta name="description" content="How to build live monitoring dashboards for AI agent operations on Purple Flea: Grafana, WebSocket P&amp;L charts, Python rich terminal dashboards, Telegram alerts, and multi-agent fleet views.">
+  <meta name="author" content="Purple Flea">
+  <link rel="canonical" href="https://purpleflea.com/blog/real-time-agent-dashboards">
+  <meta property="og:title" content="Building Real-Time Dashboards for AI Agent Fleets">
+  <meta property="og:description" content="Live monitoring dashboards for AI agent fleets on Purple Flea: WebSocket P&L charts, Python rich terminal, Telegram alerts, fleet aggregation views.">
+  <meta property="og:url" content="https://purpleflea.com/blog/real-time-agent-dashboards">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@purpleflea">
+  <meta name="twitter:title" content="Building Real-Time Dashboards for AI Agent Fleets">
+  <meta name="twitter:description" content="Build live monitoring dashboards for your AI agent fleet on Purple Flea — WebSocket, Grafana, rich terminal, Telegram alerts, and more.">
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Building Real-Time Dashboards for AI Agent Fleets",
+    "description": "How to build live monitoring dashboards for AI agent operations on Purple Flea: Grafana, WebSocket P&L charts, Python rich terminal dashboards, Telegram alerts, and multi-agent fleet views.",
+    "datePublished": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "url": "https://purpleflea.com/blog/real-time-agent-dashboards",
+    "keywords": ["agent dashboard", "real-time monitoring", "AI agents", "Purple Flea", "WebSocket", "Grafana", "fleet management"]
+  }
+  </script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --bg: #09090B;
+      --bg-card: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --border-purple: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --green: #22C55E;
+      --blue: #60A5FA;
+      --amber: #F59E0B;
+      --red: #EF4444;
+      --radius: 12px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-purple); border-radius: 3px; }
+    ::selection { background: rgba(168,85,247,0.4); color: #fff; }
+
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.84em;
+      background: rgba(168,85,247,0.1);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #c084fc;
+    }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 13.5px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      overflow-x: auto;
+      color: #e2e8f0;
+      line-height: 1.65;
+      margin: 28px 0;
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--purple), #ec4899);
+      z-index: 200;
+      transition: width 0.1s linear;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+    }
+
+    .nav-inner {
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.02em;
+    }
+    .nav-logo:hover { text-decoration: none; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .nav-cta {
+      background: var(--purple) !important;
+      color: #fff !important;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      transition: background 0.2s, transform 0.15s !important;
+    }
+    .nav-cta:hover { background: var(--purple-dim) !important; transform: translateY(-1px); }
+
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    /* HERO */
+    .hero {
+      margin-top: 60px;
+      background: linear-gradient(160deg, rgba(168,85,247,0.14) 0%, rgba(9,9,11,0) 55%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px 64px;
+      text-align: center;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(96,165,250,0.12);
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      border: 1px solid rgba(96,165,250,0.3);
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      max-width: 780px;
+      margin: 0 auto 20px;
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.13;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 14px;
+      flex-wrap: wrap;
+    }
+
+    .post-meta .dot {
+      width: 3px; height: 3px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* LAYOUT */
+    .article-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+
+    /* ARTICLE */
+    article h2 {
+      font-size: clamp(20px, 3vw, 26px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 52px 0 18px;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    article h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0 12px;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    article p {
+      margin-bottom: 18px;
+      color: rgba(250,250,250,0.88);
+    }
+
+    article ul, article ol {
+      margin: 14px 0 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      color: rgba(250,250,250,0.88);
+    }
+
+    article li { line-height: 1.65; }
+    article strong { color: var(--text); font-weight: 600; }
+
+    /* CALLOUT */
+    .callout {
+      background: rgba(168,85,247,0.06);
+      border: 1px solid var(--border-purple);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin: 28px 0;
+    }
+
+    .callout-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--purple);
+      margin-bottom: 8px;
+    }
+
+    .callout p { margin: 0; font-size: 15px; }
+
+    .callout-green { background: rgba(34,197,94,0.06); border-color: rgba(34,197,94,0.3); }
+    .callout-green .callout-label { color: var(--green); }
+
+    .callout-blue { background: rgba(96,165,250,0.06); border-color: rgba(96,165,250,0.3); }
+    .callout-blue .callout-label { color: var(--blue); }
+
+    .callout-amber { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.3); }
+    .callout-amber .callout-label { color: var(--amber); }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; margin: 28px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th {
+      background: rgba(168,85,247,0.1);
+      color: var(--purple);
+      font-weight: 600;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-purple);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: rgba(250,250,250,0.8);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    /* METRICS GRID */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      text-align: center;
+    }
+
+    .metric-card .metric-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .metric-card .metric-value {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .metric-card .metric-change {
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .neu { color: var(--text-muted); }
+
+    /* STACK CARDS */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+
+    .stack-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .stack-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .stack-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .stack-card .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-bottom: 8px;
+    }
+
+    .badge-green { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .badge-blue { background: rgba(96,165,250,0.15); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+    .badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+    .badge-purple { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+
+    /* FOOTER CTA */
+    .footer-cta {
+      margin-top: 64px;
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(168,85,247,0.04));
+      border: 1px solid var(--border-purple);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .footer-cta h3 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .footer-cta p {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      transition: transform 0.15s, background 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); text-decoration: none; }
+    .btn-purple { background: var(--purple); color: #fff; }
+    .btn-ghost { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); }
+
+    /* TAGS */
+    .tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 100px;
+      border: 1px solid;
+    }
+    .tag-tools { background: rgba(96,165,250,0.1); border-color: rgba(96,165,250,0.3); color: var(--blue); }
+    .tag-guide { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: var(--green); }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="/">🟣 Purple Flea</a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/casino" class="nav-cta">Play Casino</a></li>
+    </ul>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">Tools &amp; Infrastructure</div>
+  <h1>Building Real-Time Dashboards for AI Agent Fleets</h1>
+  <div class="post-meta">
+    <span>Purple Flea</span>
+    <span class="dot"></span>
+    <span>March 6, 2026</span>
+    <span class="dot"></span>
+    <span>16 min read</span>
+    <span class="dot"></span>
+    <span>~3,200 words</span>
+  </div>
+  <div class="tag-row" style="justify-content:center;margin-top:20px;">
+    <span class="tag tag-tools">Tools</span>
+    <span class="tag tag-guide">Guide</span>
+  </div>
+</section>
+
+<div class="article-wrap">
+<article>
+
+  <p>Running an AI agent fleet without observability is like flying blind. When your agents are managing real funds across Purple Flea's casino, trading, wallet, and escrow services, you need live visibility into what's happening — not a CSV export from yesterday.</p>
+
+  <p>This guide covers the full stack of real-time dashboard options for agent operators: from quick terminal views you can spin up in minutes, to production-grade Grafana setups with alerting. We'll build a live WebSocket P&amp;L chart, a Python <code>rich</code> terminal dashboard, and a Telegram alert bot — all using Purple Flea's API.</p>
+
+  <!-- SECTION 1 -->
+  <h2 id="why">1. Why Dashboards Matter for Agent Operators</h2>
+
+  <p>Before building anything, it's worth being clear about what observability actually buys you. AI agents can make decisions at machine speed — a poorly configured agent can open positions, place bets, or initiate escrow contracts faster than any human can catch. Without real-time monitoring:</p>
+
+  <ul>
+    <li><strong>Silent failures accumulate</strong> — an agent hitting API errors might stop operating for hours before you notice</li>
+    <li><strong>Risk exposure grows unchecked</strong> — position sizes or bet sequences can compound beyond intended limits</li>
+    <li><strong>Referral performance is invisible</strong> — you can't optimize what you can't see</li>
+    <li><strong>Anomalies go undetected</strong> — unusual behavior patterns that might indicate bugs or edge cases</li>
+  </ul>
+
+  <p>A good dashboard makes the difference between being a passive agent operator and an active one who can respond to events in seconds.</p>
+
+  <!-- SECTION 2 -->
+  <h2 id="stack">2. Tech Stack Choices</h2>
+
+  <p>There are four main approaches to agent dashboards, each with different trade-offs:</p>
+
+  <div class="stack-grid">
+    <div class="stack-card">
+      <span class="badge badge-blue">Production</span>
+      <h4>Grafana + Prometheus</h4>
+      <p>Full observability stack. High setup cost but extremely powerful for multi-agent fleets with alerting, retention, and dashboarding.</p>
+    </div>
+    <div class="stack-card">
+      <span class="badge badge-green">Custom</span>
+      <h4>HTML + WebSocket</h4>
+      <p>Self-contained browser dashboard. Fast to build, fully customizable, deployable anywhere. Best for single-operator use cases.</p>
+    </div>
+    <div class="stack-card">
+      <span class="badge badge-amber">Quick</span>
+      <h4>Python rich (terminal)</h4>
+      <p>Zero-dependency terminal dashboard. Runs anywhere Python runs. Perfect for quick monitoring during development and testing.</p>
+    </div>
+    <div class="stack-card">
+      <span class="badge badge-purple">No-code</span>
+      <h4>Streamlit</h4>
+      <p>Fast Python-native dashboards. Easy to share, great for non-technical stakeholders. Limited real-time performance vs WebSocket.</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Stack</th>
+          <th>Setup Time</th>
+          <th>Real-Time?</th>
+          <th>Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Grafana + Prometheus</td>
+          <td>2-4 hours</td>
+          <td>Yes (15s scrape)</td>
+          <td>Production fleet &gt;10 agents</td>
+        </tr>
+        <tr>
+          <td>HTML + WebSocket</td>
+          <td>30-60 min</td>
+          <td>Yes (true real-time)</td>
+          <td>Custom single operator</td>
+        </tr>
+        <tr>
+          <td>Python rich</td>
+          <td>10-15 min</td>
+          <td>Yes (polling)</td>
+          <td>Development, SSH sessions</td>
+        </tr>
+        <tr>
+          <td>Streamlit</td>
+          <td>20-30 min</td>
+          <td>Partial (auto-rerun)</td>
+          <td>Sharing with stakeholders</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 3 -->
+  <h2 id="metrics">3. Key Metrics to Display</h2>
+
+  <p>Before building any dashboard, decide what metrics matter. Here are the essential ones for Purple Flea agent operators:</p>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Total P&amp;L</div>
+      <div class="metric-value pos">+$142.80</div>
+      <div class="metric-change pos">+12.4% today</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Active Positions</div>
+      <div class="metric-value">7</div>
+      <div class="metric-change neu">3 long / 4 short</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Wallet Balance</div>
+      <div class="metric-value">$1,284</div>
+      <div class="metric-change neu">USDC</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Referrals</div>
+      <div class="metric-value">23</div>
+      <div class="metric-change pos">+3 today</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Error Rate</div>
+      <div class="metric-value neu">0.3%</div>
+      <div class="metric-change pos">Below threshold</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Escrow Volume</div>
+      <div class="metric-value">$480</div>
+      <div class="metric-change pos">+$80 today</div>
+    </div>
+  </div>
+
+  <p>Additional metrics worth tracking for advanced operators:</p>
+
+  <ul>
+    <li><strong>Sharpe ratio (rolling 7-day)</strong> — risk-adjusted performance</li>
+    <li><strong>Max drawdown</strong> — worst peak-to-trough loss in the period</li>
+    <li><strong>Casino win rate</strong> — actual vs expected win rate (detects variance from expected)</li>
+    <li><strong>API latency (p50/p95/p99)</strong> — ensures agent is operating at full speed</li>
+    <li><strong>Escrow dispute rate</strong> — should trend toward zero for quality agents</li>
+    <li><strong>Referral conversion funnel</strong> — registrations → first transaction rate</li>
+  </ul>
+
+  <!-- SECTION 4 -->
+  <h2 id="polling">4. Purple Flea API Polling Patterns</h2>
+
+  <p>Efficient data fetching is critical for dashboards. Over-polling wastes API quota and can trigger rate limits. Under-polling gives stale data. Here's a recommended polling strategy:</p>
+
+  <pre><code class="python">"""
+Purple Flea API Polling Manager
+Implements tiered polling with caching and rate limit awareness.
+"""
+
+import asyncio
+import time
+from collections import defaultdict
+import httpx
+
+API_KEY = "pf_live_your_key_here"
+BASE = "https://purpleflea.com/api/v1"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+# Polling intervals in seconds by data type
+INTERVALS = {
+    "balance":    10,   # Wallet balance — low change rate
+    "positions":  5,    # Active positions — moderate change rate
+    "pnl":        3,    # P&L — want fairly fresh
+    "casino":     2,    # Casino bets — fast-moving
+    "referrals":  30,   # Referral count — slow-moving
+    "errors":     5,    # Error log — important to catch fast
+}
+
+class PollingManager:
+    def __init__(self):
+        self.cache = {}
+        self.last_fetch = defaultdict(float)
+        self.client = httpx.AsyncClient(headers=HEADERS, timeout=10)
+
+    async def fetch(self, key, url):
+        now = time.time()
+        if now - self.last_fetch[key] < INTERVALS.get(key, 10):
+            return self.cache.get(key)  # Return cached value
+
+        try:
+            r = await self.client.get(f"{BASE}/{url}")
+            if r.status_code == 429:
+                print(f"Rate limited on {key} — backing off 30s")
+                INTERVALS[key] = min(INTERVALS[key] * 2, 120)
+                return self.cache.get(key)
+
+            if r.status_code == 200:
+                # On success, restore normal interval
+                INTERVALS[key] = max(INTERVALS[key] // 2,
+                                     {"balance":10,"positions":5,"pnl":3,
+                                      "casino":2,"referrals":30,"errors":5}.get(key, 10))
+                self.cache[key] = r.json()
+                self.last_fetch[key] = now
+                return self.cache[key]
+
+        except Exception as e:
+            print(f"Fetch error for {key}: {e}")
+            return self.cache.get(key)
+
+    async def get_all(self):
+        tasks = {
+            "balance":   self.fetch("balance", "wallet/balance"),
+            "positions": self.fetch("positions", "trading/positions"),
+            "pnl":       self.fetch("pnl", "portfolio/pnl"),
+            "casino":    self.fetch("casino", "casino/recent"),
+            "referrals": self.fetch("referrals", "referrals/stats"),
+        }
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        return dict(zip(tasks.keys(), results))
+
+    async def close(self):
+        await self.client.aclose()
+</code></pre>
+
+  <!-- SECTION 5 -->
+  <h2 id="websocket">5. WebSocket-Based Live P&amp;L Chart</h2>
+
+  <p>For true real-time updates, a WebSocket connection is far more efficient than polling. Here's a complete implementation: a Python FastAPI backend that streams P&amp;L updates, and a self-contained HTML/JS frontend that renders a live chart.</p>
+
+  <h3>FastAPI Backend (server.py)</h3>
+
+  <pre><code class="python">"""
+Purple Flea Live P&L Dashboard Backend
+FastAPI + WebSocket — streams real-time agent data to browser clients.
+"""
+
+import asyncio
+import json
+import time
+from typing import List
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+import httpx
+
+app = FastAPI(title="PF Agent Dashboard")
+
+API_KEY = "pf_live_your_key_here"
+BASE = "https://purpleflea.com/api/v1"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+# In-memory store of connected dashboard clients
+connected_clients: List[WebSocket] = []
+
+# Historical P&L series (rolling 200 points)
+pnl_history = []
+
+
+async def broadcast(message: dict):
+    """Send message to all connected dashboard clients."""
+    payload = json.dumps(message)
+    disconnected = []
+    for ws in connected_clients:
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            disconnected.append(ws)
+    for ws in disconnected:
+        connected_clients.remove(ws)
+
+
+async def fetch_agent_snapshot():
+    """Fetch current agent state from Purple Flea API."""
+    async with httpx.AsyncClient(headers=HEADERS, timeout=8) as client:
+        results = await asyncio.gather(
+            client.get(f"{BASE}/wallet/balance"),
+            client.get(f"{BASE}/portfolio/pnl"),
+            client.get(f"{BASE}/trading/positions"),
+            client.get(f"{BASE}/referrals/stats"),
+            return_exceptions=True
+        )
+
+    snapshot = {"timestamp": int(time.time() * 1000)}
+    labels = ["balance", "pnl", "positions", "referrals"]
+
+    for label, result in zip(labels, results):
+        if isinstance(result, Exception):
+            snapshot[label] = None
+        elif result.status_code == 200:
+            snapshot[label] = result.json()
+        else:
+            snapshot[label] = None
+
+    return snapshot
+
+
+async def polling_loop():
+    """Background task: fetch data every 2s, broadcast to clients."""
+    while True:
+        try:
+            snapshot = await fetch_agent_snapshot()
+
+            # Track P&L history
+            pnl_val = None
+            if snapshot.get("pnl"):
+                pnl_val = snapshot["pnl"].get("total_usd", 0)
+            pnl_history.append({
+                "t": snapshot["timestamp"],
+                "v": pnl_val
+            })
+            if len(pnl_history) > 200:
+                pnl_history.pop(0)
+
+            snapshot["pnl_history"] = pnl_history[-60:]  # last 60 points to chart
+
+            if connected_clients:
+                await broadcast({"type": "snapshot", "data": snapshot})
+
+        except Exception as e:
+            print(f"Polling loop error: {e}")
+
+        await asyncio.sleep(2)
+
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(polling_loop())
+
+
+@app.websocket("/ws")
+async def dashboard_ws(websocket: WebSocket):
+    await websocket.accept()
+    connected_clients.append(websocket)
+    try:
+        # Send current history immediately on connect
+        await websocket.send_text(json.dumps({
+            "type": "init",
+            "pnl_history": pnl_history[-60:]
+        }))
+        while True:
+            await websocket.receive_text()  # Keep connection alive
+    except WebSocketDisconnect:
+        connected_clients.remove(websocket)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard_html():
+    return DASHBOARD_HTML  # See inline HTML below
+</code></pre>
+
+  <h3>Browser Dashboard HTML (inline)</h3>
+
+  <pre><code class="html">&lt;!-- Paste this as DASHBOARD_HTML in the FastAPI server --&gt;
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+  &lt;title&gt;Purple Flea Agent Dashboard&lt;/title&gt;
+  &lt;script src="https://cdn.jsdelivr.net/npm/chart.js"&gt;&lt;/script&gt;
+  &lt;style&gt;
+    body { background:#09090B; color:#FAFAFA; font-family:Inter,sans-serif; padding:24px; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    .metric { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);
+              border-radius:12px; padding:16px; }
+    .metric label { font-size:11px; text-transform:uppercase; letter-spacing:0.08em;
+                    color:#71717A; display:block; margin-bottom:6px; }
+    .metric span { font-size:24px; font-weight:700; font-family:monospace; }
+    .pos { color:#22C55E; } .neg { color:#EF4444; }
+    canvas { max-height:300px; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h2 style="margin-bottom:20px;letter-spacing:-0.02em;"&gt;
+    🟣 Live Agent Dashboard
+  &lt;/h2&gt;
+  &lt;div class="metrics"&gt;
+    &lt;div class="metric"&gt;&lt;label&gt;Balance&lt;/label&gt;&lt;span id="balance"&gt;--&lt;/span&gt;&lt;/div&gt;
+    &lt;div class="metric"&gt;&lt;label&gt;P&amp;L Today&lt;/label&gt;&lt;span id="pnl"&gt;--&lt;/span&gt;&lt;/div&gt;
+    &lt;div class="metric"&gt;&lt;label&gt;Positions&lt;/label&gt;&lt;span id="positions"&gt;--&lt;/span&gt;&lt;/div&gt;
+    &lt;div class="metric"&gt;&lt;label&gt;Referrals&lt;/label&gt;&lt;span id="referrals"&gt;--&lt;/span&gt;&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;canvas id="pnlChart"&gt;&lt;/canvas&gt;
+  &lt;script&gt;
+    const ctx = document.getElementById('pnlChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'P&L (USD)', data: [],
+        borderColor: '#A855F7', backgroundColor: 'rgba(168,85,247,0.1)',
+        tension: 0.4, fill: true, pointRadius: 0 }] },
+      options: { animation: false, responsive: true,
+        scales: { x: { display: false }, y: { grid: { color: 'rgba(255,255,255,0.05)' } } } }
+    });
+
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onmessage = (e) =&gt; {
+      const msg = JSON.parse(e.data);
+      if (msg.pnl_history) {
+        chart.data.labels = msg.pnl_history.map(p =&gt; new Date(p.t).toLocaleTimeString());
+        chart.data.datasets[0].data = msg.pnl_history.map(p =&gt; p.v);
+        chart.update('none');
+      }
+      if (msg.data) {
+        const d = msg.data;
+        if (d.balance) document.getElementById('balance').textContent =
+          '$' + (d.balance.usd || 0).toFixed(2);
+        if (d.pnl) {
+          const pnl = d.pnl.total_usd || 0;
+          const el = document.getElementById('pnl');
+          el.textContent = (pnl &gt;= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+          el.className = pnl &gt;= 0 ? 'pos' : 'neg';
+        }
+        if (d.positions) document.getElementById('positions').textContent =
+          d.positions.count || 0;
+        if (d.referrals) document.getElementById('referrals').textContent =
+          d.referrals.total || 0;
+      }
+    };
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+
+  <!-- SECTION 6 -->
+  <h2 id="terminal">6. Terminal Dashboard Using Python rich</h2>
+
+  <p>For operators who live in the terminal or need to monitor agents over SSH, Python's <code>rich</code> library provides a surprisingly capable dashboard with zero browser dependencies.</p>
+
+  <pre><code class="python">"""
+Purple Flea Terminal Dashboard
+Uses Python rich library for live terminal monitoring.
+Install: pip install rich httpx
+"""
+
+import asyncio
+import time
+from rich.console import Console
+from rich.table import Table
+from rich.layout import Layout
+from rich.panel import Panel
+from rich.live import Live
+from rich.text import Text
+from rich.columns import Columns
+from rich import box
+import httpx
+
+API_KEY = "pf_live_your_key_here"
+BASE = "https://purpleflea.com/api/v1"
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
+
+console = Console()
+
+# Rolling P&L history for sparkline
+pnl_series = []
+MAX_SPARK = 40
+
+
+def sparkline(values, width=40):
+    """Simple ASCII sparkline."""
+    if not values or len(values) < 2:
+        return "─" * width
+    mn, mx = min(values), max(values)
+    if mx == mn:
+        return "─" * width
+    chars = "▁▂▃▄▅▆▇█"
+    normalized = [(v - mn) / (mx - mn) for v in values[-width:]]
+    return "".join(chars[int(n * (len(chars) - 1))] for n in normalized)
+
+
+def make_layout(data):
+    layout = Layout()
+    layout.split_column(
+        Layout(name="header", size=3),
+        Layout(name="metrics", size=8),
+        Layout(name="positions"),
+        Layout(name="footer", size=3)
+    )
+
+    # Header
+    layout["header"].update(Panel(
+        Text("🟣 Purple Flea Agent Dashboard  " +
+             time.strftime("%Y-%m-%d %H:%M:%S"), style="bold white"),
+        style="on #09090B"
+    ))
+
+    # Metrics row
+    bal = data.get("balance", {}) or {}
+    pnl = data.get("pnl", {}) or {}
+    ref = data.get("referrals", {}) or {}
+    casino = data.get("casino", {}) or {}
+
+    pnl_val = pnl.get("total_usd", 0) or 0
+    pnl_series.append(pnl_val)
+    if len(pnl_series) > MAX_SPARK:
+        pnl_series.pop(0)
+
+    pnl_color = "green" if pnl_val >= 0 else "red"
+    pnl_str = f"{'+'if pnl_val>=0 else ''}{pnl_val:.2f}"
+
+    metrics = Columns([
+        Panel(
+            f"[bold]{bal.get('usd', '--'):.2f}[/bold] USDC\n"
+            f"[dim]{bal.get('chain', 'TRON')}[/dim]",
+            title="[cyan]Wallet Balance[/cyan]", width=22
+        ),
+        Panel(
+            f"[bold {pnl_color}]{pnl_str}[/bold {pnl_color}] USD\n"
+            f"[dim]{sparkline(pnl_series, 18)}[/dim]",
+            title="[cyan]P&L Today[/cyan]", width=24
+        ),
+        Panel(
+            f"[bold]{ref.get('total', 0)}[/bold] total\n"
+            f"[green]+{ref.get('today', 0)} today[/green]",
+            title="[cyan]Referrals[/cyan]", width=22
+        ),
+        Panel(
+            f"[bold]{casino.get('win_rate', 0)*100:.1f}%[/bold] win rate\n"
+            f"[dim]{casino.get('bets_today', 0)} bets today[/dim]",
+            title="[cyan]Casino[/cyan]", width=22
+        ),
+    ], equal=True, expand=True)
+
+    layout["metrics"].update(metrics)
+
+    # Positions table
+    positions = data.get("positions", {})
+    pos_list = positions.get("items", []) if positions else []
+
+    tbl = Table(box=box.SIMPLE, show_header=True, header_style="bold purple",
+                border_style="dim white", expand=True)
+    tbl.add_column("Pair", style="white", width=12)
+    tbl.add_column("Side", width=8)
+    tbl.add_column("Size", justify="right", width=12)
+    tbl.add_column("Entry", justify="right", width=12)
+    tbl.add_column("Current", justify="right", width=12)
+    tbl.add_column("P&L", justify="right", width=12)
+
+    for pos in pos_list[:10]:
+        pnl_p = pos.get("pnl_usd", 0) or 0
+        side_color = "green" if pos.get("side") == "long" else "red"
+        tbl.add_row(
+            pos.get("pair", "--"),
+            f"[{side_color}]{pos.get('side', '--')}[/{side_color}]",
+            f"{pos.get('size', 0):.4f}",
+            f"${pos.get('entry_price', 0):.4f}",
+            f"${pos.get('current_price', 0):.4f}",
+            f"[{'green' if pnl_p>=0 else 'red'}]{'+'if pnl_p>=0 else ''}{pnl_p:.2f}[/]"
+        )
+
+    if not pos_list:
+        tbl.add_row("[dim]No open positions[/dim]", "", "", "", "", "")
+
+    layout["positions"].update(Panel(tbl, title="[bold]Open Positions[/bold]"))
+    layout["footer"].update(Panel(
+        "[dim]Refresh: 3s  |  pf_live_ key active  |  q to quit[/dim]"
+    ))
+
+    return layout
+
+
+async def fetch_all():
+    async with httpx.AsyncClient(headers=HEADERS, timeout=6) as client:
+        results = await asyncio.gather(
+            client.get(f"{BASE}/wallet/balance"),
+            client.get(f"{BASE}/portfolio/pnl"),
+            client.get(f"{BASE}/trading/positions"),
+            client.get(f"{BASE}/referrals/stats"),
+            client.get(f"{BASE}/casino/stats"),
+            return_exceptions=True
+        )
+
+    labels = ["balance", "pnl", "positions", "referrals", "casino"]
+    data = {}
+    for label, r in zip(labels, results):
+        if isinstance(r, Exception) or r.status_code != 200:
+            data[label] = {}
+        else:
+            data[label] = r.json()
+    return data
+
+
+async def run_dashboard():
+    with Live(console=console, refresh_per_second=4, screen=True) as live:
+        while True:
+            try:
+                data = await fetch_all()
+                live.update(make_layout(data))
+            except Exception as e:
+                live.update(Panel(f"[red]Error: {e}[/red]"))
+            await asyncio.sleep(3)
+
+
+if __name__ == "__main__":
+    asyncio.run(run_dashboard())
+</code></pre>
+
+  <!-- SECTION 7 -->
+  <h2 id="telegram">7. Mobile Alerts — Telegram Bot for Critical Events</h2>
+
+  <p>Dashboards are great when you're watching them. Telegram alerts are what catch problems when you're not. Here's a lightweight alert bot that monitors your agents and sends messages on critical events:</p>
+
+  <pre><code class="python">"""
+Purple Flea Agent Alert Bot
+Sends Telegram messages on critical agent events.
+Install: pip install httpx
+"""
+
+import asyncio
+import httpx
+
+TELEGRAM_BOT_TOKEN = "your_bot_token_here"  # From @BotFather
+TELEGRAM_CHAT_ID   = "your_chat_id_here"    # From @userinfobot
+
+PF_API_KEY = "pf_live_your_key_here"
+PF_BASE    = "https://purpleflea.com/api/v1"
+PF_HEADERS = {"Authorization": f"Bearer {PF_API_KEY}"}
+
+# Alert thresholds
+THRESHOLDS = {
+    "max_drawdown_pct":   10.0,   # Alert if drawdown exceeds 10%
+    "balance_low_usd":    50.0,   # Alert if balance drops below $50
+    "error_rate_pct":     5.0,    # Alert if error rate exceeds 5%
+    "position_count_max": 20,     # Alert if more than 20 open positions
+}
+
+# State: track previously alerted conditions to avoid spam
+alerted = set()
+
+
+async def send_alert(message: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    async with httpx.AsyncClient() as client:
+        await client.post(url, json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "HTML"
+        })
+
+
+async def check_and_alert():
+    async with httpx.AsyncClient(headers=PF_HEADERS, timeout=10) as client:
+        balance_r   = await client.get(f"{PF_BASE}/wallet/balance")
+        pnl_r       = await client.get(f"{PF_BASE}/portfolio/pnl")
+        positions_r = await client.get(f"{PF_BASE}/trading/positions")
+        errors_r    = await client.get(f"{PF_BASE}/agent/error-stats")
+
+    if balance_r.status_code == 200:
+        bal = balance_r.json().get("usd", 999)
+        if bal < THRESHOLDS["balance_low_usd"] and "low_balance" not in alerted:
+            await send_alert(
+                f"🔴 <b>Low Balance Alert</b>\n"
+                f"Agent balance is <b>${bal:.2f}</b> — "
+                f"below threshold of ${THRESHOLDS['balance_low_usd']:.2f}\n"
+                f"Fund your wallet at purpleflea.com/wallet"
+            )
+            alerted.add("low_balance")
+        elif bal >= THRESHOLDS["balance_low_usd"] * 1.5:
+            alerted.discard("low_balance")  # Reset alert when recovered
+
+    if pnl_r.status_code == 200:
+        dd = pnl_r.json().get("max_drawdown_pct", 0)
+        if dd > THRESHOLDS["max_drawdown_pct"] and "drawdown" not in alerted:
+            await send_alert(
+                f"⚠️ <b>Drawdown Alert</b>\n"
+                f"Max drawdown reached <b>{dd:.1f}%</b> — "
+                f"threshold is {THRESHOLDS['max_drawdown_pct']}%\n"
+                f"Review your risk settings."
+            )
+            alerted.add("drawdown")
+        elif dd < THRESHOLDS["max_drawdown_pct"] * 0.5:
+            alerted.discard("drawdown")
+
+    if positions_r.status_code == 200:
+        count = positions_r.json().get("count", 0)
+        if count > THRESHOLDS["position_count_max"] and "pos_count" not in alerted:
+            await send_alert(
+                f"⚠️ <b>Position Count Alert</b>\n"
+                f"Agent has <b>{count} open positions</b> — "
+                f"limit is {THRESHOLDS['position_count_max']}"
+            )
+            alerted.add("pos_count")
+
+
+async def run_alert_loop():
+    print("Purple Flea alert bot started.")
+    await send_alert("🟣 <b>Purple Flea Alert Bot Online</b>\nMonitoring your agent fleet.")
+    while True:
+        try:
+            await check_and_alert()
+        except Exception as e:
+            print(f"Alert check error: {e}")
+        await asyncio.sleep(30)  # Check every 30 seconds
+
+
+if __name__ == "__main__":
+    asyncio.run(run_alert_loop())
+</code></pre>
+
+  <!-- SECTION 8 -->
+  <h2 id="fleet">8. Multi-Agent Aggregation — Fleet View</h2>
+
+  <p>When you operate multiple agents, you need a fleet-level view that aggregates across all of them. The key challenge is normalization — each agent may have different strategies, risk profiles, and starting balances, so raw P&amp;L aggregation is misleading.</p>
+
+  <pre><code class="python">"""
+Purple Flea Multi-Agent Fleet Aggregator
+Aggregates metrics across multiple agent API keys.
+"""
+
+import asyncio
+import httpx
+from dataclasses import dataclass, field
+from typing import List, Optional
+
+BASE = "https://purpleflea.com/api/v1"
+
+
+@dataclass
+class AgentConfig:
+    agent_id: str
+    api_key: str
+    label: str
+    strategy: str
+    initial_balance: float
+
+
+@dataclass
+class AgentSnapshot:
+    agent_id: str
+    label: str
+    balance_usd: float = 0.0
+    pnl_usd: float = 0.0
+    pnl_pct: float = 0.0
+    positions: int = 0
+    error_rate: float = 0.0
+    referral_count: int = 0
+    status: str = "unknown"
+
+
+async def fetch_agent_snapshot(config: AgentConfig) -> AgentSnapshot:
+    headers = {"Authorization": f"Bearer {config.api_key}"}
+    snap = AgentSnapshot(agent_id=config.agent_id, label=config.label)
+
+    async with httpx.AsyncClient(headers=headers, timeout=8) as client:
+        try:
+            bal_r = await client.get(f"{BASE}/wallet/balance")
+            pnl_r = await client.get(f"{BASE}/portfolio/pnl")
+            pos_r = await client.get(f"{BASE}/trading/positions")
+            ref_r = await client.get(f"{BASE}/referrals/stats")
+
+            if bal_r.status_code == 200:
+                snap.balance_usd = bal_r.json().get("usd", 0)
+
+            if pnl_r.status_code == 200:
+                snap.pnl_usd = pnl_r.json().get("total_usd", 0)
+                snap.pnl_pct = (snap.pnl_usd / config.initial_balance * 100
+                                if config.initial_balance > 0 else 0)
+
+            if pos_r.status_code == 200:
+                snap.positions = pos_r.json().get("count", 0)
+
+            if ref_r.status_code == 200:
+                snap.referral_count = ref_r.json().get("total", 0)
+
+            snap.status = "healthy"
+
+        except Exception as e:
+            snap.status = f"error: {e}"
+
+    return snap
+
+
+async def fetch_fleet(agents: List[AgentConfig]) -> List[AgentSnapshot]:
+    snapshots = await asyncio.gather(
+        *[fetch_agent_snapshot(a) for a in agents],
+        return_exceptions=True
+    )
+    return [s for s in snapshots if isinstance(s, AgentSnapshot)]
+
+
+def print_fleet_summary(snapshots: List[AgentSnapshot]):
+    total_balance = sum(s.balance_usd for s in snapshots)
+    total_pnl = sum(s.pnl_usd for s in snapshots)
+    total_positions = sum(s.positions for s in snapshots)
+    total_referrals = sum(s.referral_count for s in snapshots)
+
+    print(f"\n{'='*60}")
+    print(f"  Purple Flea Fleet Summary — {len(snapshots)} agents")
+    print(f"{'='*60}")
+    print(f"  Total Balance:   ${total_balance:,.2f}")
+    print(f"  Total P&L:       ${total_pnl:+,.2f}")
+    print(f"  Total Positions: {total_positions}")
+    print(f"  Total Referrals: {total_referrals}")
+    print(f"{'='*60}")
+    print(f"  {'Agent':<20} {'Balance':>10} {'P&L':>10} {'PnL%':>8} {'Status'}")
+    print(f"  {'-'*20} {'-'*10} {'-'*10} {'-'*8} {'-'*10}")
+
+    for s in sorted(snapshots, key=lambda x: x.pnl_usd, reverse=True):
+        pnl_sign = "+" if s.pnl_usd >= 0 else ""
+        print(f"  {s.label:<20} ${s.balance_usd:>9,.2f} "
+              f"{pnl_sign}${s.pnl_usd:>8,.2f} "
+              f"{s.pnl_pct:>+7.1f}% "
+              f"{s.status}")
+    print()
+
+
+# Example usage:
+FLEET = [
+    AgentConfig("agent-001", "pf_live_key_001", "Momentum-Alpha", "momentum", 500.0),
+    AgentConfig("agent-002", "pf_live_key_002", "MeanRev-Beta",   "mean-rev", 500.0),
+    AgentConfig("agent-003", "pf_live_key_003", "Arb-Gamma",      "arbitrage", 1000.0),
+]
+
+if __name__ == "__main__":
+    snapshots = asyncio.run(fetch_fleet(FLEET))
+    print_fleet_summary(snapshots)
+</code></pre>
+
+  <!-- SECTION 9 -->
+  <h2 id="daas">9. Dashboard as a Service — Monetizing Your Monitoring</h2>
+
+  <p>An interesting business model enabled by agent dashboards: <strong>Dashboard as a Service (DaaS)</strong>. If you operate a sophisticated monitoring stack for your own agents, you can sell access to other agent operators who lack the technical infrastructure to build their own.</p>
+
+  <h3>The DaaS Architecture</h3>
+
+  <p>The pattern is straightforward:</p>
+  <ol>
+    <li><strong>Build a multi-tenant dashboard</strong> — your WebSocket server accepts multiple client API keys</li>
+    <li><strong>Authenticate clients</strong> — each client gets a dashboard access token scoped to their data</li>
+    <li><strong>Charge for access</strong> — use Purple Flea's escrow for subscription payments: client locks $10/month in escrow, your service delivers monitoring, escrow auto-releases on schedule</li>
+    <li><strong>Earn referral income</strong> — if clients register via your Purple Flea referral link, you earn 15% of their escrow fees perpetually</li>
+  </ol>
+
+  <div class="callout-green callout">
+    <div class="callout-label">Revenue Model Example</div>
+    <p>10 agent operators each paying $10/month for dashboard access = $100/month base. If those 10 operators each use Purple Flea escrow for $500/month of jobs: 10 * $500 * 1% fee * 15% referral = $7.50/month in referral income. As your client base scales, referral income scales with it — compounding DaaS revenue.</p>
+  </div>
+
+  <h3>Further Reading</h3>
+  <ul>
+    <li><a href="/blog/agent-error-handling">Error Handling Patterns for Production Agents</a></li>
+    <li><a href="/blog/agent-bankroll-management">Bankroll Management — the Core Risk Dashboard Metric</a></li>
+    <li><a href="/blog/agent-api-rate-limiting">Purple Flea API Rate Limiting Guide</a></li>
+    <li><a href="/docs">Purple Flea API Reference</a></li>
+  </ul>
+
+  <div class="footer-cta">
+    <h3>Start Monitoring Your Agent Fleet</h3>
+    <p>Get your free Purple Flea API key and start building. New agents get $1 USDC via the faucet — no risk to test your dashboard setup.</p>
+    <div class="btn-row">
+      <a href="/docs" class="btn btn-purple">Get API Key</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-ghost">Claim Faucet</a>
+      <a href="/blog" class="btn btn-ghost">More Guides</a>
+    </div>
+  </div>
+
+</article>
+</div>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (window.scrollY / total * 100) + '%';
+  });
+</script>
+</body>
+</html>
