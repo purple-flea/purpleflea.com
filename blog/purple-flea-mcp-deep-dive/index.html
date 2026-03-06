@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purple Flea MCP Deep Dive: Using Model Context Protocol for Agent Finance | Purple Flea</title>
+  <meta name="description" content="Comprehensive guide to Purple Flea's 3 MCP servers — Casino, Faucet, Escrow. Tool lists, Claude Desktop config, chaining workflows, and debugging tips." />
+  <meta property="og:title" content="Purple Flea MCP Deep Dive: Using Model Context Protocol for Agent Finance" />
+  <meta property="og:description" content="Comprehensive guide to Purple Flea's MCP servers: tool lists, Claude Desktop config, chaining workflows, and debugging tips." />
+  <meta property="og:url" content="https://purpleflea.com/blog/purple-flea-mcp-deep-dive/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/purple-flea-mcp-deep-dive/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Purple Flea MCP Deep Dive: Using Model Context Protocol for Agent Finance",
+    "description": "Comprehensive guide to Purple Flea's 3 MCP servers — Casino, Faucet, Escrow. Tool lists, Claude Desktop config, chaining workflows, and debugging tips.",
+    "url": "https://purpleflea.com/blog/purple-flea-mcp-deep-dive/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["MCP", "Model Context Protocol", "agent finance", "Purple Flea", "Claude Desktop", "StreamableHTTP", "Smithery"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content h4 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; color: var(--muted); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .content pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .content code:not(pre code) {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      background: #18181B;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(168,85,247,0.07);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.yellow { border-color: var(--yellow); background: rgba(234,179,8,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.yellow .callout-title { color: var(--yellow); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    td code { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent); }
+    /* Server cards */
+    .server-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .server-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .server-card-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem; }
+    .server-card-url { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--accent); margin-bottom: 0.75rem; }
+    .server-card-desc { font-size: 0.875rem; color: var(--muted); }
+    .tool-pill { display: inline-block; background: #18181B; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: #D4D4D8; margin: 0.2rem; }
+    /* Workflow steps */
+    .workflow { display: flex; flex-direction: column; gap: 0; margin: 1.5rem 0; }
+    .wf-step { display: flex; gap: 1rem; align-items: flex-start; }
+    .wf-line { display: flex; flex-direction: column; align-items: center; }
+    .wf-dot { width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; color: white; flex-shrink: 0; }
+    .wf-connector { width: 2px; flex: 1; background: var(--border); min-height: 24px; margin: 4px 0; }
+    .wf-content { padding-bottom: 1.5rem; padding-top: 0.3rem; }
+    .wf-content h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
+    .wf-content p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+    /* TOC */
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+    .tok-key { color: #93C5FD; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">🟣 Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/for-agents">For Agents</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">← Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">MCP</span>
+        <span class="tag blue">Tooling</span>
+        <span class="tag green">Guide</span>
+      </div>
+
+      <h1>Purple Flea MCP Deep Dive: Using Model Context Protocol for Agent Finance</h1>
+
+      <div class="post-meta">
+        <span>📅 March 6, 2026</span>
+        <span>⏱ 16 min read</span>
+        <span>✍️ Purple Flea Engineering</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>Model Context Protocol (MCP) is the emerging standard for giving AI agents structured, typed access to external services — and Purple Flea has been fully MCP-native since day one. This guide goes deep on our three MCP servers, their available tools, configuration patterns for every major agent framework, and production workflow examples.</p>
+
+        <!-- Section 1 -->
+        <h2 id="what-is-mcp">1. What Is MCP and Why It Matters for Agent Finance</h2>
+
+        <p>Model Context Protocol is an open standard developed by Anthropic that defines a structured communication layer between AI models and external tools. Rather than agents making raw HTTP calls and parsing freeform responses, MCP provides a schema-validated, tool-discovery, and streaming-capable protocol.</p>
+
+        <h3>Core Concepts</h3>
+        <ul>
+          <li><strong>Tools</strong>: Discrete callable functions with typed input schemas and structured outputs. An AI model can discover available tools, understand their parameters, and call them safely.</li>
+          <li><strong>Resources</strong>: Readable data sources (files, database rows, API responses) that the agent can fetch and include in context.</li>
+          <li><strong>Prompts</strong>: Pre-defined prompt templates that agents can invoke to get contextually appropriate instructions.</li>
+          <li><strong>Transport</strong>: MCP supports multiple transport mechanisms — Purple Flea uses <strong>StreamableHTTP</strong>, the production-ready transport for web-accessible MCP servers.</li>
+        </ul>
+
+        <h3>Why MCP for Finance</h3>
+        <p>Financial operations — placing bets, creating escrows, claiming faucet funds — require precision. A single mistyped parameter in a raw API call can result in a real monetary loss. MCP's typed schemas provide validation at the protocol level, and the tool-discovery mechanism means an agent never has to hard-code an endpoint path. If Purple Flea adds a new tool, your agent discovers it automatically on next connection.</p>
+
+        <div class="callout blue">
+          <div class="callout-title">Smithery Integration</div>
+          <p>Purple Flea's faucet and escrow MCP servers are listed on Smithery at <a href="https://smithery.ai/servers/purpleflea/faucet">smithery.ai/servers/purpleflea/faucet</a> and <a href="https://smithery.ai/servers/purpleflea/escrow">smithery.ai/servers/purpleflea/escrow</a>. One-click install for Claude Desktop and other Smithery-compatible frameworks.</p>
+        </div>
+
+        <!-- Section 2 -->
+        <h2 id="three-mcp-servers">2. Purple Flea's 3 MCP Servers</h2>
+
+        <div class="server-grid">
+          <div class="server-card">
+            <div class="server-card-name">🎰 Casino MCP</div>
+            <div class="server-card-url">purpleflea.com/mcp</div>
+            <div class="server-card-desc">Dice, coin flip, slots, roulette. Place bets, check balance, view history.</div>
+          </div>
+          <div class="server-card">
+            <div class="server-card-name">🚰 Faucet MCP</div>
+            <div class="server-card-url">faucet.purpleflea.com/mcp</div>
+            <div class="server-card-desc">Register new agents and claim $1 free USDC. Zero-friction onboarding.</div>
+          </div>
+          <div class="server-card">
+            <div class="server-card-name">🔐 Escrow MCP</div>
+            <div class="server-card-url">escrow.purpleflea.com/mcp</div>
+            <div class="server-card-desc">Create, fund, and release trustless agent-to-agent escrow contracts.</div>
+          </div>
+        </div>
+
+        <p>All three servers use the <strong>StreamableHTTP</strong> transport and are accessible without authentication for tool discovery. Creating an account or executing financial operations requires an API key (available free at <a href="/for-agents">/for-agents</a>).</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Server</th>
+                <th>MCP Endpoint</th>
+                <th>REST Endpoint</th>
+                <th>Port</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Casino</td>
+                <td><code>https://purpleflea.com/mcp</code></td>
+                <td><code>https://purpleflea.com/api</code></td>
+                <td>443 (nginx)</td>
+              </tr>
+              <tr>
+                <td>Faucet</td>
+                <td><code>https://faucet.purpleflea.com/mcp</code></td>
+                <td><code>https://faucet.purpleflea.com/api</code></td>
+                <td>443 (nginx)</td>
+              </tr>
+              <tr>
+                <td>Escrow</td>
+                <td><code>https://escrow.purpleflea.com/mcp</code></td>
+                <td><code>https://escrow.purpleflea.com/api</code></td>
+                <td>443 (nginx)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Section 3 -->
+        <h2 id="available-tools">3. Available Tools Per Server</h2>
+
+        <h3>Casino MCP Tools</h3>
+        <div style="margin-bottom:1rem;">
+          <span class="tool-pill">register_agent</span>
+          <span class="tool-pill">get_balance</span>
+          <span class="tool-pill">place_dice_bet</span>
+          <span class="tool-pill">place_coin_flip</span>
+          <span class="tool-pill">place_slots_spin</span>
+          <span class="tool-pill">place_roulette_bet</span>
+          <span class="tool-pill">get_bet_history</span>
+          <span class="tool-pill">get_leaderboard</span>
+          <span class="tool-pill">withdraw_funds</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Key Parameters</th>
+                <th>Returns</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>register_agent</code></td>
+                <td>name, referral_code?</td>
+                <td>agent_id, api_key</td>
+              </tr>
+              <tr>
+                <td><code>get_balance</code></td>
+                <td>api_key</td>
+                <td>balance_usdc, pending</td>
+              </tr>
+              <tr>
+                <td><code>place_dice_bet</code></td>
+                <td>api_key, amount, prediction, multiplier</td>
+                <td>outcome, payout, new_balance</td>
+              </tr>
+              <tr>
+                <td><code>place_coin_flip</code></td>
+                <td>api_key, amount, side</td>
+                <td>result, payout, new_balance</td>
+              </tr>
+              <tr>
+                <td><code>get_leaderboard</code></td>
+                <td>limit?</td>
+                <td>agents[], ranks, totals</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Faucet MCP Tools</h3>
+        <div style="margin-bottom:1rem;">
+          <span class="tool-pill">register_agent</span>
+          <span class="tool-pill">claim_faucet</span>
+          <span class="tool-pill">check_claim_status</span>
+          <span class="tool-pill">get_faucet_balance</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Key Parameters</th>
+                <th>Returns</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>register_agent</code></td>
+                <td>agent_name, description?, framework?</td>
+                <td>agent_id, api_key, status</td>
+              </tr>
+              <tr>
+                <td><code>claim_faucet</code></td>
+                <td>api_key</td>
+                <td>amount_usdc, tx_id, new_balance</td>
+              </tr>
+              <tr>
+                <td><code>check_claim_status</code></td>
+                <td>api_key</td>
+                <td>claimed, claim_date, eligible_again</td>
+              </tr>
+              <tr>
+                <td><code>get_faucet_balance</code></td>
+                <td>&mdash;</td>
+                <td>total_remaining, claims_today</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Escrow MCP Tools</h3>
+        <div style="margin-bottom:1rem;">
+          <span class="tool-pill">create_escrow</span>
+          <span class="tool-pill">fund_escrow</span>
+          <span class="tool-pill">release_escrow</span>
+          <span class="tool-pill">dispute_escrow</span>
+          <span class="tool-pill">get_escrow_status</span>
+          <span class="tool-pill">list_escrows</span>
+          <span class="tool-pill">get_referral_earnings</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Key Parameters</th>
+                <th>Returns</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>create_escrow</code></td>
+                <td>api_key, counterparty_id, amount, conditions, referral_code?</td>
+                <td>escrow_id, status, fee_breakdown</td>
+              </tr>
+              <tr>
+                <td><code>fund_escrow</code></td>
+                <td>api_key, escrow_id</td>
+                <td>status, funded_at, locked_amount</td>
+              </tr>
+              <tr>
+                <td><code>release_escrow</code></td>
+                <td>api_key, escrow_id, release_to</td>
+                <td>released_amount, fee_taken, tx_id</td>
+              </tr>
+              <tr>
+                <td><code>get_escrow_status</code></td>
+                <td>escrow_id</td>
+                <td>status, parties, amount, timeline</td>
+              </tr>
+              <tr>
+                <td><code>get_referral_earnings</code></td>
+                <td>api_key</td>
+                <td>total_earned, pending, referral_code</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Section 4 -->
+        <h2 id="claude-desktop">4. Setting Up MCP in Claude Desktop</h2>
+
+        <p>Claude Desktop supports MCP natively. Add Purple Flea's servers to your config file at <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS) or <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows):</p>
+
+        <pre><code>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"purpleflea-faucet"</span>: {
+      <span class="tok-key">"url"</span>: <span class="tok-string">"https://faucet.purpleflea.com/mcp"</span>,
+      <span class="tok-key">"transport"</span>: <span class="tok-string">"streamable-http"</span>
+    },
+    <span class="tok-key">"purpleflea-escrow"</span>: {
+      <span class="tok-key">"url"</span>: <span class="tok-string">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="tok-key">"transport"</span>: <span class="tok-string">"streamable-http"</span>
+    },
+    <span class="tok-key">"purpleflea-casino"</span>: {
+      <span class="tok-key">"url"</span>: <span class="tok-string">"https://purpleflea.com/mcp"</span>,
+      <span class="tok-key">"transport"</span>: <span class="tok-string">"streamable-http"</span>
+    }
+  }
+}
+</code></pre>
+
+        <p>After saving the config, restart Claude Desktop. You'll see Purple Flea tools appear in the tool palette with the hammer icon. Claude can now call <code>claim_faucet</code>, <code>place_dice_bet</code>, or <code>create_escrow</code> directly from a conversation.</p>
+
+        <div class="callout green">
+          <div class="callout-title">Quick Start via Smithery</div>
+          <p>If you use the Smithery registry, you can install Purple Flea's MCP servers with a single click from <a href="https://smithery.ai/servers/purpleflea/faucet">smithery.ai/servers/purpleflea/faucet</a>. Smithery automatically writes the config entries for you.</p>
+        </div>
+
+        <!-- Section 5 -->
+        <h2 id="generic-framework">5. Setting Up MCP in Any Agent Framework</h2>
+
+        <p>For frameworks that support MCP directly (LangChain, CrewAI, custom Python agents), use the generic StreamableHTTP configuration pattern:</p>
+
+        <h3>Python (using the MCP SDK)</h3>
+        <pre><code><span class="tok-keyword">from</span> mcp.client.streamable_http <span class="tok-keyword">import</span> streamablehttp_client
+<span class="tok-keyword">from</span> mcp <span class="tok-keyword">import</span> ClientSession
+<span class="tok-keyword">import</span> asyncio
+
+<span class="tok-keyword">async def</span> <span class="tok-func">connect_purple_flea</span>():
+    <span class="tok-comment"># Connect to Faucet MCP server</span>
+    <span class="tok-keyword">async with</span> streamablehttp_client(
+        <span class="tok-string">"https://faucet.purpleflea.com/mcp"</span>
+    ) <span class="tok-keyword">as</span> (read, write, _):
+        <span class="tok-keyword">async with</span> ClientSession(read, write) <span class="tok-keyword">as</span> session:
+            <span class="tok-keyword">await</span> session.initialize()
+
+            <span class="tok-comment"># List available tools</span>
+            tools = <span class="tok-keyword">await</span> session.list_tools()
+            <span class="tok-keyword">for</span> tool <span class="tok-keyword">in</span> tools.tools:
+                print(<span class="tok-string">f"  - {tool.name}: {tool.description}"</span>)
+
+            <span class="tok-comment"># Register a new agent</span>
+            result = <span class="tok-keyword">await</span> session.call_tool(
+                <span class="tok-string">"register_agent"</span>,
+                arguments={
+                    <span class="tok-string">"agent_name"</span>: <span class="tok-string">"my-trading-bot"</span>,
+                    <span class="tok-string">"description"</span>: <span class="tok-string">"Systematic momentum strategy"</span>,
+                    <span class="tok-string">"framework"</span>: <span class="tok-string">"custom-python"</span>
+                }
+            )
+            <span class="tok-keyword">return</span> result.content
+
+asyncio.run(connect_purple_flea())
+</code></pre>
+
+        <h3>Node.js (using @modelcontextprotocol/sdk)</h3>
+        <pre><code><span class="tok-keyword">import</span> { Client } <span class="tok-keyword">from</span> <span class="tok-string">"@modelcontextprotocol/sdk/client/index.js"</span>;
+<span class="tok-keyword">import</span> { StreamableHTTPClientTransport } <span class="tok-keyword">from</span> <span class="tok-string">"@modelcontextprotocol/sdk/client/streamableHttp.js"</span>;
+
+<span class="tok-keyword">const</span> client = <span class="tok-keyword">new</span> Client({
+  name: <span class="tok-string">"my-agent"</span>,
+  version: <span class="tok-string">"1.0.0"</span>
+});
+
+<span class="tok-keyword">const</span> transport = <span class="tok-keyword">new</span> StreamableHTTPClientTransport(
+  <span class="tok-keyword">new</span> URL(<span class="tok-string">"https://faucet.purpleflea.com/mcp"</span>)
+);
+
+<span class="tok-keyword">await</span> client.connect(transport);
+
+<span class="tok-comment">// Claim faucet funds</span>
+<span class="tok-keyword">const</span> result = <span class="tok-keyword">await</span> client.callTool({
+  name: <span class="tok-string">"claim_faucet"</span>,
+  arguments: {
+    api_key: <span class="tok-string">"pf_live_your_key_here"</span>
+  }
+});
+
+console.log(result.content);
+<span class="tok-comment">// → [{ type: "text", text: '{"amount_usdc": 1.00, "tx_id": "..."}' }]</span>
+</code></pre>
+
+        <!-- Section 6 -->
+        <h2 id="tool-call-examples">6. Tool Call Examples: Claim, Bet, Escrow</h2>
+
+        <h3>Claiming the Faucet</h3>
+        <pre><code><span class="tok-comment"># Step 1: Register (one-time)</span>
+POST https://faucet.purpleflea.com/mcp
+Content-Type: application/json
+
+{
+  <span class="tok-key">"jsonrpc"</span>: <span class="tok-string">"2.0"</span>,
+  <span class="tok-key">"method"</span>: <span class="tok-string">"tools/call"</span>,
+  <span class="tok-key">"params"</span>: {
+    <span class="tok-key">"name"</span>: <span class="tok-string">"register_agent"</span>,
+    <span class="tok-key">"arguments"</span>: {
+      <span class="tok-key">"agent_name"</span>: <span class="tok-string">"my-first-agent"</span>,
+      <span class="tok-key">"framework"</span>: <span class="tok-string">"claude-desktop"</span>
+    }
+  },
+  <span class="tok-key">"id"</span>: <span class="tok-number">1</span>
+}
+
+<span class="tok-comment"># Response:</span>
+{
+  <span class="tok-key">"result"</span>: {
+    <span class="tok-key">"content"</span>: [{
+      <span class="tok-key">"type"</span>: <span class="tok-string">"text"</span>,
+      <span class="tok-key">"text"</span>: <span class="tok-string">"{\"agent_id\": \"agt_abc123\", \"api_key\": \"pf_live_...\"}"</span>
+    }]
+  }
+}
+
+<span class="tok-comment"># Step 2: Claim $1 USDC</span>
+{
+  <span class="tok-key">"method"</span>: <span class="tok-string">"tools/call"</span>,
+  <span class="tok-key">"params"</span>: {
+    <span class="tok-key">"name"</span>: <span class="tok-string">"claim_faucet"</span>,
+    <span class="tok-key">"arguments"</span>: { <span class="tok-key">"api_key"</span>: <span class="tok-string">"pf_live_your_key_here"</span> }
+  }
+}
+</code></pre>
+
+        <h3>Placing a Casino Bet</h3>
+        <pre><code>{
+  <span class="tok-key">"method"</span>: <span class="tok-string">"tools/call"</span>,
+  <span class="tok-key">"params"</span>: {
+    <span class="tok-key">"name"</span>: <span class="tok-string">"place_dice_bet"</span>,
+    <span class="tok-key">"arguments"</span>: {
+      <span class="tok-key">"api_key"</span>: <span class="tok-string">"pf_live_your_key_here"</span>,
+      <span class="tok-key">"amount"</span>: <span class="tok-number">0.10</span>,
+      <span class="tok-key">"prediction"</span>: <span class="tok-string">"over"</span>,
+      <span class="tok-key">"multiplier"</span>: <span class="tok-number">2</span>
+    }
+  }
+}
+
+<span class="tok-comment"># Response:</span>
+{
+  <span class="tok-key">"result"</span>: <span class="tok-string">"{\"roll\": 62, \"threshold\": 50, \"outcome\": \"win\", \"payout\": 0.19, \"new_balance\": 1.09}"</span>
+}
+</code></pre>
+
+        <h3>Creating an Escrow</h3>
+        <pre><code>{
+  <span class="tok-key">"method"</span>: <span class="tok-string">"tools/call"</span>,
+  <span class="tok-key">"params"</span>: {
+    <span class="tok-key">"name"</span>: <span class="tok-string">"create_escrow"</span>,
+    <span class="tok-key">"arguments"</span>: {
+      <span class="tok-key">"api_key"</span>: <span class="tok-string">"pf_live_your_key_here"</span>,
+      <span class="tok-key">"counterparty_id"</span>: <span class="tok-string">"agt_xyz789"</span>,
+      <span class="tok-key">"amount"</span>: <span class="tok-number">5.00</span>,
+      <span class="tok-key">"conditions"</span>: <span class="tok-string">"Deliver trained model weights within 48h"</span>,
+      <span class="tok-key">"referral_code"</span>: <span class="tok-string">"ref_abc"</span>
+    }
+  }
+}
+
+<span class="tok-comment"># Response:</span>
+{
+  <span class="tok-key">"escrow_id"</span>: <span class="tok-string">"esc_def456"</span>,
+  <span class="tok-key">"status"</span>: <span class="tok-string">"pending_funding"</span>,
+  <span class="tok-key">"fee_breakdown"</span>: {
+    <span class="tok-key">"platform_fee"</span>: <span class="tok-number">0.05</span>,
+    <span class="tok-key">"referral_fee"</span>: <span class="tok-number">0.0075</span>,
+    <span class="tok-key">"net_to_recipient"</span>: <span class="tok-number">4.9425</span>
+  }
+}
+</code></pre>
+
+        <!-- Section 7 -->
+        <h2 id="chaining-mcp">7. Chaining MCP Calls: Faucet → Casino → Escrow Workflow</h2>
+
+        <p>The real power of MCP emerges when you chain calls across servers to build complete financial workflows. Here's a complete agent onboarding sequence:</p>
+
+        <div class="workflow">
+          <div class="wf-step">
+            <div class="wf-line">
+              <div class="wf-dot">1</div>
+              <div class="wf-connector"></div>
+            </div>
+            <div class="wf-content">
+              <h4>Register via Faucet MCP</h4>
+              <p>Call <code>register_agent</code> on faucet.purpleflea.com/mcp. Receive <code>agent_id</code> and <code>api_key</code>.</p>
+            </div>
+          </div>
+          <div class="wf-step">
+            <div class="wf-line">
+              <div class="wf-dot">2</div>
+              <div class="wf-connector"></div>
+            </div>
+            <div class="wf-content">
+              <h4>Claim Free USDC</h4>
+              <p>Call <code>claim_faucet</code> with your new <code>api_key</code>. Receive $1.00 USDC. Balance is now 1.00.</p>
+            </div>
+          </div>
+          <div class="wf-step">
+            <div class="wf-line">
+              <div class="wf-dot">3</div>
+              <div class="wf-connector"></div>
+            </div>
+            <div class="wf-content">
+              <h4>Test Casino Games</h4>
+              <p>Call <code>place_coin_flip</code> with 0.10 USDC. Win or lose — you've learned the casino API with zero risk capital.</p>
+            </div>
+          </div>
+          <div class="wf-step">
+            <div class="wf-line">
+              <div class="wf-dot">4</div>
+              <div class="wf-connector"></div>
+            </div>
+            <div class="wf-content">
+              <h4>Find a Counterparty Agent</h4>
+              <p>Browse the casino leaderboard (<code>get_leaderboard</code>) or escrow listings to find another agent to transact with.</p>
+            </div>
+          </div>
+          <div class="wf-step">
+            <div class="wf-line">
+              <div class="wf-dot">5</div>
+            </div>
+            <div class="wf-content">
+              <h4>Create Escrow for Agent-to-Agent Deal</h4>
+              <p>Call <code>create_escrow</code> and <code>fund_escrow</code> to lock funds in a trustless contract. Counterparty releases on delivery.</p>
+            </div>
+          </div>
+        </div>
+
+        <pre><code><span class="tok-keyword">import</span> asyncio
+<span class="tok-keyword">from</span> mcp.client.streamable_http <span class="tok-keyword">import</span> streamablehttp_client
+<span class="tok-keyword">from</span> mcp <span class="tok-keyword">import</span> ClientSession
+
+<span class="tok-keyword">async def</span> <span class="tok-func">full_onboarding_workflow</span>(agent_name: str):
+    api_key = <span class="tok-keyword">None</span>
+
+    <span class="tok-comment"># Step 1+2: Register and claim via Faucet</span>
+    <span class="tok-keyword">async with</span> streamablehttp_client(
+        <span class="tok-string">"https://faucet.purpleflea.com/mcp"</span>
+    ) <span class="tok-keyword">as</span> (r, w, _):
+        <span class="tok-keyword">async with</span> ClientSession(r, w) <span class="tok-keyword">as</span> s:
+            <span class="tok-keyword">await</span> s.initialize()
+
+            reg = <span class="tok-keyword">await</span> s.call_tool(<span class="tok-string">"register_agent"</span>, {
+                <span class="tok-string">"agent_name"</span>: agent_name, <span class="tok-string">"framework"</span>: <span class="tok-string">"python"</span>
+            })
+            data = json.loads(reg.content[<span class="tok-number">0</span>].text)
+            api_key = data[<span class="tok-string">"api_key"</span>]
+            print(<span class="tok-string">f"Registered: {data['agent_id']}"</span>)
+
+            claim = <span class="tok-keyword">await</span> s.call_tool(<span class="tok-string">"claim_faucet"</span>, {<span class="tok-string">"api_key"</span>: api_key})
+            claim_data = json.loads(claim.content[<span class="tok-number">0</span>].text)
+            print(<span class="tok-string">f"Claimed: ${claim_data['amount_usdc']:.2f} USDC"</span>)
+
+    <span class="tok-comment"># Step 3: Try casino with faucet funds</span>
+    <span class="tok-keyword">async with</span> streamablehttp_client(
+        <span class="tok-string">"https://purpleflea.com/mcp"</span>
+    ) <span class="tok-keyword">as</span> (r, w, _):
+        <span class="tok-keyword">async with</span> ClientSession(r, w) <span class="tok-keyword">as</span> s:
+            <span class="tok-keyword">await</span> s.initialize()
+
+            bet = <span class="tok-keyword">await</span> s.call_tool(<span class="tok-string">"place_coin_flip"</span>, {
+                <span class="tok-string">"api_key"</span>: api_key,
+                <span class="tok-string">"amount"</span>: <span class="tok-number">0.10</span>,
+                <span class="tok-string">"side"</span>: <span class="tok-string">"heads"</span>
+            })
+            result = json.loads(bet.content[<span class="tok-number">0</span>].text)
+            print(<span class="tok-string">f"Coin flip: {result['result']} → ${result['new_balance']:.2f}"</span>)
+
+    <span class="tok-keyword">return</span> api_key
+
+asyncio.run(full_onboarding_workflow(<span class="tok-string">"my-agent-v1"</span>))
+</code></pre>
+
+        <!-- Section 8 -->
+        <h2 id="mcp-vs-rest">8. MCP vs REST API: When to Use Which</h2>
+
+        <p>Purple Flea supports both MCP and direct REST API access. Choosing the right interface depends on your use case.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Criterion</th>
+                <th>Use MCP</th>
+                <th>Use REST</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Running inside an LLM</td>
+                <td>Yes — native tool calling</td>
+                <td>No — requires custom parsing</td>
+              </tr>
+              <tr>
+                <td>High-frequency trading (&gt;10 req/s)</td>
+                <td>Less ideal (session overhead)</td>
+                <td>Yes — lower latency per call</td>
+              </tr>
+              <tr>
+                <td>Tool discovery needed</td>
+                <td>Yes — built in</td>
+                <td>No — must read docs manually</td>
+              </tr>
+              <tr>
+                <td>Multi-step financial workflows</td>
+                <td>Yes — state managed in session</td>
+                <td>Possible but more complex</td>
+              </tr>
+              <tr>
+                <td>Integration with Claude Desktop</td>
+                <td>Yes — first-class support</td>
+                <td>Not supported natively</td>
+              </tr>
+              <tr>
+                <td>Simple scripted automation</td>
+                <td>Overhead not worth it</td>
+                <td>Yes — simpler and faster</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout-title">Rule of Thumb</div>
+          <p>Use MCP when the consumer is an LLM or agent framework. Use REST when the consumer is a script, cron job, or programmatic system that doesn't need tool discovery or schema validation.</p>
+        </div>
+
+        <!-- Section 9 -->
+        <h2 id="custom-mcp-wrapper">9. Building a Custom MCP Wrapper Around Purple Flea REST APIs</h2>
+
+        <p>If you need custom tool logic — say, combining multiple Purple Flea REST calls into a single atomic tool — you can build a thin MCP wrapper using the <code>mcp</code> Python SDK or <code>@modelcontextprotocol/sdk</code> for Node.js.</p>
+
+        <pre><code><span class="tok-keyword">from</span> mcp.server.fastmcp <span class="tok-keyword">import</span> FastMCP
+<span class="tok-keyword">import</span> httpx
+
+mcp = FastMCP(<span class="tok-string">"purple-flea-custom"</span>)
+
+@mcp.tool()
+<span class="tok-keyword">async def</span> <span class="tok-func">claim_and_bet</span>(api_key: str, bet_amount: float = <span class="tok-number">0.10</span>) -> dict:
+    <span class="tok-string">"""
+    Claim faucet and immediately place a dice bet.
+    Atomic workflow: register → claim → bet.
+    """</span>
+    <span class="tok-keyword">async with</span> httpx.AsyncClient() <span class="tok-keyword">as</span> client:
+        <span class="tok-comment"># Claim faucet</span>
+        claim = <span class="tok-keyword">await</span> client.post(
+            <span class="tok-string">"https://faucet.purpleflea.com/api/claim"</span>,
+            headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {api_key}"</span>}
+        )
+        claim_data = claim.json()
+
+        <span class="tok-keyword">if</span> <span class="tok-keyword">not</span> claim_data.get(<span class="tok-string">"success"</span>):
+            <span class="tok-keyword">return</span> {<span class="tok-string">"error"</span>: <span class="tok-string">"Faucet claim failed"</span>, <span class="tok-string">"details"</span>: claim_data}
+
+        <span class="tok-comment"># Place bet with claimed funds</span>
+        bet = <span class="tok-keyword">await</span> client.post(
+            <span class="tok-string">"https://purpleflea.com/api/bet"</span>,
+            headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {api_key}"</span>},
+            json={<span class="tok-string">"game"</span>: <span class="tok-string">"dice"</span>, <span class="tok-string">"amount"</span>: bet_amount, <span class="tok-string">"prediction"</span>: <span class="tok-string">"over"</span>, <span class="tok-string">"multiplier"</span>: <span class="tok-number">2</span>}
+        )
+
+        <span class="tok-keyword">return</span> {
+            <span class="tok-string">"claimed"</span>: claim_data[<span class="tok-string">"amount_usdc"</span>],
+            <span class="tok-string">"bet_result"</span>: bet.json()
+        }
+
+<span class="tok-keyword">if</span> __name__ == <span class="tok-string">"__main__"</span>:
+    mcp.run(transport=<span class="tok-string">"streamable-http"</span>, port=<span class="tok-number">8080</span>)
+</code></pre>
+
+        <p>Run this on any server and point Claude Desktop at <code>http://localhost:8080/mcp</code> to expose your custom compound tool.</p>
+
+        <!-- Section 10 -->
+        <h2 id="debugging-mcp">10. Debugging MCP Connections</h2>
+
+        <p>MCP connections can fail silently or return cryptic errors. Here's a systematic debugging approach:</p>
+
+        <h3>Check the MCP Endpoint Directly</h3>
+        <pre><code><span class="tok-comment"># Initiate an MCP session manually with curl</span>
+curl -X POST https://faucet.purpleflea.com/mcp \
+  -H <span class="tok-string">"Content-Type: application/json"</span> \
+  -d <span class="tok-string">'{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'</span>
+
+<span class="tok-comment"># Expected: {"jsonrpc":"2.0","result":{"protocolVersion":"...","capabilities":{...}},"id":1}</span>
+
+<span class="tok-comment"># List tools</span>
+curl -X POST https://faucet.purpleflea.com/mcp \
+  -H <span class="tok-string">"Content-Type: application/json"</span> \
+  -H <span class="tok-string">"Mcp-Session-Id: YOUR_SESSION_ID"</span> \
+  -d <span class="tok-string">'{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}'</span>
+</code></pre>
+
+        <h3>Common Error Patterns</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Error</th>
+                <th>Cause</th>
+                <th>Fix</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>Connection refused</code></td>
+                <td>Server not running or wrong port</td>
+                <td>Verify endpoint URL; try <code>curl -I</code> first</td>
+              </tr>
+              <tr>
+                <td><code>Method not found</code></td>
+                <td>Wrong JSON-RPC method name</td>
+                <td>Use <code>tools/list</code> first to verify tool names</td>
+              </tr>
+              <tr>
+                <td><code>Invalid params</code></td>
+                <td>Missing required field or wrong type</td>
+                <td>Check tool's inputSchema in list response</td>
+              </tr>
+              <tr>
+                <td><code>Unauthorized</code></td>
+                <td>Missing or invalid API key</td>
+                <td>Verify <code>api_key</code> starts with <code>pf_live_</code></td>
+              </tr>
+              <tr>
+                <td>Session timeout</td>
+                <td>Idle session expired (30min)</td>
+                <td>Re-initialize; use keepalive pings</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Enable Debug Logging in Python SDK</h3>
+        <pre><code><span class="tok-keyword">import</span> logging
+logging.basicConfig(level=logging.DEBUG)
+<span class="tok-comment"># MCP SDK will now log all JSON-RPC messages sent and received</span>
+</code></pre>
+
+        <div class="callout yellow">
+          <div class="callout-title">Session ID Management</div>
+          <p>StreamableHTTP MCP sessions require session IDs after initialization. The SDK manages this automatically, but if you're implementing manually with curl or raw HTTP, capture the <code>Mcp-Session-Id</code> header from the initialize response and include it in all subsequent requests.</p>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="cta-box">
+          <h3>Connect Your Agent via MCP in Minutes</h3>
+          <p>Three MCP servers, one API key, zero friction. Claim your free $1 USDC and start building.</p>
+          <a href="/for-agents" class="btn">Get API Key</a>
+          <a href="https://smithery.ai/servers/purpleflea/faucet" class="btn btn-outline">View on Smithery</a>
+        </div>
+
+        <p>Purple Flea's MCP-native architecture means every service is fully programmable via any MCP-compatible client. Whether you're building a simple Claude Desktop workflow or a production multi-agent financial system, the protocol handles discovery, validation, and streaming — leaving you to focus on the logic that matters.</p>
+
+      </div>
+    </article>
+
+    <!-- TOC Sidebar -->
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#what-is-mcp">1. What Is MCP?</a></li>
+          <li><a href="#three-mcp-servers">2. Purple Flea's 3 MCP Servers</a></li>
+          <li><a href="#available-tools">3. Available Tools</a></li>
+          <li><a href="#claude-desktop">4. Claude Desktop Setup</a></li>
+          <li><a href="#generic-framework">5. Generic Framework Setup</a></li>
+          <li><a href="#tool-call-examples">6. Tool Call Examples</a></li>
+          <li><a href="#chaining-mcp">7. Chaining MCP Calls</a></li>
+          <li><a href="#mcp-vs-rest">8. MCP vs REST API</a></li>
+          <li><a href="#custom-mcp-wrapper">9. Custom MCP Wrapper</a></li>
+          <li><a href="#debugging-mcp">10. Debugging MCP</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/casino">Casino</a>
+      <a href="/trading">Trading</a>
+      <a href="/wallet">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = (scrolled / total * 100) + '%';
+    });
+
+    const headings = document.querySelectorAll('h2[id]');
+    const tocLinks = document.querySelectorAll('.toc-box a');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          const active = document.querySelector(`.toc-box a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
