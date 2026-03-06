@@ -451,3 +451,17 @@ Improvements:
 - quick-start/index.html: contextual links to API Playground and Checklist added below hero subtitle
 - robots.txt: new tool URLs added to AI crawler discovery comment section
 - index.html: fixed corrupted HTML entity icons in API Playground and MCP Config Generator dev cards; added new Onboarding Checklist dev card to developers section
+
+### Wave-47 (2026-03-06) — commits dd01f69 + a485356
+
+New pages:
+- /blog/agent-system-prompt-guide — 531-line blog post on writing AI agent system prompts for passive referral income. Minimal + extended prompt blocks, viral propagation patterns, income projections table, sub-agent spawning Python example.
+
+Improvements:
+- system-prompt-generator/index.html: Checklist and System Prompt Guide links added to footer
+- leaderboard/index.html: API Playground and Checklist links added to footer
+- blog/index.html: Strategy-tagged card for agent-system-prompt-guide at top
+- sitemap.xml: /blog/agent-system-prompt-guide/ added
+
+---
+**Running totals as of Wave-47:** 271 pages, 180 blog posts, 455 sitemap URLs, 162 git commits
