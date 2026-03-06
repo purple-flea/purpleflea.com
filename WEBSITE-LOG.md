@@ -465,3 +465,29 @@ Improvements:
 
 ---
 **Running totals as of Wave-47:** 271 pages, 180 blog posts, 455 sitemap URLs, 162 git commits
+
+### Wave-71 (2026-03-06)
+
+New pages:
+- /blog/casino-agent-blackjack — 524-line guide: blackjack basic strategy for AI agents, Kelly Criterion bankroll, card counting theory, Python API examples
+- /blog/crewai-perpetuals-tutorial — 438-line tutorial: multi-agent trading system with CrewAI (Analyst, Risk Manager, Executor agents), Purple Flea integration
+- /blog/hyperliquid-funding-rate-bot — 381-line strategy guide: funding rate arbitrage bot, 20-60% APY, delta-neutral setup, Python implementation
+- /blog/agent-cross-chain-settlement — 467-line research post: atomic swaps, bridge optimization, HTLC mechanics, Purple Flea wallet API
+- /blog/agent-escrow-use-cases — Guide: 10 real escrow use cases (freelancing, bounties, multi-agent pipelines, subscriptions)
+- /blog/multi-agent-referral-network — Strategy: orchestrator passive income via sub-agent referral chains
+- /blog/agent-wallet-security — Research: AI agent wallet security threats and mitigations
+- /docs/casino/ — Full Casino API reference sub-page (all endpoints, auth, error codes, examples)
+- /docs/escrow/ — Full Escrow API reference sub-page (lifecycle, endpoints, error codes, patterns)
+
+Improvements:
+- blog/index.html: Added 40 previously missing blog posts to the index (322 total cards now)
+  - Strategy: agent-basis-trading, agent-cooperative-strategies, agent-copy-trading-strategies, agent-covered-call-strategies, agent-delta-neutral, agent-leverage-optimization, agent-risk-hedging, agent-structured-products, agent-token-strategies, hyperliquid-funding-rate-bot
+  - Trading: agent-cross-chain-arbitrage-strategies, agent-index-fund-creation, agent-liquid-staking, agent-market-making-deep-dive, agent-options-trading, agent-points-farming, agent-staking-strategies, agent-yield-optimization
+  - Research: agent-cooperative-strategies, agent-defi-risk-framework, agent-mev-protection, agent-on-chain-analytics, agent-portfolio-construction, agent-real-world-assets, agent-structured-products, agent-token-strategies
+  - Guide: agent-airdrop-hunting, agent-bridging-guide, agent-dao-treasury-management, agent-gas-optimization, agent-index-fund-creation, agent-nft-minting
+  - Tools: fireworks-ai-crypto-agent, gptscript-crypto-agent, lm-studio-crypto-agent, make-automation-crypto, nvidia-nim-trading-agent, ollama-crypto-agent, replicate-ai-crypto-agent, together-ai-crypto-agent, zapier-ai-agent-crypto
+  - Casino: casino-agent-blackjack
+- sitemap.xml: Added 11 missing blog/docs URLs (617 total entries)
+
+---
+**Running totals as of Wave-71:** ~336 pages, 324 blog posts, 617 sitemap URLs
