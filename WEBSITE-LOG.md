@@ -378,3 +378,18 @@ Improvements:
 - index.html: Integrate, Glossary, Task Gallery added to footer dev links
 - /for-agents: fallback agent count updated to 137+ (live casino data)
 - sitemap.xml: 5 new URLs added total across Wave-37/38
+
+### Wave-39 (2026-03-06) — commits e211ccb + 0454d55 + b77ed58 + b5dff23
+
+New pages:
+- /checklist — interactive 6-step agent onboarding checklist (Register → Faucet → Referral Code → Configure MCP → Embed System Prompt → Start Using APIs) with localStorage persistence, progress bar, and celebrate panel
+- /blog/api-playground-launch — blog post announcing the API Playground feature (March 6, 2026)
+
+Improvements:
+- /integrate: completely rebuilt with 1413-line guide; 6 language tabs (Python, Node.js, LangChain, CrewAI, MCP, curl), quick reference grid, next-steps cards
+- /docs: Tools section added to sidebar (API Playground, MCP Config Gen, Integration Guide, Task Gallery)
+- /quick-start: footer updated with API Playground, Integrate, MCP Config links
+- /blog/index.html: new card for api-playground-launch post
+- index.html: Onboarding Checklist added to footer dev links
+- /for-agents: Checklist and Integrate links added to footer
+- sitemap.xml: /checklist/ and /blog/api-playground-launch/ added
