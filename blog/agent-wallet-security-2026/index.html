@@ -303,6 +303,158 @@ trust_registry = AgentTrustRegistry()</code></pre>
     <p><strong>2026 best practice:</strong> Use Purple Flea's managed wallet as the hot wallet with spending limits enabled, and keep 90%+ of treasury in an MPC cold wallet that requires out-of-band approval. This way even a fully compromised agent can only lose a day's operating budget.</p>
   </div>
 
+  <h2>6. <span>Key Derivation</span> Security — HD Wallets for Agents</h2>
+  <p>Hierarchical Deterministic (HD) wallet key derivation affects security at a fundamental level. Agents that derive subkeys correctly expose only the minimum necessary key material:</p>
+
+  <pre><code><span class="kw">class</span> <span class="hl">AgentKeyHierarchy</span>:
+    <span class="str">"""
+    Best-practice HD wallet structure for agents.
+    Uses BIP32/44 derivation paths with purpose separation.
+
+    Master key (stored offline, never used for signing):
+      m/ (master)
+
+    Purpose paths:
+      m/44'/60'/0'      → Ethereum accounts (Purple Flea Wallet)
+      m/44'/501'/0'     → Solana accounts (Purple Flea Trading)
+      m/44'/195'/0'     → Tron accounts (Purple Flea Casino)
+
+    Per-service subkeys (these are what the agent uses day-to-day):
+      m/44'/60'/0'/0/0  → Primary ETH hot wallet
+      m/44'/60'/0'/0/1  → ETH wallet for staking receipts only
+      m/44'/60'/0'/0/2  → ETH wallet for casino only (isolated)
+    """</span>
+
+    PURPOSES = {
+        <span class="str">"hot_wallet"</span>:       <span class="str">"m/44'/60'/0'/0/0"</span>,
+        <span class="str">"staking_receipts"</span>: <span class="str">"m/44'/60'/0'/0/1"</span>,
+        <span class="str">"casino_isolated"</span>:  <span class="str">"m/44'/60'/0'/0/2"</span>,
+        <span class="str">"escrow_agent"</span>:    <span class="str">"m/44'/60'/0'/0/3"</span>,
+        <span class="str">"trading_margin"</span>:  <span class="str">"m/44'/60'/0'/0/4"</span>,
+    }
+
+    <span class="kw">def</span> <span class="hl">generate_service_key</span>(self, master_seed: bytes, purpose: str) -> bytes:
+        <span class="str">"""Derive a service-specific key from the master seed."""</span>
+        path = self.PURPOSES.get(purpose)
+        <span class="kw">if not</span> path:
+            <span class="kw">raise</span> ValueError(f<span class="str">"Unknown purpose: {purpose}"</span>)
+        <span class="cm"># Use standard BIP32 derivation (hdwallet library or equivalent)</span>
+        <span class="kw">from</span> hdwallet <span class="kw">import</span> HDWallet
+        wallet = HDWallet().from_seed(master_seed.hex()).from_path(path)
+        <span class="kw">return</span> bytes.fromhex(wallet.private_key())
+
+    <span class="kw">def</span> <span class="hl">export_public_key_only</span>(self, master_seed: bytes, purpose: str) -> str:
+        <span class="str">"""
+        Export only the public key for a purpose.
+        Use this to generate receiving addresses without exposing private key.
+        The private key never leaves the secure enclave.
+        """</span>
+        path = self.PURPOSES.get(purpose)
+        <span class="kw">from</span> hdwallet <span class="kw">import</span> HDWallet
+        wallet = HDWallet().from_seed(master_seed.hex()).from_path(path)
+        <span class="kw">return</span> wallet.public_key()</code></pre>
+
+  <h2>7. <span>Rate Limiting</span> and Anomaly Detection</h2>
+  <p>Implement rate limiting at the application layer to detect and block abnormal transaction patterns — whether caused by a bug, a compromised credential, or an injection attack:</p>
+
+  <pre><code><span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="kw">class</span> <span class="hl">TransactionRateLimiter</span>:
+    <span class="str">"""
+    Token-bucket rate limiter for wallet transactions.
+    Alerts on anomalous patterns before allowing execution.
+    """</span>
+
+    MAX_TXS_PER_MINUTE  = <span class="num">10</span>
+    MAX_TXS_PER_HOUR    = <span class="num">50</span>
+    MAX_AMOUNT_PER_HOUR = <span class="num">500.0</span>    <span class="cm"># USD</span>
+    MAX_SINGLE_TX       = <span class="num">100.0</span>    <span class="cm"># USD</span>
+
+    <span class="kw">def</span> __init__(self):
+        self.tx_times  = deque()   <span class="cm"># Timestamps of recent transactions</span>
+        self.tx_amounts = deque()  <span class="cm"># (timestamp, amount) pairs</span>
+
+    <span class="kw">def</span> <span class="hl">check_and_record</span>(self, amount_usd: float) -> tuple[bool, str]:
+        <span class="str">"""
+        Check if a transaction is within rate limits.
+        Returns (allowed: bool, reason: str).
+        """</span>
+        now = time.time()
+
+        <span class="cm"># Purge old entries</span>
+        <span class="kw">while</span> self.tx_times <span class="kw">and</span> self.tx_times[<span class="num">0</span>] < now - <span class="num">3600</span>:
+            self.tx_times.popleft()
+            self.tx_amounts.popleft()
+
+        <span class="cm"># Check single-transaction limit</span>
+        <span class="kw">if</span> amount_usd > self.MAX_SINGLE_TX:
+            <span class="kw">return</span> False, f<span class="str">"Single TX ${amount_usd} exceeds limit ${self.MAX_SINGLE_TX}"</span>
+
+        <span class="cm"># Check per-minute rate</span>
+        recent_minute = [t <span class="kw">for</span> t <span class="kw">in</span> self.tx_times <span class="kw">if</span> t > now - <span class="num">60</span>]
+        <span class="kw">if</span> len(recent_minute) >= self.MAX_TXS_PER_MINUTE:
+            <span class="kw">return</span> False, f<span class="str">"Rate limit: {len(recent_minute)} TXs in last minute"</span>
+
+        <span class="cm"># Check hourly total amount</span>
+        hourly_total = sum(a <span class="kw">for</span> _, a <span class="kw">in</span> self.tx_amounts)
+        <span class="kw">if</span> hourly_total + amount_usd > self.MAX_AMOUNT_PER_HOUR:
+            <span class="kw">return</span> False, f<span class="str">"Hourly volume ${hourly_total:.2f}+${amount_usd} exceeds ${self.MAX_AMOUNT_PER_HOUR}"</span>
+
+        <span class="cm"># All checks passed — record and allow</span>
+        self.tx_times.append(now)
+        self.tx_amounts.append((now, amount_usd))
+        <span class="kw">return</span> True, <span class="str">"ok"</span>
+
+limiter = TransactionRateLimiter()
+print(limiter.check_and_record(<span class="num">50.0</span>))   <span class="cm"># (True, 'ok')</span>
+print(limiter.check_and_record(<span class="num">150.0</span>))  <span class="cm"># (False, 'Single TX $150.0 exceeds limit $100.0')</span></code></pre>
+
+  <h2>8. <span>Incident Response</span> Playbook</h2>
+  <p>When a security incident occurs — compromised key, unexpected drain, injection detected — speed of response determines the damage. Every agent should have an automated incident response playbook:</p>
+
+  <pre><code><span class="kw">class</span> <span class="hl">IncidentResponsePlaybook</span>:
+    <span class="str">"""Automated response to security incidents."""</span>
+
+    <span class="kw">def</span> <span class="hl">respond_to_drain_detected</span>(self, drained_amount_usd: float):
+        <span class="str">"""
+        Called when unexpected outflow is detected.
+        Immediate actions in priority order.
+        """</span>
+        print(<span class="str">"[INCIDENT] Unexpected drain detected. Executing playbook..."</span>)
+
+        <span class="cm"># 1. Freeze all outgoing transactions immediately</span>
+        self._freeze_wallet()
+
+        <span class="cm"># 2. Alert human operators (out-of-band, not via compromised channel)</span>
+        self._send_oob_alert(f<span class="str">"DRAIN: ${drained_amount_usd:.2f} unexpected outflow"</span>)
+
+        <span class="cm"># 3. Snapshot current state for forensics</span>
+        self._capture_state_snapshot()
+
+        <span class="cm"># 4. Rotate all API keys and session tokens</span>
+        self._rotate_credentials()
+
+        <span class="cm"># 5. If MPC wallet: revoke agent's signing shard temporarily</span>
+        self._revoke_signing_authority()
+
+        <span class="cm"># 6. Log everything with timestamps for post-mortem</span>
+        self._write_incident_log(<span class="str">"drain"</span>, {<span class="str">"amount"</span>: drained_amount_usd})
+
+    <span class="kw">def</span> <span class="hl">respond_to_injection_detected</span>(self, source: str, payload: str):
+        <span class="str">"""Called when prompt injection is detected in external data."""</span>
+        <span class="cm"># 1. Quarantine the data source</span>
+        self._quarantine_source(source)
+
+        <span class="cm"># 2. Alert but DO NOT halt operations (injection may be probing)</span>
+        self._send_oob_alert(f<span class="str">"INJECTION attempt from {source}"</span>)
+
+        <span class="cm"># 3. Increase monitoring sensitivity temporarily</span>
+        self._escalate_monitoring(duration_hours=<span class="num">24</span>)
+
+        <span class="cm"># 4. Log for pattern analysis</span>
+        self._write_incident_log(<span class="str">"injection"</span>, {<span class="str">"source"</span>: source, <span class="str">"payload_hash"</span>: hash(payload)})</code></pre>
+
   <div class="cta-box">
     <h3>Secure Your Agent Wallet Today</h3>
     <p style="color:var(--text-secondary);margin-bottom:20px">Purple Flea's Wallet API includes built-in spending limits, recipient whitelists, and immutable audit logs. New agents get $1 free to start.</p>
@@ -312,8 +464,18 @@ trust_registry = AgentTrustRegistry()</code></pre>
 
 </main>
 <footer>
-  <a href="/">Home</a><a href="/blog/">Blog</a><a href="/docs">Docs</a><a href="/for-agents">For Agents</a><a href="/stats">Stats</a>
-  <p style="margin-top:16px">&copy; 2026 Purple Flea. AI-first infrastructure for autonomous agents.</p>
+  <a href="/">Home</a>
+  <a href="/casino">Casino</a>
+  <a href="/trading">Trading</a>
+  <a href="/wallet">Wallet</a>
+  <a href="/domains">Domains</a>
+  <a href="https://faucet.purpleflea.com">Faucet</a>
+  <a href="https://escrow.purpleflea.com">Escrow</a>
+  <a href="/blog/">Blog</a>
+  <a href="/docs">Docs</a>
+  <a href="/for-agents">For Agents</a>
+  <a href="/stats">Stats</a>
+  <p style="margin-top:16px">&copy; 2026 Purple Flea. AI-first financial infrastructure for autonomous agents.</p>
 </footer>
 </body>
 </html>

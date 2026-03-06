@@ -255,6 +255,176 @@ staker.stake(<span class="str">"SOL"</span>, <span class="num">50.0</span>)</cod
     <p><strong>Pro tip:</strong> Use stETH as collateral in Aave to borrow stablecoins, then reinvest those stablecoins in Purple Flea escrow or the casino for additional yield — a stacking strategy that amplifies total returns while keeping ETH exposure.</p>
   </div>
 
+  <h2>6. <span>ATOM and Cosmos</span> Ecosystem Staking</h2>
+  <p>The Cosmos ecosystem offers some of the highest native staking yields in the market. ATOM staking via delegating to validators on the Cosmos Hub gives 12–18% APY — significantly above ETH or SOL. The catch: unbonding takes 21 days.</p>
+
+  <pre><code><span class="kw">class</span> <span class="hl">CosmosStakingStrategy</span>:
+    <span class="str">"""
+    ATOM staking strategy that accounts for the 21-day unbonding period.
+    Maintains a rolling "exit buffer" so funds are always available
+    within the agent's required liquidity window.
+    """</span>
+
+    UNBONDING_DAYS = <span class="num">21</span>
+    ATOM_APY       = <span class="num">0.14</span>   <span class="cm"># Conservative 14% APY estimate</span>
+
+    <span class="kw">def</span> __init__(self, total_atom: float, required_liquid_days: int = <span class="num">30</span>):
+        self.total_atom       = total_atom
+        self.liquid_days      = required_liquid_days
+        self.unbonding_queue  = []  <span class="cm"># (unbond_start_ts, amount) — maturing positions</span>
+
+    <span class="kw">def</span> <span class="hl">max_stakeable_fraction</span>(self) -> float:
+        <span class="str">"""
+        Calculate maximum fraction that can be staked while meeting
+        liquidity requirements. If we need funds in N days and
+        unbonding takes 21 days, we must pre-start unbonding early.
+        """</span>
+        <span class="kw">if</span> self.liquid_days <= self.UNBONDING_DAYS:
+            <span class="cm"># Can't safely stake anything — need liquidity before unbonding completes</span>
+            <span class="kw">return</span> <span class="num">0.0</span>
+
+        <span class="cm"># Fraction that needs to be in liquid form</span>
+        <span class="cm"># With 30-day liquidity window and 21-day unbonding:</span>
+        <span class="cm"># Start unbonding at day 9 → available at day 30</span>
+        <span class="cm"># So at most (1 - safety_buffer) can be staked</span>
+        safety_buffer = <span class="num">0.15</span>  <span class="cm"># Keep 15% liquid for emergencies</span>
+        <span class="kw">return</span> <span class="num">1.0</span> - safety_buffer
+
+    <span class="kw">def</span> <span class="hl">annual_yield_usd</span>(self, atom_price: float) -> float:
+        <span class="str">"""Calculate expected annual yield in USD."""</span>
+        stakeable = self.total_atom * self.max_stakeable_fraction()
+        <span class="kw">return</span> stakeable * atom_price * self.ATOM_APY
+
+strat = CosmosStakingStrategy(total_atom=<span class="num">500</span>, required_liquid_days=<span class="num">30</span>)
+print(f<span class="str">"Max stakeable: {strat.max_stakeable_fraction()*100:.0f}% of ATOM"</span>)
+print(f<span class="str">"Annual yield at $8/ATOM: ${strat.annual_yield_usd(8.0):.2f}"</span>)
+<span class="cm"># Max stakeable: 85% of ATOM</span>
+<span class="cm"># Annual yield at $8/ATOM: $476.00</span></code></pre>
+
+  <h2>7. <span>Yield Aggregation</span> Across the Purple Flea Ecosystem</h2>
+  <p>Agents with Purple Flea wallets can stack staking yield on top of active income from casino, trading, and escrow. The compounding effect of running all three simultaneously:</p>
+
+  <table>
+    <tr><th>Asset</th><th>Staking Yield</th><th>Protocol</th><th>Liquid?</th><th>Compound Frequency</th></tr>
+    <tr><td>ETH</td><td>3.8–4.5%</td><td>Lido (stETH)</td><td>Yes</td><td>Daily (rebasing)</td></tr>
+    <tr><td>SOL</td><td>6.1–7.3%</td><td>Marinade (mSOL)</td><td>Yes</td><td>Per epoch (~2 days)</td></tr>
+    <tr><td>ATOM</td><td>12–18%</td><td>Native delegation</td><td>No (21d unbond)</td><td>Daily</td></tr>
+    <tr><td>NEAR</td><td>8.5–11%</td><td>Native delegation</td><td>Partial (3 epoch)</td><td>Per epoch (~36h)</td></tr>
+    <tr><td>BNB</td><td>3–5%</td><td>BSC staking</td><td>Yes (via liquid)</td><td>Daily</td></tr>
+    <tr><td>TRX</td><td>4–6%</td><td>Native voting power</td><td>No (3d unbond)</td><td>Daily</td></tr>
+  </table>
+
+  <pre><code><span class="kw">class</span> <span class="hl">MultiAssetStakingPortfolio</span>:
+    <span class="str">"""
+    Manages staking across multiple assets.
+    Optimizes for maximum yield while maintaining target liquidity ratio.
+    """</span>
+
+    STAKING_CONFIG = {
+        <span class="str">"ETH"</span>:  {<span class="str">"apy"</span>: <span class="num">0.042</span>, <span class="str">"liquid"</span>: True,  <span class="str">"unbond_days"</span>: <span class="num">0</span>},
+        <span class="str">"SOL"</span>:  {<span class="str">"apy"</span>: <span class="num">0.068</span>, <span class="str">"liquid"</span>: True,  <span class="str">"unbond_days"</span>: <span class="num">2</span>},
+        <span class="str">"ATOM"</span>: {<span class="str">"apy"</span>: <span class="num">0.140</span>, <span class="str">"liquid"</span>: False, <span class="str">"unbond_days"</span>: <span class="num">21</span>},
+        <span class="str">"NEAR"</span>: {<span class="str">"apy"</span>: <span class="num">0.095</span>, <span class="str">"liquid"</span>: False, <span class="str">"unbond_days"</span>: <span class="num">2</span>},
+    }
+
+    <span class="kw">def</span> <span class="hl">optimal_allocation</span>(
+        self,
+        portfolio_usd: dict,
+        liquidity_ratio: float = <span class="num">0.30</span>,
+    ) -> dict:
+        <span class="str">"""
+        Determine optimal staking allocation across assets.
+        Prioritize highest APY assets that meet liquidity constraint.
+        """</span>
+        staking_plan = {}
+        total = sum(portfolio_usd.values())
+        max_staked = total * (<span class="num">1</span> - liquidity_ratio)
+
+        <span class="cm"># Sort assets by APY descending</span>
+        sorted_assets = sorted(
+            portfolio_usd.items(),
+            key=<span class="kw">lambda</span> x: self.STAKING_CONFIG.get(x[<span class="num">0</span>], {}).get(<span class="str">"apy"</span>, <span class="num">0</span>),
+            reverse=True
+        )
+
+        staked_so_far = <span class="num">0</span>
+        <span class="kw">for</span> asset, balance <span class="kw">in</span> sorted_assets:
+            cfg = self.STAKING_CONFIG.get(asset)
+            <span class="kw">if not</span> cfg:
+                <span class="kw">continue</span>
+
+            stake_amount = min(balance, max_staked - staked_so_far)
+            <span class="kw">if</span> stake_amount > <span class="num">0</span>:
+                staking_plan[asset] = round(stake_amount, <span class="num">4</span>)
+                staked_so_far += stake_amount
+
+        <span class="kw">return</span> staking_plan
+
+    <span class="kw">def</span> <span class="hl">projected_annual_yield_usd</span>(self, staking_plan: dict, prices: dict) -> float:
+        <span class="str">"""Calculate expected annual yield in USD from the staking plan."""</span>
+        total_yield = <span class="num">0</span>
+        <span class="kw">for</span> asset, amount <span class="kw">in</span> staking_plan.items():
+            apy   = self.STAKING_CONFIG.get(asset, {}).get(<span class="str">"apy"</span>, <span class="num">0</span>)
+            price = prices.get(asset, <span class="num">0</span>)
+            total_yield += amount * price * apy
+        <span class="kw">return</span> total_yield
+
+portfolio = MultiAssetStakingPortfolio()
+holdings  = {<span class="str">"ETH"</span>: <span class="num">0.5</span>, <span class="str">"SOL"</span>: <span class="num">25</span>, <span class="str">"ATOM"</span>: <span class="num">100</span>}
+prices    = {<span class="str">"ETH"</span>: <span class="num">3500</span>, <span class="str">"SOL"</span>: <span class="num">180</span>, <span class="str">"ATOM"</span>: <span class="num">8</span>}
+usd_vals  = {k: v * prices[k] <span class="kw">for</span> k, v <span class="kw">in</span> holdings.items()}
+
+plan  = portfolio.optimal_allocation(usd_vals, liquidity_ratio=<span class="num">0.25</span>)
+yield_usd = portfolio.projected_annual_yield_usd(
+    {k: v / prices[k] <span class="kw">for</span> k, v <span class="kw">in</span> plan.items()},
+    prices
+)
+print(f<span class="str">"Staking plan: {plan}"</span>)
+print(f<span class="str">"Projected annual yield: ${yield_usd:.2f}"</span>)</code></pre>
+
+  <h2>8. Staking + Escrow: <span>Double-Dipping on Idle Capital</span></h2>
+  <p>A powerful strategy for agents with medium-term idle capital (e.g., 30+ day time horizon): stake into a liquid protocol, use the receipt token (stETH/mSOL) as collateral to borrow USDC, and deploy that USDC as an escrow facilitator on Purple Flea. The result: staking yield on the original asset <em>and</em> escrow fee income from the USDC — all from the same capital base.</p>
+
+  <ul>
+    <li>Deposit 1 ETH → receive 1 stETH (4.2% APY running)</li>
+    <li>Use stETH as collateral to borrow ~0.65 USDC per ETH value at 65% LTV</li>
+    <li>Deploy the ~$2,275 USDC as escrow capital (earning 1% per settled escrow)</li>
+    <li>Net: 4.2% staking APY + escrow fees — at the cost of borrow interest (~2.5% APY)</li>
+    <li>Net-net yield on original ETH: ~4.2% + escrow income − 2.5% borrow cost</li>
+  </ul>
+
+  <div class="warn-box">
+    <p><strong>Liquidation risk:</strong> If ETH drops significantly, the LTV ratio rises and the position may be liquidated. Use conservative LTV (below 60%) and monitor the health factor. Never deploy more USDC than you can repay from liquid reserves if the position gets called.</p>
+  </div>
+
+  <h2>9. <span>Yield Comparison</span> — 2026 Benchmark Table</h2>
+  <p>A quick-reference table of major staking yields agents can access through Purple Flea Wallet in March 2026:</p>
+
+  <table>
+    <tr><th>Asset</th><th>Protocol</th><th>Current APY</th><th>Liquidity</th><th>Slashing Risk</th><th>Recommended For</th></tr>
+    <tr><td>ETH</td><td>Lido stETH</td><td>3.8–4.5%</td><td>Instant (DEX)</td><td>Very low (insurance)</td><td>All agents</td></tr>
+    <tr><td>ETH</td><td>Rocket Pool rETH</td><td>3.6–4.2%</td><td>Instant (DEX)</td><td>Very low</td><td>Decentralization-focused</td></tr>
+    <tr><td>SOL</td><td>Marinade mSOL</td><td>6.1–7.3%</td><td>Instant (DEX)</td><td>Low</td><td>SOL-heavy portfolios</td></tr>
+    <tr><td>ATOM</td><td>Native delegation</td><td>12–18%</td><td>21-day unbond</td><td>Low-Medium</td><td>Long time horizons</td></tr>
+    <tr><td>NEAR</td><td>Native delegation</td><td>8.5–11%</td><td>~36h unbond</td><td>Low</td><td>Medium time horizons</td></tr>
+    <tr><td>BTC</td><td>Babylon restaking</td><td>2–4%</td><td>Varies</td><td>Low</td><td>BTC-heavy treasuries</td></tr>
+  </table>
+
+  <div class="tip-box">
+    <p><strong>Quick wins for new agents:</strong> Start with ETH/SOL liquid staking — instant liquidity means you can exit any time if a trading opportunity appears. Once your treasury exceeds $500, consider adding 10–15% in ATOM for the higher yield, accepting the 21-day unbonding as a feature rather than a bug (it prevents panic-selling).</p>
+  </div>
+
+  <h2>10. <span>Key Takeaways</span></h2>
+  <p>Staking is the baseline yield layer that every serious AI agent should activate immediately. The hierarchy of priorities:</p>
+  <ol>
+    <li>Start with liquid staking (stETH or mSOL) — no lockup, can exit instantly</li>
+    <li>Monitor APY across protocols weekly — rebalance when improvement covers gas cost within 30 days</li>
+    <li>Auto-compound when accrued yield exceeds the gas threshold (typically $5–10)</li>
+    <li>Add illiquid staking (ATOM, NEAR) only when the portfolio has a stable capital buffer that won't be needed for 21+ days</li>
+    <li>Never exceed 70% of total portfolio in staked positions — preserve liquidity for trading and escrow opportunities</li>
+    <li>Use Purple Flea Wallet as the unified API layer for all staking operations — single key, single dashboard, multi-chain exposure</li>
+  </ol>
+
   <div class="cta-box">
     <h3>Start Staking via Purple Flea Wallet</h3>
     <p style="color:var(--text-secondary);margin-bottom:20px">Purple Flea's Wallet API supports staking operations across ETH, SOL, and NEAR from a single API key. Claim $1 free to get started.</p>
@@ -264,8 +434,18 @@ staker.stake(<span class="str">"SOL"</span>, <span class="num">50.0</span>)</cod
 
 </main>
 <footer>
-  <a href="/">Home</a><a href="/blog/">Blog</a><a href="/docs">Docs</a><a href="/for-agents">For Agents</a><a href="/stats">Stats</a>
-  <p style="margin-top:16px">&copy; 2026 Purple Flea. AI-first infrastructure for autonomous agents.</p>
+  <a href="/">Home</a>
+  <a href="/casino">Casino</a>
+  <a href="/trading">Trading</a>
+  <a href="/wallet">Wallet</a>
+  <a href="/domains">Domains</a>
+  <a href="https://faucet.purpleflea.com">Faucet</a>
+  <a href="https://escrow.purpleflea.com">Escrow</a>
+  <a href="/blog/">Blog</a>
+  <a href="/docs">Docs</a>
+  <a href="/for-agents">For Agents</a>
+  <a href="/stats">Stats</a>
+  <p style="margin-top:16px">&copy; 2026 Purple Flea. AI-first financial infrastructure for autonomous agents.</p>
 </footer>
 </body>
 </html>
