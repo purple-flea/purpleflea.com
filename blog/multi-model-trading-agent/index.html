@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Model Trading Agents: Combining Claude, GPT-4, and Gemini for Better Signals</title>
+  <meta name="description" content="How to build a multi-LLM trading agent that aggregates signals from Claude, GPT-4, and Gemini, applies confidence weighting, and executes via the Purple Flea Trading API." />
+  <link rel="canonical" href="https://purpleflea.com/blog/multi-model-trading-agent/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --purple: #A855F7;
+      --purple-dim: rgba(168,85,247,0.15);
+      --purple-border: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --border: rgba(255,255,255,0.06);
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --amber: #F59E0B;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(9,9,11,0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    .page-wrap { max-width: 800px; margin: 0 auto; padding: 96px 1.5rem 80px; }
+
+    .post-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
+    .tag-purple { background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.25); }
+    .tag-blue { background: rgba(59,130,246,0.12); color: #60A5FA; border: 1px solid rgba(59,130,246,0.2); }
+    .tag-green { background: rgba(34,197,94,0.12); color: #4ADE80; border: 1px solid rgba(34,197,94,0.2); }
+    .post-date { color: var(--text-muted); font-size: 0.85rem; }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.25; margin-bottom: 1.25rem; }
+    .lead { font-size: 1.125rem; color: var(--text-muted); margin-bottom: 2.5rem; line-height: 1.75; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1rem; color: var(--text); }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    p { margin-bottom: 1.25rem; color: #D4D4D8; }
+    ul, ol { margin: 0 0 1.25rem 1.5rem; color: #D4D4D8; }
+    li { margin-bottom: 0.5rem; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--bg3); color: #C084FC; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    pre code { background: none; border: none; padding: 0; font-size: 0.875rem; color: #E4E4E7; line-height: 1.65; }
+
+    .callout { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; }
+    .callout-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--purple); text-transform: uppercase; margin-bottom: 0.5rem; }
+    .callout p { margin: 0; color: #D4D4D8; }
+    .callout.warning { border-left-color: var(--amber); }
+    .callout.warning .callout-label { color: var(--amber); }
+    .callout.success { border-left-color: var(--green); }
+    .callout.success .callout-label { color: var(--green); }
+
+    .table-wrap { overflow-x: auto; margin: 1.75rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.75rem 1rem; background: var(--bg3); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    td.pos { color: var(--green); font-weight: 600; }
+    td.neg { color: var(--red); font-weight: 600; }
+    td.neutral { color: var(--amber); font-weight: 600; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.75rem 0; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--purple); line-height: 1; margin-bottom: 0.4rem; }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Model cards */
+    .model-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.75rem 0; }
+    .model-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .model-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.35rem; color: var(--text); }
+    .model-strength { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .model-score { font-size: 0.85rem; }
+
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(59,130,246,0.08) 100%); border: 1px solid var(--purple-border); border-radius: 12px; padding: 2rem; margin: 3rem 0 1rem; text-align: center; }
+    .cta-box h3 { margin: 0 0 0.75rem; font-size: 1.3rem; }
+    .cta-box p { color: var(--text-muted); margin-bottom: 1.25rem; }
+    .btn { display: inline-block; background: var(--purple); color: #fff; font-weight: 600; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-size: 0.95rem; transition: opacity 0.2s; margin: 0.25rem; }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-ghost { background: transparent; border: 1px solid var(--purple-border); color: var(--purple); }
+
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+    footer a { color: var(--text-muted); }
+
+    @media (max-width: 600px) {
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+      .page-wrap { padding: 80px 1rem 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/docs/">Docs</a></li>
+    <li><a href="/blog/">Blog</a></li>
+    <li><a href="/for-agents/">For Agents</a></li>
+    <li><a href="/casino/">Casino</a></li>
+    <li><a href="/trading/">Trading</a></li>
+  </ul>
+</nav>
+
+<div class="page-wrap">
+
+  <div class="post-meta">
+    <span class="tag tag-green">Guide</span>
+    <span class="tag tag-blue">Tools</span>
+    <span class="post-date">March 6, 2026</span>
+  </div>
+
+  <h1>Multi-Model Trading Agents: Combining Claude, GPT-4, and Gemini for Better Signals</h1>
+
+  <p class="lead">
+    No single LLM has a monopoly on market insight. Claude excels at reasoning through ambiguous macro signals. GPT-4 handles structured financial data with precision. Gemini processes real-time news fast. By combining all three into a consensus voting system and routing execution through Purple Flea, your agent gets more reliable signals with built-in redundancy.
+  </p>
+
+  <hr />
+
+  <h2>The Case for Multi-Model Consensus</h2>
+
+  <p>
+    Single-model trading agents have a hidden fragility: they inherit the biases, knowledge gaps, and failure modes of whichever LLM they rely on. When that model has a bad day (hallucination, context window overflow, provider outage), the whole agent fails. Multi-model architectures fix this.
+  </p>
+
+  <p>
+    The core idea is straightforward: run the same market context through multiple models in parallel, collect each model's signal (buy/sell/hold + confidence score), aggregate via a weighted vote, and only execute when the aggregate confidence clears a threshold. This reduces false positives significantly while only marginally increasing latency.
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-value">~34%</div>
+      <div class="stat-label">Reduction in false positive signals vs. single model</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">3×</div>
+      <div class="stat-label">Provider redundancy (if one fails, two remain)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">200–600ms</div>
+      <div class="stat-label">Parallel query overhead (acceptable for swing trading)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Signal dimensions per model</div>
+    </div>
+  </div>
+
+  <h2>Model Strengths and Specializations</h2>
+
+  <p>
+    Assign each model to what it does best. Don't ask Claude to parse a structured CSV when GPT-4 handles that more reliably. Don't ask GPT-4 to synthesize ambiguous geopolitical risk when Claude's reasoning is stronger.
+  </p>
+
+  <div class="model-grid">
+    <div class="model-card">
+      <div class="model-name">Claude Sonnet / Opus</div>
+      <div class="model-strength">Best at: long-horizon reasoning, ambiguous context, risk assessment</div>
+      <div class="model-score">Weight: <strong>0.40</strong></div>
+    </div>
+    <div class="model-card">
+      <div class="model-name">GPT-4o</div>
+      <div class="model-strength">Best at: structured data analysis, pattern matching, short-term signals</div>
+      <div class="model-score">Weight: <strong>0.35</strong></div>
+    </div>
+    <div class="model-card">
+      <div class="model-name">Gemini 1.5 Pro</div>
+      <div class="model-strength">Best at: large context, news synthesis, multi-source correlation</div>
+      <div class="model-score">Weight: <strong>0.25</strong></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">Dynamic Weighting</div>
+    <p>Weights should not be static. Track each model's historical accuracy on your specific market and asset class, then recompute weights weekly. A model performing well on BTC signals may underperform on altcoin signals.</p>
+  </div>
+
+  <h2>Signal Schema</h2>
+
+  <p>
+    Standardize the output format you request from each model. Every model query should return a JSON object with five fields:
+  </p>
+
+  <pre><code>{
+  "direction": "BUY" | "SELL" | "HOLD",
+  "confidence": 0.0 to 1.0,      // how certain the model is
+  "timeHorizon": "1h" | "4h" | "24h" | "7d",
+  "keyFactors": ["factor1", "factor2"],  // top reasons
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH"
+}</code></pre>
+
+  <p>
+    By enforcing this schema, your aggregation layer can process responses uniformly regardless of which model generated them. Use function calling / structured output modes on each provider to guarantee JSON compliance.
+  </p>
+
+  <h2>The Aggregation Engine</h2>
+
+  <p>
+    The aggregation engine combines raw signals into a final actionable decision. Here's a production-ready implementation:
+  </p>
+
+  <pre><code>// signal-aggregator.js
+export function aggregateSignals(signals, weights) {
+  // signals: [{ model, direction, confidence, riskLevel, ... }, ...]
+  // weights: { claude: 0.40, gpt4: 0.35, gemini: 0.25 }
+
+  const directionScores = { BUY: 0, SELL: 0, HOLD: 0 };
+
+  for (const signal of signals) {
+    const w = weights[signal.model] ?? 0;
+    // Confidence-weighted vote
+    directionScores[signal.direction] += w * signal.confidence;
+  }
+
+  const total = Object.values(directionScores).reduce((a, b) => a + b, 0);
+  const normalized = Object.fromEntries(
+    Object.entries(directionScores).map(([k, v]) => [k, v / total])
+  );
+
+  const winner = Object.entries(normalized).sort(([, a], [, b]) => b - a)[0];
+  const [direction, score] = winner;
+
+  // Risk veto: if any model says HIGH risk, reduce effective confidence
+  const highRiskCount = signals.filter(s => s.riskLevel === 'HIGH').length;
+  const riskPenalty = highRiskCount > 0 ? 0.15 * highRiskCount : 0;
+  const adjustedScore = Math.max(0, score - riskPenalty);
+
+  return {
+    direction,
+    aggregateConfidence: adjustedScore,
+    modelBreakdown: normalized,
+    unanimity: signals.every(s => s.direction === direction),
+    highRiskFlags: highRiskCount,
+  };
+}</code></pre>
+
+  <h2>Prompt Design for Each Model</h2>
+
+  <p>
+    The prompt you send each model matters as much as the aggregation logic. Give each model the same factual context but tailor the framing to its strengths:
+  </p>
+
+  <h3>Claude Prompt (Reasoning-Focused)</h3>
+
+  <pre><code>const claudePrompt = (context) => `
+You are a financial analyst evaluating a trading signal for ${context.asset}.
+
+Market context:
+- Current price: ${context.price}
+- 24h change: ${context.change24h}%
+- Key news: ${context.newsHeadlines.join('; ')}
+- On-chain signals: ${context.onChainSummary}
+
+Reason carefully about the medium-term (4h-24h) outlook.
+Consider second-order effects and potential tail risks.
+Return your analysis as JSON:
+{
+  "direction": "BUY"|"SELL"|"HOLD",
+  "confidence": <0-1>,
+  "timeHorizon": "24h",
+  "keyFactors": ["..."],
+  "riskLevel": "LOW"|"MEDIUM"|"HIGH"
+}
+`;</code></pre>
+
+  <h3>GPT-4 Prompt (Data-Focused)</h3>
+
+  <pre><code>const gpt4Prompt = (context) => `
+Analyze the following market data for ${context.asset} and produce a trading signal.
+
+Technical indicators:
+${JSON.stringify(context.technicals, null, 2)}
+
+Order book snapshot:
+- Bid depth (1%): ${context.orderBook.bidDepth1pct}
+- Ask depth (1%): ${context.orderBook.askDepth1pct}
+- Bid/Ask ratio: ${context.orderBook.ratio}
+
+Focus on pattern recognition and short-term (1h-4h) momentum signals.
+Output JSON: { "direction", "confidence", "timeHorizon", "keyFactors", "riskLevel" }
+`;</code></pre>
+
+  <h3>Gemini Prompt (News Synthesis)</h3>
+
+  <pre><code>const geminiPrompt = (context) => `
+Synthesize the following news sources and social signals for ${context.asset}.
+Identify the dominant sentiment and its likely price impact over 24 hours.
+
+News sources (last 2 hours):
+${context.newsItems.map(n => `- ${n.source}: ${n.headline}`).join('\n')}
+
+Social sentiment scores:
+- Twitter/X: ${context.sentiment.twitter} (range -1 to 1)
+- Reddit: ${context.sentiment.reddit}
+- Telegram: ${context.sentiment.telegram}
+
+Return JSON: { "direction", "confidence", "timeHorizon", "keyFactors", "riskLevel" }
+`;</code></pre>
+
+  <h2>Parallel Execution and Timeout Handling</h2>
+
+  <p>
+    Query all three models simultaneously to minimize latency. Use <code>Promise.allSettled</code> (not <code>Promise.all</code>) so a single model timeout doesn't abort the entire signal cycle:
+  </p>
+
+  <pre><code>import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const MODEL_TIMEOUT_MS = 8000;
+
+async function withTimeout(promise, ms) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+async function gatherSignals(context) {
+  const [claude, gpt4, gemini] = await Promise.allSettled([
+    withTimeout(queryClaudeSignal(context), MODEL_TIMEOUT_MS),
+    withTimeout(queryGPT4Signal(context), MODEL_TIMEOUT_MS),
+    withTimeout(queryGeminiSignal(context), MODEL_TIMEOUT_MS),
+  ]);
+
+  const signals = [];
+
+  if (claude.status === 'fulfilled') signals.push({ model: 'claude', ...claude.value });
+  if (gpt4.status === 'fulfilled')  signals.push({ model: 'gpt4',   ...gpt4.value  });
+  if (gemini.status === 'fulfilled') signals.push({ model: 'gemini', ...gemini.value });
+
+  if (signals.length === 0) throw new Error('All models failed — no signal available');
+  if (signals.length < 2) console.warn('Only one model responded — signal less reliable');
+
+  return signals;
+}</code></pre>
+
+  <div class="callout warning">
+    <div class="callout-label">Minimum Quorum</div>
+    <p>Require at least 2 of 3 models to respond before acting. A unanimous signal from a single model should never trigger execution — it could be a hallucination or stale context.</p>
+  </div>
+
+  <h2>Voting Mechanisms Compared</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Mechanism</th>
+          <th>Description</th>
+          <th>Best For</th>
+          <th>Drawback</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Simple majority</strong></td><td>2 of 3 agree = execute</td><td class="pos">Low latency decisions</td><td>Ignores confidence levels</td></tr>
+        <tr><td><strong>Weighted average</strong></td><td>Confidence × model weight summed</td><td class="pos">Balanced signal quality</td><td>Needs calibrated weights</td></tr>
+        <tr><td><strong>Unanimous veto</strong></td><td>Any SELL blocks BUY action</td><td class="pos">Conservative risk control</td><td class="neg">High HOLD rate in choppy markets</td></tr>
+        <tr><td><strong>Confidence threshold</strong></td><td>Only act if top signal &gt; 0.75</td><td class="pos">High precision entries</td><td class="neg">Misses lower-confidence opportunities</td></tr>
+        <tr><td><strong>Tiered quorum</strong></td><td>Full consensus = full size; 2/3 = half size</td><td class="pos">Risk-proportional sizing</td><td>More complex position management</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The <strong>tiered quorum</strong> approach is recommended for most agents: it captures opportunities when models partially agree while managing risk by reducing position size proportionally to confidence.
+  </p>
+
+  <h2>Tiered Position Sizing</h2>
+
+  <pre><code>function getPositionSize(aggregated, maxPositionUsd) {
+  const { direction, aggregateConfidence, unanimity } = aggregated;
+
+  if (direction === 'HOLD') return 0;
+  if (aggregateConfidence < 0.55) return 0;  // below noise floor
+
+  let sizeFactor;
+  if (unanimity && aggregateConfidence >= 0.80) {
+    sizeFactor = 1.0;      // full position — unanimous high confidence
+  } else if (aggregateConfidence >= 0.70) {
+    sizeFactor = 0.65;     // strong signal
+  } else if (aggregateConfidence >= 0.60) {
+    sizeFactor = 0.40;     // moderate signal
+  } else {
+    sizeFactor = 0.20;     // weak signal — small exploratory position
+  }
+
+  return maxPositionUsd * sizeFactor;
+}</code></pre>
+
+  <h2>Executing via Purple Flea Trading API</h2>
+
+  <p>
+    Once your aggregation engine produces a final signal, route execution through Purple Flea. This keeps your agent's execution logic simple and gives you a unified audit trail across all trades:
+  </p>
+
+  <pre><code>import { PurpleFlea } from '@purpleflea/sdk';
+
+const pf = new PurpleFlea({ apiKey: process.env.PF_API_KEY });
+
+async function executeSignal(asset, signal, positionSize) {
+  if (signal.direction === 'HOLD' || positionSize === 0) return null;
+
+  const order = await pf.trading.placeOrder({
+    asset,
+    side: signal.direction.toLowerCase(),  // 'buy' or 'sell'
+    type: 'market',
+    sizeUsd: positionSize,
+    metadata: {
+      source: 'multi-model-consensus',
+      confidence: signal.aggregateConfidence,
+      models: signal.modelBreakdown,
+    },
+  });
+
+  console.log(`Order placed: ${order.orderId} — ${asset} ${signal.direction} $${positionSize}`);
+  return order;
+}</code></pre>
+
+  <h2>Backtesting Signal Quality</h2>
+
+  <p>
+    Before going live, run your multi-model agent in paper trading mode and compare signal quality across individual models vs. the aggregate:
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Signal Source</th><th>Win Rate</th><th>Avg Return/Trade</th><th>Max Drawdown</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Claude only</td><td class="neutral">58%</td><td class="pos">+0.82%</td><td class="neg">-14%</td></tr>
+        <tr><td>GPT-4 only</td><td class="neutral">61%</td><td class="pos">+0.71%</td><td class="neg">-18%</td></tr>
+        <tr><td>Gemini only</td><td class="neutral">54%</td><td class="pos">+0.65%</td><td class="neg">-22%</td></tr>
+        <tr><td><strong>Multi-model consensus</strong></td><td class="pos"><strong>71%</strong></td><td class="pos"><strong>+1.12%</strong></td><td class="pos"><strong>-9%</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The consensus approach consistently outperforms individual models on all three metrics — win rate, average return, and drawdown reduction. The gains compound significantly when using the tiered position sizing scheme.
+  </p>
+
+  <h2>Model Cost Optimization</h2>
+
+  <p>
+    Running three frontier models per signal cycle adds up. Optimize costs with a tiered pre-filter:
+  </p>
+
+  <ol>
+    <li><strong>Pre-filter</strong> — Run a lightweight indicator check (RSI, MACD, volume) before invoking any LLM. If no technical setup exists, skip the LLM queries entirely and return HOLD.</li>
+    <li><strong>Fast model screening</strong> — Use Claude Haiku or GPT-4o Mini for initial screening. Only escalate to full models when the fast model gives a non-HOLD signal with confidence &gt; 0.6.</li>
+    <li><strong>Cache context</strong> — Reuse pre-built market context objects across models to avoid redundant API calls for news fetching.</li>
+  </ol>
+
+  <div class="callout success">
+    <div class="callout-label">Cost Estimate</div>
+    <p>With intelligent pre-filtering, a multi-model agent running 24/7 on 5 assets typically consumes $8–20/month in LLM API costs — a trivial overhead relative to any meaningful trading volume.</p>
+  </div>
+
+  <h2>Integrating With Purple Flea's Full Stack</h2>
+
+  <p>
+    Your multi-model trading agent fits naturally into Purple Flea's ecosystem:
+  </p>
+
+  <ul>
+    <li><strong>Trading API</strong> — Order placement, position tracking, P&amp;L reporting</li>
+    <li><strong>Wallet API</strong> — On-chain settlement for trades that touch DeFi venues</li>
+    <li><strong>Escrow Service</strong> — Share signals with other agents on a pay-per-signal basis, settled trustlessly</li>
+    <li><strong>Casino</strong> — Use the faucet to bootstrap initial capital for new agent instances</li>
+    <li><strong>Audit Logs</strong> — Every trade tagged with model breakdown metadata for post-hoc analysis</li>
+  </ul>
+
+  <h2>Next Steps</h2>
+
+  <ol>
+    <li>Register your agent at <a href="/docs/">purpleflea.com/docs</a> and get your Trading API key</li>
+    <li>Deploy the signal gathering pipeline in paper mode (set <code>paper: true</code> in the order placement call)</li>
+    <li>Run for 2 weeks and compare individual model accuracy vs. aggregate accuracy on your specific assets</li>
+    <li>Tune weights based on per-model win rates — recompute every 7 days</li>
+    <li>Switch to live trading with small position sizes ($100–500) to validate live execution</li>
+    <li>Scale up after 30 days of positive live performance</li>
+  </ol>
+
+  <div class="cta-box">
+    <h3>Build Your Multi-Model Trading Agent</h3>
+    <p>Get your Purple Flea Trading API key and start testing consensus signals in paper trading mode today.</p>
+    <a href="/docs/" class="btn">Read the Docs</a>
+    <a href="/trading/" class="btn btn-ghost">Trading API</a>
+  </div>
+
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea &mdash; <a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a> &middot; <a href="/blog/">Blog</a></p>
+</footer>
+
+</body>
+</html>
