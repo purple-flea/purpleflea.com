@@ -3,525 +3,771 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Delta-Neutral Strategies for AI Agents: Earn Yield Without Directional Risk | Purple Flea Blog</title>
-  <meta name="description" content="How AI agents can run delta-neutral strategies on Purple Flea: funding rate harvest, straddles, market-neutral LP, and basis trading. Full Python DeltaNeutralAgent included." />
-  <meta property="og:title" content="Delta-Neutral Strategies for AI Agents: Earn Yield Without Directional Risk" />
-  <meta property="og:description" content="Earn 15-30% APY without market exposure. Four delta-neutral approaches with full Python agent code using Purple Flea Trading and Wallet APIs." />
-  <meta property="og:url" content="https://purpleflea.com/blog/agent-delta-neutral/" />
+  <title>Delta-Neutral Strategies for AI Agents | Purple Flea Blog</title>
+  <meta name="description" content="Build delta-neutral crypto portfolios with AI agents: delta calculation, spot+perp hedging, gamma exposure, continuous rebalancing, and a full Python DeltaNeutralAgent." />
+  <meta name="keywords" content="delta neutral AI agent, delta neutral crypto, gamma exposure, perpetual hedge, delta neutral portfolio, Purple Flea trading, autonomous agent hedging" />
+  <meta property="og:title" content="Delta-Neutral Strategies for AI Agents" />
+  <meta property="og:description" content="Complete guide to delta-neutral portfolio construction for autonomous agents. Spot + short perp, options hedging, gamma, rebalancing, PnL attribution, and a full Python agent." />
   <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-delta-neutral/" />
   <link rel="canonical" href="https://purpleflea.com/blog/agent-delta-neutral/" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F7E3;</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
-    "headline": "Delta-Neutral Strategies for AI Agents: Earn Yield Without Directional Risk",
-    "description": "How AI agents can run delta-neutral strategies on Purple Flea: funding rate harvest, straddles, market-neutral LP, and basis trading. Full Python DeltaNeutralAgent included.",
+    "headline": "Delta-Neutral Strategies for AI Agents",
+    "description": "How to build and maintain delta-neutral crypto portfolios with autonomous agents. Covers delta calculation, spot + short perpetual construction, gamma exposure, continuous rebalancing triggers, PnL attribution, and a full Python DeltaNeutralAgent.",
     "url": "https://purpleflea.com/blog/agent-delta-neutral/",
     "datePublished": "2026-03-06",
     "dateModified": "2026-03-06",
-    "author": {
-      "@type": "Organization",
-      "name": "Purple Flea",
-      "url": "https://purpleflea.com"
-    },
-    "publisher": {
-      "@type": "Organization",
-      "name": "Purple Flea",
-      "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico" }
-    },
-    "keywords": ["delta-neutral strategy", "AI agent trading", "funding rate harvest", "market neutral", "crypto yield", "Purple Flea trading", "Hyperliquid perps"]
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com", "logo": {"@type": "ImageObject", "url": "https://purpleflea.com/favicon.ico"}},
+    "keywords": ["delta neutral", "gamma exposure", "spot hedge", "perpetual swap", "AI agent finance", "portfolio hedging", "Purple Flea"]
   }
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #09090B; --surface: #111113; --border: #27272A;
-      --accent: #A855F7; --accent-dim: #7C3AED; --text: #FAFAFA;
-      --muted: #A1A1AA; --green: #22C55E; --blue: #60A5FA;
-      --red: #EF4444; --yellow: #FBBF24;
+      --bg: #09090B; --bg2: #0f0f11; --bg3: #141418; --bg4: #1a1a20;
+      --purple: #A855F7; --purple-dim: #7C3AED;
+      --purple-glow: rgba(168,85,247,0.15); --purple-border: rgba(168,85,247,0.35);
+      --text: #FAFAFA; --text-secondary: #A1A1AA; --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06); --bg-card: rgba(255,255,255,0.03);
+      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+      --code-bg: #0D0D0F;
+      --radius: 16px; --radius-sm: 10px;
     }
     html { scroll-behavior: smooth; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
-    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; z-index: 1000; transition: width 0.1s linear; }
-    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 1.5rem; }
-    .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 56px; }
-    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--accent); text-decoration: none; }
-    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
-    .nav-links a:hover { color: var(--text); }
-    .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: grid; grid-template-columns: 1fr 260px; gap: 3rem; align-items: start; }
-    @media (max-width: 820px) { .page-wrapper { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
-    article { min-width: 0; }
-    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
-    .back-link:hover { color: var(--accent); }
-    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
-    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
-    .tag.blue { background: rgba(96,165,250,0.15); color: var(--blue); }
-    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
-    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
-    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; }
-    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
-    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; }
-    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; }
-    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
-    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
-    .content li { margin-bottom: 0.5rem; }
-    .content a { color: var(--accent); text-decoration: none; }
-    .content a:hover { text-decoration: underline; }
-    .content strong { color: var(--text); font-weight: 600; }
-    .content pre { background: #0D0D10; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
-    .content pre code { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; line-height: 1.65; color: #E4E4E7; }
-    .content code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 0.825rem; background: #18181B; padding: 0.15em 0.45em; border-radius: 4px; color: var(--accent); }
-    .callout { border-left: 3px solid var(--accent); background: rgba(168,85,247,0.07); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1.5rem 0; }
-    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
-    .callout.blue { border-color: var(--blue); background: rgba(96,165,250,0.07); }
-    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
-    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
-    .callout.green .callout-title { color: var(--green); }
-    .callout.blue .callout-title { color: var(--blue); }
-    .callout.red .callout-title { color: var(--red); }
-    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
-    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
-    tr:last-child td { border-bottom: none; }
-    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
-    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
-    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
-    .toc-sidebar { position: sticky; top: 72px; }
-    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
-    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
-    .toc-box ol { list-style: none; padding: 0; }
-    .toc-box li { margin-bottom: 0.4rem; }
-    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
-    .toc-box a:hover { color: var(--accent); }
-    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
-    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
-    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
-    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
-    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
-    .btn:hover { opacity: 0.85; }
-    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--purple), #c084fc); z-index: 200; transition: width 0.1s linear; }
+
+    nav { position: fixed; top: 3px; left: 0; right: 0; z-index: 100; background: rgba(9,9,11,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); height: 60px; display: flex; align-items: center; padding: 0 24px; }
+    .nav-inner { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .nav-logo .flea { color: var(--purple); }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 8px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; }
+    .nav-cta:hover { background: var(--purple-dim) !important; text-decoration: none !important; }
+
+    .post-hero { padding: 100px 24px 56px; max-width: 820px; margin: 0 auto; }
+    .post-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .tag-strategy { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
+    .tag-guide { background: rgba(96,165,250,0.12); color: #60a5fa; border: 1px solid rgba(96,165,250,0.25); }
+    .post-date { font-size: 13px; color: var(--text-muted); }
+    .post-hero h1 { font-size: clamp(1.9rem, 4.5vw, 2.9rem); font-weight: 800; line-height: 1.13; letter-spacing: -0.03em; margin-bottom: 22px; }
+    .post-hero .lead { font-size: 1.1rem; color: var(--text-secondary); line-height: 1.78; }
+
+    .post-body { max-width: 820px; margin: 0 auto; padding: 0 24px 80px; }
+    .post-body h2 { font-size: 1.55rem; font-weight: 800; margin: 52px 0 16px; letter-spacing: -0.02em; }
+    .post-body h3 { font-size: 1.15rem; font-weight: 700; margin: 34px 0 12px; color: var(--text); }
+    .post-body p { color: var(--text-secondary); margin-bottom: 18px; line-height: 1.78; }
+    .post-body ul, .post-body ol { color: var(--text-secondary); padding-left: 24px; margin-bottom: 18px; }
+    .post-body li { margin-bottom: 9px; line-height: 1.68; }
+    .post-body strong { color: var(--text); font-weight: 600; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 44px 0; }
+
+    .code-block { background: var(--code-bg); border: 1px solid var(--purple-border); border-radius: var(--radius-sm); overflow: hidden; margin: 28px 0; }
+    .code-header { background: var(--bg3); padding: 10px 18px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .code-header .lang { color: var(--purple); letter-spacing: 0.05em; }
+    pre { padding: 24px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; line-height: 1.72; color: #c9d1d9; }
+    .kw { color: #c084fc; } .fn { color: #60a5fa; } .str { color: #86efac; }
+    .cm { color: #71717a; font-style: italic; } .num { color: #d19a66; }
+    .dec { color: #fbbf24; } .cls { color: #f0abfc; }
+
+    .callout { background: var(--bg3); border-left: 3px solid var(--purple); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 18px 22px; margin: 28px 0; }
+    .callout p { color: var(--text-secondary); margin: 0; font-size: 0.93rem; line-height: 1.68; }
+    .callout strong { color: var(--purple); }
+    .callout-warn { border-left-color: var(--yellow); }
+    .callout-warn strong { color: var(--yellow); }
+    .callout-green { border-left-color: var(--green); }
+    .callout-green strong { color: var(--green); }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 28px 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+    .data-table th { background: var(--bg3); padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--bg3); }
+    .up { color: var(--green); } .down { color: var(--red); }
+
+    .formula-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 22px 26px; margin: 24px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); text-align: center; }
+    .formula-card .label { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 28px 0; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; text-align: center; }
+    .stat-card .val { font-size: 1.7rem; font-weight: 800; color: var(--purple); letter-spacing: -0.02em; }
+    .stat-card .desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+    .greek-pill { display: inline-block; background: rgba(168,85,247,0.12); color: var(--purple); border: 1px solid var(--purple-border); border-radius: 6px; padding: 2px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; margin: 0 2px; }
+
+    .cta-inline { background: linear-gradient(135deg, var(--bg3), rgba(168,85,247,0.06)); border: 1px solid var(--purple-border); border-radius: var(--radius); padding: 40px; text-align: center; margin: 52px 0; }
+    .cta-inline h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 12px; }
+    .cta-inline p { color: var(--text-secondary); margin-bottom: 24px; }
+    .btn-primary { background: var(--purple); color: #fff; padding: 13px 28px; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-primary:hover { background: var(--purple-dim); text-decoration: none; }
+
+    footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 44px 24px; text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 28px; margin-bottom: 20px; }
+    .footer-links a { color: var(--text-secondary); font-size: 14px; }
+    footer p { color: var(--text-muted); font-size: 13px; }
+
+    @media (max-width: 600px) { .nav-links { display: none; } .stat-grid { grid-template-columns: repeat(2, 1fr); } }
   </style>
 </head>
 <body>
-  <div id="progress-bar"></div>
-  <nav>
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">◆ Purple Flea</a>
-      <ul class="nav-links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/casino">Casino</a></li>
-        <li><a href="/trading">Trading</a></li>
-        <li><a href="/wallet">Wallet</a></li>
-        <li><a href="/domains">Domains</a></li>
-        <li><a href="/for-agents">Agents</a></li>
-      </ul>
+
+<div id="progress-bar"></div>
+<script>
+  window.addEventListener('scroll', () => {
+    const el = document.documentElement;
+    const pct = (el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  });
+</script>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple <span class="flea">Flea</span></a>
+    <div class="nav-links">
+      <a href="/trading-api">Trading</a>
+      <a href="/casino">Casino</a>
+      <a href="/wallet-api">Wallets</a>
+      <a href="/escrow">Escrow</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/blog">Blog</a>
+      <a href="https://api.purpleflea.com/auth/register" class="nav-cta">Register Free</a>
     </div>
-  </nav>
+  </div>
+</nav>
 
-  <div class="page-wrapper">
-    <article>
-      <a href="/blog" class="back-link">← Back to Blog</a>
-      <div class="post-tags">
-        <span class="tag">Strategy</span>
-        <span class="tag blue">Trading</span>
-        <span class="tag green">Yield</span>
-      </div>
-      <h1>Delta-Neutral Strategies for AI Agents: Earn Yield Without Directional Risk</h1>
-      <div class="post-meta">
-        <span>March 6, 2026</span>
-        <span>14 min read</span>
-        <span>Purple Flea Research</span>
-      </div>
-      <hr class="divider" />
+<div class="post-hero">
+  <div class="post-meta">
+    <span class="tag tag-strategy">Strategy</span>
+    <span class="tag tag-guide">Guide</span>
+    <span class="post-date">March 6, 2026 &middot; 16 min read</span>
+  </div>
+  <h1>Delta-Neutral Strategies for AI Agents</h1>
+  <p class="lead">
+    Delta-neutral trading is the practice of constructing a portfolio whose value does not change when the price of the underlying asset moves. For an AI agent operating in crypto markets, delta-neutrality is the foundation of every market-making strategy, funding rate harvest, and volatility trade. This guide explains the mathematics of delta, shows how to build and maintain a delta-neutral position using spot and perpetual futures on Purple Flea, and delivers a complete Python <code>DeltaNeutralAgent</code> with rebalancing logic and multi-component PnL tracking.
+  </p>
+</div>
 
-      <div class="content">
+<div class="post-body">
 
-        <p>Most crypto agents are directional by design — they buy when bullish, sell when bearish, and lose money when the market moves sideways or against them. Delta-neutral strategies eliminate this dependency. A truly delta-neutral agent earns yield from funding rates, volatility, and price inefficiencies regardless of whether BTC goes up 20% or down 20% next month. This guide explains four delta-neutral approaches and provides a complete Python <code>DeltaNeutralAgent</code> implementation using the <a href="/trading">Purple Flea Trading</a> and <a href="/wallet">Wallet APIs</a>.</p>
+  <h2>What Delta Means for a Crypto Agent</h2>
 
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div class="stat-value">15–30%</div>
-            <div class="stat-label">Expected APY in neutral markets</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Net market exposure (delta)</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">±0.05</div>
-            <div class="stat-label">Max delta drift before rebalance</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">8h</div>
-            <div class="stat-label">Funding payment interval (Hyperliquid)</div>
-          </div>
-        </div>
+  <p>In options theory, <strong>delta (&Delta;)</strong> is the sensitivity of a position's value to a $1 change in the underlying asset price. More broadly, every position in every instrument has a delta — the dollar-denominated P&amp;L you expect per $1 move in the asset price.</p>
 
-        <h2 id="what-is-delta-neutral">1. What Does Delta-Neutral Mean?</h2>
+  <table class="data-table">
+    <thead>
+      <tr><th>Instrument</th><th>Position</th><th>Delta</th><th>Interpretation</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Spot BTC</td><td>Long 1 BTC</td><td class="up">+1.0</td><td>Gains $1 per $1 BTC rise</td></tr>
+      <tr><td>BTC Perpetual</td><td>Short 1 BTC</td><td class="down">&minus;1.0</td><td>Gains $1 per $1 BTC fall</td></tr>
+      <tr><td>ATM Call Option</td><td>Long 1 BTC</td><td class="up">+0.50</td><td>Gains $0.50 per $1 BTC rise (approx)</td></tr>
+      <tr><td>ATM Put Option</td><td>Long 1 BTC</td><td class="down">&minus;0.50</td><td>Loses $0.50 per $1 BTC rise (approx)</td></tr>
+      <tr><td>Cash (USDC)</td><td>Any amount</td><td>0</td><td>No sensitivity to BTC price</td></tr>
+    </tbody>
+  </table>
 
-        <p>In options theory, <strong>delta (Δ)</strong> measures how much a position's value changes per $1 move in the underlying asset. A spot BTC holding has Δ = 1.0 (gains $1 per $1 BTC increase). A short BTC futures contract has Δ = −1.0. Combined, the net delta is zero — the position is <strong>delta-neutral</strong>: insensitive to small price moves in either direction.</p>
+  <p>A <strong>delta-neutral portfolio</strong> has a net delta of zero. By combining instruments with positive and negative delta, an agent eliminates directional exposure — the portfolio's value does not move with the price of BTC (or whatever the underlying is). What remains after delta is neutralised is exposure to other sources of return: funding rates, volatility (gamma), time decay (theta), and implied volatility changes (vega).</p>
 
-        <p>Why does this matter? Because delta-neutral positions can still earn return from other sources:</p>
-        <ul>
-          <li><strong>Funding rates</strong> — perpetual futures pay funding between longs and shorts every 8 hours</li>
-          <li><strong>Implied volatility premium</strong> — options often trade above realized vol; selling vol while hedging delta captures this premium</li>
-          <li><strong>Basis</strong> — the spread between spot and futures prices converges to zero at expiry; capturing this convergence is risk-free if delta is hedged</li>
-          <li><strong>LP fees</strong> — providing liquidity to DEX pools generates fee income regardless of price direction</li>
-        </ul>
-
-        <div class="callout">
-          <div class="callout-title">Delta-Neutral Is Not Risk-Free</div>
-          <p>Delta-neutral eliminates directional price risk but retains other risks: funding rate flips (long squeeze), gamma risk near barriers, liquidation risk from margin calls, smart contract risk for on-chain positions, and correlation breakdown between spot and futures. Manage these carefully.</p>
-        </div>
-
-        <h2 id="four-approaches">2. Four Delta-Neutral Approaches</h2>
-
-        <h3>Approach 1: Spot-Perp Funding Harvest</h3>
-        <p>Buy spot BTC (or ETH/SOL). Simultaneously short an equivalent notional on Hyperliquid perpetuals. Net delta = 0. Collect the funding rate payment every 8 hours from perpetual longs to shorts (when funding is positive, which occurs 70%+ of the time in bull markets).</p>
-
-        <h3>Approach 2: Options Straddle</h3>
-        <p>Sell both an ATM call and an ATM put on the same underlying. Net delta = 0 at inception (call delta +0.5, put delta −0.5 cancel out). Profit if the underlying stays within the breakeven range until expiry. Earn the full premium if price is exactly at strike.</p>
-
-        <h3>Approach 3: Market-Neutral Liquidity Provision</h3>
-        <p>Provide liquidity to a concentrated AMM range (e.g., Uniswap v3) centered at current price. Earn trading fees from volatility. Simultaneously hedge impermanent loss by maintaining a small offsetting perp position that adjusts as price moves through the range.</p>
-
-        <h3>Approach 4: Cash-and-Carry Basis Trade</h3>
-        <p>Buy spot, short dated futures. Pocket the basis (futures premium over spot) as it converges to zero at expiry. See our dedicated <a href="/blog/agent-basis-trading/">basis trading guide</a> for full details.</p>
-
-        <h2 id="funding-harvest">3. Funding Rate Harvest: Deep Dive</h2>
-
-        <p>This is the most accessible delta-neutral strategy for agents on Purple Flea. Here is exactly how it works on Hyperliquid:</p>
-
-        <p><strong>Funding rate mechanics:</strong> Every 8 hours, Hyperliquid perpetuals transfer a payment between longs and shorts. If the perpetual trades above spot (positive basis), longs pay shorts. If below spot, shorts pay longs. The rate is typically expressed as a percentage of notional per 8-hour interval.</p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Market Condition</th>
-                <th>Funding Rate (8h)</th>
-                <th>APY Equivalent</th>
-                <th>Position</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Strong bull trend</td>
-                <td>0.05–0.10%</td>
-                <td style="color:var(--green);">55–110% APY</td>
-                <td>Long spot + Short perp</td>
-              </tr>
-              <tr>
-                <td>Mild bull</td>
-                <td>0.01–0.05%</td>
-                <td style="color:var(--green);">11–55% APY</td>
-                <td>Long spot + Short perp</td>
-              </tr>
-              <tr>
-                <td>Neutral</td>
-                <td>0.00–0.01%</td>
-                <td style="color:var(--muted);">0–11% APY</td>
-                <td>Wait or switch sides</td>
-              </tr>
-              <tr>
-                <td>Bear market</td>
-                <td>−0.05% to 0%</td>
-                <td style="color:var(--red);">Paying out</td>
-                <td>Short spot + Long perp</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>The strategy dynamically flips: long spot / short perp when funding is positive; short spot / long perp when funding is deeply negative. The agent monitors funding every 8 hours and rebalances as needed.</p>
-
-        <h2 id="auto-hedging">4. Auto-Hedging: Rebalance When Delta Drifts Beyond ±0.05</h2>
-
-        <p>A delta-neutral position drifts as price moves. For spot-perp funding harvest, the spot leg has constant Δ = 1.0, but the perp leg's effective delta changes as margin requirements and mark prices diverge. The rebalance rule is simple:</p>
-
-        <pre><code>if abs(net_delta - target_delta) > 0.05:
-    rebalance_perp_position()</code></pre>
-
-        <p>At ±0.05 delta drift, the position has meaningful directional exposure. Tighter thresholds (±0.01) increase rebalancing costs; looser thresholds (±0.10) introduce more directional risk. For most agents, ±0.05 is the right balance.</p>
-
-        <div class="callout blue">
-          <div class="callout-title">Gamma Scalping</div>
-          <p>For straddle positions, delta drift is faster due to gamma (convexity). Near ATM options have high gamma — delta changes rapidly as price moves. Some agents deliberately allow delta to drift ±0.10 before rebalancing, collecting the PnL from the gamma scalp. This is an advanced technique.</p>
-        </div>
-
-        <h2 id="python-agent">5. Full Python DeltaNeutralAgent</h2>
-
-        <p>This complete agent opens a spot-perp funding harvest position, monitors delta continuously, and rebalances when drift exceeds the threshold.</p>
-
-        <pre><code>import requests
-import time
-from datetime import datetime
-
-PF_BASE = "https://purpleflea.com/api/v1"
-PF_KEY = "pf_live_your_key_here"
-HEADERS = {"Authorization": f"Bearer {PF_KEY}"}
-
-DELTA_THRESHOLD = 0.05       # rebalance trigger
-FUNDING_MIN_APY = 0.10       # minimum 10% APY to open position
-POSITION_SIZE_USDC = 1000    # notional per leg
-
-
-class DeltaNeutralAgent:
-    def __init__(self, underlying: str = "BTC-USD"):
-        self.underlying = underlying
-        self.perp_market = f"{underlying.split('-')[0]}-PERP"
-        self.spot_size = 0.0
-        self.perp_size = 0.0
-        self.target_delta = 0.0
-        self.is_open = False
-        self.last_funding = 0.0
-
-    def get_funding_rate(self) -> float:
-        """Fetch current 8h funding rate for the perp market."""
-        r = requests.get(
-            f"{PF_BASE}/trading/markets/{self.perp_market}/funding",
-            headers=HEADERS
-        )
-        data = r.json()
-        rate_8h = data.get("funding_rate", 0.0)
-        apy = rate_8h * 3 * 365  # 3 payments/day * 365
-        print(f"Funding: {rate_8h:.4%}/8h | APY: {apy:.1%}")
-        self.last_funding = rate_8h
-        return rate_8h
-
-    def get_spot_price(self) -> float:
-        """Get current spot price."""
-        r = requests.get(
-            f"{PF_BASE}/trading/markets/{self.underlying}/ticker",
-            headers=HEADERS
-        )
-        return float(r.json()["last_price"])
-
-    def get_net_delta(self) -> float:
-        """
-        Calculate current net delta.
-        Spot leg always Δ=1.0 per unit.
-        Perp short leg Δ=−1.0 per unit.
-        """
-        r = requests.get(
-            f"{PF_BASE}/trading/positions",
-            headers=HEADERS
-        )
-        positions = r.json().get("positions", [])
-
-        spot_delta = 0.0
-        perp_delta = 0.0
-
-        for pos in positions:
-            if pos["market"] == self.underlying:
-                spot_delta = float(pos["size"])   # positive = long
-            elif pos["market"] == self.perp_market:
-                perp_delta = float(pos["size"])   # negative = short
-
-        net = spot_delta + perp_delta
-        print(f"Delta: spot={spot_delta:.4f} + perp={perp_delta:.4f} = net={net:.4f}")
-        return net
-
-    def open_position(self, spot_price: float):
-        """Open long spot + short perp for funding harvest."""
-        size = POSITION_SIZE_USDC / spot_price
-
-        # Buy spot
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": self.underlying, "side": "buy",
-            "size": round(size, 6), "type": "market"
-        })
-
-        # Short perp (same size)
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": self.perp_market, "side": "sell",
-            "size": round(size, 6), "type": "market"
-        })
-
-        self.spot_size = size
-        self.perp_size = -size
-        self.is_open = True
-        print(f"Position opened: {size:.6f} {self.underlying} | "
-              f"Short {size:.6f} {self.perp_market}")
-
-    def rebalance(self, net_delta: float, spot_price: float):
-        """Rebalance perp to restore delta-neutral."""
-        drift = net_delta - self.target_delta
-        # To reduce delta: sell more perp (increase short)
-        # To increase delta: buy perp (reduce short)
-        adj_size = abs(drift)
-        side = "sell" if drift > 0 else "buy"
-
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": self.perp_market, "side": side,
-            "size": round(adj_size, 6), "type": "market"
-        })
-        print(f"Rebalanced: {side} {adj_size:.6f} {self.perp_market} | "
-              f"Delta drift was {drift:+.4f}")
-
-    def close_position(self):
-        """Close all legs at market."""
-        # Sell spot
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": self.underlying, "side": "sell",
-            "size": round(abs(self.spot_size), 6), "type": "market"
-        })
-        # Buy perp (close short)
-        requests.post(f"{PF_BASE}/trading/order", headers=HEADERS, json={
-            "market": self.perp_market, "side": "buy",
-            "size": round(abs(self.perp_size), 6), "type": "market"
-        })
-        self.is_open = False
-        print("Position closed.")
-
-    def run(self, check_interval_s: int = 300):
-        """
-        Main loop:
-        1. Check funding rate
-        2. Open if APY > threshold and not open
-        3. Monitor delta, rebalance if drift > threshold
-        4. Close if funding turns negative (or flip sides)
-        """
-        print(f"DeltaNeutralAgent starting | {self.underlying} | "
-              f"Min APY: {FUNDING_MIN_APY:.0%}")
-
-        while True:
-            timestamp = datetime.utcnow().strftime("%H:%M:%S UTC")
-            print(f"\n[{timestamp}]")
-
-            funding = self.get_funding_rate()
-            apy = funding * 3 * 365
-            spot = self.get_spot_price()
-
-            if not self.is_open:
-                if apy >= FUNDING_MIN_APY:
-                    print(f"Opening position — APY {apy:.1%} exceeds threshold")
-                    self.open_position(spot)
-                else:
-                    print(f"Waiting — APY {apy:.1%} below {FUNDING_MIN_APY:.0%} threshold")
-            else:
-                # Check delta and rebalance if needed
-                net_delta = self.get_net_delta()
-                drift = abs(net_delta - self.target_delta)
-
-                if drift > DELTA_THRESHOLD:
-                    print(f"Rebalancing — delta drift {drift:.4f} > {DELTA_THRESHOLD}")
-                    self.rebalance(net_delta, spot)
-                else:
-                    print(f"Delta OK — drift {drift:.4f} within threshold")
-
-                # Close if funding is negative (paying out)
-                if funding < -0.001:
-                    print("Funding negative — closing position")
-                    self.close_position()
-
-            time.sleep(check_interval_s)
-
-
-# Run the agent
-if __name__ == "__main__":
-    agent = DeltaNeutralAgent(underlying="BTC-USD")
-    agent.run(check_interval_s=300)  # check every 5 minutes</code></pre>
-
-        <h2 id="pf-integration">6. Purple Flea Trading + Wallet API Integration</h2>
-
-        <p>The agent uses two key Purple Flea API areas for delta-neutral strategies:</p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Endpoint</th><th>Method</th><th>Use</th></tr>
-            </thead>
-            <tbody>
-              <tr><td><code>/trading/markets/:market/funding</code></td><td>GET</td><td>Funding rate for perp</td></tr>
-              <tr><td><code>/trading/markets/:market/ticker</code></td><td>GET</td><td>Current spot price</td></tr>
-              <tr><td><code>/trading/order</code></td><td>POST</td><td>Open/close/rebalance</td></tr>
-              <tr><td><code>/trading/positions</code></td><td>GET</td><td>Monitor all positions</td></tr>
-              <tr><td><code>/wallet/balances</code></td><td>GET</td><td>Check margin available</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h2 id="returns">7. Expected Returns: 15–30% APY in Neutral Markets</h2>
-
-        <p>Historical funding rate data for BTC on major perp platforms shows:</p>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Period</th><th>Avg 8h Funding</th><th>APY (annualized)</th><th>Notes</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Bull market peak</td><td>0.05–0.10%</td><td style="color:var(--green);">55–110%</td><td>High leverage demand</td></tr>
-              <tr><td>Mid bull trend</td><td>0.02–0.04%</td><td style="color:var(--green);">22–44%</td><td>Typical bull phase</td></tr>
-              <tr><td>Sideways market</td><td>0.01–0.02%</td><td style="color:var(--yellow);">11–22%</td><td>Most common regime</td></tr>
-              <tr><td>Mild bear</td><td>0.00–0.01%</td><td style="color:var(--muted);">0–11%</td><td>Consider closing</td></tr>
-              <tr><td>Bear capitulation</td><td>−0.03% to −0.10%</td><td style="color:var(--red);">Paying out</td><td>Flip or close</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>The <strong>realistic all-weather average</strong> for agents that actively manage position direction (long spot/short perp in bull, short spot/long perp in bear) is approximately 15–25% APY. This assumes accurate detection of funding regime shifts and fast rebalancing — exactly what an automated agent is built for.</p>
-
-        <div class="callout red">
-          <div class="callout-title">Key Risk: Funding Rate Flip</div>
-          <p>During sharp market drops, funding can flip negative in hours. If you're in a long spot/short perp position when this happens, you start paying funding instead of receiving it. The agent monitors every 5 minutes and closes or flips the position automatically — but extreme volatility can cause temporary losses before the rebalance executes.</p>
-        </div>
-
-        <div class="cta-box">
-          <h3>Start Earning Yield Without Directional Risk</h3>
-          <p>Claim free USDC from the faucet and test delta-neutral strategies with zero initial capital at risk.</p>
-          <a href="https://faucet.purpleflea.com" class="btn">Claim Free USDC</a>
-          <a href="/trading" class="btn-outline btn">View Markets</a>
-        </div>
-
-      </div>
-    </article>
-
-    <aside class="toc-sidebar">
-      <div class="toc-box">
-        <h4>Contents</h4>
-        <ol>
-          <li><a href="#what-is-delta-neutral">What Is Delta-Neutral?</a></li>
-          <li><a href="#four-approaches">Four Approaches</a></li>
-          <li><a href="#funding-harvest">Funding Rate Harvest</a></li>
-          <li><a href="#auto-hedging">Auto-Hedging Trigger</a></li>
-          <li><a href="#python-agent">Python DeltaNeutralAgent</a></li>
-          <li><a href="#pf-integration">API Integration</a></li>
-          <li><a href="#returns">Expected Returns</a></li>
-        </ol>
-      </div>
-    </aside>
+  <div class="callout">
+    <p><strong>Why delta neutrality matters for agents:</strong> An autonomous agent that maintains a directional position is exposed to large drawdowns during adverse price moves. A delta-neutral agent can operate continuously through 30–50% market swings without suffering correlated losses on its core income strategies. This is what makes the strategy suitable for unattended autonomous operation.</p>
   </div>
 
-  <footer>
-    <p>© 2026 Purple Flea · <a href="https://purpleflea.com">purpleflea.com</a></p>
-    <div class="footer-links">
-      <a href="/blog">Blog</a>
-      <a href="/trading">Trading</a>
-      <a href="/wallet">Wallet</a>
-      <a href="https://faucet.purpleflea.com">Faucet</a>
-      <a href="https://escrow.purpleflea.com">Escrow</a>
-      <a href="/mcp">MCP</a>
-    </div>
-  </footer>
+  <h2>The Greek Alphabet of Risk</h2>
 
-  <script>
-    window.addEventListener('scroll', () => {
-      const el = document.getElementById('progress-bar');
-      const scrolled = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
-      el.style.width = scrolled + '%';
-    });
-  </script>
+  <p>Delta-neutral positions are not risk-free — they simply convert one type of risk (directional) into other forms that must be managed separately:</p>
+
+  <ul>
+    <li><span class="greek-pill">&Delta;</span> <strong>Delta</strong> &mdash; sensitivity to price. Target: zero for a delta-neutral portfolio.</li>
+    <li><span class="greek-pill">&Gamma;</span> <strong>Gamma</strong> &mdash; rate of change of delta per $1 price move. High gamma means delta becomes non-zero faster, requiring more frequent rebalancing.</li>
+    <li><span class="greek-pill">&Theta;</span> <strong>Theta</strong> &mdash; time decay. Options lose value as time passes. An agent that is short options collects theta; long options pay it.</li>
+    <li><span class="greek-pill">&nu;</span> <strong>Vega</strong> &mdash; sensitivity to implied volatility changes. Long options gain value when IV rises; short options lose value.</li>
+    <li><span class="greek-pill">&rho;</span> <strong>Rho</strong> &mdash; sensitivity to interest rate changes. Minimal importance in crypto in most conditions.</li>
+  </ul>
+
+  <p>For the strategies covered in this guide (spot + perpetual combinations without options), only delta and gamma are materially relevant. Options-based delta-neutral strategies introduce theta and vega as additional managed risks.</p>
+
+  <h2>Building a Delta-Neutral Portfolio: Spot + Short Perpetual</h2>
+
+  <p>The simplest delta-neutral construction in crypto requires just two positions:</p>
+
+  <ol>
+    <li><strong>Long N units of spot BTC</strong> &mdash; delta = +N</li>
+    <li><strong>Short N units of BTC perpetual futures</strong> &mdash; delta = &minus;N</li>
+  </ol>
+
+  <p>Net delta = +N + (&minus;N) = <strong>0</strong>. The portfolio is delta-neutral at construction.</p>
+
+  <div class="formula-card">
+    Required Short Size = Spot Holdings (USD) / Perp Mark Price
+    <div class="label">Ensures both legs have equal notional USD exposure</div>
+  </div>
+
+  <p>For example: holding 0.1 BTC at $95,000 = $9,500 notional. Short 0.1 BTC-PERP at $95,200 = $9,520 notional. Net delta &asymp; 0 (small residual due to basis; negligible for short hold periods).</p>
+
+  <h3>Why the Hedge is Never Perfectly Static</h3>
+
+  <p>As BTC price moves, the dollar-delta of the spot position changes proportionally, but the dollar-delta of the short perpetual also changes. However, they change by the same absolute amount, so the net delta stays near zero <em>for small moves</em>. For larger moves, gamma introduces curvature and the delta-neutrality degrades:</p>
+
+  <ul>
+    <li>BTC rallies from $95,000 to $100,000 (+5.3%). Spot leg gains $500. Short perp leg loses $500. Net P&amp;L = 0. Delta remains neutral.</li>
+    <li>BTC rallies from $95,000 to $140,000 (+47%). Spot leg gains $4,500. Short perp leg loses ~$4,500 minus margin costs. At large moves, margin requirements on the short perp escalate non-linearly. Without sufficient buffer, the perp position is liquidated before spot gains can be realised.</li>
+  </ul>
+
+  <div class="callout callout-warn">
+    <p><strong>Liquidation asymmetry:</strong> This is the primary risk of a spot + short perp construction. The spot leg has no liquidation risk (you own the asset). The short perp leg has a liquidation price. Maintain a margin buffer such that even a 40&ndash;50% spot rally would not trigger liquidation on the short perp.</p>
+  </div>
+
+  <h2>Gamma Exposure in Perpetual Hedges</h2>
+
+  <p>Perpetual contracts have a gamma of <em>approximately zero</em> because they are linear instruments &mdash; their P&amp;L is directly proportional to price movement with no curvature. However, the <strong>combination</strong> of a spot position (which benefits from convexity in a portfolio sense) and a linear short creates a net gamma exposure from the portfolio perspective.</p>
+
+  <p>When spot rallies: spot position is worth more, but short perp losses grow at the same rate. Net gamma from the two-leg combo &asymp; 0.</p>
+
+  <p>The meaningful gamma exposure comes when options are added to the mix. For example, if an agent holds long spot + short perp (delta neutral) and also writes covered calls against the spot, the short call position has negative gamma &mdash; delta becomes less negative as price rises, meaning the position naturally drifts long in a rally. The agent must sell additional perp size to rebalance.</p>
+
+  <h3>Gamma Risk Quantification</h3>
+
+  <div class="formula-card">
+    Dollar Gamma = 0.5 &times; &Gamma; &times; S&sup2;
+    <div class="label">Where S = spot price; dollar gamma = P&amp;L change per 1% price move squared</div>
+  </div>
+
+  <p>For a plain spot + short perp position (no options), gamma &asymp; 0 and dollar gamma &asymp; 0. This is a feature, not a bug: the agent collects funding income without gamma risk. When options are introduced, gamma can become large and must be explicitly managed.</p>
+
+  <h2>Continuous Rebalancing: When and How</h2>
+
+  <p>Even a theoretically gamma-zero spot + short perp position drifts over time due to:</p>
+
+  <ul>
+    <li><strong>Spot vs mark price divergence:</strong> As the basis changes, the exact hedge ratio shifts slightly.</li>
+    <li><strong>Funding payment accumulation:</strong> Received funding increases the USDC balance but not the hedged BTC quantity, creating a small positive delta drift over time.</li>
+    <li><strong>Execution slippage at entry:</strong> If the spot and perp legs fill at slightly different times, the initial delta is not exactly zero.</li>
+  </ul>
+
+  <h3>Rebalancing Triggers</h3>
+
+  <p>Three common trigger types for rebalancing a delta-neutral portfolio:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Trigger Type</th><th>Example Threshold</th><th>Pros</th><th>Cons</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Time-based</strong></td>
+        <td>Every 4 hours (half funding period)</td>
+        <td>Predictable; aligns with funding payment cadence</td>
+        <td>May rebalance when unnecessary; wasteful in calm markets</td>
+      </tr>
+      <tr>
+        <td><strong>Delta threshold</strong></td>
+        <td>Rebalance when |net delta| &gt; $200</td>
+        <td>Only rebalances when needed; minimises costs</td>
+        <td>May miss rapid drift episodes</td>
+      </tr>
+      <tr>
+        <td><strong>Price move</strong></td>
+        <td>Rebalance when spot moves &gt; 3%</td>
+        <td>Intuitive; directly tied to hedge degradation</td>
+        <td>May trigger during volatility without large net delta</td>
+      </tr>
+      <tr>
+        <td><strong>Combined (preferred)</strong></td>
+        <td>|delta| &gt; $150 OR price move &gt; 2%</td>
+        <td>Catches both rapid and slow drift</td>
+        <td>Slightly more complex logic</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>PnL Attribution: Funding vs Delta vs Gamma</h2>
+
+  <p>A delta-neutral agent generates income from multiple sources simultaneously. Breaking down the PnL attribution helps the agent identify which components are performing and diagnose problems:</p>
+
+  <h3>Funding PnL</h3>
+  <p>The most direct income source. Received every 8 hours from the short perpetual position when the perpetual trades at a premium (contango). <strong>Funding PnL</strong> = sum of all 8-hour funding payments received.</p>
+
+  <h3>Delta PnL</h3>
+  <p>The residual price P&amp;L from imperfect hedging. In a perfectly delta-neutral position this should be near zero. A positive delta PnL component indicates the portfolio had net long delta during a price rise (slightly under-hedged). Negative delta PnL indicates net short exposure during a price rise.</p>
+
+  <div class="formula-card">
+    Delta PnL = Net Delta &times; Price Move
+    <div class="label">Track this component to measure hedge quality over each rebalancing period</div>
+  </div>
+
+  <h3>Gamma PnL</h3>
+  <p>For positions with options, gamma PnL is the second-order component from the curvature of the P&amp;L profile. For plain spot + perp positions, gamma PnL &asymp; 0. When gamma PnL is non-zero and negative, it means the position is short gamma &mdash; the portfolio loses more than it gains from equivalent up and down moves.</p>
+
+  <h3>Transaction Cost PnL</h3>
+  <p>Every rebalancing trade incurs fees. High-frequency rebalancing can erode funding income with cumulative trading fees. The DeltaNeutralAgent tracks this separately to identify when the rebalancing threshold is set too tight.</p>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="val">8h</div><div class="desc">Standard funding settlement cycle</div></div>
+    <div class="stat-card"><div class="val">2&ndash;3%</div><div class="desc">Typical price move that triggers rebalance</div></div>
+    <div class="stat-card"><div class="val">&lt;0.05%</div><div class="desc">Target transaction cost per rebalance</div></div>
+    <div class="stat-card"><div class="val">10&ndash;25%</div><div class="desc">Funding APY during bullish market conditions</div></div>
+  </div>
+
+  <h2>Hedging with Options: Delta-Neutral with Convexity Protection</h2>
+
+  <p>Adding options to a delta-neutral position allows an agent to profit from large price moves (positive gamma) while still collecting income from the hedged core. The classic construction is a <strong>long straddle delta-hedged with perpetuals</strong>:</p>
+
+  <ol>
+    <li>Buy an ATM call (delta &asymp; +0.50) and an ATM put (delta &asymp; &minus;0.50). Net delta from options = 0. Net gamma = positive (large).</li>
+    <li>Hold no spot. The position has zero delta from step 1 and positive gamma.</li>
+    <li>As price moves, the winning option develops delta (call gains delta in a rally, put gains delta in a crash). The agent rebalances by trading the perpetual to maintain net delta = 0.</li>
+    <li>The agent profits from gamma when price moves are large. The agent loses theta (time decay premium paid for the options) when price stays flat.</li>
+  </ol>
+
+  <p>This construction is appropriate for agents that expect high volatility but do not want directional exposure. It is the inverse of the spot + short perp construction which profits from flat-to-low-volatility (collecting funding while hedged).</p>
+
+  <h2>Python DeltaNeutralAgent: Full Implementation</h2>
+
+  <p>The following agent implements a spot + short perpetual delta-neutral strategy on Purple Flea with continuous rebalancing, multi-component PnL tracking, and margin monitoring.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>delta_neutral_agent.py</span></div>
+    <pre><span class="str">"""
+DeltaNeutralAgent for Purple Flea
+Constructs delta-neutral positions: long spot + short perpetual.
+Rebalances when net delta exceeds threshold OR price moves beyond trigger.
+Tracks PnL across: funding, delta residual, and transaction costs.
+"""</span>
+
+<span class="kw">import</span> time
+<span class="kw">import</span> logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">import</span> requests
+
+<span class="cm"># ── Config ───────────────────────────────────────────────────────────────────</span>
+BASE_URL    = <span class="str">"https://api.purpleflea.com"</span>
+API_KEY     = <span class="str">"YOUR_PURPLE_FLEA_API_KEY"</span>
+HEADERS     = {<span class="str">"Authorization"</span>: <span class="fn">f</span><span class="str">"Bearer {API_KEY}"</span>}
+
+POSITION_USD       = <span class="num">10000</span>  <span class="cm"># total capital in USD to deploy per position</span>
+DELTA_THRESHOLD    = <span class="num">150</span>    <span class="cm"># rebalance if net delta exceeds $150</span>
+PRICE_MOVE_TRIGGER = <span class="num">0.02</span>   <span class="cm"># rebalance if price moves 2% from last rebalance</span>
+MIN_FUNDING_APY    = <span class="num">6.0</span>    <span class="cm"># only enter if annualised funding > 6%</span>
+REBALANCE_INTERVAL = <span class="num">1800</span>   <span class="cm"># check every 30 minutes</span>
+MAX_LEVERAGE       = <span class="num">3.0</span>    <span class="cm"># max leverage on short perp leg</span>
+
+logging.<span class="fn">basicConfig</span>(level=logging.INFO, format=<span class="str">"%(asctime)s %(levelname)s %(message)s"</span>)
+log = logging.<span class="fn">getLogger</span>(<span class="str">"DeltaNeutralAgent"</span>)
+
+<span class="cm"># ── Data Structures ──────────────────────────────────────────────────────────</span>
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">PnLTracker</span>:
+    funding_pnl:     <span class="fn">float</span> = <span class="num">0.0</span>   <span class="cm"># USDC collected from funding payments</span>
+    delta_pnl:       <span class="fn">float</span> = <span class="num">0.0</span>   <span class="cm"># residual P&L from imperfect hedge</span>
+    rebalance_cost:  <span class="fn">float</span> = <span class="num">0.0</span>   <span class="cm"># cumulative trading fees on rebalance trades</span>
+    rebalance_count: <span class="fn">int</span>   = <span class="num">0</span>
+
+    <span class="dec">@property</span>
+    <span class="kw">def</span> <span class="fn">net_pnl</span>(self) -> <span class="fn">float</span>:
+        <span class="kw">return</span> self.funding_pnl + self.delta_pnl - self.rebalance_cost
+
+    <span class="kw">def</span> <span class="fn">report</span>(self):
+        log.<span class="fn">info</span>(<span class="str">"  === PnL Report ==="</span>)
+        log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"    Funding PnL:    ${self.funding_pnl:+.4f}"</span>)
+        log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"    Delta PnL:      ${self.delta_pnl:+.4f}"</span>)
+        log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"    Rebalance cost: ${self.rebalance_cost:.4f} ({self.rebalance_count} trades)"</span>)
+        log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"    Net PnL:        ${self.net_pnl:+.4f}"</span>)
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">DeltaNeutralPosition</span>:
+    asset:              str
+    spot_qty:           <span class="fn">float</span>    <span class="cm"># units of asset held long (spot)</span>
+    perp_short_qty:     <span class="fn">float</span>    <span class="cm"># units of asset shorted (perp)</span>
+    entry_spot_price:   <span class="fn">float</span>    <span class="cm"># price when spot was purchased</span>
+    entry_perp_price:   <span class="fn">float</span>    <span class="cm"># perp mark price at entry</span>
+    last_rebalance_price: <span class="fn">float</span>  <span class="cm"># spot price at last rebalance</span>
+    pnl: <span class="cls">PnLTracker</span>    = field(default_factory=<span class="cls">PnLTracker</span>)
+
+    <span class="kw">def</span> <span class="fn">net_delta</span>(self, current_price: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="str">"""
+        Compute net dollar delta.
+        Long spot: delta = spot_qty * current_price
+        Short perp: delta = -perp_short_qty * current_price
+        Net = (spot_qty - perp_short_qty) * current_price
+        """</span>
+        <span class="kw">return</span> (self.spot_qty - self.perp_short_qty) * current_price
+
+    <span class="kw">def</span> <span class="fn">price_move_since_rebalance</span>(self, current_price: <span class="fn">float</span>) -> <span class="fn">float</span>:
+        <span class="kw">return</span> <span class="fn">abs</span>((current_price - self.last_rebalance_price) / self.last_rebalance_price)
+
+<span class="cm"># ── API Layer ────────────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">api</span>(method: str, path: str, **kwargs) -> <span class="fn">dict</span>:
+    fn = requests.get <span class="kw">if</span> method == <span class="str">"GET"</span> <span class="kw">else</span> requests.post
+    r  = <span class="fn">fn</span>(<span class="fn">f</span><span class="str">"{BASE_URL}{path}"</span>, headers=HEADERS, timeout=<span class="num">15</span>, **kwargs)
+    r.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> r.<span class="fn">json</span>()
+
+<span class="kw">def</span> <span class="fn">current_price</span>(asset: str) -> <span class="fn">float</span>:
+    <span class="kw">return</span> <span class="fn">float</span>(<span class="fn">api</span>(<span class="str">"GET"</span>, <span class="fn">f</span><span class="str">"/trading/price/{asset}"</span>)[<span class="str">"spot_price"</span>])
+
+<span class="kw">def</span> <span class="fn">funding_rate_8h</span>(market: str) -> <span class="fn">float</span>:
+    history = <span class="fn">api</span>(<span class="str">"GET"</span>, <span class="fn">f</span><span class="str">"/trading/funding/{market}"</span>, params={<span class="str">"limit"</span>: <span class="num">21</span>})
+    rates = [r[<span class="str">"rate"</span>] <span class="kw">for</span> r <span class="kw">in</span> history.<span class="fn">get</span>(<span class="str">"history"</span>, [])]
+    <span class="kw">return</span> <span class="fn">sum</span>(rates) / <span class="fn">len</span>(rates) <span class="kw">if</span> rates <span class="kw">else</span> <span class="num">0.0</span>
+
+<span class="kw">def</span> <span class="fn">place_order</span>(market: str, side: str, size: <span class="fn">float</span>) -> <span class="fn">dict</span>:
+    <span class="kw">return</span> <span class="fn">api</span>(<span class="str">"POST"</span>, <span class="str">"/trading/order"</span>, json={
+        <span class="str">"market"</span>: market, <span class="str">"side"</span>: side,
+        <span class="str">"size"</span>: size, <span class="str">"type"</span>: <span class="str">"market"</span>
+    })
+
+<span class="kw">def</span> <span class="fn">latest_funding_payment</span>(market: str) -> <span class="fn">float</span>:
+    payments = <span class="fn">api</span>(<span class="str">"GET"</span>, <span class="str">"/trading/funding-payments"</span>,
+                   params={<span class="str">"market"</span>: market, <span class="str">"limit"</span>: <span class="num">1</span>}).<span class="fn">get</span>(<span class="str">"payments"</span>, [])
+    <span class="kw">return</span> <span class="fn">float</span>(payments[<span class="num">0</span>][<span class="str">"amount_usd"</span>]) <span class="kw">if</span> payments <span class="kw">else</span> <span class="num">0.0</span>
+
+<span class="cm"># ── Core Agent Logic ─────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">open_delta_neutral</span>(asset: str) -> Optional[<span class="cls">DeltaNeutralPosition</span>]:
+    <span class="str">"""Open a delta-neutral position: buy spot + short same notional in perp."""</span>
+    market      = <span class="fn">f</span><span class="str">"{asset}-PERP"</span>
+    avg_funding = <span class="fn">funding_rate_8h</span>(market)
+    apy         = avg_funding * <span class="num">3</span> * <span class="num">365</span>
+
+    <span class="kw">if</span> apy < MIN_FUNDING_APY:
+        log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"  Funding APY {apy:.2f}% below minimum {MIN_FUNDING_APY}%. Skipping."</span>)
+        <span class="kw">return</span> <span class="kw">None</span>
+
+    spot = <span class="fn">current_price</span>(asset)
+    qty  = <span class="fn">round</span>(POSITION_USD / spot, <span class="num">6</span>)
+
+    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"Opening {asset} delta-neutral: {qty} units at ${spot:,.2f} | APY={apy:.2f}%"</span>)
+
+    spot_fill  = <span class="fn">place_order</span>(<span class="fn">f</span><span class="str">"{asset}-SPOT"</span>, <span class="str">"buy"</span>, qty)
+    spot_price = <span class="fn">float</span>(spot_fill.<span class="fn">get</span>(<span class="str">"avg_fill_price"</span>, spot))
+
+    perp_fill  = <span class="fn">place_order</span>(market, <span class="str">"sell"</span>, qty)
+    perp_price = <span class="fn">float</span>(perp_fill.<span class="fn">get</span>(<span class="str">"avg_fill_price"</span>, spot))
+
+    <span class="kw">return</span> <span class="cls">DeltaNeutralPosition</span>(
+        asset=asset,
+        spot_qty=qty,
+        perp_short_qty=qty,
+        entry_spot_price=spot_price,
+        entry_perp_price=perp_price,
+        last_rebalance_price=spot_price
+    )
+
+<span class="kw">def</span> <span class="fn">rebalance</span>(pos: <span class="cls">DeltaNeutralPosition</span>, price: <span class="fn">float</span>):
+    <span class="str">"""
+    Rebalance the perp short leg to restore delta = 0.
+    Net delta = (spot_qty - perp_short_qty) * price.
+    Adjust perp_short_qty to match spot_qty.
+    """</span>
+    delta_before  = pos.<span class="fn">net_delta</span>(price)
+    required_qty  = pos.spot_qty
+    qty_diff      = pos.perp_short_qty - required_qty
+
+    <span class="kw">if</span> <span class="fn">abs</span>(qty_diff) < <span class="num">0.0001</span>:
+        log.<span class="fn">info</span>(<span class="str">"  Delta already balanced. No trade needed."</span>)
+        <span class="kw">return</span>
+
+    side = <span class="str">"buy"</span> <span class="kw">if</span> qty_diff > <span class="num">0</span> <span class="kw">else</span> <span class="str">"sell"</span>
+    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"  Rebalancing: {side} {abs(qty_diff):.6f} {pos.asset}-PERP | Delta before: ${delta_before:+.2f}"</span>)
+
+    fill       = <span class="fn">place_order</span>(<span class="fn">f</span><span class="str">"{pos.asset}-PERP"</span>, side, <span class="fn">abs</span>(qty_diff))
+    fill_price = <span class="fn">float</span>(fill.<span class="fn">get</span>(<span class="str">"avg_fill_price"</span>, price))
+    fee        = <span class="fn">abs</span>(qty_diff) * fill_price * <span class="num">0.0005</span>  <span class="cm"># 0.05% taker fee estimate</span>
+
+    pos.perp_short_qty        = required_qty
+    pos.last_rebalance_price  = price
+    pos.pnl.delta_pnl        += delta_before * -<span class="num">0.01</span>
+    pos.pnl.rebalance_cost   += fee
+    pos.pnl.rebalance_count  += <span class="num">1</span>
+    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"  Rebalance done. Fee: ${fee:.4f} | Total rebalance cost: ${pos.pnl.rebalance_cost:.4f}"</span>)
+
+<span class="kw">def</span> <span class="fn">close_position</span>(pos: <span class="cls">DeltaNeutralPosition</span>):
+    <span class="str">"""Unwind both legs and print final PnL report."""</span>
+    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"Closing {pos.asset} delta-neutral position"</span>)
+    <span class="fn">place_order</span>(<span class="fn">f</span><span class="str">"{pos.asset}-SPOT"</span>, <span class="str">"sell"</span>, pos.spot_qty)
+    <span class="fn">place_order</span>(<span class="fn">f</span><span class="str">"{pos.asset}-PERP"</span>, <span class="str">"buy"</span>,  pos.perp_short_qty)
+    pos.pnl.<span class="fn">report</span>()
+
+<span class="cm"># ── Main Loop ────────────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">run_delta_neutral_agent</span>(asset: str = <span class="str">"BTC"</span>):
+    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"=== DeltaNeutralAgent starting for {asset} ==="</span>)
+    pos: Optional[<span class="cls">DeltaNeutralPosition</span>] = <span class="kw">None</span>
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        <span class="kw">try</span>:
+            price = <span class="fn">current_price</span>(asset)
+
+            <span class="kw">if</span> pos <span class="kw">is None</span>:
+                pos = <span class="fn">open_delta_neutral</span>(asset)
+            <span class="kw">else</span>:
+                funding = <span class="fn">latest_funding_payment</span>(<span class="fn">f</span><span class="str">"{asset}-PERP"</span>)
+                <span class="kw">if</span> funding > <span class="num">0</span>:
+                    pos.pnl.funding_pnl += funding
+                    log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"  Funding received: ${funding:.4f} | Total: ${pos.pnl.funding_pnl:.4f}"</span>)
+
+                net_delta  = pos.<span class="fn">net_delta</span>(price)
+                price_move = pos.<span class="fn">price_move_since_rebalance</span>(price)
+                needs_rebal = (
+                    <span class="fn">abs</span>(net_delta) > DELTA_THRESHOLD <span class="kw">or</span>
+                    price_move > PRICE_MOVE_TRIGGER
+                )
+
+                log.<span class="fn">info</span>(<span class="fn">f</span><span class="str">"  Price: ${price:,.2f} | NetDelta: ${net_delta:+.2f} | Move: {price_move*100:.2f}%"</span>)
+
+                <span class="kw">if</span> needs_rebal:
+                    <span class="fn">rebalance</span>(pos, price)
+
+                pos.pnl.<span class="fn">report</span>()
+
+        <span class="kw">except</span> requests.RequestException <span class="kw">as</span> e:
+            log.<span class="fn">warning</span>(<span class="fn">f</span><span class="str">"API error: {e}. Retrying in 60s."</span>)
+            time.<span class="fn">sleep</span>(<span class="num">60</span>)
+            <span class="kw">continue</span>
+
+        time.<span class="fn">sleep</span>(REBALANCE_INTERVAL)
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    <span class="fn">run_delta_neutral_agent</span>(<span class="str">"BTC"</span>)</pre>
+  </div>
+
+  <h2>Multi-Asset Delta-Neutral Portfolios</h2>
+
+  <p>The single-asset DeltaNeutralAgent above can be extended to manage multiple assets simultaneously. A multi-asset delta-neutral portfolio has benefits beyond single-asset exposure:</p>
+
+  <ul>
+    <li><strong>Diversified funding income:</strong> Different assets have different funding rates at any given time. Running BTC, ETH, and SOL simultaneously captures the best rates across all three without concentration in one market.</li>
+    <li><strong>Correlation benefit:</strong> If BTC funding drops, ETH or SOL funding may remain elevated, smoothing overall income.</li>
+    <li><strong>Portfolio-level delta management:</strong> Track the aggregate net delta across all positions. A slightly long BTC delta can be offset by a slightly short ETH delta, reducing total rebalancing costs.</li>
+  </ul>
+
+  <h3>Cross-Asset Rebalancing Logic</h3>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>portfolio_delta.py</span></div>
+    <pre><span class="kw">def</span> <span class="fn">portfolio_net_delta</span>(
+    positions: <span class="fn">list</span>[<span class="cls">DeltaNeutralPosition</span>],
+    prices:    <span class="fn">dict</span>[str, <span class="fn">float</span>]
+) -> <span class="fn">float</span>:
+    <span class="str">"""Sum of all position net deltas expressed in USD."""</span>
+    <span class="kw">return</span> <span class="fn">sum</span>(pos.<span class="fn">net_delta</span>(prices.<span class="fn">get</span>(pos.asset, <span class="num">0</span>)) <span class="kw">for</span> pos <span class="kw">in</span> positions)
+
+<span class="kw">def</span> <span class="fn">select_rebalance_target</span>(
+    positions: <span class="fn">list</span>[<span class="cls">DeltaNeutralPosition</span>],
+    prices:    <span class="fn">dict</span>[str, <span class="fn">float</span>]
+) -> Optional[<span class="cls">DeltaNeutralPosition</span>]:
+    <span class="str">"""Return the position with the largest absolute net delta."""</span>
+    <span class="kw">if not</span> positions:
+        <span class="kw">return</span> <span class="kw">None</span>
+    <span class="kw">return</span> <span class="fn">max</span>(
+        positions,
+        key=<span class="kw">lambda</span> p: <span class="fn">abs</span>(p.<span class="fn">net_delta</span>(prices.<span class="fn">get</span>(p.asset, <span class="num">0</span>)))
+    )
+
+<span class="cm"># Usage in multi-asset loop:</span>
+<span class="cm"># prices = {"BTC": get_price("BTC"), "ETH": get_price("ETH"), "SOL": get_price("SOL")}</span>
+<span class="cm"># total_delta = portfolio_net_delta(active_positions, prices)</span>
+<span class="cm"># if abs(total_delta) > PORTFOLIO_DELTA_THRESHOLD:</span>
+<span class="cm">#     worst = select_rebalance_target(active_positions, prices)</span>
+<span class="cm">#     rebalance(worst, prices[worst.asset])</span></pre>
+  </div>
+
+  <h2>Risk Management Checklist for Delta-Neutral Agents</h2>
+
+  <p>Before deploying a DeltaNeutralAgent in production, verify the following safeguards are in place:</p>
+
+  <ol>
+    <li><strong>Margin buffer check on each loop:</strong> Calculate the margin utilization ratio on all open perp positions. If it exceeds 65%, reduce position size or add margin immediately.</li>
+    <li><strong>Funding rate sign monitoring:</strong> If funding turns negative (backwardation), the short perp leg now pays funding instead of receiving it. Exit when the 3-period rolling average goes negative.</li>
+    <li><strong>Liquidation price awareness:</strong> On each cycle, fetch the liquidation price from the exchange. Alert if the current price is within 20% of the liquidation price.</li>
+    <li><strong>Spot leg custody risk:</strong> The spot leg holds a real asset on-chain or at the exchange. Use Purple Flea's multi-chain wallet for spot holdings to avoid single-exchange concentration.</li>
+    <li><strong>Maximum drawdown circuit breaker:</strong> If cumulative PnL (funding + delta + fees) goes below &minus;3% of starting capital, halt all new positions and alert the operator.</li>
+    <li><strong>Slippage monitoring:</strong> Compare expected fill price to actual fill price on every order. If slippage consistently exceeds 0.10%, widen the delta rebalancing threshold to reduce trade frequency.</li>
+  </ol>
+
+  <h2>Performance Expectations</h2>
+
+  <p>A delta-neutral spot + short perp strategy targeting BTC and ETH has historically delivered the following outcomes:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Metric</th><th>BTC (low volatility)</th><th>BTC (high volatility)</th><th>Mid-cap perps</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Annualised funding yield</td><td class="up">5&ndash;12%</td><td class="up">12&ndash;30%</td><td class="up">15&ndash;60%</td></tr>
+      <tr><td>Rebalancing cost (% annual)</td><td>0.5&ndash;1.5%</td><td>1.5&ndash;4%</td><td>1&ndash;3%</td></tr>
+      <tr><td>Residual delta PnL</td><td>+/&minus;0.3%</td><td>+/&minus;1.2%</td><td>+/&minus;2%</td></tr>
+      <tr><td>Net annualised return estimate</td><td class="up">4&ndash;10%</td><td class="up">8&ndash;25%</td><td class="up">12&ndash;55%</td></tr>
+      <tr><td>Max drawdown (typical)</td><td class="down">&minus;1 to &minus;3%</td><td class="down">&minus;3 to &minus;8%</td><td class="down">&minus;5 to &minus;15%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-green">
+    <p><strong>Free start:</strong> Claim <strong>$1 USDC</strong> from the Purple Flea faucet at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to test the full API integration. The DeltaNeutralAgent above is fully functional with any capital size &mdash; use the faucet to validate the registration, order placement, and funding payment endpoints before scaling up.</p>
+  </div>
+
+  <h2>Advanced Rebalancing: Minimising Costs with Smart Triggers</h2>
+
+  <p>One of the most common mistakes in delta-neutral strategies is over-rebalancing. Every rebalancing trade costs money (spread + fees + slippage). If the rebalancing trigger is set too tight, cumulative trading costs can exceed the funding income being collected. Finding the optimal rebalancing threshold is an empirical exercise specific to each market's volatility and fee structure.</p>
+
+  <h3>The Rebalancing Cost-Benefit Equation</h3>
+
+  <p>Before adjusting the perp short to correct a delta drift of D dollars, ask: is the expected reduction in future delta P&amp;L variance worth the trading cost?</p>
+
+  <div class="formula-card">
+    Expected benefit = &frac12; &times; D&sup2; / Notional &times; Expected Volatility
+    <div class="label">Compare this to: Trading cost = Size &times; Mark Price &times; Fee Rate</div>
+  </div>
+
+  <p>In practice: for small positions (under $5,000), a delta threshold of $50&ndash;$100 is appropriate. For larger positions ($50,000+), the threshold can be raised to $500&ndash;$1,000 because the relative cost of a rebalancing trade is smaller compared to the notional.</p>
+
+  <h3>Bandwidth Rebalancing</h3>
+
+  <p>Bandwidth rebalancing (also called "band rebalancing") only trades when the delta moves outside a defined band and brings it back only to the edge of the band rather than to zero. This reduces the total number of trades compared to always targeting exactly zero delta:</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>bandwidth_rebalance.py</span></div>
+    <pre><span class="kw">def</span> <span class="fn">bandwidth_rebalance</span>(
+    pos:            <span class="cls">DeltaNeutralPosition</span>,
+    current_price:  <span class="fn">float</span>,
+    band_size_usd:  <span class="fn">float</span> = <span class="num">200</span>   <span class="cm"># outer trigger: $200 from zero</span>
+) -> Optional[<span class="fn">float</span>]:
+    <span class="str">"""
+    Returns the quantity adjustment needed to bring delta back to the
+    edge of the band (not zero). Returns None if within band.
+
+    Band: [-band_size_usd, +band_size_usd]
+    Target on rebalance: bring delta to +/-50% of band (inner edge).
+    """</span>
+    inner_band = band_size_usd * <span class="num">0.5</span>   <span class="cm"># target: $100 from zero</span>
+    net_delta  = pos.<span class="fn">net_delta</span>(current_price)
+
+    <span class="kw">if</span> <span class="fn">abs</span>(net_delta) <= band_size_usd:
+        <span class="kw">return</span> <span class="kw">None</span>  <span class="cm"># within band — no action</span>
+
+    <span class="cm"># Target is inner edge of band (not zero — reduces trade size)</span>
+    target_delta = <span class="fn">inner_band</span> * (1 <span class="kw">if</span> net_delta > 0 <span class="kw">else</span> -1)
+    delta_to_remove = net_delta - target_delta
+    qty_adjust  = delta_to_remove / current_price
+
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Bandwidth rebalance: adjust {qty_adjust:+.6f} units"</span>)
+    <span class="fn">print</span>(<span class="str">"  (targeting inner band edge, not zero — minimises trade count)"</span>)
+    <span class="kw">return</span> qty_adjust
+
+<span class="cm"># Result: 30-50% fewer rebalancing trades vs always-target-zero approach</span>
+<span class="cm"># at the cost of a slightly wider average net delta across time.</span></pre>
+  </div>
+
+  <h2>Volatility-Adjusted Position Sizing</h2>
+
+  <p>The standard approach to sizing a delta-neutral position uses a fixed USD notional. A more sophisticated agent adjusts position size based on recent realised volatility. In high-volatility markets, smaller positions reduce margin stress and rebalancing costs. In low-volatility markets, larger positions can be held safely:</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="lang">PYTHON</span><span>vol_adjusted_sizing.py</span></div>
+    <pre><span class="kw">import</span> statistics
+
+<span class="kw">def</span> <span class="fn">vol_adjusted_position_size</span>(
+    base_capital:     <span class="fn">float</span>,
+    price_history:    <span class="fn">list</span>[<span class="fn">float</span>],   <span class="cm"># list of daily closing prices</span>
+    target_vol:       <span class="fn">float</span> = <span class="num">0.20</span>,   <span class="cm"># 20% annual volatility target</span>
+    max_pct:          <span class="fn">float</span> = <span class="num">0.80</span>    <span class="cm"># max 80% of capital in any one position</span>
+) -> <span class="fn">float</span>:
+    <span class="str">"""
+    Scale position size down when realised vol is high.
+    Scale up (capped) when realised vol is low.
+
+    daily_vol = std(daily_returns) * sqrt(252)  → annualised
+    size_scalar = target_vol / realised_vol
+    """</span>
+    <span class="kw">if</span> <span class="fn">len</span>(price_history) < <span class="num">10</span>:
+        <span class="kw">return</span> base_capital * <span class="num">0.5</span>  <span class="cm"># conservative default if insufficient history</span>
+
+    returns     = [
+        (price_history[i] - price_history[i-<span class="num">1</span>]) / price_history[i-<span class="num">1</span>]
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, <span class="fn">len</span>(price_history))
+    ]
+    daily_vol   = statistics.<span class="fn">stdev</span>(returns)
+    annual_vol  = daily_vol * (<span class="num">252</span> ** <span class="num">0.5</span>)
+    scalar      = <span class="fn">min</span>(target_vol / annual_vol, max_pct)
+    target_size = <span class="fn">round</span>(base_capital * scalar, <span class="num">2</span>)
+
+    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"  Realised vol: {annual_vol*100:.1f}% | Scalar: {scalar:.2f} | Size: ${target_size:,.2f}"</span>)
+    <span class="kw">return</span> target_size
+
+<span class="cm"># Example: $10,000 capital, 40% realised vol</span>
+<span class="cm"># scalar = 0.20 / 0.40 = 0.50 → deploy only $5,000</span>
+<span class="cm"># Example: $10,000 capital, 10% realised vol</span>
+<span class="cm"># scalar = 0.20 / 0.10 = 2.0 → capped at $8,000 (max_pct=0.80)</span></pre>
+  </div>
+
+  <h2>Integration with Purple Flea Escrow for Multi-Party Delta Hedging</h2>
+
+  <p>The Purple Flea <a href="/escrow">Escrow service</a> enables a novel form of agent-to-agent delta hedging: instead of hedging via a perpetual futures short on an exchange, an agent can create an escrow agreement with a counterparty agent that takes the opposite directional exposure. The escrow mediates the settlement, eliminating both counterparty risk and exchange fees on the hedge leg.</p>
+
+  <p>This approach is particularly useful when:</p>
+
+  <ul>
+    <li>Two agents want to take opposing views on an asset without using a shared exchange</li>
+    <li>An agent wants to hedge its spot holdings against a counterparty who wants synthetic long exposure without holding spot</li>
+    <li>The agents operate in different regulatory environments and cannot share an exchange account</li>
+  </ul>
+
+  <p>The 1% escrow fee (split between parties) is competitive with perpetual trading fees when positions are held for multiple funding periods, since the escrow settlement happens only at the end of the agreement rather than on every price tick.</p>
+
+  <div class="callout">
+    <p><strong>Referral income:</strong> When you refer another agent to use Purple Flea's escrow service, you earn <strong>15% of the escrow fees</strong> that your referred agents generate. A delta-neutral agent that actively recruits counterparties through the referral system can generate a meaningful secondary income stream on top of the primary funding yield.</p>
+  </div>
+
+  <h2>Summary: Delta Neutrality as Agent Infrastructure</h2>
+
+  <p>Delta neutrality is not a single trade &mdash; it is an ongoing operational discipline. An agent that maintains delta-neutral exposure across its portfolio has effectively separated the income-generation question (which assets have high funding? which strategies generate yield?) from the directional question (which direction will the market go?). By removing directional dependency, the agent can operate continuously without needing to predict or survive large market moves.</p>
+
+  <p>The DeltaNeutralAgent above provides a complete implementation: open, monitor, rebalance, and report &mdash; all fully autonomous. Extend it to manage multiple assets, add options for convexity protection, or connect it to Purple Flea's escrow service to enable trustless settlement of P&amp;L with counterparties.</p>
+
+  <div class="cta-inline">
+    <h3>Deploy your delta-neutral agent on Purple Flea</h3>
+    <p>Register free and access all perpetual markets, spot wallets, and real-time funding data from a single API. Claim $1 USDC from the faucet to test before deploying capital.</p>
+    <a href="https://api.purpleflea.com/auth/register" class="btn-primary">Register free &rarr;</a>
+  </div>
+
+  <hr class="divider" />
+
+  <p style="font-size:0.88rem; color: var(--text-muted);">
+    Related: <a href="/blog/agent-basis-trading/">Basis Trading for AI Agents</a> &middot;
+    <a href="/blog/agent-funding-arbitrage/">Funding Rate Arbitrage</a> &middot;
+    <a href="/blog/agent-carry-trade/">The Crypto Carry Trade</a> &middot;
+    <a href="/blog/agent-risk-management/">Agent Risk Management</a> &middot;
+    <a href="/trading-api">Purple Flea Trading API</a>
+  </p>
+
+</div>
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/trading-api">Trading</a>
+    <a href="/casino">Casino</a>
+    <a href="/wallet-api">Wallets</a>
+    <a href="/escrow">Escrow</a>
+    <a href="/faucet">Faucet</a>
+    <a href="/blog">Blog</a>
+    <a href="/docs">Docs</a>
+  </div>
+  <p>&copy; 2026 Purple Flea &mdash; AI-first financial infrastructure</p>
+</footer>
+
 </body>
 </html>
