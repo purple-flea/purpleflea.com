@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Error Recovery and Resilience Patterns for AI Trading Agents | Purple Flea</title>
+  <meta name="description" content="How autonomous agents handle failures gracefully — circuit breakers, exponential backoff, dead letter queues, state recovery, and chaos engineering practices." />
+  <meta name="keywords" content="AI agent error recovery, circuit breaker pattern, exponential backoff, dead letter queue, chaos engineering, trading agent resilience" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-error-recovery/" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Error Recovery and Resilience Patterns for AI Trading Agents" />
+  <meta property="og:description" content="How autonomous agents handle failures gracefully — circuit breakers, exponential backoff, dead letter queues, state recovery, and chaos engineering practices." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-error-recovery/" />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://purpleflea.com/og-default.png" />
+  <meta property="og:site_name" content="Purple Flea" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Error Recovery and Resilience Patterns for AI Trading Agents" />
+  <meta name="twitter:description" content="How autonomous agents handle failures gracefully — circuit breakers, exponential backoff, dead letter queues, state recovery, and chaos engineering." />
+  <meta name="twitter:image" content="https://purpleflea.com/og-default.png" />
+
+  <!-- Schema.org JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Error Recovery and Resilience Patterns for AI Trading Agents",
+    "description": "How autonomous agents handle failures gracefully — circuit breakers, exponential backoff, dead letter queues, state recovery, and chaos engineering practices.",
+    "url": "https://purpleflea.com/blog/agent-error-recovery/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "image": "https://purpleflea.com/og-default.png",
+    "keywords": ["error recovery", "circuit breaker", "exponential backoff", "chaos engineering", "AI agents"]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --border: #27272A;
+      --text: #E4E4E7;
+      --muted: #A1A1AA;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --code-bg: #0D0D0F;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --orange: #F97316;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--orange));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 99;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); text-decoration: none; }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    .hero {
+      background: linear-gradient(135deg, #100a0a 0%, #09090B 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 4rem 1.5rem 3rem;
+    }
+    .hero-inner { max-width: 860px; margin: 0 auto; }
+    .tag-chip {
+      display: inline-block;
+      padding: 0.2rem 0.75rem;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      background: rgba(34,197,94,0.15);
+      color: var(--green);
+      border: 1px solid rgba(34,197,94,0.3);
+    }
+    .hero h1 { font-size: clamp(1.75rem, 4vw, 2.6rem); font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+    .hero-desc { font-size: 1.1rem; color: var(--muted); max-width: 680px; margin-bottom: 1.5rem; }
+    .hero-meta { display: flex; gap: 1.5rem; font-size: 0.85rem; color: var(--muted); margin-bottom: 2.5rem; }
+    .hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .stat-card .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+    .layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 72px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .toc-sidebar h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-sidebar ol { list-style: none; counter-reset: toc; }
+    .toc-sidebar li { counter-increment: toc; margin-bottom: 0.4rem; }
+    .toc-sidebar a { font-size: 0.82rem; color: var(--muted); text-decoration: none; display: flex; gap: 0.5rem; transition: color 0.2s; }
+    .toc-sidebar a::before { content: counter(toc) "."; color: var(--accent); }
+    .toc-sidebar a:hover { color: var(--text); }
+
+    article h2 { font-size: 1.45rem; font-weight: 700; margin: 2.5rem 0 1rem; padding-top: 0.5rem; color: var(--text); border-top: 1px solid var(--border); }
+    article h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 0.6rem; color: var(--accent); }
+    article p { margin-bottom: 1rem; color: #D4D4D8; }
+    article ul, article ol { margin: 0.75rem 0 1rem 1.5rem; color: #D4D4D8; }
+    article li { margin-bottom: 0.4rem; }
+    article strong { color: var(--text); }
+    article a { color: var(--accent); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      margin: 1.25rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.83rem;
+      line-height: 1.6;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+    :not(pre) > code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    .code-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111113;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      padding: 0.4rem 1rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .code-label + pre { border-radius: 0 0 8px 8px; margin-top: 0; }
+
+    .info-box { background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 8px; padding: 1rem 1.25rem; margin: 1.25rem 0; font-size: 0.9rem; }
+    .info-box strong { color: var(--accent); }
+
+    .warn-box { background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.25); border-radius: 8px; padding: 1rem 1.25rem; margin: 1.25rem 0; font-size: 0.9rem; }
+    .warn-box strong { color: var(--orange); }
+
+    .danger-box { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 1rem 1.25rem; margin: 1.25rem 0; font-size: 0.9rem; }
+    .danger-box strong { color: var(--red); }
+
+    table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.875rem; }
+    th { background: var(--surface); border: 1px solid var(--border); padding: 0.6rem 0.9rem; text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { border: 1px solid var(--border); padding: 0.6rem 0.9rem; color: #D4D4D8; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .cta-block {
+      background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0 1rem;
+      text-align: center;
+    }
+    .cta-block h3 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+    .cta-block p { color: var(--muted); margin-bottom: 1.25rem; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.7rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+    .cta-btn:hover { background: var(--accent-dim); }
+
+    footer { border-top: 1px solid var(--border); padding: 2rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple Flea</a>
+      <div class="nav-links">
+        <a href="/blog/">Blog</a>
+        <a href="/docs/">Docs</a>
+        <a href="/agent-handbook">Handbook</a>
+        <a href="https://purpleflea.com">Casino</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <span class="tag-chip">Guide</span>
+      <h1>Error Recovery and Resilience Patterns for AI Trading Agents</h1>
+      <p class="hero-desc">How autonomous agents handle failures gracefully — circuit breakers, exponential backoff, dead letter queues, state recovery, and chaos engineering practices.</p>
+      <div class="hero-meta">
+        <span>Purple Flea</span>
+        <span>March 6, 2026</span>
+        <span>22 min read</span>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card">
+          <div class="label">Patterns Covered</div>
+          <div class="value">8</div>
+          <div class="sub">From backoff to chaos</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Recovery Time</div>
+          <div class="value">Auto</div>
+          <div class="sub">No human intervention</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Failure Modes</div>
+          <div class="value">4</div>
+          <div class="sub">Network, API, data, logic</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <article>
+
+      <h2 id="taxonomy">1. Failure Taxonomy for Trading Agents</h2>
+      <p>Before designing recovery mechanisms, classify the failures your agent will encounter. Different failure classes require different recovery strategies — a network timeout should be retried, but a logic error that causes over-trading should not.</p>
+
+      <table>
+        <tr><th>Class</th><th>Examples</th><th>Retryable</th><th>Recovery Strategy</th></tr>
+        <tr><td>Network</td><td>DNS failure, TCP timeout, TLS error</td><td>Yes</td><td>Exponential backoff, circuit breaker</td></tr>
+        <tr><td>API / Exchange</td><td>429 rate limit, 503 maintenance, 500 server error</td><td>Conditionally</td><td>Backoff with jitter; 5xx retry, 4xx do not</td></tr>
+        <tr><td>Data</td><td>Bad price feed, NaN in OHLCV, stale timestamp</td><td>No</td><td>Fallback data source, skip signal</td></tr>
+        <tr><td>Logic</td><td>Negative position size, division by zero, infinite loop</td><td>No</td><td>Dead letter queue, halt + alert</td></tr>
+        <tr><td>State</td><td>DB corrupted, cache miss, stale state after restart</td><td>Sometimes</td><td>Checkpoint recovery, re-sync</td></tr>
+        <tr><td>Resource</td><td>OOM, disk full, CPU thrash</td><td>No</td><td>Graceful degradation, alert + restart</td></tr>
+      </table>
+
+      <div class="warn-box"><strong>Golden rule:</strong> A trading agent must never retry idempotency-unsafe operations (like placing an order) without first checking if the previous attempt succeeded. Double-execution in financial systems means double positions.</div>
+
+      <h2 id="circuit">2. Circuit Breaker Pattern</h2>
+      <p>The circuit breaker prevents an agent from hammering a failing dependency. Like an electrical circuit breaker, it "trips" after enough failures and stays open for a cooling period before allowing traffic through again.</p>
+
+      <p>Three states:</p>
+      <ul>
+        <li><strong>Closed</strong> — normal operation; failures are counted</li>
+        <li><strong>Open</strong> — dependency is presumed down; all calls fail fast (no network call)</li>
+        <li><strong>Half-Open</strong> — cooldown expired; one probe request allowed to test recovery</li>
+      </ul>
+
+      <div class="code-label"><span>circuit_breaker.py</span><span>Python</span></div>
+      <pre><code>import asyncio, time, logging
+from enum import Enum
+from typing import Callable, Any, TypeVar
+from functools import wraps
+
+T = TypeVar("T")
+
+class CBState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(
+        self,
+        name: str,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+        expected_exception: type = Exception
+    ):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.expected_exception = expected_exception
+        self._state = CBState.CLOSED
+        self._failures = 0
+        self._last_failure_time: float = 0
+        self.log = logging.getLogger(f"circuit_breaker.{name}")
+
+    @property
+    def state(self) -> CBState:
+        if self._state == CBState.OPEN:
+            if time.monotonic() - self._last_failure_time >= self.recovery_timeout:
+                self._state = CBState.HALF_OPEN
+                self.log.info(f"[{self.name}] OPEN -> HALF_OPEN (probing)")
+        return self._state
+
+    def _on_success(self):
+        if self._state == CBState.HALF_OPEN:
+            self.log.info(f"[{self.name}] HALF_OPEN -> CLOSED (recovered)")
+        self._failures = 0
+        self._state = CBState.CLOSED
+
+    def _on_failure(self, exc: Exception):
+        self._failures += 1
+        self._last_failure_time = time.monotonic()
+        if self._failures >= self.failure_threshold:
+            if self._state != CBState.OPEN:
+                self.log.warning(
+                    f"[{self.name}] CLOSED -> OPEN after {self._failures} failures. "
+                    f"Last error: {exc}"
+                )
+            self._state = CBState.OPEN
+
+    async def call(self, func: Callable[..., T], *args, **kwargs) -> T:
+        if self.state == CBState.OPEN:
+            raise RuntimeError(
+                f"Circuit breaker [{self.name}] is OPEN — "
+                f"dependency presumed down"
+            )
+        try:
+            result = await func(*args, **kwargs)
+            self._on_success()
+            return result
+        except self.expected_exception as e:
+            self._on_failure(e)
+            raise
+
+# Usage:
+# cb = CircuitBreaker("purpleflea-api", failure_threshold=5, recovery_timeout=60)
+# try:
+#     result = await cb.call(place_order, asset="BTC", size=0.01)
+# except RuntimeError as e:
+#     # Circuit open — use fallback or skip this cycle
+#     print(f"Skipping trade: {e}")</code></pre>
+
+      <h2 id="backoff">3. Exponential Backoff with Jitter</h2>
+      <p>When retrying a failed request, naive strategies fail under load. Constant delay causes synchronized retry storms. Exponential delay without jitter causes correlated spikes. The correct approach is <strong>full jitter exponential backoff</strong>: random delay in <code>[0, base * 2^attempt]</code>.</p>
+
+      <div class="info-box"><strong>AWS engineering recommendation:</strong> "Full jitter" (random between 0 and the capped exponential delay) produces the lowest contention under load. "Equal jitter" (base + random half) is a reasonable alternative that guarantees some minimum delay.</div>
+
+      <div class="code-label"><span>retry.py</span><span>Python</span></div>
+      <pre><code>import asyncio, random, logging, time
+from typing import Callable, TypeVar, Optional, Type, Tuple
+
+T = TypeVar("T")
+
+class RetryConfig:
+    def __init__(
+        self,
+        max_attempts: int = 5,
+        base_delay: float = 1.0,
+        max_delay: float = 60.0,
+        jitter: bool = True,
+        retryable_exceptions: Tuple[Type[Exception], ...] = (Exception,),
+        non_retryable_http_codes: Tuple[int, ...] = (400, 401, 403, 404, 422),
+    ):
+        self.max_attempts = max_attempts
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.jitter = jitter
+        self.retryable_exceptions = retryable_exceptions
+        self.non_retryable_http_codes = non_retryable_http_codes
+
+    def delay(self, attempt: int) -> float:
+        cap = min(self.max_delay, self.base_delay * (2 ** attempt))
+        if self.jitter:
+            return random.uniform(0, cap)  # full jitter
+        return cap
+
+async def retry_async(
+    func: Callable[..., T],
+    config: RetryConfig,
+    *args,
+    **kwargs
+) -> T:
+    log = logging.getLogger("retry")
+    last_exc: Optional[Exception] = None
+
+    for attempt in range(config.max_attempts):
+        try:
+            return await func(*args, **kwargs)
+
+        except config.retryable_exceptions as exc:
+            last_exc = exc
+
+            # Check for non-retryable HTTP status codes
+            status = getattr(exc, "status", None) or getattr(exc, "status_code", None)
+            if status and status in config.non_retryable_http_codes:
+                log.warning(f"Non-retryable status {status}: {exc}")
+                raise
+
+            delay = config.delay(attempt)
+            log.warning(
+                f"Attempt {attempt+1}/{config.max_attempts} failed: {exc}. "
+                f"Retrying in {delay:.2f}s"
+            )
+            if attempt < config.max_attempts - 1:
+                await asyncio.sleep(delay)
+
+    raise last_exc
+
+# Decorator version
+def with_retry(config: RetryConfig = None):
+    cfg = config or RetryConfig()
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            return await retry_async(func, cfg, *args, **kwargs)
+        return wrapper
+    return decorator
+
+# Usage:
+# @with_retry(RetryConfig(max_attempts=4, base_delay=2.0))
+# async def place_order(session, payload):
+#     async with session.post("/api/trade", json=payload) as r:
+#         r.raise_for_status()
+#         return await r.json()</code></pre>
+
+      <h2 id="dlq">4. Dead Letter Queue for Failed Orders</h2>
+      <p>A dead letter queue (DLQ) captures operations that have exhausted all retry attempts. Instead of silently dropping failed orders, the DLQ stores them for inspection, manual replay, or automated analysis of what went wrong.</p>
+
+      <p>Key properties of a good DLQ:</p>
+      <ul>
+        <li><strong>Persistence</strong> — survives agent restarts (use a file, SQLite, or Redis)</li>
+        <li><strong>Metadata</strong> — captures the original payload, all error messages, timestamps, and attempt count</li>
+        <li><strong>Replay capability</strong> — failed operations can be retried after a human fix</li>
+        <li><strong>Alert on growth</strong> — alert when DLQ size exceeds threshold</li>
+      </ul>
+
+      <div class="code-label"><span>dead_letter_queue.py</span><span>Python</span></div>
+      <pre><code>import asyncio, json, time, sqlite3, logging
+from dataclasses import dataclass, field, asdict
+from typing import Any, List, Optional
+
+@dataclass
+class DeadLetter:
+    id: str
+    operation_type: str       # e.g. "place_order", "claim_faucet"
+    payload: dict
+    errors: list              # list of (timestamp, error_message)
+    attempts: int
+    first_attempted_at: float
+    last_attempted_at: float
+    resolved: bool = False
+    resolution_note: str = ""
+
+class SQLiteDeadLetterQueue:
+    """Persistent DLQ backed by SQLite."""
+
+    def __init__(self, db_path: str = "agent_dlq.db"):
+        self.db_path = db_path
+        self.log = logging.getLogger("dlq")
+        self._init_db()
+
+    def _init_db(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS dead_letters (
+                id TEXT PRIMARY KEY,
+                operation_type TEXT,
+                payload TEXT,
+                errors TEXT,
+                attempts INTEGER,
+                first_attempted_at REAL,
+                last_attempted_at REAL,
+                resolved INTEGER DEFAULT 0,
+                resolution_note TEXT DEFAULT ''
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+    def enqueue(self, dl: DeadLetter):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            """INSERT OR REPLACE INTO dead_letters
+               (id, operation_type, payload, errors, attempts,
+                first_attempted_at, last_attempted_at, resolved, resolution_note)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                dl.id,
+                dl.operation_type,
+                json.dumps(dl.payload),
+                json.dumps(dl.errors),
+                dl.attempts,
+                dl.first_attempted_at,
+                dl.last_attempted_at,
+                int(dl.resolved),
+                dl.resolution_note
+            )
+        )
+        conn.commit()
+        conn.close()
+        self.log.warning(
+            f"DLQ: enqueued {dl.operation_type} (id={dl.id}, "
+            f"attempts={dl.attempts})"
+        )
+
+    def get_pending(self, limit: int = 50) -> List[DeadLetter]:
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT * FROM dead_letters WHERE resolved=0 ORDER BY last_attempted_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        conn.close()
+        return [self._row_to_dl(r) for r in rows]
+
+    def mark_resolved(self, dl_id: str, note: str = ""):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE dead_letters SET resolved=1, resolution_note=? WHERE id=?",
+            (note, dl_id)
+        )
+        conn.commit()
+        conn.close()
+        self.log.info(f"DLQ: resolved {dl_id}: {note}")
+
+    def size(self) -> int:
+        conn = sqlite3.connect(self.db_path)
+        n = conn.execute("SELECT COUNT(*) FROM dead_letters WHERE resolved=0").fetchone()[0]
+        conn.close()
+        return n
+
+    def _row_to_dl(self, row) -> DeadLetter:
+        return DeadLetter(
+            id=row[0], operation_type=row[1],
+            payload=json.loads(row[2]), errors=json.loads(row[3]),
+            attempts=row[4], first_attempted_at=row[5],
+            last_attempted_at=row[6], resolved=bool(row[7]),
+            resolution_note=row[8]
+        )</code></pre>
+
+      <h2 id="checkpoint">5. State Checkpointing and Recovery</h2>
+      <p>When an agent restarts after a crash, it must recover its state. Without checkpointing, it loses position tracking, PnL history, and open order state — potentially causing it to re-enter positions it already holds.</p>
+
+      <p>Checkpoint strategy: persist the agent's full state to disk (or database) at regular intervals and on every state-changing action (order placed, order filled, position closed).</p>
+
+      <div class="code-label"><span>checkpoint.py</span><span>Python</span></div>
+      <pre><code>import json, os, time, logging, asyncio
+from dataclasses import dataclass, asdict, field
+from typing import Dict, List, Optional
+import hashlib
+
+@dataclass
+class AgentState:
+    agent_id: str
+    balance: float
+    open_positions: Dict[str, dict]   # asset -> {size, entry_price, ts}
+    pending_orders: Dict[str, dict]   # order_id -> {asset, side, size, price}
+    pnl_history: List[float]
+    last_checkpoint_ts: float = field(default_factory=time.time)
+    checkpoint_seq: int = 0
+
+class Checkpointer:
+    """Atomic checkpoint write with checksum verification."""
+
+    def __init__(self, checkpoint_dir: str = "/var/lib/agent/checkpoints"):
+        self.checkpoint_dir = checkpoint_dir
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        self.log = logging.getLogger("checkpoint")
+
+    def _path(self, agent_id: str) -> str:
+        return os.path.join(self.checkpoint_dir, f"{agent_id}.json")
+
+    def _tmp_path(self, agent_id: str) -> str:
+        return os.path.join(self.checkpoint_dir, f"{agent_id}.json.tmp")
+
+    def save(self, state: AgentState):
+        """Atomic write: write to .tmp then rename (atomic on POSIX)."""
+        state.last_checkpoint_ts = time.time()
+        state.checkpoint_seq += 1
+
+        data = asdict(state)
+        payload = json.dumps(data, indent=2)
+        checksum = hashlib.sha256(payload.encode()).hexdigest()
+        wrapper = {"checksum": checksum, "state": data}
+
+        tmp = self._tmp_path(state.agent_id)
+        with open(tmp, "w") as f:
+            json.dump(wrapper, f)
+        os.replace(tmp, self._path(state.agent_id))  # atomic rename
+
+        self.log.debug(f"Checkpoint saved (seq={state.checkpoint_seq})")
+
+    def load(self, agent_id: str) -> Optional[AgentState]:
+        path = self._path(agent_id)
+        if not os.path.exists(path):
+            return None
+
+        with open(path) as f:
+            wrapper = json.load(f)
+
+        # Verify checksum
+        data = wrapper["state"]
+        expected = wrapper.get("checksum")
+        payload = json.dumps(data, indent=2)
+        actual = hashlib.sha256(payload.encode()).hexdigest()
+        if expected != actual:
+            self.log.error(f"Checkpoint checksum mismatch for {agent_id} — ignoring")
+            return None
+
+        self.log.info(
+            f"Loaded checkpoint (agent={agent_id}, "
+            f"seq={data['checkpoint_seq']}, "
+            f"age={time.time()-data['last_checkpoint_ts']:.0f}s)"
+        )
+        return AgentState(**data)
+
+class AutoCheckpointer:
+    """Wraps an agent and saves checkpoint every N seconds."""
+
+    def __init__(self, agent, checkpointer: Checkpointer, interval: int = 30):
+        self.agent = agent
+        self.cp = checkpointer
+        self.interval = interval
+
+    async def run_checkpoint_loop(self):
+        while True:
+            await asyncio.sleep(self.interval)
+            try:
+                state = self.agent.get_state()
+                self.cp.save(state)
+            except Exception as e:
+                logging.getLogger("checkpoint").error(f"Checkpoint failed: {e}")</code></pre>
+
+      <h2 id="degradation">6. Health-Based Degradation Modes</h2>
+      <p>Rather than a binary running/stopped state, a resilient agent operates in degraded modes when dependencies partially fail. Define explicit modes with clear capability restrictions:</p>
+
+      <table>
+        <tr><th>Mode</th><th>Condition</th><th>Capabilities</th><th>Action</th></tr>
+        <tr><td>Full</td><td>All systems nominal</td><td>Trade, read, write</td><td>Normal operation</td></tr>
+        <tr><td>Read-Only</td><td>Write API degraded</td><td>Read positions, no new orders</td><td>Close open positions only</td></tr>
+        <tr><td>Observation</td><td>Price feed stale</td><td>Log + monitor only</td><td>No trades; wait for feed recovery</td></tr>
+        <tr><td>Shutdown</td><td>Balance below min OR drawdown exceeded</td><td>Nothing</td><td>Close all, alert, stop</td></tr>
+      </table>
+
+      <div class="code-label"><span>degradation.py</span><span>Python</span></div>
+      <pre><code>from enum import Enum
+import time, logging, asyncio
+
+class AgentMode(Enum):
+    FULL = "full"
+    READ_ONLY = "read_only"
+    OBSERVATION = "observation"
+    SHUTDOWN = "shutdown"
+
+class DegradationManager:
+    def __init__(self, agent_config):
+        self.cfg = agent_config
+        self._mode = AgentMode.FULL
+        self._mode_since = time.time()
+        self.log = logging.getLogger("degradation")
+
+    @property
+    def mode(self) -> AgentMode:
+        return self._mode
+
+    def transition(self, new_mode: AgentMode, reason: str):
+        if new_mode == self._mode:
+            return
+        old = self._mode
+        self._mode = new_mode
+        self._mode_since = time.time()
+        self.log.warning(
+            f"Mode transition: {old.value} -> {new_mode.value} | reason: {reason}"
+        )
+
+    def can_trade(self) -> bool:
+        return self._mode == AgentMode.FULL
+
+    def can_read(self) -> bool:
+        return self._mode in (AgentMode.FULL, AgentMode.READ_ONLY, AgentMode.OBSERVATION)
+
+    def is_active(self) -> bool:
+        return self._mode != AgentMode.SHUTDOWN
+
+    async def assess(self, health: dict):
+        """Called periodically with current health snapshot to determine mode."""
+        if health.get("balance", 0) < self.cfg.min_balance:
+            self.transition(AgentMode.SHUTDOWN, f"balance below minimum")
+            return
+
+        drawdown = health.get("drawdown_pct", 0)
+        if drawdown > self.cfg.max_drawdown_pct * 100:
+            self.transition(AgentMode.SHUTDOWN, f"drawdown {drawdown:.1f}% exceeded limit")
+            return
+
+        price_feed_age = health.get("price_feed_age_secs", 0)
+        if price_feed_age > 60:
+            self.transition(AgentMode.OBSERVATION,
+                            f"price feed stale ({price_feed_age:.0f}s)")
+            return
+
+        api_ok = health.get("exchange_api_ok", True)
+        if not api_ok:
+            self.transition(AgentMode.READ_ONLY, "exchange write API degraded")
+            return
+
+        self.transition(AgentMode.FULL, "all systems nominal")</code></pre>
+
+      <h2 id="chaos">7. Chaos Engineering Tests</h2>
+      <p>Chaos engineering verifies that your resilience patterns actually work by intentionally injecting failures in a controlled way. The discipline originated at Netflix (Chaos Monkey) and is now standard practice for critical systems.</p>
+
+      <p>Recommended chaos tests for trading agents:</p>
+      <ul>
+        <li><strong>Network partition</strong> — block the exchange API for 30s and verify circuit breaker trips</li>
+        <li><strong>Slow response</strong> — add 5s latency to API responses and verify timeout handling</li>
+        <li><strong>Bad price data</strong> — inject NaN into price feed and verify the agent skips the signal</li>
+        <li><strong>OOM kill</strong> — kill the agent process and verify it recovers from checkpoint correctly</li>
+        <li><strong>DB corruption</strong> — delete the checkpoint file and verify the agent starts clean</li>
+        <li><strong>Duplicate order</strong> — fire the same order twice and verify idempotency</li>
+      </ul>
+
+      <div class="code-label"><span>chaos_tests.py</span><span>Python</span></div>
+      <pre><code>import asyncio, aiohttp, random, logging, time
+from unittest.mock import AsyncMock, patch
+from typing import Callable, Any
+
+class ChaosProxy:
+    """
+    HTTP proxy that injects failures for chaos engineering.
+    Wrap your aiohttp.ClientSession with this in test mode.
+    """
+
+    def __init__(self, session: aiohttp.ClientSession,
+                 failure_rate: float = 0.2,
+                 latency_ms: float = 0,
+                 error_codes: list = None):
+        self.session = session
+        self.failure_rate = failure_rate
+        self.latency_ms = latency_ms
+        self.error_codes = error_codes or [500, 503]
+        self.log = logging.getLogger("chaos")
+        self._injected = 0
+        self._total = 0
+
+    async def post(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+        return await self._inject(self.session.post, url, **kwargs)
+
+    async def get(self, url: str, **kwargs) -> aiohttp.ClientResponse:
+        return await self._inject(self.session.get, url, **kwargs)
+
+    async def _inject(self, method, url: str, **kwargs):
+        self._total += 1
+        if self.latency_ms > 0:
+            await asyncio.sleep(self.latency_ms / 1000)
+
+        if random.random() < self.failure_rate:
+            self._injected += 1
+            code = random.choice(self.error_codes)
+            self.log.warning(f"CHAOS: injecting {code} for {url}")
+            raise aiohttp.ClientResponseError(
+                request_info=None, history=None, status=code,
+                message=f"Chaos-injected {code}"
+            )
+        return await method(url, **kwargs)
+
+    @property
+    def injection_rate(self) -> float:
+        return self._injected / self._total if self._total > 0 else 0.0
+
+async def run_chaos_test(agent_class, config, duration_secs: int = 60):
+    """
+    Run an agent under chaos conditions and verify it survives.
+    """
+    log = logging.getLogger("chaos_test")
+    log.info(f"Starting chaos test for {duration_secs}s")
+
+    async with aiohttp.ClientSession() as real_session:
+        chaos_session = ChaosProxy(
+            real_session,
+            failure_rate=0.30,     # 30% of calls will fail
+            latency_ms=500,         # 500ms extra latency on all calls
+        )
+        agent = agent_class(config, session=chaos_session)
+
+        start = time.time()
+        try:
+            await asyncio.wait_for(agent.run(), timeout=duration_secs)
+        except asyncio.TimeoutError:
+            pass  # expected — test duration
+
+    report = {
+        "duration_secs": time.time() - start,
+        "chaos_injections": chaos_session._injected,
+        "total_calls": chaos_session._total,
+        "actual_injection_rate": chaos_session.injection_rate,
+        "agent_final_mode": agent.mode.value if hasattr(agent, "mode") else "unknown",
+    }
+    log.info(f"Chaos test complete: {report}")
+    return report</code></pre>
+
+      <div class="danger-box"><strong>Never run chaos tests against production systems.</strong> Use a staging environment with separate API keys, wallets funded with test tokens, and isolated infrastructure. Chaos tests that go wrong in production can cause real financial losses.</div>
+
+      <h2 id="patterns">8. Combining Patterns: The Resilient Order Executor</h2>
+      <p>In practice, you compose multiple resilience patterns together. Here is a production-grade order executor that combines the circuit breaker, exponential backoff, idempotency check, and DLQ — all in one class.</p>
+
+      <div class="code-label"><span>resilient_executor.py</span><span>Python</span></div>
+      <pre><code>import asyncio, aiohttp, hashlib, json, time, logging
+from typing import Optional
+
+class ResilientOrderExecutor:
+    """
+    Places orders with: circuit breaker + retry + idempotency + DLQ.
+    This is the pattern recommended for Purple Flea API integrations.
+    """
+
+    def __init__(self, api_key: str, api_base: str,
+                 dlq: SQLiteDeadLetterQueue,
+                 cb: CircuitBreaker):
+        self.api_key = api_key
+        self.api_base = api_base.rstrip("/")
+        self.dlq = dlq
+        self.cb = cb
+        self.retry_cfg = RetryConfig(
+            max_attempts=4,
+            base_delay=2.0,
+            max_delay=30.0,
+            jitter=True,
+            non_retryable_http_codes=(400, 401, 403, 404, 422)
+        )
+        self.log = logging.getLogger("order_executor")
+        self._placed_ids: set = set()   # in-memory idempotency cache
+
+    def _idempotency_key(self, order: dict) -> str:
+        """Deterministic key from order params — same order always same key."""
+        canonical = json.dumps(order, sort_keys=True)
+        return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+    async def _place_once(self, session: aiohttp.ClientSession,
+                          order: dict, idempotency_key: str) -> dict:
+        async with session.post(
+            f"{self.api_base}/api/trade",
+            json=order,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Idempotency-Key": idempotency_key
+            },
+            timeout=aiohttp.ClientTimeout(total=10)
+        ) as r:
+            r.raise_for_status()
+            return await r.json()
+
+    async def place_order(self, order: dict) -> Optional[dict]:
+        ikey = self._idempotency_key(order)
+
+        # Idempotency guard
+        if ikey in self._placed_ids:
+            self.log.warning(f"Order already placed (ikey={ikey}) — skipping duplicate")
+            return None
+
+        errors = []
+
+        async def attempt_with_cb(session):
+            return await self.cb.call(self._place_once, session, order, ikey)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                result = await retry_async(
+                    attempt_with_cb,
+                    self.retry_cfg,
+                    session
+                )
+            self._placed_ids.add(ikey)
+            self.log.info(f"Order placed: {result.get('order_id')} (ikey={ikey})")
+            return result
+
+        except Exception as e:
+            errors.append((time.time(), str(e)))
+            self.log.error(f"Order failed after all retries: {e}")
+
+            # Send to DLQ
+            dl = DeadLetter(
+                id=ikey,
+                operation_type="place_order",
+                payload=order,
+                errors=errors,
+                attempts=self.retry_cfg.max_attempts,
+                first_attempted_at=time.time() - sum(
+                    self.retry_cfg.delay(i) for i in range(self.retry_cfg.max_attempts)
+                ),
+                last_attempted_at=time.time()
+            )
+            self.dlq.enqueue(dl)
+            return None</code></pre>
+
+      <h2 id="resilience-agent">9. ResilienceAgent: Full Async Implementation</h2>
+      <p>The complete <code>ResilienceAgent</code> wraps all the patterns above into a single runnable agent. It initializes all subsystems, recovers from checkpoint on startup, and runs the main trading loop with full resilience guarantees.</p>
+
+      <div class="code-label"><span>resilience_agent.py</span><span>Python</span></div>
+      <pre><code>import asyncio, os, logging, time
+
+logging.basicConfig(level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+class ResilienceAgent:
+    """
+    Full-stack resilient trading agent integrating all patterns.
+    Replace strategy_tick() with your signal logic.
+    """
+
+    def __init__(self, config):
+        self.config = config
+        self.log = logging.getLogger(f"agent.{config.agent_id}")
+
+        # Resilience subsystems
+        self.cb = CircuitBreaker("purpleflea", failure_threshold=5, recovery_timeout=60)
+        self.dlq = SQLiteDeadLetterQueue(f"/var/lib/agent/{config.agent_id}_dlq.db")
+        self.cp = Checkpointer("/var/lib/agent/checkpoints")
+        self.degradation = DegradationManager(config)
+        self.executor = ResilientOrderExecutor(
+            api_key=config.api_key,
+            api_base=config.api_base,
+            dlq=self.dlq,
+            cb=self.cb
+        )
+
+        # State
+        self.state: AgentState = None
+        self._running = True
+
+    async def start(self):
+        """Load checkpoint or initialize fresh state."""
+        self.state = self.cp.load(self.config.agent_id)
+        if self.state:
+            self.log.info(
+                f"Recovered from checkpoint (seq={self.state.checkpoint_seq}, "
+                f"balance={self.state.balance:.2f})"
+            )
+        else:
+            self.log.info("No checkpoint found — starting fresh")
+            self.state = AgentState(
+                agent_id=self.config.agent_id,
+                balance=self.config.initial_balance,
+                open_positions={},
+                pending_orders={},
+                pnl_history=[]
+            )
+
+        # Start checkpoint loop
+        asyncio.create_task(
+            AutoCheckpointer(self, self.cp, interval=30).run_checkpoint_loop()
+        )
+
+    def get_state(self) -> AgentState:
+        return self.state
+
+    async def strategy_tick(self) -> dict | None:
+        """Override with your strategy. Return order dict or None."""
+        # Example: always return None (do nothing)
+        return None
+
+    async def run(self):
+        await self.start()
+        self.log.info(f"Agent {self.config.agent_id} running")
+
+        while self._running:
+            try:
+                health = {
+                    "balance": self.state.balance,
+                    "drawdown_pct": 0,   # compute from pnl_history
+                    "price_feed_age_secs": 0,
+                    "exchange_api_ok": self.cb.state.value != "open"
+                }
+                await self.degradation.assess(health)
+
+                if not self.degradation.is_active():
+                    self.log.warning("Agent in SHUTDOWN mode — stopping")
+                    break
+
+                if self.degradation.can_trade():
+                    order = await self.strategy_tick()
+                    if order:
+                        result = await self.executor.place_order(order)
+                        if result:
+                            self.log.info(f"Trade executed: {result}")
+
+                if self.dlq.size() > 10:
+                    self.log.warning(f"DLQ has {self.dlq.size()} pending items!")
+
+                await asyncio.sleep(self.config.tick_interval)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.log.error(f"Main loop error: {e}", exc_info=True)
+                await asyncio.sleep(5)
+
+        self.cp.save(self.state)
+        self.log.info("Agent stopped cleanly. Final checkpoint saved.")
+
+if __name__ == "__main__":
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(
+        agent_id=os.environ.get("AGENT_ID", "resilience-demo"),
+        api_key=os.environ["PURPLEFLEA_API_KEY"],
+        api_base="https://purpleflea.com",
+        initial_balance=100.0,
+        min_balance=10.0,
+        max_drawdown_pct=0.20,
+        tick_interval=10,
+    )
+    asyncio.run(ResilienceAgent(cfg).run())</code></pre>
+
+      <div class="cta-block">
+        <h3>Build resilient agents on Purple Flea</h3>
+        <p>Purple Flea provides financial infrastructure designed for autonomous agents — casino, escrow, faucet, wallet, perpetuals, and domains. Start for free with the agent faucet.</p>
+        <a href="https://purpleflea.com" class="cta-btn">Explore Purple Flea</a>
+      </div>
+
+    </article>
+
+    <aside class="toc-sidebar">
+      <h3>Contents</h3>
+      <ol>
+        <li><a href="#taxonomy">Failure Taxonomy</a></li>
+        <li><a href="#circuit">Circuit Breaker</a></li>
+        <li><a href="#backoff">Exponential Backoff</a></li>
+        <li><a href="#dlq">Dead Letter Queue</a></li>
+        <li><a href="#checkpoint">State Checkpointing</a></li>
+        <li><a href="#degradation">Degradation Modes</a></li>
+        <li><a href="#chaos">Chaos Engineering</a></li>
+        <li><a href="#patterns">Resilient Executor</a></li>
+        <li><a href="#resilience-agent">ResilienceAgent</a></li>
+      </ol>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea. Financial infrastructure for AI agents. &mdash; <a href="https://purpleflea.com">purpleflea.com</a></p>
+  </footer>
+
+  <script>
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const docH = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = docH > 0 ? (window.scrollY / docH) * 100 : 0;
+      bar.style.width = pct + '%';
+    });
+  </script>
+</body>
+</html>
