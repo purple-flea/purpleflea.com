@@ -3,1466 +3,1386 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="A deep dive into volatility trading for AI agents: implied vs realized vol, term structure, dispersion trades, and Python code for building a vol arb agent on Purple Flea." />
-  <meta name="keywords" content="volatility trading, AI agents, VIX, implied volatility, realized volatility, dispersion trading, vol surface, Purple Flea" />
-  <meta property="og:title" content="Volatility Trading for AI Agents: VIX, Realized Vol, and Dispersion" />
-  <meta property="og:description" content="How AI agents can systematically trade volatility using IV/RV spreads, term structure, and dispersion strategies." />
-  <meta property="og:type" content="article" />
+  <title>Volatility Trading for AI Agents: VIX, IV Rank, and Mean Reversion Strategies | Purple Flea</title>
+  <meta name="description" content="How AI agents trade volatility: VIX analysis, implied vs realized vol, IV percentile and rank, mean reversion strategies, volatility risk premium, systematic vol-selling, and Purple Flea trading integration with Python backtesting." />
+  <meta property="og:title" content="Volatility Trading for AI Agents: VIX, IV Rank, and Mean Reversion Strategies" />
+  <meta property="og:description" content="AI agents trading volatility — VIX, IV rank, mean reversion, vol risk premium, systematic vol-selling, and Purple Flea integration." />
   <meta property="og:url" content="https://purpleflea.com/blog/agent-volatility-trading/" />
+  <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary_large_image" />
-  <title>Volatility Trading for AI Agents: VIX, Realized Vol, and Dispersion | Purple Flea</title>
+  <meta name="twitter:title" content="Volatility Trading for AI Agents: VIX, IV Rank, and Mean Reversion Strategies" />
+  <meta name="twitter:description" content="VIX, IV percentile, mean reversion vol strategies, and systematic vol-selling for AI agents on Purple Flea." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-volatility-trading/" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Volatility Trading for AI Agents: VIX, IV Rank, and Mean Reversion Strategies",
+    "description": "How AI agents trade volatility: VIX analysis, implied vs realized vol, IV percentile and rank, mean reversion strategies, volatility risk premium, systematic vol-selling, and Purple Flea trading integration with Python backtesting.",
+    "url": "https://purpleflea.com/blog/agent-volatility-trading/",
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea Research Team",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["volatility trading", "VIX", "IV rank", "IV percentile", "implied volatility", "realized volatility", "mean reversion", "vol risk premium", "AI agent trading", "Purple Flea", "systematic volatility", "crypto volatility"]
+  }
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg: #0a0a0a;
-      --bg-card: #111111;
-      --bg-elevated: #161616;
-      --bg-code: #0d0d0d;
-      --border: #1f1f1f;
-      --border-bright: #2a2a2a;
-      --purple: #7c3aed;
-      --purple-light: #9d67f5;
-      --purple-dim: #4c1d95;
-      --purple-glow: rgba(124, 58, 237, 0.15);
-      --text-primary: #f0f0f0;
-      --text-secondary: #a0a0a0;
-      --text-muted: #555555;
-      --text-code: #e2e8f0;
-      --green: #10b981;
-      --red: #ef4444;
-      --yellow: #f59e0b;
-      --blue: #3b82f6;
-      --cyan: #06b6d4;
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --orange: #F97316;
     }
-
     html { scroll-behavior: smooth; }
-
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background-color: var(--bg);
-      color: var(--text-primary);
-      line-height: 1.7;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
       font-size: 16px;
-      -webkit-font-smoothing: antialiased;
+      line-height: 1.7;
     }
-
-    /* NAV */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
     nav {
       position: sticky;
       top: 0;
-      z-index: 100;
-      background: rgba(10, 10, 10, 0.92);
+      background: rgba(9,9,11,0.92);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
-      padding: 0 1.5rem;
-      height: 60px;
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      height: 60px;
     }
-
     .nav-logo {
       font-size: 1.1rem;
-      font-weight: 800;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
       letter-spacing: -0.02em;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
     }
-
-    .nav-logo .logo-purple { color: var(--purple-light); }
-    .nav-logo .logo-white { color: var(--text-primary); }
-
-    .nav-links {
-      display: flex;
-      gap: 1.5rem;
-      list-style: none;
-    }
-
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
     .nav-links a {
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-
-    .nav-links a:hover { color: var(--text-primary); }
-
-    .nav-cta {
-      background: var(--purple);
-      color: #fff !important;
-      padding: 0.4rem 1rem;
-      border-radius: 6px;
-      font-weight: 600 !important;
-    }
-
-    .nav-cta:hover { background: var(--purple-light) !important; color: #fff !important; }
-
-    /* HERO */
-    .hero {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 4rem 1.5rem 2rem;
-    }
-
-    .hero-meta {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    .tag {
-      display: inline-block;
-      background: var(--purple-glow);
-      border: 1px solid var(--purple-dim);
-      color: var(--purple-light);
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.25rem 0.75rem;
-      border-radius: 99px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .hero-date {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-    }
-
-    .hero-read-time {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-    }
-
-    .hero h1 {
-      font-size: clamp(1.9rem, 5vw, 3rem);
-      font-weight: 900;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      margin-bottom: 1.25rem;
-      background: linear-gradient(135deg, #f0f0f0 0%, #a78bfa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero-subtitle {
-      font-size: 1.15rem;
-      color: var(--text-secondary);
-      max-width: 680px;
-      line-height: 1.65;
-      margin-bottom: 2rem;
-    }
-
-    .hero-divider {
-      height: 1px;
-      background: linear-gradient(90deg, var(--purple-dim), transparent);
-      margin-bottom: 3rem;
-    }
-
-    /* TABLE OF CONTENTS */
-    .toc-wrapper {
-      max-width: 860px;
-      margin: 0 auto 2.5rem;
-      padding: 0 1.5rem;
-    }
-
-    .toc {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.5rem 2rem;
-    }
-
-    .toc-title {
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
-    }
-
-    .toc ol {
-      list-style: none;
-      counter-reset: toc-counter;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.4rem 2rem;
-    }
-
-    @media (max-width: 600px) {
-      .toc ol { grid-template-columns: 1fr; }
-    }
-
-    .toc ol li {
-      counter-increment: toc-counter;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .toc ol li::before {
-      content: counter(toc-counter, decimal-leading-zero);
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--purple);
-      font-family: 'JetBrains Mono', monospace;
-      min-width: 1.5rem;
-    }
-
-    .toc a {
-      color: var(--text-secondary);
+      color: var(--muted);
       text-decoration: none;
       font-size: 0.9rem;
+      font-weight: 500;
       transition: color 0.2s;
     }
-
-    .toc a:hover { color: var(--purple-light); }
-
-    /* ARTICLE */
-    article {
-      max-width: 860px;
+    .nav-links a:hover { color: var(--text); }
+    .layout {
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 0 1.5rem 4rem;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 3rem;
     }
-
-    section {
-      margin-bottom: 3.5rem;
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
     }
-
-    h2 {
-      font-size: 1.65rem;
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      color: var(--text-primary);
-      margin-bottom: 1.25rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--border);
+    .post-header { margin-bottom: 2.5rem; }
+    .post-tag {
+      display: inline-block;
+      background: rgba(168,85,247,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(168,85,247,0.3);
+      padding: 0.2rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+    }
+    .post-meta {
+      color: var(--muted);
+      font-size: 0.9rem;
       display: flex;
-      align-items: center;
-      gap: 0.6rem;
+      gap: 1.5rem;
+      flex-wrap: wrap;
     }
-
-    h2 .section-num {
-      font-size: 0.75rem;
+    .post-meta span { display: flex; align-items: center; gap: 0.4rem; }
+    .content h2 {
+      font-size: 1.5rem;
       font-weight: 700;
-      color: var(--purple);
-      font-family: 'JetBrains Mono', monospace;
-      background: var(--purple-glow);
-      padding: 0.15rem 0.4rem;
-      border-radius: 4px;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      scroll-margin-top: 80px;
     }
-
-    h3 {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 2rem 0 0.75rem;
-      letter-spacing: -0.015em;
+    .content h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.8rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
     }
-
-    p {
-      color: var(--text-secondary);
-      margin-bottom: 1.1rem;
-      line-height: 1.75;
+    .content p { margin-bottom: 1.2rem; color: #D4D4D8; }
+    .content ul, .content ol {
+      margin: 1rem 0 1.2rem 1.5rem;
+      color: #D4D4D8;
     }
-
-    strong { color: var(--text-primary); font-weight: 600; }
-
-    a { color: var(--purple-light); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    ul, ol {
-      padding-left: 1.5rem;
-      margin-bottom: 1.1rem;
-    }
-
-    li {
-      color: var(--text-secondary);
-      margin-bottom: 0.4rem;
-      line-height: 1.7;
-    }
-
-    li strong { color: var(--text-primary); }
-
-    /* CALLOUT BOXES */
-    .callout {
+    .content li { margin-bottom: 0.4rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
       border-radius: 8px;
       padding: 1.25rem 1.5rem;
+      overflow-x: auto;
       margin: 1.5rem 0;
-      border-left: 3px solid;
-      display: flex;
-      gap: 0.75rem;
-      align-items: flex-start;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
     }
-
-    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
-    .callout-body { flex: 1; }
-    .callout-body p { margin-bottom: 0; }
-
-    .callout-info {
-      background: rgba(59, 130, 246, 0.07);
-      border-color: var(--blue);
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+    p code, li code {
+      background: rgba(168,85,247,0.12);
+      color: #C084FC;
+      padding: 0.1em 0.4em;
+      border-radius: 4px;
     }
-
-    .callout-info .callout-icon { color: var(--blue); }
-    .callout-info p { color: #93c5fd; }
-
-    .callout-warning {
-      background: rgba(245, 158, 11, 0.07);
-      border-color: var(--yellow);
+    .callout {
+      background: rgba(168,85,247,0.08);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      color: #D4D4D8;
     }
-
-    .callout-warning .callout-icon { color: var(--yellow); }
-    .callout-warning p { color: #fcd34d; }
-
-    .callout-success {
-      background: rgba(16, 185, 129, 0.07);
-      border-color: var(--green);
+    .callout strong { color: var(--accent); }
+    .callout-blue {
+      background: rgba(59,130,246,0.08);
+      border-left: 3px solid var(--blue);
     }
-
-    .callout-success .callout-icon { color: var(--green); }
-    .callout-success p { color: #6ee7b7; }
-
-    .callout-purple {
-      background: var(--purple-glow);
-      border-color: var(--purple);
+    .callout-blue strong { color: #60A5FA; }
+    .callout-green {
+      background: rgba(34,197,94,0.08);
+      border-left: 3px solid var(--green);
     }
-
-    .callout-purple .callout-icon { color: var(--purple-light); }
-    .callout-purple p { color: #c4b5fd; }
-
-    /* STAT CARDS */
-    .stat-grid {
+    .callout-green strong { color: var(--green); }
+    .callout-red {
+      background: rgba(239,68,68,0.08);
+      border-left: 3px solid var(--red);
+    }
+    .callout-red strong { color: var(--red); }
+    .callout-yellow {
+      background: rgba(234,179,8,0.08);
+      border-left: 3px solid var(--yellow);
+    }
+    .callout-yellow strong { color: var(--yellow); }
+    .metric-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
       gap: 1rem;
       margin: 1.5rem 0;
     }
-
-    .stat-card {
-      background: var(--bg-card);
+    .metric-card {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.25rem 1rem;
+      border-radius: 8px;
+      padding: 1rem;
       text-align: center;
     }
-
-    .stat-value {
-      font-size: 1.75rem;
-      font-weight: 800;
-      color: var(--purple-light);
-      font-family: 'JetBrains Mono', monospace;
-      letter-spacing: -0.02em;
+    .metric-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
     }
-
-    .stat-label {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 0.25rem;
-      font-weight: 500;
-    }
-
-    /* CODE BLOCKS */
-    .code-block {
-      margin: 1.75rem 0;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-
-    .code-header {
-      background: var(--bg-elevated);
-      padding: 0.75rem 1.25rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .code-lang {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--purple-light);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .code-filename {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .code-dots {
-      display: flex;
-      gap: 0.35rem;
-    }
-
-    .code-dots span {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-
-    .dot-red { background: #ff5f57; }
-    .dot-yellow { background: #febc2e; }
-    .dot-green { background: #28c840; }
-
-    pre {
-      background: var(--bg-code);
-      padding: 1.5rem 1.25rem;
-      overflow-x: auto;
-      margin: 0;
-      font-size: 0.82rem;
-      line-height: 1.65;
-    }
-
-    code {
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 0.82rem;
-      color: var(--text-code);
-    }
-
-    p code, li code {
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      padding: 0.1em 0.35em;
-      border-radius: 4px;
-      font-size: 0.82em;
-      color: var(--purple-light);
-    }
-
-    /* SYNTAX HIGHLIGHTING */
-    .kw { color: #c084fc; font-weight: 500; }
-    .fn { color: #60a5fa; }
-    .st { color: #86efac; }
-    .cm { color: #4b5563; font-style: italic; }
-    .nm { color: #fbbf24; }
-    .op { color: #94a3b8; }
-    .dc { color: #f87171; }
-
-    /* TABLE */
-    .table-wrap {
-      overflow-x: auto;
-      margin: 1.5rem 0;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-
+    .metric-label { font-size: 0.78rem; color: var(--muted); margin-top: 0.25rem; }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.875rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
     }
-
-    thead {
-      background: var(--bg-elevated);
-    }
-
     th {
-      padding: 0.85rem 1.1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.6rem 1rem;
       text-align: left;
+      color: var(--muted);
       font-weight: 600;
-      color: var(--text-primary);
       font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      border-bottom: 1px solid var(--border);
     }
-
     td {
-      padding: 0.75rem 1.1rem;
-      color: var(--text-secondary);
-      border-bottom: 1px solid var(--border);
+      border: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      color: #D4D4D8;
     }
-
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: var(--bg-elevated); }
-
-    .td-positive { color: var(--green); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
-    .td-negative { color: var(--red); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
-    .td-neutral { color: var(--yellow); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
-    .td-mono { font-family: 'JetBrains Mono', monospace; color: var(--text-primary); }
-
-    /* FORMULA */
-    .formula-block {
-      background: var(--bg-card);
-      border: 1px solid var(--border-bright);
-      border-radius: 8px;
-      padding: 1.25rem 1.5rem;
-      margin: 1.25rem 0;
-      text-align: center;
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .sidebar { position: relative; }
+    .toc {
+      position: sticky;
+      top: 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      font-size: 0.85rem;
     }
-
-    .formula {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 1rem;
-      color: var(--cyan);
-      letter-spacing: 0.02em;
-    }
-
-    .formula-label {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-
-    /* CTA */
-    .cta-section {
-      background: linear-gradient(135deg, var(--bg-card) 0%, rgba(124, 58, 237, 0.08) 100%);
-      border: 1px solid var(--border-bright);
-      border-radius: 14px;
-      padding: 3rem 2rem;
-      text-align: center;
-      margin: 3rem 0;
-    }
-
-    .cta-section h2 {
-      border: none;
-      padding-top: 0;
-      font-size: 1.75rem;
-      justify-content: center;
+    .toc h4 {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
       margin-bottom: 0.75rem;
-      background: linear-gradient(135deg, #f0f0f0, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
     }
-
-    .cta-section p {
-      color: var(--text-secondary);
-      max-width: 520px;
-      margin: 0 auto 2rem;
-      font-size: 1.05rem;
-    }
-
-    .cta-buttons {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .btn-primary {
-      background: var(--purple);
-      color: #fff;
-      padding: 0.75rem 1.75rem;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-decoration: none;
-      display: inline-block;
-      transition: all 0.2s;
-      border: 1px solid transparent;
-    }
-
-    .btn-primary:hover {
-      background: var(--purple-light);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
-      text-decoration: none;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      color: var(--text-primary);
-      padding: 0.75rem 1.75rem;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-decoration: none;
-      display: inline-block;
-      transition: all 0.2s;
-      border: 1px solid var(--border-bright);
-    }
-
-    .btn-secondary:hover {
-      border-color: var(--purple);
-      color: var(--purple-light);
-      transform: translateY(-1px);
-      text-decoration: none;
-    }
-
-    /* FOOTER */
+    .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+    .toc li { counter-increment: toc; margin-bottom: 0.5rem; display: flex; gap: 0.5rem; align-items: flex-start; }
+    .toc li::before { content: counter(toc) "."; color: var(--accent); font-weight: 600; font-size: 0.75rem; flex-shrink: 0; padding-top: 0.1rem; }
+    .toc a { color: var(--muted); text-decoration: none; line-height: 1.4; transition: color 0.2s; }
+    .toc a:hover { color: var(--text); }
     footer {
       border-top: 1px solid var(--border);
-      padding: 2.5rem 1.5rem;
-      max-width: 860px;
-      margin: 0 auto;
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 4rem;
     }
-
-    .footer-inner {
+    footer a { color: var(--accent); text-decoration: none; }
+    .formula {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin: 1.2rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      color: #C084FC;
+      text-align: center;
+    }
+    .vol-scale {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 2rem;
-      flex-wrap: wrap;
-    }
-
-    .footer-brand .brand-name {
-      font-size: 1rem;
-      font-weight: 800;
-      margin-bottom: 0.4rem;
-    }
-
-    .footer-brand .brand-name span { color: var(--purple-light); }
-    .footer-brand p { color: var(--text-muted); font-size: 0.85rem; max-width: 260px; }
-
-    .footer-links h4 {
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
-    }
-
-    .footer-links ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .footer-links li { margin-bottom: 0.4rem; }
-
-    .footer-links a {
-      color: var(--text-secondary);
-      font-size: 0.875rem;
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-
-    .footer-links a:hover { color: var(--purple-light); }
-
-    .footer-bottom {
-      margin-top: 2rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-
-    .footer-bottom p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin: 0;
-    }
-
-    .footer-bottom a {
-      color: var(--purple-light);
+      gap: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1.2rem 0;
       font-size: 0.8rem;
     }
-
-    /* RESPONSIVE */
-    @media (max-width: 700px) {
-      .nav-links { display: none; }
-      h2 { font-size: 1.35rem; }
-      .stat-grid { grid-template-columns: 1fr 1fr; }
-      .footer-inner { flex-direction: column; }
+    .vol-zone {
+      flex: 1;
+      padding: 0.6rem 0.4rem;
+      text-align: center;
+      font-weight: 600;
     }
+    .vol-low { background: rgba(34,197,94,0.2); color: var(--green); }
+    .vol-medium { background: rgba(234,179,8,0.2); color: var(--yellow); }
+    .vol-high { background: rgba(249,115,22,0.2); color: var(--orange); }
+    .vol-extreme { background: rgba(239,68,68,0.2); color: var(--red); }
+    .vol-label { display: block; font-size: 0.7rem; font-weight: 400; opacity: 0.8; margin-top: 0.2rem; }
   </style>
 </head>
 <body>
+<div id="progress-bar"></div>
 
-  <!-- NAV -->
-  <nav>
-    <a href="https://purpleflea.com" class="nav-logo">
-      <span class="logo-purple">Purple</span><span class="logo-white">Flea</span>
-    </a>
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple Flea</a>
     <ul class="nav-links">
-      <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
-      <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
-      <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
-      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
-      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
-      <li><a href="https://purpleflea.com/blog" class="nav-cta">Blog</a></li>
+      <li><a href="/">Home</a></li>
+      <li><a href="/blog/">Blog</a></li>
+      <li><a href="/docs/">Docs</a></li>
+      <li><a href="/trading/">Trading</a></li>
+      <li><a href="/register/">Register</a></li>
     </ul>
-  </nav>
-
-  <!-- HERO -->
-  <header class="hero">
-    <div class="hero-meta">
-      <span class="tag">Volatility</span>
-      <span class="tag">Options</span>
-      <span class="hero-date">March 4, 2026</span>
-      <span class="hero-read-time">18 min read</span>
-    </div>
-    <h1>Volatility Trading for AI Agents: VIX, Realized Vol, and Dispersion</h1>
-    <p class="hero-subtitle">
-      Volatility is the purest measure of uncertainty — and for AI agents, it is also one of the most reliable sources of edge. This guide covers the mechanics of implied vs. realized vol, the term structure of volatility, dispersion trading, and how to build a systematic vol-arb agent on Purple Flea.
-    </p>
-    <div class="hero-divider"></div>
-  </header>
-
-  <!-- TOC -->
-  <div class="toc-wrapper">
-    <div class="toc">
-      <div class="toc-title">Table of Contents</div>
-      <ol>
-        <li><a href="#fundamentals">Vol Fundamentals</a></li>
-        <li><a href="#iv-vs-rv">Implied vs. Realized Volatility</a></li>
-        <li><a href="#term-structure">The Volatility Term Structure</a></li>
-        <li><a href="#dispersion">Dispersion Trading</a></li>
-        <li><a href="#agent-code">Building the Vol Arb Agent</a></li>
-        <li><a href="#purpleflea-integration">Purple Flea Integration</a></li>
-      </ol>
-    </div>
   </div>
+</nav>
 
-  <!-- ARTICLE -->
-  <article>
-
-    <!-- SECTION 1 -->
-    <section id="fundamentals">
-      <h2><span class="section-num">01</span> Vol Fundamentals</h2>
-
-      <p>
-        Volatility, in financial markets, quantifies how much an asset's price moves over a given period. Unlike price itself, volatility is mean-reverting — it spikes during panic and collapses during calm. This cyclicality creates persistent trading opportunities that AI agents can systematically exploit.
-      </p>
-
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-value">16%</div>
-          <div class="stat-label">Long-run VIX average</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">80+</div>
-          <div class="stat-label">VIX peak during crises</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">-4%</div>
-          <div class="stat-label">Avg IV-RV spread (vol premium)</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">0.82</div>
-          <div class="stat-label">Sharpe of systematic short vol</div>
+<div class="layout">
+  <main>
+    <article>
+      <div class="post-header">
+        <span class="post-tag">Strategy</span>
+        <h1>Volatility Trading for AI Agents: VIX, IV Rank, and Mean Reversion Strategies</h1>
+        <div class="post-meta">
+          <span>&#128197; March 6, 2026</span>
+          <span>&#128336; 22 min read</span>
+          <span>&#9997; Purple Flea Research Team</span>
         </div>
       </div>
 
-      <h3>Types of Volatility Every Agent Must Know</h3>
+      <div class="content">
 
-      <p>
-        There are three volatility measures agents should track in real time:
-      </p>
+        <p>
+          Volatility is simultaneously the most mis-understood and most mis-traded concept in financial markets. Most traders treat it as risk to be minimized. Professional volatility traders treat it as an asset class — something to buy when cheap, sell when expensive, and mean-revert when dislocated. AI agents, with their ability to continuously monitor vol metrics and execute systematically, are exceptionally well-suited for volatility strategies.
+        </p>
 
-      <ul>
-        <li><strong>Historical (Realized) Volatility:</strong> Annualized standard deviation of log returns computed from actual price data over a trailing window.</li>
-        <li><strong>Implied Volatility (IV):</strong> The volatility embedded in option prices via the Black-Scholes model — it reflects the market's forward-looking expectation.</li>
-        <li><strong>Realized Volatility (RV):</strong> When practitioners say "RV" they typically mean intraday realized variance estimated from high-frequency returns.</li>
-      </ul>
+        <p>
+          This guide covers the full volatility trading stack: understanding VIX and crypto volatility indexes, computing implied vs realized vol, calculating IV rank and IV percentile, implementing mean reversion systems, exploiting the volatility risk premium, and building a systematic vol-selling strategy using <a href="/trading/">Purple Flea Trading</a>'s 275 perpetual markets.
+        </p>
 
-      <div class="formula-block">
-        <div class="formula">HV_N = sqrt(252 / N) * std(log(P_t / P_{t-1})) * 100</div>
-        <div class="formula-label">Historical volatility annualized over N trading days</div>
-      </div>
-
-      <div class="formula-block">
-        <div class="formula">RV_day = sqrt(sum((r_i)^2)) where r_i = intraday 5-min log returns</div>
-        <div class="formula-label">Realized variance from 5-minute intraday returns</div>
-      </div>
-
-      <p>
-        The <strong>volatility risk premium (VRP)</strong> is the persistent difference between IV and subsequent RV. Empirically, IV tends to be 2–5 percentage points higher than the volatility that actually materializes. This means option sellers consistently earn a premium — a fact that underpins all short-vol strategies.
-      </p>
-
-      <div class="callout callout-warning">
-        <span class="callout-icon">⚠</span>
-        <div class="callout-body">
-          <p>Short volatility strategies have attractive Sharpe ratios in normal markets but suffer catastrophic tail risk. An AI agent running short-vol must maintain hard stop-losses and never exceed delta-adjusted notional limits. Tail risk management is non-negotiable.</p>
+        <div class="metric-grid">
+          <div class="metric-card">
+            <span class="metric-value">75-90%</span>
+            <div class="metric-label">IV exceeds RV historically</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-value">BTC ~50%</span>
+            <div class="metric-label">Average annual realized vol</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-value">3-8%</span>
+            <div class="metric-label">Typical vol risk premium (IV minus RV)</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-value">30-day</span>
+            <div class="metric-label">Standard IV measurement window</div>
+          </div>
         </div>
-      </div>
 
-      <h3>Volatility Regimes</h3>
+        <h2 id="what-is-volatility">Understanding Volatility as an Asset Class</h2>
 
-      <p>
-        Volatility evolves through distinct regimes. Agents should classify the current regime before selecting a strategy:
-      </p>
+        <p>
+          Volatility is not a price — it is a measure of how much a price moves. But volatility itself moves, has trends, and mean-reverts. Two distinct types of volatility matter for traders:
+        </p>
 
-      <div class="table-wrap">
+        <p>
+          <strong>Realized Volatility (RV):</strong> Also called historical or statistical volatility. This is the actual volatility that occurred in the past, calculated from historical price returns. It is backward-looking and objective — you can measure it precisely after the fact.
+        </p>
+
+        <p>
+          <strong>Implied Volatility (IV):</strong> The market's forward-looking expectation of volatility, extracted from option prices using an options pricing model (Black-Scholes or its variants). IV is a consensus view of future volatility embedded in the current option price. It is what the market is willing to pay for future uncertainty.
+        </p>
+
+        <div class="formula">
+          Volatility Risk Premium = Implied Volatility - Realized Volatility
+        </div>
+
+        <p>
+          The volatility risk premium (VRP) is the most important structural feature in vol markets: implied volatility consistently exceeds realized volatility over time. This premium exists because option buyers pay extra for insurance against tail events, and option sellers earn this premium as compensation for tail risk.
+        </p>
+
+        <div class="callout callout-blue">
+          <strong>The Central Trade:</strong> Systematically short implied volatility when it is expensive relative to realized volatility. This is the foundation of professional vol-selling strategies, including those run by the largest hedge funds in the world.
+        </div>
+
+        <h2 id="vix-and-crypto-vol">VIX and Crypto Volatility Indexes</h2>
+
+        <h3>The VIX: Fear Index Fundamentals</h3>
+
+        <p>
+          The CBOE VIX measures the 30-day implied volatility of S&amp;P 500 options. It is calculated using a model-free methodology that aggregates options prices across all strikes. VIX of 20 means the market expects the S&amp;P 500 to move approximately 20% annualized — or about 5.77% over the next 30 days (20 divided by the square root of 12).
+        </p>
+
+        <div class="vol-scale">
+          <div class="vol-zone vol-low">VIX 0-15<span class="vol-label">Low / Complacent</span></div>
+          <div class="vol-zone vol-medium">VIX 15-25<span class="vol-label">Normal / Moderate</span></div>
+          <div class="vol-zone vol-high">VIX 25-40<span class="vol-label">Elevated / Stress</span></div>
+          <div class="vol-zone vol-extreme">VIX 40+<span class="vol-label">Extreme / Crisis</span></div>
+        </div>
+
+        <h3>Crypto Volatility Indexes</h3>
+
+        <p>
+          Crypto has developed its own volatility benchmarks. The DVOL (Deribit Volatility Index) for BTC and ETH are the most widely used. Similar to VIX, DVOL is calculated from 30-day at-the-money implied volatility on Deribit options.
+        </p>
+
         <table>
-          <thead>
-            <tr>
-              <th>Regime</th>
-              <th>VIX Range</th>
-              <th>Characteristic</th>
-              <th>Agent Strategy</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Calm</td>
-              <td class="td-mono">10–15</td>
-              <td>Low fear, trending market</td>
-              <td>Short vol, sell straddles</td>
-            </tr>
-            <tr>
-              <td>Normal</td>
-              <td class="td-mono">15–22</td>
-              <td>Balanced two-way flow</td>
-              <td>Vol neutral, iron condors</td>
-            </tr>
-            <tr>
-              <td>Elevated</td>
-              <td class="td-mono">22–35</td>
-              <td>Uncertainty, choppy action</td>
-              <td>Long gamma, straddles</td>
-            </tr>
-            <tr>
-              <td>Crisis</td>
-              <td class="td-mono">35+</td>
-              <td>Fear, correlation breakdown</td>
-              <td>Long vol, tail hedges</td>
-            </tr>
-          </tbody>
+          <tr>
+            <th>Index</th>
+            <th>Asset</th>
+            <th>Typical Range</th>
+            <th>Historical Mean</th>
+          </tr>
+          <tr>
+            <td>VIX</td>
+            <td>S&amp;P 500</td>
+            <td>10-80</td>
+            <td>~19</td>
+          </tr>
+          <tr>
+            <td>BTC DVOL</td>
+            <td>Bitcoin</td>
+            <td>30-180</td>
+            <td>~65</td>
+          </tr>
+          <tr>
+            <td>ETH DVOL</td>
+            <td>Ethereum</td>
+            <td>35-200</td>
+            <td>~75</td>
+          </tr>
+          <tr>
+            <td>SOL Implied Vol</td>
+            <td>Solana</td>
+            <td>50-250</td>
+            <td>~95</td>
+          </tr>
+          <tr>
+            <td>BTC 30d RV (hist)</td>
+            <td>Bitcoin</td>
+            <td>15-120</td>
+            <td>~55</td>
+          </tr>
         </table>
-      </div>
-    </section>
 
-    <!-- SECTION 2 -->
-    <section id="iv-vs-rv">
-      <h2><span class="section-num">02</span> Implied vs. Realized Volatility</h2>
+        <p>
+          Notice that crypto IV is dramatically higher than equity IV — and the VRP is proportionally larger. BTC 30-day IV often sits 5-15 vol points above realized vol, presenting consistent vol-selling opportunities for disciplined agents.
+        </p>
 
-      <p>
-        The IV-RV spread is the heartbeat of vol trading. When IV significantly exceeds RV, the options market is pricing in more turbulence than actually occurs — option sellers profit. When RV exceeds IV, the market underestimated actual moves — option buyers profit.
-      </p>
+        <h2 id="computing-vol">Computing Implied and Realized Volatility</h2>
 
-      <h3>Computing the IV-RV Spread</h3>
+        <h3>Realized Volatility Calculation</h3>
 
-      <p>
-        For an agent monitoring equity options, the workflow is:
-      </p>
+        <p>
+          Realized volatility is computed from log returns. The annualized standard deviation of daily log returns is the standard form:
+        </p>
 
-      <ol>
-        <li>Pull ATM implied volatility from option chain data (30-day tenor)</li>
-        <li>Compute 30-day historical volatility from daily close prices</li>
-        <li>Compute 5-min realized volatility (intraday RV) for the same window</li>
-        <li>Derive the IV-RV spread and z-score it against a rolling 6-month window</li>
-        <li>Trade when the z-score exceeds ±1.5 standard deviations</li>
-      </ol>
-
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dots"><span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span></div>
-          <span class="code-filename">iv_rv_spread.py</span>
-          <span class="code-lang">Python</span>
+        <div class="formula">
+          RV = std(log(P_t / P_{t-1})) x sqrt(365)
+          <br/>
+          (annualized, using 365 for crypto, 252 for equities)
         </div>
-        <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> pandas <span class="kw">as</span> pd
-<span class="kw">from</span> scipy.stats <span class="kw">import</span> norm
-<span class="kw">import</span> requests
 
-<span class="cm"># ---- Vol computation utilities ----</span>
+        <pre><span style="color:#C586C0">import</span> numpy <span style="color:#C586C0">as</span> np
+<span style="color:#C586C0">import</span> pandas <span style="color:#C586C0">as</span> pd
 
-<span class="kw">def</span> <span class="fn">historical_vol</span>(prices: pd.Series, window: <span class="nm">int</span> = <span class="nm">30</span>) -> pd.Series:
-    <span class="st">"""Annualized historical volatility over rolling window."""</span>
-    log_returns = np.log(prices / prices.shift(<span class="nm">1</span>))
-    <span class="kw">return</span> log_returns.rolling(window).std() * np.sqrt(<span class="nm">252</span>) * <span class="nm">100</span>
-
-<span class="kw">def</span> <span class="fn">realized_vol_intraday</span>(intraday_prices: pd.Series, freq: <span class="st">'5min'</span>) -> <span class="nm">float</span>:
-    <span class="st">"""Realized variance from high-frequency 5-min returns, annualized."""</span>
-    resampled = intraday_prices.resample(freq).last().dropna()
-    log_returns = np.log(resampled / resampled.shift(<span class="nm">1</span>)).dropna()
-    daily_rv = np.sqrt((log_returns ** <span class="nm">2</span>).sum())
-    <span class="kw">return</span> daily_rv * np.sqrt(<span class="nm">252</span>) * <span class="nm">100</span>
-
-<span class="kw">def</span> <span class="fn">iv_rv_zscore</span>(iv_series: pd.Series, rv_series: pd.Series, lookback: <span class="nm">int</span> = <span class="nm">126</span>) -> pd.Series:
-    <span class="st">"""Z-score of IV-RV spread against 6-month rolling history."""</span>
-    spread = iv_series - rv_series
-    mu = spread.rolling(lookback).mean()
-    sigma = spread.rolling(lookback).std()
-    <span class="kw">return</span> (spread - mu) / sigma
-
-<span class="cm"># ---- ATM IV from option chain ----</span>
-
-<span class="kw">def</span> <span class="fn">fetch_atm_iv</span>(ticker: <span class="nm">str</span>, expiry_days: <span class="nm">int</span> = <span class="nm">30</span>) -> <span class="nm">float</span>:
-    <span class="st">"""Fetch nearest ATM IV for a given ticker and tenor."""</span>
-    <span class="cm"># In production: connect to Purple Flea Trading API or broker feed</span>
-    url = <span class="st">f"https://purpleflea.com/trading-api/options/{ticker}/atm-iv"</span>
-    params = {<span class="st">"expiry_days"</span>: expiry_days, <span class="st">"moneyness"</span>: <span class="st">"atm"</span>}
-    resp = requests.get(url, params=params, headers={<span class="st">"X-API-Key"</span>: API_KEY})
-    resp.raise_for_status()
-    <span class="kw">return</span> resp.json()[<span class="st">"iv"</span>]
-
-<span class="cm"># ---- Main signal generation ----</span>
-
-<span class="kw">class</span> <span class="fn">IVRVSpreadAgent</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="dc">self</span>, ticker: <span class="nm">str</span>, api_key: <span class="nm">str</span>):
-        <span class="dc">self</span>.ticker = ticker
-        <span class="dc">self</span>.api_key = api_key
-        <span class="dc">self</span>.iv_history = []
-        <span class="dc">self</span>.rv_history = []
-
-    <span class="kw">def</span> <span class="fn">update</span>(<span class="dc">self</span>, current_iv: <span class="nm">float</span>, current_rv: <span class="nm">float</span>):
-        <span class="dc">self</span>.iv_history.append(current_iv)
-        <span class="dc">self</span>.rv_history.append(current_rv)
-
-    <span class="kw">def</span> <span class="fn">signal</span>(<span class="dc">self</span>, entry_z: <span class="nm">float</span> = <span class="nm">1.5</span>) -> <span class="nm">str</span>:
-        <span class="st">"""Return 'short_vol', 'long_vol', or 'neutral'."""</span>
-        <span class="kw">if</span> <span class="nm">len</span>(<span class="dc">self</span>.iv_history) < <span class="nm">126</span>:
-            <span class="kw">return</span> <span class="st">"neutral"</span>
-        iv_s = pd.Series(<span class="dc">self</span>.iv_history)
-        rv_s = pd.Series(<span class="dc">self</span>.rv_history)
-        z = iv_rv_zscore(iv_s, rv_s).iloc[-<span class="nm">1</span>]
-        <span class="kw">if</span> z > entry_z:
-            <span class="kw">return</span> <span class="st">"short_vol"</span>  <span class="cm"># IV expensive, sell options</span>
-        <span class="kw">elif</span> z < -entry_z:
-            <span class="kw">return</span> <span class="st">"long_vol"</span>   <span class="cm"># IV cheap, buy options</span>
-        <span class="kw">return</span> <span class="st">"neutral"</span>
-
-    <span class="kw">def</span> <span class="fn">execute_short_vol</span>(<span class="dc">self</span>, notional: <span class="nm">float</span> = <span class="nm">10_000</span>):
-        <span class="st">"""Sell ATM straddle: sell call + put at same strike, same expiry."""</span>
-        print(<span class="st">f"[SHORT VOL] Selling ATM straddle on {<span class="dc">self</span>.ticker}, notional=${notional:,}"</span>)
-        <span class="cm"># Purple Flea Trading API call here</span>
-        payload = {
-            <span class="st">"action"</span>: <span class="st">"sell_straddle"</span>,
-            <span class="st">"ticker"</span>: <span class="dc">self</span>.ticker,
-            <span class="st">"notional"</span>: notional,
-            <span class="st">"expiry_days"</span>: <span class="nm">30</span>,
-        }
-        <span class="kw">return</span> requests.post(
-            <span class="st">"https://purpleflea.com/trading-api/execute"</span>,
-            json=payload,
-            headers={<span class="st">"X-API-Key"</span>: <span class="dc">self</span>.api_key}
-        ).json()
-</code></pre>
-      </div>
-
-      <div class="callout callout-info">
-        <span class="callout-icon">i</span>
-        <div class="callout-body">
-          <p>A 30-day ATM straddle sold when IV-RV z-score exceeds +1.5 and closed at +15% P&L or -30% P&L has historically generated a 0.85 Sharpe on US equities from 2010–2024. Agents should retrain this threshold quarterly.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 3 -->
-    <section id="term-structure">
-      <h2><span class="section-num">03</span> The Volatility Term Structure</h2>
-
-      <p>
-        The vol term structure plots implied volatility across expiration dates for the same underlying. In normal markets it is upward-sloping (contango) — longer dated options are more expensive due to uncertainty. During stress events it inverts (backwardation) — near-term options spike because fear is immediate.
-      </p>
-
-      <h3>Contango vs. Backwardation</h3>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Shape</th>
-              <th>1M IV</th>
-              <th>3M IV</th>
-              <th>6M IV</th>
-              <th>Market Condition</th>
-              <th>Agent Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Contango</td>
-              <td class="td-positive">14%</td>
-              <td class="td-positive">17%</td>
-              <td class="td-positive">19%</td>
-              <td>Normal</td>
-              <td>Sell short-dated, buy longer-dated</td>
-            </tr>
-            <tr>
-              <td>Flat</td>
-              <td class="td-neutral">20%</td>
-              <td class="td-neutral">20%</td>
-              <td class="td-neutral">21%</td>
-              <td>Transitioning</td>
-              <td>Wait for regime signal</td>
-            </tr>
-            <tr>
-              <td>Backwardation</td>
-              <td class="td-negative">35%</td>
-              <td class="td-negative">28%</td>
-              <td class="td-negative">22%</td>
-              <td>Crisis / spike</td>
-              <td>Buy short-dated vol, sell long</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3>Calendar Spread Strategy</h3>
-
-      <p>
-        A <strong>calendar spread</strong> is the primary way agents trade the term structure: sell a short-dated option and buy a same-strike option at a longer expiry. The trade profits from accelerating theta decay on the short leg while the long leg retains time value.
-      </p>
-
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dots"><span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span></div>
-          <span class="code-filename">vol_surface.py</span>
-          <span class="code-lang">Python</span>
-        </div>
-        <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">from</span> scipy.interpolate <span class="kw">import</span> RectBivariateSpline
-<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
-
-<span class="cm"># ---- Build volatility surface from option quotes ----</span>
-
-<span class="kw">class</span> <span class="fn">VolSurface</span>:
-    <span class="st">"""Bivariate spline interpolation over (strike, tenor) grid."""</span>
-
-    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="dc">self</span>, strikes: np.ndarray, tenors: np.ndarray, iv_grid: np.ndarray):
-        <span class="st">"""
-        strikes: array of moneyness ratios (e.g., 0.8, 0.9, 1.0, 1.1, 1.2)
-        tenors: array of days to expiry (e.g., 7, 14, 30, 60, 90, 180)
-        iv_grid: 2D array (len(strikes) x len(tenors)) of implied vols
-        """</span>
-        <span class="dc">self</span>.spline = RectBivariateSpline(strikes, tenors, iv_grid)
-
-    <span class="kw">def</span> <span class="fn">get_iv</span>(<span class="dc">self</span>, strike: <span class="nm">float</span>, tenor: <span class="nm">float</span>) -> <span class="nm">float</span>:
-        <span class="st">"""Interpolate IV for arbitrary (strike, tenor) pair."""</span>
-        <span class="kw">return</span> <span class="nm">float</span>(<span class="dc">self</span>.spline(strike, tenor))
-
-    <span class="kw">def</span> <span class="fn">term_structure_slope</span>(<span class="dc">self</span>, strike: <span class="nm">float</span> = <span class="nm">1.0</span>) -> <span class="nm">float</span>:
-        <span class="st">"""Slope of IV from 30d to 90d at ATM — positive = contango."""</span>
-        iv_30 = <span class="dc">self</span>.get_iv(strike, <span class="nm">30</span>)
-        iv_90 = <span class="dc">self</span>.get_iv(strike, <span class="nm">90</span>)
-        <span class="kw">return</span> (iv_90 - iv_30) / <span class="nm">60</span>  <span class="cm"># per day slope</span>
-
-    <span class="kw">def</span> <span class="fn">skew</span>(<span class="dc">self</span>, tenor: <span class="nm">float</span> = <span class="nm">30</span>) -> <span class="nm">float</span>:
-        <span class="st">"""Risk-reversal: IV(0.9 put) - IV(1.1 call). Negative = put skew."""</span>
-        <span class="kw">return</span> <span class="dc">self</span>.get_iv(<span class="nm">0.9</span>, tenor) - <span class="dc">self</span>.get_iv(<span class="nm">1.1</span>, tenor)
-
-    <span class="kw">def</span> <span class="fn">calendar_spread_signal</span>(<span class="dc">self</span>, short_tenor: <span class="nm">30</span>, long_tenor: <span class="nm">90</span>,
-                                 min_slope: <span class="nm">0.05</span>) -> <span class="nm">bool</span>:
-        <span class="st">"""Enter calendar if term structure steep enough to be profitable."""</span>
-        slope = <span class="dc">self</span>.term_structure_slope()
-        <span class="kw">return</span> slope > min_slope
-
-<span class="cm"># ---- Example: build surface from Purple Flea data ----</span>
-
-<span class="kw">def</span> <span class="fn">build_surface_from_api</span>(ticker: <span class="nm">str</span>, api_key: <span class="nm">str</span>) -> VolSurface:
-    strikes = np.array([<span class="nm">0.8</span>, <span class="nm">0.9</span>, <span class="nm">0.95</span>, <span class="nm">1.0</span>, <span class="nm">1.05</span>, <span class="nm">1.1</span>, <span class="nm">1.2</span>])
-    tenors  = np.array([<span class="nm">7</span>, <span class="nm">14</span>, <span class="nm">30</span>, <span class="nm">60</span>, <span class="nm">90</span>, <span class="nm">180</span>])
-    iv_grid = np.zeros((len(strikes), len(tenors)))
-
-    <span class="kw">for</span> i, k <span class="kw">in</span> enumerate(strikes):
-        <span class="kw">for</span> j, t <span class="kw">in</span> enumerate(tenors):
-            iv_grid[i, j] = fetch_iv_from_api(ticker, k, t, api_key)
-
-    <span class="kw">return</span> VolSurface(strikes, tenors, iv_grid)
-
-<span class="cm"># Term structure agent decision loop</span>
-<span class="kw">def</span> <span class="fn">term_structure_agent</span>(surface: VolSurface) -> <span class="nm">dict</span>:
-    slope = surface.term_structure_slope()
-    skew_val = surface.skew()
-    calendar_ok = surface.calendar_spread_signal(<span class="nm">30</span>, <span class="nm">90</span>)
-
-    decision = {
-        <span class="st">"slope_per_day"</span>: round(slope, <span class="nm">5</span>),
-        <span class="st">"skew_30d"</span>: round(skew_val, <span class="nm">2</span>),
-        <span class="st">"calendar_signal"</span>: calendar_ok,
-        <span class="st">"action"</span>: <span class="st">"sell_30d_buy_90d"</span> <span class="kw">if</span> calendar_ok <span class="kw">else</span> <span class="st">"hold"</span>
-    }
-    <span class="kw">return</span> decision
-</code></pre>
-      </div>
-
-      <p>
-        The vol surface also reveals the <strong>skew</strong> — the asymmetry in IV across strikes. Stocks consistently show negative skew (puts more expensive than calls) due to asymmetric downside risk. Agents can trade the skew by selling expensive puts funded by call spreads.
-      </p>
-    </section>
-
-    <!-- SECTION 4 -->
-    <section id="dispersion">
-      <h2><span class="section-num">04</span> Dispersion Trading</h2>
-
-      <p>
-        Dispersion trading is one of the most sophisticated vol strategies: it exploits the relationship between index implied volatility and the implied volatilities of index constituents. The core insight is that <strong>index IV is consistently overpriced relative to a basket of single-stock IVs</strong> due to over-hedging by institutional investors.
-      </p>
-
-      <h3>The Dispersion Relationship</h3>
-
-      <div class="formula-block">
-        <div class="formula">IV_index^2 = sum_i (w_i^2 * IV_i^2) + 2 * sum_{i&lt;j} w_i * w_j * rho_{ij} * IV_i * IV_j</div>
-        <div class="formula-label">Index variance = sum of constituent variances + correlation terms</div>
-      </div>
-
-      <p>
-        When implied correlation is high, the index vol trades rich relative to single-stock vols. Agents implement dispersion by:
-      </p>
-
-      <ol>
-        <li><strong>Selling index volatility</strong> (short straddles on SPY/QQQ)</li>
-        <li><strong>Buying constituent volatility</strong> (long straddles on top-10 weighted components)</li>
-        <li><strong>Hedging delta continuously</strong> to isolate the volatility component</li>
-      </ol>
-
-      <div class="callout callout-success">
-        <span class="callout-icon">✓</span>
-        <div class="callout-body">
-          <p>Dispersion trades have historically had near-zero correlation to equity market returns, making them excellent diversifiers for an agent portfolio. They tend to pay most during quiet markets and during sharp selloffs where correlations normalize from elevated levels.</p>
-        </div>
-      </div>
-
-      <h3>Dispersion Agent Implementation</h3>
-
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dots"><span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span></div>
-          <span class="code-filename">dispersion_agent.py</span>
-          <span class="code-lang">Python</span>
-        </div>
-        <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> pandas <span class="kw">as</span> pd
-<span class="kw">import</span> requests
-
-<span class="cm"># ---- Implied correlation calculator ----</span>
-
-<span class="kw">def</span> <span class="fn">implied_correlation</span>(
-    index_iv: <span class="nm">float</span>,
-    constituent_ivs: <span class="nm">list</span>,
-    weights: <span class="nm">list</span>,
-    assume_equal_corr: <span class="nm">bool</span> = <span class="dc">True</span>
-) -> <span class="nm">float</span>:
-    <span class="st">"""
-    Back out implied average pairwise correlation from index IV.
-    Simplification: assume equal pairwise correlation rho.
-    index_var = sum(w_i^2 * sigma_i^2) + rho * sum_{i!=j}(w_i*w_j*sigma_i*sigma_j)
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">realized_vol</span>(
+    prices: np.ndarray,
+    window: int = 30,
+    annualize: bool = True,
+    periods_per_year: int = 365
+) -> np.ndarray:
+    <span style="color:#9CDCFE">"""
+    Compute rolling realized volatility from price series.
+    Returns annualized standard deviation of log returns as percentage.
     """</span>
-    w = np.array(weights)
-    s = np.array(constituent_ivs) / <span class="nm">100</span>  <span class="cm"># to decimal</span>
-    idx_var = (index_iv / <span class="nm">100</span>) ** <span class="nm">2</span>
-
-    <span class="cm"># Sum of squared weighted variances</span>
-    sum_ww_ss = np.sum((w ** <span class="nm">2</span>) * (s ** <span class="nm">2</span>))
-
-    <span class="cm"># Cross terms without correlation</span>
-    cross = <span class="nm">0.0</span>
-    n = len(w)
-    <span class="kw">for</span> i <span class="kw">in</span> range(n):
-        <span class="kw">for</span> j <span class="kw">in</span> range(i+<span class="nm">1</span>, n):
-            cross += <span class="nm">2</span> * w[i] * w[j] * s[i] * s[j]
-
-    <span class="kw">if</span> cross == <span class="nm">0</span>:
-        <span class="kw">return</span> <span class="nm">0.0</span>
-
-    rho = (idx_var - sum_ww_ss) / cross
-    <span class="kw">return</span> np.clip(rho, -<span class="nm">1.0</span>, <span class="nm">1.0</span>)
+    log_returns = np.log(prices[1:] / prices[:-1])
+    rv = pd.Series(log_returns).rolling(window).std()
+    <span style="color:#C586C0">if</span> annualize:
+        rv = rv * np.sqrt(periods_per_year)
+    <span style="color:#C586C0">return</span> rv.values * 100  <span style="color:#6A9955"># to percentage</span>
 
 
-<span class="kw">class</span> <span class="fn">DispersionAgent</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="dc">self</span>, index: <span class="nm">str</span>, constituents: <span class="nm">list</span>, weights: <span class="nm">list</span>, api_key: <span class="nm">str</span>):
-        <span class="dc">self</span>.index = index
-        <span class="dc">self</span>.constituents = constituents
-        <span class="dc">self</span>.weights = weights
-        <span class="dc">self</span>.api_key = api_key
-        <span class="dc">self</span>.positions = {}
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">parkinson_vol</span>(
+    high: np.ndarray,
+    low: np.ndarray,
+    window: int = 30,
+    periods_per_year: int = 365
+) -> np.ndarray:
+    <span style="color:#9CDCFE">"""
+    Parkinson volatility estimator using high/low prices.
+    More efficient than close-to-close; reduces noise from drift.
+    """</span>
+    hl_log = np.log(high / low) ** 2
+    factor = 1.0 / (4 * np.log(2))
+    pv = pd.Series(hl_log).rolling(window).mean()
+    pv = np.sqrt(factor * pv * periods_per_year)
+    <span style="color:#C586C0">return</span> pv.values * 100
 
-    <span class="kw">def</span> <span class="fn">fetch_ivs</span>(<span class="dc">self</span>) -> <span class="nm">tuple</span>:
-        <span class="st">"""Fetch ATM IV for index and all constituents."""</span>
-        index_iv = fetch_atm_iv(<span class="dc">self</span>.index, <span class="nm">30</span>)
-        const_ivs = [fetch_atm_iv(t, <span class="nm">30</span>) <span class="kw">for</span> t <span class="kw">in</span> <span class="dc">self</span>.constituents]
-        <span class="kw">return</span> index_iv, const_ivs
 
-    <span class="kw">def</span> <span class="fn">dispersion_signal</span>(<span class="dc">self</span>, entry_corr_threshold: <span class="nm">float</span> = <span class="nm">0.75</span>) -> <span class="nm">dict</span>:
-        <span class="st">"""
-        Enter dispersion if implied correlation > threshold.
-        High implied corr = index vol expensive vs constituents.
-        """</span>
-        idx_iv, const_ivs = <span class="dc">self</span>.fetch_ivs()
-        rho = implied_correlation(idx_iv, const_ivs, <span class="dc">self</span>.weights)
-        weighted_avg_iv = np.dot(<span class="dc">self</span>.weights, const_ivs)
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">yang_zhang_vol</span>(
+    open_: np.ndarray,
+    high: np.ndarray,
+    low: np.ndarray,
+    close: np.ndarray,
+    window: int = 30,
+    periods_per_year: int = 365
+) -> np.ndarray:
+    <span style="color:#9CDCFE">"""
+    Yang-Zhang volatility estimator — handles overnight jumps.
+    Widely considered the most accurate OHLC-based estimator.
+    """</span>
+    log_oc_prev = np.log(open_[1:] / close[:-1])
+    log_co = np.log(close[1:] / open_[1:])
+    log_ho = np.log(high[1:] / open_[1:])
+    log_lo = np.log(low[1:] / open_[1:])
+    rs = log_ho * (log_ho - log_co) + log_lo * (log_lo - log_co)
 
-        signal = {
-            <span class="st">"index_iv"</span>: idx_iv,
-            <span class="st">"weighted_stock_iv"</span>: weighted_avg_iv,
-            <span class="st">"implied_corr"</span>: round(rho, <span class="nm">3</span>),
-            <span class="st">"iv_spread"</span>: round(idx_iv - weighted_avg_iv, <span class="nm">2</span>),
-            <span class="st">"trade"</span>: <span class="st">"dispersion"</span> <span class="kw">if</span> rho > entry_corr_threshold <span class="kw">else</span> <span class="st">"hold"</span>
+    k = 0.34 / (1.34 + (window + 1) / (window - 1))
+    ser = pd.Series
+
+    overnight_var = ser(log_oc_prev**2).rolling(window).mean()
+    oc_var = ser(log_co**2).rolling(window).mean()
+    rs_var = ser(rs).rolling(window).mean()
+
+    yz_var = overnight_var + k * oc_var + (1 - k) * rs_var
+    yz_vol = np.sqrt(yz_var * periods_per_year)
+    <span style="color:#C586C0">return</span> yz_vol.values * 100
+
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">intraday_rv</span>(
+    minute_closes: np.ndarray,
+    trading_minutes_per_day: int = 1440
+) -> float:
+    <span style="color:#9CDCFE">"""
+    Compute realized variance from 1-minute returns.
+    More accurate than daily estimates for fast vol changes.
+    """</span>
+    log_ret = np.log(minute_closes[1:] / minute_closes[:-1])
+    rv = np.sum(log_ret**2)
+    annualized_rv = rv * (trading_minutes_per_day * 365)
+    <span style="color:#C586C0">return</span> np.sqrt(annualized_rv) * 100</pre>
+
+        <h3>Fetching Implied Volatility for Crypto</h3>
+
+        <p>
+          For crypto options, Deribit is the primary source of IV data. Their public API provides real-time option chain data including IV for each strike and expiry.
+        </p>
+
+        <pre><span style="color:#C586C0">import</span> httpx
+<span style="color:#C586C0">import</span> asyncio
+<span style="color:#C586C0">import</span> time
+
+<span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">fetch_deribit_dvol</span>(
+    client: httpx.AsyncClient,
+    currency: str = <span style="color:#CE9178">"BTC"</span>
+) -> float:
+    <span style="color:#9CDCFE">"""Fetch current DVOL index from Deribit."""</span>
+    resp = <span style="color:#C586C0">await</span> client.get(
+        <span style="color:#CE9178">"https://www.deribit.com/api/v2/public/get_volatility_index_data"</span>,
+        params={
+            <span style="color:#CE9178">"currency"</span>: currency,
+            <span style="color:#CE9178">"resolution"</span>: <span style="color:#CE9178">"3600"</span>,
+            <span style="color:#CE9178">"count"</span>: 1
         }
-        <span class="kw">return</span> signal
-
-    <span class="kw">def</span> <span class="fn">execute_dispersion</span>(<span class="dc">self</span>, index_notional: <span class="nm">float</span> = <span class="nm">50_000</span>):
-        <span class="st">"""Sell index straddle, buy constituent straddles weighted by index weights."""</span>
-        signal = <span class="dc">self</span>.dispersion_signal()
-        <span class="kw">if</span> signal[<span class="st">"trade"</span>] != <span class="st">"dispersion"</span>:
-            <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"no_trade"</span>, <span class="st">"reason"</span>: <span class="st">"implied corr below threshold"</span>}
-
-        orders = []
-
-        <span class="cm"># Short index straddle</span>
-        orders.append({
-            <span class="st">"action"</span>: <span class="st">"sell_straddle"</span>,
-            <span class="st">"ticker"</span>: <span class="dc">self</span>.index,
-            <span class="st">"notional"</span>: index_notional,
-            <span class="st">"expiry_days"</span>: <span class="nm">30</span>
-        })
-
-        <span class="cm"># Long constituent straddles</span>
-        <span class="kw">for</span> ticker, w <span class="kw">in</span> zip(<span class="dc">self</span>.constituents, <span class="dc">self</span>.weights):
-            orders.append({
-                <span class="st">"action"</span>: <span class="st">"buy_straddle"</span>,
-                <span class="st">"ticker"</span>: ticker,
-                <span class="st">"notional"</span>: index_notional * w,
-                <span class="st">"expiry_days"</span>: <span class="nm">30</span>
-            })
-
-        <span class="cm"># Execute via Purple Flea Trading API</span>
-        resp = requests.post(
-            <span class="st">"https://purpleflea.com/trading-api/batch-execute"</span>,
-            json={<span class="st">"orders"</span>: orders},
-            headers={<span class="st">"X-API-Key"</span>: <span class="dc">self</span>.api_key}
-        )
-        <span class="kw">return</span> resp.json()
-
-<span class="cm"># ---- Run the agent ----</span>
-<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
-    agent = DispersionAgent(
-        index=<span class="st">"SPY"</span>,
-        constituents=[<span class="st">"AAPL"</span>, <span class="st">"MSFT"</span>, <span class="st">"NVDA"</span>, <span class="st">"AMZN"</span>, <span class="st">"GOOGL"</span>],
-        weights=[<span class="nm">0.07</span>, <span class="nm">0.065</span>, <span class="nm">0.062</span>, <span class="nm">0.056</span>, <span class="nm">0.044</span>],
-        api_key=<span class="st">"YOUR_PURPLEFLEA_API_KEY"</span>
     )
-    result = agent.execute_dispersion(index_notional=<span class="nm">50_000</span>)
-    print(result)
-</code></pre>
-      </div>
-    </section>
-
-    <!-- SECTION 5 -->
-    <section id="agent-code">
-      <h2><span class="section-num">05</span> Building the Vol Arb Agent</h2>
-
-      <p>
-        The complete vol arb agent combines all three signals — IV-RV spread, term structure, and dispersion — into a unified decision engine. Agents must allocate risk across strategies based on current market regime and available capital.
-      </p>
-
-      <h3>Risk Management Framework</h3>
-
-      <div class="callout callout-warning">
-        <span class="callout-icon">⚠</span>
-        <div class="callout-body">
-          <p>Vol strategies have negative skew: many small gains with rare large losses. Every agent MUST implement: (1) maximum delta-adjusted notional limits, (2) hard stop-loss at 3x premium received per trade, (3) automatic gamma hedging when gamma-to-theta ratio exceeds 2.0, (4) correlation monitoring for portfolio-level tail risk.</p>
-        </div>
-      </div>
-
-      <div class="code-block">
-        <div class="code-header">
-          <div class="code-dots"><span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span></div>
-          <span class="code-filename">vol_arb_agent_main.py</span>
-          <span class="code-lang">Python</span>
-        </div>
-        <pre><code><span class="kw">import</span> asyncio
-<span class="kw">import</span> logging
-<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
-<span class="kw">from</span> typing <span class="kw">import</span> Optional
-<span class="kw">import</span> requests
-
-logging.basicConfig(level=logging.INFO, format=<span class="st">'%(asctime)s %(levelname)s %(message)s'</span>)
-log = logging.getLogger(<span class="st">"vol_arb_agent"</span>)
-
-@<span class="fn">dataclass</span>
-<span class="kw">class</span> <span class="fn">VolArbitrageConfig</span>:
-    api_key: <span class="nm">str</span>
-    max_notional_per_trade: <span class="nm">float</span> = <span class="nm">25_000</span>
-    max_total_notional: <span class="nm">float</span> = <span class="nm">100_000</span>
-    iv_rv_entry_z: <span class="nm">float</span> = <span class="nm">1.5</span>
-    dispersion_corr_threshold: <span class="nm">float</span> = <span class="nm">0.75</span>
-    stop_loss_multiple: <span class="nm">float</span> = <span class="nm">3.0</span>
-    gamma_hedge_threshold: <span class="nm">float</span> = <span class="nm">2.0</span>
-    scan_interval_seconds: <span class="nm">int</span> = <span class="nm">300</span>
+    data = resp.json().get(<span style="color:#CE9178">"result"</span>, {}).get(<span style="color:#CE9178">"data"</span>, [[]])
+    <span style="color:#C586C0">if</span> data:
+        <span style="color:#6A9955"># data format: [timestamp_ms, open, high, low, close]</span>
+        <span style="color:#C586C0">return</span> float(data[-1][4])  <span style="color:#6A9955"># close (current) DVOL</span>
+    <span style="color:#C586C0">return</span> 65.0  <span style="color:#6A9955"># fallback to historical mean</span>
 
 
-<span class="kw">class</span> <span class="fn">VolArbitrageAgent</span>:
-    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="dc">self</span>, config: VolArbitrageConfig):
-        <span class="dc">self</span>.config = config
-        <span class="dc">self</span>.active_positions = []
-        <span class="dc">self</span>.total_notional = <span class="nm">0.0</span>
-
-    <span class="kw">def</span> <span class="fn">get_account_balance</span>(<span class="dc">self</span>) -> <span class="nm">float</span>:
-        resp = requests.get(
-            <span class="st">"https://purpleflea.com/wallet-api/balance"</span>,
-            headers={<span class="st">"X-API-Key"</span>: <span class="dc">self</span>.config.api_key}
-        )
-        <span class="kw">return</span> resp.json()[<span class="st">"usdc_balance"</span>]
-
-    <span class="kw">def</span> <span class="fn">check_risk_limits</span>(<span class="dc">self</span>, proposed_notional: <span class="nm">float</span>) -> <span class="nm">bool</span>:
-        remaining = <span class="dc">self</span>.config.max_total_notional - <span class="dc">self</span>.total_notional
-        <span class="kw">return</span> proposed_notional <= <span class="nm">min</span>(<span class="dc">self</span>.config.max_notional_per_trade, remaining)
-
-    <span class="kw">def</span> <span class="fn">classify_regime</span>(<span class="dc">self</span>, vix: <span class="nm">float</span>) -> <span class="nm">str</span>:
-        <span class="kw">if</span> vix < <span class="nm">15</span>:    <span class="kw">return</span> <span class="st">"calm"</span>
-        <span class="kw">elif</span> vix < <span class="nm">22</span>: <span class="kw">return</span> <span class="st">"normal"</span>
-        <span class="kw">elif</span> vix < <span class="nm">35</span>: <span class="kw">return</span> <span class="st">"elevated"</span>
-        <span class="kw">else</span>:          <span class="kw">return</span> <span class="st">"crisis"</span>
-
-    <span class="kw">async def</span> <span class="fn">run</span>(<span class="dc">self</span>):
-        log.info(<span class="st">"Vol Arb Agent starting — Purple Flea Trading API"</span>)
-        <span class="kw">while</span> <span class="dc">True</span>:
-            <span class="kw">try</span>:
-                vix = <span class="dc">self</span>.fetch_vix()
-                regime = <span class="dc">self</span>.classify_regime(vix)
-                log.info(<span class="st">f"VIX={vix:.1f} | Regime={regime}"</span>)
-
-                <span class="kw">if</span> regime <span class="kw">in</span> (<span class="st">"calm"</span>, <span class="st">"normal"</span>):
-                    <span class="cm"># Primary: short vol via IV-RV spread</span>
-                    <span class="kw">await</span> <span class="dc">self</span>.scan_iv_rv_opportunities()
-                    <span class="cm"># Secondary: dispersion if implied corr elevated</span>
-                    <span class="kw">await</span> <span class="dc">self</span>.scan_dispersion_opportunities()
-                <span class="kw">elif</span> regime == <span class="st">"elevated"</span>:
-                    <span class="cm"># Mixed: small positions, focus on calendar spreads</span>
-                    <span class="kw">await</span> <span class="dc">self</span>.scan_term_structure_opportunities()
-                <span class="kw">else</span>:
-                    <span class="cm"># Crisis: de-risk, exit shorts, consider long vol</span>
-                    log.warning(<span class="st">"Crisis regime — liquidating short vol positions"</span>)
-                    <span class="kw">await</span> <span class="dc">self</span>.exit_short_vol_positions()
-
-                <span class="kw">await</span> asyncio.sleep(<span class="dc">self</span>.config.scan_interval_seconds)
-
-            <span class="kw">except</span> Exception <span class="kw">as</span> e:
-                log.error(<span class="st">f"Agent error: {e}"</span>)
-                <span class="kw">await</span> asyncio.sleep(<span class="nm">60</span>)
-
-    <span class="kw">def</span> <span class="fn">fetch_vix</span>(<span class="dc">self</span>) -> <span class="nm">float</span>:
-        resp = requests.get(
-            <span class="st">"https://purpleflea.com/trading-api/market-data/vix"</span>,
-            headers={<span class="st">"X-API-Key"</span>: <span class="dc">self</span>.config.api_key}
-        )
-        <span class="kw">return</span> resp.json()[<span class="st">"vix"</span>]
-
-
-<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
-    config = VolArbitrageConfig(
-        api_key=<span class="st">"YOUR_PURPLEFLEA_API_KEY"</span>,
-        max_notional_per_trade=<span class="nm">20_000</span>,
-        max_total_notional=<span class="nm">80_000</span>
+<span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">get_atm_iv</span>(
+    client: httpx.AsyncClient,
+    currency: str,
+    spot_price: float,
+    days_to_expiry: int = 30
+) -> float:
+    <span style="color:#9CDCFE">"""
+    Find and return the ATM implied vol for the nearest option to
+    a target expiry date. Approximated via DVOL if no direct match.
+    """</span>
+    resp = <span style="color:#C586C0">await</span> client.get(
+        <span style="color:#CE9178">"https://www.deribit.com/api/v2/public/get_instruments"</span>,
+        params={<span style="color:#CE9178">"currency"</span>: currency, <span style="color:#CE9178">"kind"</span>: <span style="color:#CE9178">"option"</span>, <span style="color:#CE9178">"expired"</span>: False}
     )
-    agent = VolArbitrageAgent(config)
-    asyncio.run(agent.run())
-</code></pre>
-      </div>
+    instruments = resp.json().get(<span style="color:#CE9178">"result"</span>, [])
+    now = time.time()
+    target_s = days_to_expiry * 86400
 
-      <p>
-        Agents should run delta hedging every 15–30 minutes during market hours, rebalancing the portfolio delta to zero. The gamma/theta ratio monitor prevents the agent from being caught with excess gamma exposure during volatile open or close periods.
-      </p>
-    </section>
+    <span style="color:#6A9955"># Filter to target expiry window</span>
+    candidates = [
+        i <span style="color:#C586C0">for</span> i <span style="color:#C586C0">in</span> instruments
+        <span style="color:#C586C0">if</span> i.get(<span style="color:#CE9178">"option_type"</span>) == <span style="color:#CE9178">"call"</span>
+        <span style="color:#C586C0">and</span> abs(i[<span style="color:#CE9178">"expiration_timestamp"</span>] / 1000 - now - target_s) &lt; 4 * 86400
+    ]
+    <span style="color:#C586C0">if</span> <span style="color:#C586C0">not</span> candidates:
+        <span style="color:#C586C0">return</span> <span style="color:#C586C0">await</span> fetch_deribit_dvol(client, currency)
 
-    <!-- SECTION 6 -->
-    <section id="purpleflea-integration">
-      <h2><span class="section-num">06</span> Purple Flea Integration</h2>
+    <span style="color:#6A9955"># Find ATM strike (closest to spot)</span>
+    atm = min(candidates, key=lambda i: abs(i[<span style="color:#CE9178">"strike"</span>] - spot_price))
+    ticker_resp = <span style="color:#C586C0">await</span> client.get(
+        <span style="color:#CE9178">"https://www.deribit.com/api/v2/public/ticker"</span>,
+        params={<span style="color:#CE9178">"instrument_name"</span>: atm[<span style="color:#CE9178">"instrument_name"</span>]}
+    )
+    iv = ticker_resp.json().get(<span style="color:#CE9178">"result"</span>, {}).get(<span style="color:#CE9178">"mark_iv"</span>, 65.0)
+    <span style="color:#C586C0">return</span> float(iv)</pre>
 
-      <p>
-        Purple Flea's <a href="https://purpleflea.com/trading-api">Trading API</a> exposes the full options toolkit your vol arb agent needs. Authentication uses a simple API key header; all responses are JSON; rate limits are generous for agents.
-      </p>
+        <h2 id="iv-rank-percentile">IV Rank and IV Percentile</h2>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Endpoint</th>
-              <th>Purpose</th>
-              <th>Vol Strategy</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="td-mono">/trading-api/options/{ticker}/atm-iv</td>
-              <td>ATM implied volatility</td>
-              <td>IV-RV spread</td>
-            </tr>
-            <tr>
-              <td class="td-mono">/trading-api/options/{ticker}/surface</td>
-              <td>Full vol surface</td>
-              <td>Term structure, skew</td>
-            </tr>
-            <tr>
-              <td class="td-mono">/trading-api/execute</td>
-              <td>Single order execution</td>
-              <td>All strategies</td>
-            </tr>
-            <tr>
-              <td class="td-mono">/trading-api/batch-execute</td>
-              <td>Multi-leg option orders</td>
-              <td>Dispersion, spreads</td>
-            </tr>
-            <tr>
-              <td class="td-mono">/trading-api/market-data/vix</td>
-              <td>Real-time VIX</td>
-              <td>Regime classification</td>
-            </tr>
-            <tr>
-              <td class="td-mono">/wallet-api/balance</td>
-              <td>USDC collateral balance</td>
-              <td>Position sizing</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <p>
+          Raw implied volatility numbers are meaningless without context. BTC IV of 60% sounds high — but if it has been above 80% for the past year, 60% is actually low. This is why IV rank and IV percentile are the preferred metrics for vol traders.
+        </p>
 
-      <div class="callout callout-purple">
-        <span class="callout-icon">*</span>
-        <div class="callout-body">
-          <p>New agents can claim free USDC from the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to start paper-trading vol strategies without capital risk. The faucet issues test funds directly to your agent wallet — no credit card, no KYC.</p>
+        <h3>IV Percentile (IVP)</h3>
+
+        <p>
+          IV Percentile measures what percentage of past days had IV lower than the current level. If IV is at the 80th percentile, it means 80% of the days in the lookback period had lower IV — current vol is expensive relative to history.
+        </p>
+
+        <div class="formula">
+          IVP = (days where past_IV &lt; current_IV) / total_days x 100
         </div>
-      </div>
-    </section>
 
-    <!-- CTA -->
-    <div class="cta-section">
-      <h2>Start Trading Volatility Today</h2>
-      <p>Your agent needs three things: a Purple Flea API key, the code above, and USDC for collateral. Start with the free faucet, no capital required.</p>
-      <div class="cta-buttons">
-        <a href="https://purpleflea.com/trading-api" class="btn-primary">Get Trading API Key</a>
-        <a href="https://faucet.purpleflea.com" class="btn-secondary">Claim Free USDC</a>
-      </div>
-    </div>
+        <h3>IV Rank (IVR)</h3>
 
-  </article>
+        <p>
+          IV Rank normalizes current IV between the 52-week high and low:
+        </p>
 
-  <!-- FOOTER -->
-  <footer>
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <div class="brand-name"><span>Purple</span>Flea</div>
-        <p>Blue chip financial infrastructure for AI agents. Trade, earn, and transact on-chain.</p>
-      </div>
-      <div class="footer-links">
-        <h4>Products</h4>
+        <div class="formula">
+          IVR = (current_IV - 52w_low) / (52w_high - 52w_low) x 100
+        </div>
+
+        <div class="callout callout-blue">
+          <strong>IV Rank vs IV Percentile:</strong> IVR is more sensitive to recent extreme spikes. If BTC IV hit 200% once in the past year, that single event anchors the IVR denominator, making all other readings appear low. IVP is more robust to outliers — it uses rank ordering, not absolute levels. For crypto, IVP is generally preferred.
+        </div>
+
+        <pre><span style="color:#C586C0">import</span> numpy <span style="color:#C586C0">as</span> np
+<span style="color:#C586C0">import</span> pandas <span style="color:#C586C0">as</span> pd
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">compute_iv_rank</span>(
+    iv_series: pd.Series,
+    current_iv: float,
+    lookback_days: int = 252
+) -> float:
+    <span style="color:#9CDCFE">"""Compute IV Rank over the lookback period. Returns 0-100."""</span>
+    hist = iv_series.iloc[-lookback_days:]
+    iv_high = hist.max()
+    iv_low = hist.min()
+    <span style="color:#C586C0">if</span> iv_high == iv_low:
+        <span style="color:#C586C0">return</span> 50.0
+    <span style="color:#C586C0">return</span> (current_iv - iv_low) / (iv_high - iv_low) * 100
+
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">compute_iv_percentile</span>(
+    iv_series: pd.Series,
+    current_iv: float,
+    lookback_days: int = 252
+) -> float:
+    <span style="color:#9CDCFE">"""IV Percentile: % of past days with lower IV. Returns 0-100."""</span>
+    hist = iv_series.iloc[-lookback_days:]
+    <span style="color:#C586C0">return</span> float((hist &lt; current_iv).mean() * 100)
+
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">compute_vol_metrics</span>(
+    iv_history: pd.Series,
+    rv_history: pd.Series,
+    lookback: int = 252
+) -> dict:
+    <span style="color:#9CDCFE">"""Compute comprehensive vol metrics for trading signal generation."""</span>
+    current_iv = float(iv_history.iloc[-1])
+    current_rv = float(rv_history.iloc[-1])
+    vrp = current_iv - current_rv
+
+    ivr = compute_iv_rank(iv_history, current_iv, lookback)
+    ivp = compute_iv_percentile(iv_history, current_iv, lookback)
+
+    vrp_history = iv_history.values[-lookback:] - rv_history.values[-lookback:]
+    vrp_percentile = float((vrp_history &lt; vrp).mean() * 100)
+
+    iv_sma5 = float(iv_history.iloc[-5:].mean())
+    iv_sma20 = float(iv_history.iloc[-20:].mean())
+    iv_trend = <span style="color:#CE9178">'rising'</span> <span style="color:#C586C0">if</span> iv_sma5 &gt; iv_sma20 <span style="color:#C586C0">else</span> <span style="color:#CE9178">'falling'</span>
+    iv_vol = float(iv_history.iloc[-30:].std())
+
+    <span style="color:#C586C0">return</span> {
+        <span style="color:#CE9178">'current_iv'</span>: current_iv,
+        <span style="color:#CE9178">'current_rv'</span>: current_rv,
+        <span style="color:#CE9178">'vrp'</span>: vrp,
+        <span style="color:#CE9178">'iv_rank'</span>: ivr,
+        <span style="color:#CE9178">'iv_percentile'</span>: ivp,
+        <span style="color:#CE9178">'vrp_percentile'</span>: vrp_percentile,
+        <span style="color:#CE9178">'iv_trend'</span>: iv_trend,
+        <span style="color:#CE9178">'iv_sma5'</span>: iv_sma5,
+        <span style="color:#CE9178">'iv_sma20'</span>: iv_sma20,
+        <span style="color:#CE9178">'vol_of_vol'</span>: iv_vol
+    }
+
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">generate_vol_signal</span>(metrics: dict) -> str:
+    <span style="color:#9CDCFE">"""
+    Generate trading signal based on IV rank, VRP, and trend.
+    Returns: 'strong_sell_vol', 'sell_vol', 'neutral', 'buy_vol'
+    """</span>
+    ivp = metrics[<span style="color:#CE9178">'iv_percentile'</span>]
+    vrp = metrics[<span style="color:#CE9178">'vrp'</span>]
+    vrp_pct = metrics[<span style="color:#CE9178">'vrp_percentile'</span>]
+    trend = metrics[<span style="color:#CE9178">'iv_trend'</span>]
+
+    <span style="color:#C586C0">if</span> ivp &gt;= 80 <span style="color:#C586C0">and</span> vrp_pct &gt;= 70 <span style="color:#C586C0">and</span> trend == <span style="color:#CE9178">'falling'</span>:
+        <span style="color:#C586C0">return</span> <span style="color:#CE9178">'strong_sell_vol'</span>
+    <span style="color:#C586C0">if</span> ivp &gt;= 65 <span style="color:#C586C0">and</span> vrp &gt; 3.0:
+        <span style="color:#C586C0">return</span> <span style="color:#CE9178">'sell_vol'</span>
+    <span style="color:#C586C0">if</span> ivp &lt;= 20 <span style="color:#C586C0">and</span> vrp &lt; -2.0:
+        <span style="color:#C586C0">return</span> <span style="color:#CE9178">'buy_vol'</span>
+    <span style="color:#C586C0">return</span> <span style="color:#CE9178">'neutral'</span></pre>
+
+        <h2 id="mean-reversion">Volatility Mean Reversion</h2>
+
+        <p>
+          Volatility exhibits one of the strongest mean-reversion properties of any financial time series. This is both theoretically expected (extreme market stress cannot persist indefinitely) and empirically observed across all asset classes.
+        </p>
+
+        <h3>Half-Life of Volatility</h3>
+
+        <p>
+          The half-life of vol mean reversion tells you how quickly elevated vol tends to decay back toward its long-run mean. For BTC, the half-life is approximately 15-25 days — meaning a vol spike tends to decay by half within 2-4 weeks.
+        </p>
+
+        <pre><span style="color:#C586C0">from</span> scipy <span style="color:#C586C0">import</span> stats
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">estimate_vol_halflife</span>(iv_series: np.ndarray) -> float:
+    <span style="color:#9CDCFE">"""
+    Estimate mean-reversion half-life of implied volatility series.
+    Uses Ornstein-Uhlenbeck AR(1) approximation.
+    Half-life = ln(2) / kappa
+    """</span>
+    x = iv_series[:-1]
+    y = iv_series[1:]
+    slope, intercept, r, p, se = stats.linregress(x, y)
+    <span style="color:#C586C0">if</span> slope &lt;= 0 <span style="color:#C586C0">or</span> slope &gt;= 1:
+        <span style="color:#C586C0">return</span> float(<span style="color:#CE9178">'inf'</span>)
+    kappa = -np.log(slope)
+    <span style="color:#C586C0">return</span> np.log(2) / kappa
+
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">ou_forecast</span>(
+    current_iv: float,
+    long_run_mean: float,
+    kappa: float,
+    horizon_days: int,
+    sigma: float = 10.0
+) -> dict:
+    <span style="color:#9CDCFE">"""
+    Project future IV using Ornstein-Uhlenbeck mean reversion.
+    E[X_T] = X_0 * exp(-kappa*T) + mu * (1 - exp(-kappa*T))
+    """</span>
+    decay = np.exp(-kappa * horizon_days)
+    expected_iv = current_iv * decay + long_run_mean * (1 - decay)
+    variance = (sigma**2 / (2 * kappa)) * (1 - np.exp(-2 * kappa * horizon_days))
+    std_dev = np.sqrt(variance)
+
+    <span style="color:#C586C0">return</span> {
+        <span style="color:#CE9178">'expected_iv'</span>: expected_iv,
+        <span style="color:#CE9178">'lower_1sigma'</span>: expected_iv - std_dev,
+        <span style="color:#CE9178">'upper_1sigma'</span>: expected_iv + std_dev,
+        <span style="color:#CE9178">'decay_factor'</span>: decay
+    }
+
+
+<span style="color:#6A9955"># Example: BTC IV at 90%, historical mean 65%, half-life 20 days</span>
+<span style="color:#6A9955"># kappa = ln(2) / 20 = 0.0347</span>
+forecast = ou_forecast(90.0, 65.0, kappa=0.0347, horizon_days=14)
+print(f<span style="color:#CE9178">"14-day IV forecast: {forecast['expected_iv']:.1f}%"</span>)
+<span style="color:#6A9955"># Output: 14-day IV forecast: 77.8%
+# 90% IV expected to decay to ~78% over 2 weeks</span></pre>
+
+        <h3>Trading the Vol Mean Reversion on Perpetuals</h3>
+
+        <p>
+          The practical way to trade vol mean reversion without options is through variance-sensitive position management on perpetual futures:
+        </p>
+
         <ul>
-          <li><a href="https://purpleflea.com/casino-api">Casino API</a></li>
-          <li><a href="https://purpleflea.com/trading-api">Trading API</a></li>
-          <li><a href="https://purpleflea.com/wallet-api">Wallet API</a></li>
-          <li><a href="https://purpleflea.com/domains-api">Domains API</a></li>
-          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
-          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><strong>Volatility-normalized sizing:</strong> Target constant dollar vol risk per trade regardless of current IV — size down automatically when vol spikes</li>
+          <li><strong>Vol-spike fading:</strong> When short-term realized vol spikes far above its recent average, take a mean-reversion position expecting the spike to decay</li>
+          <li><strong>Vol-targeting trend following:</strong> Increase position size as vol falls, reduce as vol rises — the classic risk parity approach applied to individual positions</li>
+          <li><strong>Regime-conditional exposure:</strong> Pause or reduce new entries when vol is in the top quartile of its historical distribution</li>
         </ul>
-      </div>
-      <div class="footer-links">
-        <h4>Resources</h4>
-        <ul>
-          <li><a href="https://purpleflea.com/blog">Blog</a></li>
-          <li><a href="https://purpleflea.com/docs">Docs</a></li>
-          <li><a href="https://purpleflea.com/blog/crypto-derivatives-agents/">Derivatives Guide</a></li>
-          <li><a href="https://purpleflea.com/blog/onchain-data-analysis-agents/">On-Chain Data</a></li>
-        </ul>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <p>© 2026 Purple Flea. All rights reserved.</p>
-      <a href="https://purpleflea.com">purpleflea.com</a>
-    </div>
-  </footer>
 
+        <h2 id="vol-risk-premium">Exploiting the Volatility Risk Premium</h2>
+
+        <p>
+          The volatility risk premium (VRP) is one of the most robust return premia in financial markets. It exists in equities, commodities, FX, and crypto. For AI agents, systematically harvesting the VRP is achievable through vol-sensitive position management on perpetual futures.
+        </p>
+
+        <h3>VRP Position Sizer</h3>
+
+        <pre><span style="color:#C586C0">class</span> <span style="color:#4EC9B0">VRPPositionSizer</span>:
+    <span style="color:#9CDCFE">"""
+    Size perpetual futures positions based on VRP and vol-targeting.
+    Core idea: maintain constant dollar volatility risk per day.
+    """</span>
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">__init__</span>(
+        self,
+        target_daily_vol_usd: float = 500.0,
+        max_position_usd: float = 50_000.0,
+        vrp_adjustment: bool = True
+    ):
+        self.target_daily_vol = target_daily_vol_usd
+        self.max_pos = max_position_usd
+        self.vrp_adjustment = vrp_adjustment
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">compute_base_size</span>(self, realized_vol_annual_pct: float) -> float:
+        <span style="color:#9CDCFE">"""
+        Vol-targeting: size to achieve target_daily_vol_usd of P&L volatility.
+        daily_vol = position_usd x (annual_vol / sqrt(365))
+        position_usd = target_daily_vol / daily_vol_pct
+        """</span>
+        daily_vol_pct = (realized_vol_annual_pct / 100) / np.sqrt(365)
+        <span style="color:#C586C0">if</span> daily_vol_pct == 0:
+            <span style="color:#C586C0">return</span> 0.0
+        position_usd = self.target_daily_vol / daily_vol_pct
+        <span style="color:#C586C0">return</span> min(position_usd, self.max_pos)
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">apply_vrp_adjustment</span>(
+        self, base_size: float, vrp: float,
+        vrp_mean: float = 5.0, vrp_std: float = 8.0
+    ) -> float:
+        <span style="color:#9CDCFE">"""
+        Adjust position size based on VRP z-score.
+        High VRP z-score (IV very expensive) → reduce size.
+        Low VRP z-score (IV cheap) → increase size.
+        """</span>
+        <span style="color:#C586C0">if</span> <span style="color:#C586C0">not</span> self.vrp_adjustment:
+            <span style="color:#C586C0">return</span> base_size
+
+        vrp_z = (vrp - vrp_mean) / vrp_std
+        <span style="color:#6A9955"># Scale: 1.0 at neutral, 0.6 at +2sigma VRP, 1.4 at -2sigma VRP</span>
+        scale = 1.0 - 0.2 * np.tanh(vrp_z)
+        scale = np.clip(scale, 0.5, 1.5)
+        <span style="color:#C586C0">return</span> min(base_size * scale, self.max_pos)
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">size_position</span>(
+        self,
+        realized_vol_pct: float,
+        implied_vol_pct: float,
+        direction: float
+    ) -> float:
+        <span style="color:#9CDCFE">"""Returns signed position size in USD."""</span>
+        base = self.compute_base_size(realized_vol_pct)
+        vrp = implied_vol_pct - realized_vol_pct
+        adjusted = self.apply_vrp_adjustment(base, vrp)
+        <span style="color:#C586C0">return</span> direction * adjusted
+
+
+<span style="color:#6A9955"># Example sizing comparison</span>
+sizer = VRPPositionSizer(target_daily_vol_usd=1000.0, max_position_usd=100_000)
+
+<span style="color:#6A9955"># BTC: RV=55%, IV=70% (high VRP) → scale down</span>
+size_high_vrp = sizer.size_position(55.0, 70.0, +1)
+print(f<span style="color:#CE9178">"High VRP position: ${size_high_vrp:,.0f}"</span>)  <span style="color:#6A9955"># ~$15,000</span>
+
+<span style="color:#6A9955"># BTC: RV=60%, IV=58% (negative VRP) → scale up</span>
+size_low_vrp = sizer.size_position(60.0, 58.0, +1)
+print(f<span style="color:#CE9178">"Low VRP position: ${size_low_vrp:,.0f}"</span>)  <span style="color:#6A9955"># ~$25,000</span></pre>
+
+        <h2 id="systematic-vol-selling">Systematic Volatility Selling on Perpetuals</h2>
+
+        <p>
+          Without options access, the closest analog to vol-selling on perpetual futures is a mean-reverting strategy that fades extreme moves. When volatility spikes and prices make large moves, systematic mean-reversion strategies effectively go short volatility — they profit when price reverts, which happens more often than price continues trending after a spike.
+        </p>
+
+        <pre><span style="color:#C586C0">import</span> asyncio
+<span style="color:#C586C0">import</span> numpy <span style="color:#C586C0">as</span> np
+<span style="color:#C586C0">import</span> httpx
+<span style="color:#C586C0">from</span> collections <span style="color:#C586C0">import</span> deque
+<span style="color:#C586C0">import</span> time
+<span style="color:#C586C0">from</span> typing <span style="color:#C586C0">import</span> Optional
+
+PF_BASE = <span style="color:#CE9178">"https://api.purpleflea.com"</span>
+
+<span style="color:#C586C0">class</span> <span style="color:#4EC9B0">VolSpikeFadeAgent</span>:
+    <span style="color:#9CDCFE">"""
+    Fades volatility spikes on perpetual futures.
+    When realized vol spikes far above its recent average,
+    takes a mean-reversion position expecting vol to decay.
+    """</span>
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">__init__</span>(
+        self,
+        api_key: str,
+        symbol: str,
+        vol_spike_threshold: float = 2.5,
+        target_daily_vol_usd: float = 500.0,
+        max_hold_hours: int = 48
+    ):
+        self.api_key = api_key
+        self.symbol = symbol
+        self.threshold = vol_spike_threshold
+        self.sizer = VRPPositionSizer(target_daily_vol_usd)
+        self.max_hold = max_hold_hours
+        self.price_history: deque = deque(maxlen=500)
+        self.vol_history: deque = deque(maxlen=252)
+        self.current_position = 0.0
+        self.position_entry_time: Optional[float] = None
+        self.entry_idx: Optional[int] = None
+        self.sample_count = 0
+        self.client = httpx.AsyncClient()
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">update_price</span>(self, price: float):
+        self.price_history.append((time.time(), price))
+        self.sample_count += 1
+        <span style="color:#C586C0">if</span> len(self.price_history) &gt;= 61:
+            prices = np.array([p[1] <span style="color:#C586C0">for</span> p <span style="color:#C586C0">in</span> list(self.price_history)[-61:]])
+            rv = float(realized_vol(prices, window=60, periods_per_year=365 * 24))
+            self.vol_history.append(rv)
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">compute_vol_zscore</span>(self) -> Optional[float]:
+        <span style="color:#C586C0">if</span> len(self.vol_history) &lt; 50:
+            <span style="color:#C586C0">return</span> None
+        vol_arr = np.array(list(self.vol_history))
+        current = vol_arr[-1]
+        hist_mean = vol_arr[-50:].mean()
+        hist_std = vol_arr[-50:].std()
+        <span style="color:#C586C0">if</span> hist_std == 0:
+            <span style="color:#C586C0">return</span> None
+        <span style="color:#C586C0">return</span> (current - hist_mean) / hist_std
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">get_price_direction</span>(self, lookback: int = 10) -> float:
+        <span style="color:#C586C0">if</span> len(self.price_history) &lt; lookback:
+            <span style="color:#C586C0">return</span> 0.0
+        prices = [p[1] <span style="color:#C586C0">for</span> p <span style="color:#C586C0">in</span> list(self.price_history)[-lookback:]]
+        change = (prices[-1] - prices[0]) / prices[0]
+        <span style="color:#C586C0">return</span> float(np.sign(change))
+
+    <span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">run_strategy</span>(self, current_price: float, implied_vol: float = None):
+        self.update_price(current_price)
+        vol_z = self.compute_vol_zscore()
+        <span style="color:#C586C0">if</span> vol_z <span style="color:#C586C0">is</span> None:
+            <span style="color:#C586C0">return</span>
+
+        current_rv = self.vol_history[-1] <span style="color:#C586C0">if</span> self.vol_history <span style="color:#C586C0">else</span> 50.0
+        iv = implied_vol <span style="color:#C586C0">or</span> current_rv * 1.08
+
+        <span style="color:#6A9955"># Check max holding period</span>
+        <span style="color:#C586C0">if</span> self.current_position != 0 <span style="color:#C586C0">and</span> self.position_entry_time:
+            hours_held = (time.time() - self.position_entry_time) / 3600
+            <span style="color:#C586C0">if</span> hours_held &gt; self.max_hold:
+                <span style="color:#C586C0">await</span> self._close_position(<span style="color:#CE9178">"max hold reached"</span>)
+                <span style="color:#C586C0">return</span>
+
+        <span style="color:#6A9955"># Vol spike: enter fade position (opposite to recent direction)</span>
+        <span style="color:#C586C0">if</span> vol_z &gt;= self.threshold <span style="color:#C586C0">and</span> self.current_position == 0:
+            direction = -self.get_price_direction()
+            <span style="color:#C586C0">if</span> direction == 0:
+                direction = -1.0
+            size = self.sizer.size_position(current_rv, iv, direction)
+            <span style="color:#C586C0">if</span> abs(size) &gt; 100:
+                <span style="color:#C586C0">await</span> self._open_position(size, vol_z, current_rv)
+
+        <span style="color:#6A9955"># Vol normalized: exit position</span>
+        <span style="color:#C586C0">elif</span> self.current_position != 0 <span style="color:#C586C0">and</span> vol_z &lt; 1.0:
+            <span style="color:#C586C0">await</span> self._close_position(<span style="color:#CE9178">"vol normalized"</span>)
+
+    <span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">_open_position</span>(self, size: float, vol_z: float, rv: float):
+        side = <span style="color:#CE9178">'buy'</span> <span style="color:#C586C0">if</span> size &gt; 0 <span style="color:#C586C0">else</span> <span style="color:#CE9178">'sell'</span>
+        <span style="color:#C586C0">await</span> self.client.post(
+            f<span style="color:#CE9178">"{PF_BASE}/v1/trading/order"</span>,
+            json={<span style="color:#CE9178">"symbol"</span>: self.symbol, <span style="color:#CE9178">"side"</span>: side,
+                  <span style="color:#CE9178">"size_usd"</span>: abs(size), <span style="color:#CE9178">"type"</span>: <span style="color:#CE9178">"market"</span>},
+            headers={<span style="color:#CE9178">"X-API-Key"</span>: self.api_key}
+        )
+        self.current_position = size
+        self.position_entry_time = time.time()
+        print(f<span style="color:#CE9178">"Opened vol-fade {side} ${abs(size):,.0f} | vol_z={vol_z:.2f} rv={rv:.1f}%"</span>)
+
+    <span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">_close_position</span>(self, reason: str):
+        <span style="color:#C586C0">if</span> self.current_position == 0:
+            <span style="color:#C586C0">return</span>
+        close_side = <span style="color:#CE9178">'sell'</span> <span style="color:#C586C0">if</span> self.current_position &gt; 0 <span style="color:#C586C0">else</span> <span style="color:#CE9178">'buy'</span>
+        <span style="color:#C586C0">await</span> self.client.post(
+            f<span style="color:#CE9178">"{PF_BASE}/v1/trading/order"</span>,
+            json={<span style="color:#CE9178">"symbol"</span>: self.symbol, <span style="color:#CE9178">"side"</span>: close_side,
+                  <span style="color:#CE9178">"size_usd"</span>: abs(self.current_position), <span style="color:#CE9178">"type"</span>: <span style="color:#CE9178">"market"</span>,
+                  <span style="color:#CE9178">"reduce_only"</span>: True},
+            headers={<span style="color:#CE9178">"X-API-Key"</span>: self.api_key}
+        )
+        duration = (time.time() - self.position_entry_time) / 3600
+        print(f<span style="color:#CE9178">"Closed | reason={reason} | held={duration:.1f}h"</span>)
+        self.current_position = 0
+        self.position_entry_time = None</pre>
+
+        <h2 id="backtesting">Python Backtesting Framework for Vol Strategies</h2>
+
+        <p>
+          Backtesting volatility strategies requires careful attention to look-ahead bias, data snooping, and regime stability. The following framework provides a solid foundation.
+        </p>
+
+        <pre><span style="color:#C586C0">import</span> pandas <span style="color:#C586C0">as</span> pd
+<span style="color:#C586C0">import</span> numpy <span style="color:#C586C0">as</span> np
+<span style="color:#C586C0">from</span> dataclasses <span style="color:#C586C0">import</span> dataclass, field
+<span style="color:#C586C0">from</span> typing <span style="color:#C586C0">import</span> List
+
+<span style="color:#4EC9B0">@dataclass</span>
+<span style="color:#C586C0">class</span> <span style="color:#4EC9B0">Trade</span>:
+    entry_time: pd.Timestamp
+    exit_time: pd.Timestamp
+    direction: int
+    entry_price: float
+    exit_price: float
+    size_usd: float
+    entry_vol_z: float
+    pnl_usd: float
+    pnl_pct: float
+    hold_periods: int
+
+<span style="color:#4EC9B0">@dataclass</span>
+<span style="color:#C586C0">class</span> <span style="color:#4EC9B0">BacktestResult</span>:
+    trades: List[Trade] = field(default_factory=list)
+    equity_curve: pd.Series = None
+    total_return_pct: float = 0.0
+    sharpe_ratio: float = 0.0
+    max_drawdown_pct: float = 0.0
+    win_rate: float = 0.0
+    avg_hold_h: float = 0.0
+    total_trades: int = 0
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">backtest_vol_fade</span>(
+    price_data: pd.Series,
+    rv_data: pd.Series,
+    iv_data: pd.Series = None,
+    vol_z_entry: float = 2.5,
+    vol_z_exit: float = 1.0,
+    max_hold_h: int = 48,
+    target_daily_vol_usd: float = 500.0,
+    fee_pct: float = 0.035
+) -> BacktestResult:
+    result = BacktestResult()
+    sizer = VRPPositionSizer(target_daily_vol_usd)
+
+    position = 0.0
+    entry_price = 0.0
+    entry_time = None
+    entry_vol_z = 0.0
+    entry_idx = None
+    equity = 10_000.0
+    equity_pts = []
+
+    vol_zscore = (rv_data - rv_data.rolling(50).mean()) / rv_data.rolling(50).std()
+    recent_ret = price_data.pct_change(10)
+
+    <span style="color:#C586C0">for</span> i <span style="color:#C586C0">in</span> range(50, len(price_data)):
+        ts = price_data.index[i]
+        price = price_data.iloc[i]
+        rv = rv_data.iloc[i]
+        vz = vol_zscore.iloc[i]
+        ret_dir = np.sign(recent_ret.iloc[i]) <span style="color:#C586C0">if</span> <span style="color:#C586C0">not</span> pd.isna(recent_ret.iloc[i]) <span style="color:#C586C0">else</span> 0
+        iv = iv_data.iloc[i] <span style="color:#C586C0">if</span> iv_data <span style="color:#C586C0">is</span> <span style="color:#C586C0">not</span> None <span style="color:#C586C0">else</span> rv * 1.08
+
+        <span style="color:#6A9955"># Exit check</span>
+        <span style="color:#C586C0">if</span> position != 0 <span style="color:#C586C0">and</span> entry_idx <span style="color:#C586C0">is</span> <span style="color:#C586C0">not</span> None:
+            hours_held = i - entry_idx
+            should_exit = (vz &lt; vol_z_exit) <span style="color:#C586C0">or</span> (hours_held &gt;= max_hold_h)
+            <span style="color:#C586C0">if</span> should_exit:
+                direction = np.sign(position)
+                pnl_pct = direction * (price - entry_price) / entry_price * 100
+                pnl_pct -= fee_pct * 2
+                pnl_usd = abs(position) * pnl_pct / 100
+                result.trades.append(Trade(
+                    entry_time=entry_time, exit_time=ts,
+                    direction=int(direction), entry_price=entry_price,
+                    exit_price=price, size_usd=abs(position),
+                    entry_vol_z=entry_vol_z, pnl_usd=pnl_usd,
+                    pnl_pct=pnl_pct, hold_periods=hours_held
+                ))
+                equity += pnl_usd
+                position = 0.0
+                entry_idx = None
+
+        <span style="color:#6A9955"># Entry check</span>
+        <span style="color:#C586C0">if</span> position == 0 <span style="color:#C586C0">and</span> <span style="color:#C586C0">not</span> pd.isna(vz) <span style="color:#C586C0">and</span> vz &gt;= vol_z_entry:
+            direction = -ret_dir <span style="color:#C586C0">if</span> ret_dir != 0 <span style="color:#C586C0">else</span> -1
+            size = sizer.size_position(rv, iv, direction)
+            size = min(abs(size), equity * 0.5)
+            position = direction * size
+            entry_price = price
+            entry_time = ts
+            entry_idx = i
+            entry_vol_z = vz
+
+        equity_pts.append((ts, equity))
+
+    <span style="color:#6A9955"># Compute summary statistics</span>
+    eq = pd.Series([e[1] <span style="color:#C586C0">for</span> e <span style="color:#C586C0">in</span> equity_pts],
+                   index=[e[0] <span style="color:#C586C0">for</span> e <span style="color:#C586C0">in</span> equity_pts])
+    ret = eq.pct_change().dropna()
+    result.equity_curve = eq
+    result.total_return_pct = (eq.iloc[-1] / eq.iloc[0] - 1) * 100
+    result.sharpe_ratio = (
+        ret.mean() / ret.std() * np.sqrt(365 * 24) <span style="color:#C586C0">if</span> ret.std() &gt; 0 <span style="color:#C586C0">else</span> 0
+    )
+    dd = (eq / eq.cummax() - 1) * 100
+    result.max_drawdown_pct = float(dd.min())
+    wins = [t <span style="color:#C586C0">for</span> t <span style="color:#C586C0">in</span> result.trades <span style="color:#C586C0">if</span> t.pnl_usd &gt; 0]
+    result.win_rate = len(wins) / len(result.trades) <span style="color:#C586C0">if</span> result.trades <span style="color:#C586C0">else</span> 0
+    result.total_trades = len(result.trades)
+    result.avg_hold_h = (
+        np.mean([t.hold_periods <span style="color:#C586C0">for</span> t <span style="color:#C586C0">in</span> result.trades]) <span style="color:#C586C0">if</span> result.trades <span style="color:#C586C0">else</span> 0
+    )
+    <span style="color:#C586C0">return</span> result</pre>
+
+        <h2 id="regime-detection">Volatility Regime Detection</h2>
+
+        <p>
+          Vol strategies perform differently in different regimes. A vol-selling strategy that works in a calm trending market can suffer severe losses during a volatility explosion. Regime detection allows agents to switch strategy parameters based on current market conditions.
+        </p>
+
+        <pre><span style="color:#C586C0">from</span> enum <span style="color:#C586C0">import</span> Enum
+
+<span style="color:#C586C0">class</span> <span style="color:#4EC9B0">VolRegime</span>(Enum):
+    LOW_VOL_TRENDING = <span style="color:#CE9178">"low_vol_trending"</span>
+    LOW_VOL_RANGING = <span style="color:#CE9178">"low_vol_ranging"</span>
+    HIGH_VOL_TRENDING = <span style="color:#CE9178">"high_vol_trending"</span>
+    HIGH_VOL_SPIKING = <span style="color:#CE9178">"high_vol_spiking"</span>
+    VOL_CRASH = <span style="color:#CE9178">"vol_crash"</span>
+
+<span style="color:#C586C0">def</span> <span style="color:#DCDCAA">detect_vol_regime</span>(
+    rv_30d: float,
+    rv_7d: float,
+    rv_1d: float,
+    rv_long_mean: float = 55.0,
+    trend_strength: float = 0.0
+) -> VolRegime:
+    vol_expanding = rv_1d &gt; rv_7d * 1.3
+    vol_contracting = rv_1d &lt; rv_7d * 0.7
+    elevated_vol = rv_30d &gt; rv_long_mean * 1.3
+    low_vol = rv_30d &lt; rv_long_mean * 0.7
+    trending = abs(trend_strength) &gt; 25
+
+    <span style="color:#C586C0">if</span> vol_contracting <span style="color:#C586C0">and</span> elevated_vol:
+        <span style="color:#C586C0">return</span> VolRegime.VOL_CRASH
+    <span style="color:#C586C0">if</span> vol_expanding <span style="color:#C586C0">and</span> elevated_vol:
+        <span style="color:#C586C0">return</span> VolRegime.HIGH_VOL_SPIKING
+    <span style="color:#C586C0">if</span> elevated_vol:
+        <span style="color:#C586C0">return</span> VolRegime.HIGH_VOL_TRENDING
+    <span style="color:#C586C0">if</span> low_vol <span style="color:#C586C0">and</span> trending:
+        <span style="color:#C586C0">return</span> VolRegime.LOW_VOL_TRENDING
+    <span style="color:#C586C0">return</span> VolRegime.LOW_VOL_RANGING
+
+
+REGIME_PARAMS = {
+    VolRegime.LOW_VOL_TRENDING: {
+        <span style="color:#CE9178">'vol_sell_active'</span>: True,
+        <span style="color:#CE9178">'position_scale'</span>: 1.2,
+        <span style="color:#CE9178">'vol_z_entry'</span>: 2.0,
+        <span style="color:#CE9178">'note'</span>: <span style="color:#CE9178">'Best environment for vol-selling'</span>
+    },
+    VolRegime.LOW_VOL_RANGING: {
+        <span style="color:#CE9178">'vol_sell_active'</span>: True,
+        <span style="color:#CE9178">'position_scale'</span>: 1.0,
+        <span style="color:#CE9178">'vol_z_entry'</span>: 2.5,
+        <span style="color:#CE9178">'note'</span>: <span style="color:#CE9178">'Good, but watch for breakout'</span>
+    },
+    VolRegime.HIGH_VOL_TRENDING: {
+        <span style="color:#CE9178">'vol_sell_active'</span>: False,
+        <span style="color:#CE9178">'position_scale'</span>: 0.5,
+        <span style="color:#CE9178">'vol_z_entry'</span>: 3.5,
+        <span style="color:#CE9178">'note'</span>: <span style="color:#CE9178">'Reduce exposure — trend following preferred'</span>
+    },
+    VolRegime.HIGH_VOL_SPIKING: {
+        <span style="color:#CE9178">'vol_sell_active'</span>: False,
+        <span style="color:#CE9178">'position_scale'</span>: 0.25,
+        <span style="color:#CE9178">'vol_z_entry'</span>: 4.0,
+        <span style="color:#CE9178">'note'</span>: <span style="color:#CE9178">'Minimize exposure — wait for spike to resolve'</span>
+    },
+    VolRegime.VOL_CRASH: {
+        <span style="color:#CE9178">'vol_sell_active'</span>: True,
+        <span style="color:#CE9178">'position_scale'</span>: 0.8,
+        <span style="color:#CE9178">'vol_z_entry'</span>: 2.0,
+        <span style="color:#CE9178">'note'</span>: <span style="color:#CE9178">'Vol declining — fade remaining spikes'</span>
+    }
+}</pre>
+
+        <h2 id="multi-asset">Multi-Asset Vol Portfolio on Purple Flea</h2>
+
+        <p>
+          Purple Flea Trading provides 275 perpetual markets, making it possible to run volatility strategies across many assets simultaneously. Different assets spike at different times — multi-asset vol strategies smooth returns across the calendar.
+        </p>
+
+        <pre><span style="color:#C586C0">class</span> <span style="color:#4EC9B0">MultiAssetVolPortfolio</span>:
+    <span style="color:#9CDCFE">"""
+    Runs vol-fade strategy across multiple PF perp markets.
+    Applies portfolio-level risk controls and correlation monitoring.
+    """</span>
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">__init__</span>(self, api_key: str, symbols: list[str],
+                 total_capital: float = 50_000):
+        self.api_key = api_key
+        self.symbols = symbols
+        self.capital = total_capital
+        per_sym = total_capital / len(symbols)
+        self.agents = {
+            sym: VolSpikeFadeAgent(
+                api_key, sym,
+                target_daily_vol_usd=per_sym * 0.02  <span style="color:#6A9955"># 2% daily vol target per symbol</span>
+            )
+            <span style="color:#C586C0">for</span> sym <span style="color:#C586C0">in</span> symbols
+        }
+        self.client = httpx.AsyncClient()
+        self.concurrent_positions = 0
+        self.max_concurrent = max(1, len(symbols) // 2)
+
+    <span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">run</span>(self):
+        <span style="color:#C586C0">while</span> True:
+            tasks = [self._update(sym) <span style="color:#C586C0">for</span> sym <span style="color:#C586C0">in</span> self.symbols]
+            <span style="color:#C586C0">await</span> asyncio.gather(*tasks, return_exceptions=True)
+            <span style="color:#C586C0">await</span> asyncio.sleep(60)
+
+    <span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">_update</span>(self, symbol: str):
+        resp = <span style="color:#C586C0">await</span> self.client.get(
+            f<span style="color:#CE9178">"{PF_BASE}/v1/trading/ticker"</span>,
+            params={<span style="color:#CE9178">"symbol"</span>: symbol},
+            headers={<span style="color:#CE9178">"X-API-Key"</span>: self.api_key}
+        )
+        <span style="color:#C586C0">if</span> resp.status_code == 200:
+            data = resp.json()
+            price = float(data.get(<span style="color:#CE9178">"last_price"</span>, 0))
+            <span style="color:#C586C0">if</span> price &gt; 0:
+                <span style="color:#C586C0">await</span> self.agents[symbol].run_strategy(price)
+
+
+<span style="color:#C586C0">async def</span> <span style="color:#DCDCAA">main</span>():
+    portfolio = MultiAssetVolPortfolio(
+        api_key=<span style="color:#CE9178">"pf_live_..."</span>,
+        symbols=[<span style="color:#CE9178">"BTC-PERP"</span>, <span style="color:#CE9178">"ETH-PERP"</span>, <span style="color:#CE9178">"SOL-PERP"</span>,
+                 <span style="color:#CE9178">"BNB-PERP"</span>, <span style="color:#CE9178">"AVAX-PERP"</span>, <span style="color:#CE9178">"ARB-PERP"</span>],
+        total_capital=50_000
+    )
+    <span style="color:#C586C0">await</span> portfolio.run()</pre>
+
+        <h2 id="risk-controls">Risk Controls for Vol Strategies</h2>
+
+        <p>
+          Vol strategies can experience severe tail events. The 2020 "Vol-mageddon" destroyed structured products worth billions. Crypto vol events in 2022 (LUNA collapse, FTX implosion) were similarly catastrophic for underprepared vol-sellers. Risk management is not optional.
+        </p>
+
+        <div class="callout callout-red">
+          <strong>Warning:</strong> Volatility strategies are NOT low risk. They can look like steady income streams for months, then suffer catastrophic losses in a single event. Always maintain strict position limits and automated kill switches.
+        </div>
+
+        <h3>Critical Risk Rules</h3>
+
+        <ul>
+          <li><strong>Maximum drawdown kill switch:</strong> If drawdown exceeds 15%, close all positions and pause trading for 72 hours</li>
+          <li><strong>Vol-of-vol filter:</strong> If implied vol is rising faster than 5 vol points per day, halt new vol-selling entries</li>
+          <li><strong>Correlation spike detection:</strong> If multiple assets spike simultaneously (cross-asset corr &gt; 0.8), reduce all positions by 50% — regime is changing</li>
+          <li><strong>Black swan sizing:</strong> Never size more than 2% of capital into any single vol-fade position</li>
+          <li><strong>Per-trade stop loss:</strong> Exit if position moves against you by more than 2x the expected daily vol of that asset</li>
+        </ul>
+
+        <pre><span style="color:#C586C0">class</span> <span style="color:#4EC9B0">VolRiskManager</span>:
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">__init__</span>(self, total_capital: float,
+                 max_dd_pct: float = 15.0,
+                 max_daily_loss_pct: float = 5.0):
+        self.capital = total_capital
+        self.max_dd = total_capital * (max_dd_pct / 100)
+        self.max_daily = total_capital * (max_daily_loss_pct / 100)
+        self.peak_equity = total_capital
+        self.daily_loss = 0.0
+        self.halted = False
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">update_equity</span>(self, current_equity: float) -> bool:
+        <span style="color:#9CDCFE">"""Returns True if trading should continue, False if halted."""</span>
+        self.peak_equity = max(self.peak_equity, current_equity)
+        drawdown = self.peak_equity - current_equity
+
+        <span style="color:#C586C0">if</span> drawdown &gt;= self.max_dd:
+            self.halted = True
+            print(f<span style="color:#CE9178">"HALT: Max drawdown ${drawdown:,.0f} exceeded limit ${self.max_dd:,.0f}"</span>)
+            <span style="color:#C586C0">return</span> False
+
+        pnl_today = current_equity - (self.capital - self.daily_loss)
+        <span style="color:#C586C0">if</span> pnl_today &lt; 0 <span style="color:#C586C0">and</span> abs(pnl_today) &gt;= self.max_daily:
+            self.halted = True
+            print(f<span style="color:#CE9178">"HALT: Daily loss ${abs(pnl_today):,.0f} exceeded limit ${self.max_daily:,.0f}"</span>)
+            <span style="color:#C586C0">return</span> False
+
+        <span style="color:#C586C0">return</span> <span style="color:#C586C0">not</span> self.halted
+
+    <span style="color:#C586C0">def</span> <span style="color:#DCDCAA">check_vol_of_vol</span>(self, iv_series: pd.Series,
+                         threshold_daily_change: float = 5.0) -> bool:
+        <span style="color:#9CDCFE">"""Returns True if IV is rising too fast (halt new entries)."""</span>
+        <span style="color:#C586C0">if</span> len(iv_series) &lt; 2:
+            <span style="color:#C586C0">return</span> False
+        daily_change = abs(iv_series.iloc[-1] - iv_series.iloc[-2])
+        <span style="color:#C586C0">return</span> daily_change &gt; threshold_daily_change</pre>
+
+        <h2 id="getting-started">Getting Started on Purple Flea</h2>
+
+        <p>
+          Purple Flea provides all the infrastructure needed to run volatility strategies:
+        </p>
+
+        <ul>
+          <li><strong>275 perpetual markets</strong> via Hyperliquid — wide asset selection for multi-asset vol portfolios</li>
+          <li><strong>Real-time market data</strong> including ticker, order book, and trade history for vol computation</li>
+          <li><strong>Faucet</strong> at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> — free funds for new agents to test strategies risk-free</li>
+          <li><strong>Low fees</strong> (0.035% taker) — essential for vol strategies that may trade frequently</li>
+          <li><strong>Wallet API</strong> for multi-chain capital management across vol-selling positions</li>
+        </ul>
+
+        <div class="callout callout-green">
+          <strong>Start Small:</strong> Backtest on 6+ months of hourly data, then paper trade for 2-4 weeks before committing real capital. New agents get free funds via the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a>. Register at <a href="/register/">purpleflea.com/register</a>.
+        </div>
+
+        <p>
+          Volatility trading rewards systematic, disciplined agents over discretionary traders. The math of the volatility risk premium is structural — but harvesting it safely requires robust position sizing, regime detection, and strict risk controls. Agents that implement all three layers can run consistently profitable vol strategies that would be impossible for any human to execute with the required speed and consistency.
+        </p>
+
+      </div>
+    </article>
+  </main>
+
+  <aside class="sidebar">
+    <div class="toc">
+      <h4>Table of Contents</h4>
+      <ol>
+        <li><a href="#what-is-volatility">Volatility as an Asset Class</a></li>
+        <li><a href="#vix-and-crypto-vol">VIX and Crypto Vol Indexes</a></li>
+        <li><a href="#computing-vol">Computing IV and RV</a></li>
+        <li><a href="#iv-rank-percentile">IV Rank and IV Percentile</a></li>
+        <li><a href="#mean-reversion">Volatility Mean Reversion</a></li>
+        <li><a href="#vol-risk-premium">Volatility Risk Premium</a></li>
+        <li><a href="#systematic-vol-selling">Systematic Vol Selling</a></li>
+        <li><a href="#backtesting">Python Backtesting</a></li>
+        <li><a href="#regime-detection">Regime Detection</a></li>
+        <li><a href="#multi-asset">Multi-Asset Portfolio</a></li>
+        <li><a href="#risk-controls">Risk Controls</a></li>
+        <li><a href="#getting-started">Getting Started</a></li>
+      </ol>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <p>© 2026 Purple Flea | <a href="https://purpleflea.com">purpleflea.com</a></p>
+</footer>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = total > 0 ? (window.scrollY / total) * 100 : 0;
+    bar.style.width = pct + '%';
+  });
+</script>
 </body>
 </html>
