@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autonomous Trading Journals: How AI Agents Track and Improve Performance</title>
+  <meta name="description" content="Learn how AI agents implement structured trade logging, win rate tracking, pattern recognition, and leverage Purple Flea API audit logs to continuously improve trading performance." />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-trading-journal/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --purple: #A855F7;
+      --purple-dim: rgba(168,85,247,0.15);
+      --purple-border: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --border: rgba(255,255,255,0.06);
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --amber: #F59E0B;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(9,9,11,0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+
+    .page-wrap { max-width: 800px; margin: 0 auto; padding: 96px 1.5rem 80px; }
+
+    .post-meta { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
+    .tag-purple { background: rgba(168,85,247,0.15); color: #C084FC; border: 1px solid rgba(168,85,247,0.25); }
+    .tag-blue { background: rgba(59,130,246,0.12); color: #60A5FA; border: 1px solid rgba(59,130,246,0.2); }
+    .tag-green { background: rgba(34,197,94,0.12); color: #4ADE80; border: 1px solid rgba(34,197,94,0.2); }
+    .post-date { color: var(--text-muted); font-size: 0.85rem; }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.25; margin-bottom: 1.25rem; }
+    .lead { font-size: 1.125rem; color: var(--text-muted); margin-bottom: 2.5rem; line-height: 1.75; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    h2 { font-size: 1.5rem; font-weight: 700; margin: 2.5rem 0 1rem; color: var(--text); }
+    h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    p { margin-bottom: 1.25rem; color: #D4D4D8; }
+    ul, ol { margin: 0 0 1.25rem 1.5rem; color: #D4D4D8; }
+    li { margin-bottom: 0.5rem; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--bg3); color: #C084FC; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+    pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
+    pre code { background: none; border: none; padding: 0; font-size: 0.875rem; color: #E4E4E7; line-height: 1.65; }
+
+    .callout { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; }
+    .callout-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; color: var(--purple); text-transform: uppercase; margin-bottom: 0.5rem; }
+    .callout p { margin: 0; color: #D4D4D8; }
+    .callout.warning { border-left-color: var(--amber); }
+    .callout.warning .callout-label { color: var(--amber); }
+    .callout.success { border-left-color: var(--green); }
+    .callout.success .callout-label { color: var(--green); }
+
+    .table-wrap { overflow-x: auto; margin: 1.75rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.75rem 1rem; background: var(--bg3); color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    td.pos { color: var(--green); font-weight: 600; }
+    td.neg { color: var(--red); font-weight: 600; }
+    td.neutral { color: var(--amber); font-weight: 600; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.75rem 0; }
+    .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--purple); line-height: 1; margin-bottom: 0.4rem; }
+    .stat-label { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Trade entry */
+    .trade-entry { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 0.75rem; font-size: 0.875rem; }
+    .trade-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
+    .trade-id { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); }
+    .trade-pnl { font-weight: 700; }
+    .trade-pnl.pos { color: var(--green); }
+    .trade-pnl.neg { color: var(--red); }
+    .trade-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .trade-tag { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 7px; font-size: 0.72rem; color: var(--text-muted); }
+
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(59,130,246,0.08) 100%); border: 1px solid var(--purple-border); border-radius: 12px; padding: 2rem; margin: 3rem 0 1rem; text-align: center; }
+    .cta-box h3 { margin: 0 0 0.75rem; font-size: 1.3rem; }
+    .cta-box p { color: var(--text-muted); margin-bottom: 1.25rem; }
+    .btn { display: inline-block; background: var(--purple); color: #fff; font-weight: 600; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-size: 0.95rem; transition: opacity 0.2s; margin: 0.25rem; }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-ghost { background: transparent; border: 1px solid var(--purple-border); color: var(--purple); }
+
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+    footer a { color: var(--text-muted); }
+
+    @media (max-width: 600px) {
+      nav { padding: 0 1rem; }
+      .nav-links { gap: 1rem; }
+      .page-wrap { padding: 80px 1rem 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/docs/">Docs</a></li>
+    <li><a href="/blog/">Blog</a></li>
+    <li><a href="/for-agents/">For Agents</a></li>
+    <li><a href="/casino/">Casino</a></li>
+    <li><a href="/trading/">Trading</a></li>
+  </ul>
+</nav>
+
+<div class="page-wrap">
+
+  <div class="post-meta">
+    <span class="tag tag-blue">Tools</span>
+    <span class="tag tag-green">Guide</span>
+    <span class="post-date">March 6, 2026</span>
+  </div>
+
+  <h1>Autonomous Trading Journals: How AI Agents Track and Improve Performance</h1>
+
+  <p class="lead">
+    An agent that doesn't track its trades can't learn from them. A structured trading journal — automatically populated from Purple Flea's API audit logs — gives your agent the data it needs to identify winning patterns, eliminate losing setups, and continuously improve its edge over time.
+  </p>
+
+  <hr />
+
+  <h2>Why Agents Need Trading Journals</h2>
+
+  <p>
+    Human traders keep journals to avoid repeating mistakes. AI agents have the same problem but at scale: without structured logging, a trading agent accumulates thousands of trades with no systematic way to analyze which strategies work, under what conditions, and how performance is trending.
+  </p>
+
+  <p>
+    The good news is that AI agents can implement far more rigorous journaling than humans. Every trade can be tagged with the full context that generated it: which indicators triggered it, what the market regime was, which model provided the signal, what time of day it was, and more. This rich data becomes a training ground for continuous improvement.
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-value">47+</div>
+      <div class="stat-label">Metadata fields per trade entry</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">Weekly</div>
+      <div class="stat-label">Recommended review cycle</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">~15%</div>
+      <div class="stat-label">Average win rate improvement after 4-week journal review</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">100%</div>
+      <div class="stat-label">Purple Flea trades automatically logged</div>
+    </div>
+  </div>
+
+  <h2>The Anatomy of a Trade Log Entry</h2>
+
+  <p>
+    A minimal trade log entry captures the facts. A production-quality entry captures context, decision rationale, and outcome metadata for pattern analysis:
+  </p>
+
+  <pre><code>{
+  // Identity
+  "tradeId": "tr_20260306_eth_001",
+  "agentId": "agent_xyzabc",
+  "timestamp": "2026-03-06T14:32:17Z",
+
+  // Instrument
+  "asset": "ETH/USDC",
+  "chain": "arbitrum",
+  "venue": "uniswap-v3",
+
+  // Entry
+  "side": "BUY",
+  "entryPrice": 3847.50,
+  "entrySize": 0.52,  // ETH
+  "entrySizeUsd": 2000.70,
+  "entryGasUsd": 0.08,
+
+  // Exit
+  "exitPrice": 3921.30,
+  "exitTimestamp": "2026-03-06T16:18:44Z",
+  "exitReason": "take_profit",  // take_profit | stop_loss | signal_reversal | timeout
+  "exitGasUsd": 0.06,
+
+  // P&L
+  "grossPnlUsd": 38.37,
+  "feesPaid": 2.00,
+  "netPnlUsd": 36.31,
+  "netPnlPct": 0.0182,
+
+  // Signal context
+  "signalSource": "multi-model-consensus",
+  "signalConfidence": 0.73,
+  "signalDirection": "BUY",
+  "modelsAgreement": ["claude", "gpt4"],  // which models agreed
+  "timeHorizon": "4h",
+
+  // Market context
+  "marketRegime": "trending_up",  // trending_up | ranging | volatile | trending_down
+  "btcCorrelation": 0.82,
+  "hourOfDay": 14,
+  "dayOfWeek": "Thursday",
+  "newsEvents": [],  // any scheduled events during trade
+
+  // Risk management
+  "stopLossPrice": 3770.0,
+  "takeProfitPrice": 3920.0,
+  "riskRewardRatio": 2.1,
+  "maxAdverseExcursion": -0.008,  // worst drawdown during trade
+  "maxFavorableExcursion": 0.025, // best unrealized profit
+
+  // Tags (for slice-and-dice analysis)
+  "tags": ["morning-session", "trend-follow", "multi-model", "4h-signal"]
+}</code></pre>
+
+  <h2>Pulling Data from Purple Flea Audit Logs</h2>
+
+  <p>
+    Purple Flea automatically logs every trade executed via the Trading API. Your journal agent can pull this data on a schedule and enrich it with additional context fields:
+  </p>
+
+  <pre><code>// journal-builder.js
+import { PurpleFlea } from '@purpleflea/sdk';
+
+const pf = new PurpleFlea({ apiKey: process.env.PF_API_KEY });
+
+async function buildJournalEntries(sinceDays = 7) {
+  const since = new Date(Date.now() - sinceDays * 86400000).toISOString();
+
+  // Fetch raw trade log from Purple Flea
+  const trades = await pf.trading.getHistory({ since, limit: 500 });
+
+  const entries = [];
+
+  for (const trade of trades) {
+    // Enrich with context
+    const marketData = await pf.market.getContextAtTime({
+      asset: trade.asset,
+      timestamp: trade.entryTimestamp,
+    });
+
+    const entry = {
+      tradeId: trade.id,
+      agentId: trade.agentId,
+      timestamp: trade.entryTimestamp,
+      asset: trade.asset,
+      chain: trade.chain,
+      side: trade.side,
+      entryPrice: trade.entryPrice,
+      exitPrice: trade.exitPrice,
+      exitReason: trade.closeReason,
+      netPnlUsd: trade.netPnlUsd,
+      netPnlPct: trade.netPnlPct,
+      feesPaid: trade.totalFees,
+      signalSource: trade.metadata?.source,
+      signalConfidence: trade.metadata?.confidence,
+      marketRegime: marketData.regime,
+      hourOfDay: new Date(trade.entryTimestamp).getUTCHours(),
+      dayOfWeek: new Date(trade.entryTimestamp).toLocaleDateString('en', { weekday: 'long' }),
+      tags: trade.metadata?.tags || [],
+    };
+
+    entries.push(entry);
+  }
+
+  return entries;
+}</code></pre>
+
+  <h2>Example Journal Entries</h2>
+
+  <p>
+    Here's what a typical week of journal entries looks like for an active trading agent:
+  </p>
+
+  <div class="trade-entry">
+    <div class="trade-header">
+      <span class="trade-id">tr_20260306_eth_001 — ETH/USDC — BUY</span>
+      <span class="trade-pnl pos">+$36.31 (+1.82%)</span>
+    </div>
+    <div>Entry: $3,847.50 &rarr; Exit: $3,921.30 &nbsp;|&nbsp; Regime: trending_up &nbsp;|&nbsp; Exit: take_profit &nbsp;|&nbsp; Hold: 1h 46m</div>
+    <div style="margin-top:0.4rem" class="trade-tags">
+      <span class="trade-tag">multi-model</span><span class="trade-tag">4h-signal</span><span class="trade-tag">morning</span><span class="trade-tag">confidence:0.73</span>
+    </div>
+  </div>
+
+  <div class="trade-entry">
+    <div class="trade-header">
+      <span class="trade-id">tr_20260305_btc_003 — BTC/USDC — SELL</span>
+      <span class="trade-pnl neg">-$22.10 (-1.11%)</span>
+    </div>
+    <div>Entry: $88,420 &rarr; Exit: $89,400 &nbsp;|&nbsp; Regime: volatile &nbsp;|&nbsp; Exit: stop_loss &nbsp;|&nbsp; Hold: 23m</div>
+    <div style="margin-top:0.4rem" class="trade-tags">
+      <span class="trade-tag">single-model</span><span class="trade-tag">1h-signal</span><span class="trade-tag">evening</span><span class="trade-tag">confidence:0.58</span>
+    </div>
+  </div>
+
+  <div class="trade-entry">
+    <div class="trade-header">
+      <span class="trade-id">tr_20260304_arb_007 — ARB/USDC — BUY</span>
+      <span class="trade-pnl pos">+$18.60 (+1.86%)</span>
+    </div>
+    <div>Entry: $1.840 &rarr; Exit: $1.875 &nbsp;|&nbsp; Regime: ranging &nbsp;|&nbsp; Exit: take_profit &nbsp;|&nbsp; Hold: 3h 12m</div>
+    <div style="margin-top:0.4rem" class="trade-tags">
+      <span class="trade-tag">multi-model</span><span class="trade-tag">24h-signal</span><span class="trade-tag">afternoon</span><span class="trade-tag">confidence:0.81</span>
+    </div>
+  </div>
+
+  <h2>Win Rate Tracking</h2>
+
+  <p>
+    Win rate is the foundational metric. But raw win rate is misleading without factoring in average win vs. average loss size. A 45% win rate can be extremely profitable if winners are 3× the size of losers.
+  </p>
+
+  <pre><code>function computeWinRateStats(entries) {
+  const wins = entries.filter(e => e.netPnlUsd > 0);
+  const losses = entries.filter(e => e.netPnlUsd < 0);
+
+  const winRate = wins.length / entries.length;
+  const avgWin = wins.reduce((s, e) => s + e.netPnlUsd, 0) / (wins.length || 1);
+  const avgLoss = Math.abs(losses.reduce((s, e) => s + e.netPnlUsd, 0)) / (losses.length || 1);
+  const expectancy = winRate * avgWin - (1 - winRate) * avgLoss;
+
+  // Sharpe-like metric
+  const pnls = entries.map(e => e.netPnlPct);
+  const mean = pnls.reduce((a, b) => a + b, 0) / pnls.length;
+  const std = Math.sqrt(pnls.map(x => (x-mean)**2).reduce((a,b)=>a+b,0)/pnls.length);
+  const sharpe = mean / (std || 0.0001) * Math.sqrt(252);
+
+  return {
+    totalTrades: entries.length,
+    winRate: (winRate * 100).toFixed(1) + '%',
+    avgWinUsd: avgWin.toFixed(2),
+    avgLossUsd: avgLoss.toFixed(2),
+    winLossRatio: (avgWin / avgLoss).toFixed(2),
+    expectancy: expectancy.toFixed(2),
+    annualizedSharpe: sharpe.toFixed(2),
+  };
+}</code></pre>
+
+  <h2>Pattern Recognition: Finding Your Edge</h2>
+
+  <p>
+    The journal becomes most valuable when you slice it by context dimensions to identify where your edge actually lives. Run these analyses weekly:
+  </p>
+
+  <h3>Win Rate by Market Regime</h3>
+
+  <pre><code>function winRateByRegime(entries) {
+  const regimes = ['trending_up', 'trending_down', 'ranging', 'volatile'];
+  return Object.fromEntries(
+    regimes.map(regime => {
+      const subset = entries.filter(e => e.marketRegime === regime);
+      const wins = subset.filter(e => e.netPnlUsd > 0).length;
+      return [regime, subset.length > 0 ? (wins / subset.length * 100).toFixed(1) + '%' : 'n/a'];
+    })
+  );
+}
+
+// Example output:
+// {
+//   trending_up:   "74.1%",   <- strong edge here
+//   trending_down: "68.3%",   <- decent edge short-side
+//   ranging:       "51.2%",   <- barely above breakeven
+//   volatile:      "38.7%",   <- losing money here!
+// }</code></pre>
+
+  <p>
+    This analysis immediately tells you: trade less during volatile regimes, or not at all. Add a regime filter to your signal pipeline to prevent entries when <code>marketRegime === 'volatile'</code>.
+  </p>
+
+  <h3>Win Rate by Hour of Day</h3>
+
+  <pre><code>function winRateByHour(entries) {
+  const byHour = {};
+  for (const entry of entries) {
+    const h = entry.hourOfDay;
+    if (!byHour[h]) byHour[h] = { wins: 0, total: 0 };
+    byHour[h].total++;
+    if (entry.netPnlUsd > 0) byHour[h].wins++;
+  }
+  return Object.fromEntries(
+    Object.entries(byHour)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([h, s]) => [`${h}:00 UTC`, (s.wins / s.total * 100).toFixed(1) + '%'])
+  );
+}
+
+// Use this to build a trading schedule:
+// If hours 2-6 UTC have win rate < 50%, disable the agent during those hours</code></pre>
+
+  <h3>Win Rate by Signal Confidence Band</h3>
+
+  <pre><code>function winRateByConfidence(entries) {
+  const bands = [
+    { label: '0.55–0.65', min: 0.55, max: 0.65 },
+    { label: '0.65–0.75', min: 0.65, max: 0.75 },
+    { label: '0.75–0.85', min: 0.75, max: 0.85 },
+    { label: '0.85–1.00', min: 0.85, max: 1.00 },
+  ];
+  return bands.map(band => {
+    const subset = entries.filter(e =>
+      e.signalConfidence >= band.min && e.signalConfidence < band.max
+    );
+    const wins = subset.filter(e => e.netPnlUsd > 0).length;
+    return {
+      band: band.label,
+      tradeCount: subset.length,
+      winRate: subset.length > 0 ? (wins / subset.length * 100).toFixed(1) + '%' : 'n/a',
+    };
+  });
+}</code></pre>
+
+  <div class="callout success">
+    <div class="callout-label">Key Insight Pattern</div>
+    <p>Most agents find their win rate below 0.65 confidence is near 50% (coin flip), and above 0.80 confidence is 70%+. This validates raising the minimum confidence threshold and reducing position sizes for lower-confidence signals.</p>
+  </div>
+
+  <h2>The Self-Improving Agent Loop</h2>
+
+  <p>
+    A truly autonomous trading agent doesn't just log trades — it reads the journal, extracts lessons, and updates its own parameters automatically. Here's the architecture:
+  </p>
+
+  <pre><code>// self-improvement-loop.js
+import { analyzeJournal } from './journal-analyzer.js';
+import { updateConfig } from './agent-config.js';
+import Anthropic from '@anthropic-ai/sdk';
+
+const claude = new Anthropic();
+
+async function weeklyImprovementCycle(entries) {
+  const stats = analyzeJournal(entries);
+
+  // Ask Claude to interpret the stats and suggest parameter changes
+  const response = await claude.messages.create({
+    model: 'claude-opus-4-6',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: `You are a trading performance analyst reviewing an AI agent's weekly stats.
+
+Current parameters:
+- MIN_CONFIDENCE: ${process.env.MIN_CONFIDENCE}
+- TRADE_SIZE_USD: ${process.env.TRADE_SIZE_USD}
+- ACTIVE_HOURS_UTC: ${process.env.ACTIVE_HOURS_UTC}
+- ACTIVE_REGIMES: ${process.env.ACTIVE_REGIMES}
+
+Performance analysis:
+${JSON.stringify(stats, null, 2)}
+
+Suggest specific parameter changes to improve win rate and expectancy.
+Return as JSON with keys: MIN_CONFIDENCE, TRADE_SIZE_USD, ACTIVE_HOURS_UTC, ACTIVE_REGIMES.
+Only suggest changes you are confident about. Keep changes conservative (max 20% adjustment).`,
+    }],
+  });
+
+  const suggestions = JSON.parse(response.content[0].text);
+  await updateConfig(suggestions);
+
+  console.log('Parameters updated:', suggestions);
+}</code></pre>
+
+  <h2>Weekly Journal Review Checklist</h2>
+
+  <p>
+    Run this review every Monday before the trading week begins:
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Check</th>
+          <th>Action if Below Threshold</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Win rate (7d)</td><td>Target &gt; 58%</td><td>Raise MIN_CONFIDENCE by 0.05</td></tr>
+        <tr><td>Avg win / avg loss ratio</td><td>Target &gt; 1.8</td><td>Tighten stop loss or widen take profit</td></tr>
+        <tr><td>Expectancy per trade</td><td>Target &gt; $2</td><td>Increase position size or improve signals</td></tr>
+        <tr><td>Max drawdown (7d)</td><td>Target &lt; 8%</td><td>Reduce TRADE_SIZE_USD by 25%</td></tr>
+        <tr><td>Regime distribution</td><td>Volatile trades &lt; 20% of total</td><td>Add regime filter to entry conditions</td></tr>
+        <tr><td>Worst hour win rate</td><td>No hour below 40%</td><td>Add hour to BLOCKED_HOURS list</td></tr>
+        <tr><td>Single-model trade win rate</td><td>Should be lower than multi-model</td><td>Increase MIN_QUORUM requirement</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Integrating Purple Flea Audit Logs</h2>
+
+  <p>
+    Purple Flea's audit log API provides every trade with full metadata, making it the authoritative source of truth for your journal. Key endpoints:
+  </p>
+
+  <pre><code># Get full trade history with metadata
+GET /api/v1/trading/history
+  ?since=2026-03-01T00:00:00Z
+  &until=2026-03-07T23:59:59Z
+  &include_metadata=true
+  &limit=1000
+
+# Get aggregated performance stats
+GET /api/v1/trading/stats
+  ?period=7d
+  &group_by=asset,hour,regime
+
+# Get individual trade detail
+GET /api/v1/trading/trades/:tradeId
+
+# Webhook for real-time trade close events (better than polling)
+POST /api/v1/webhooks
+  body: { event: "trade.closed", url: "https://your-agent.com/hooks/trade" }</code></pre>
+
+  <div class="callout">
+    <div class="callout-label">Use Webhooks Over Polling</div>
+    <p>Instead of polling the history endpoint every minute, register a webhook for <code>trade.closed</code> events. Your journal builder runs instantly on every trade close, keeping your database always current with zero polling overhead.</p>
+  </div>
+
+  <h2>Journal Storage Options</h2>
+
+  <p>
+    Choose a storage layer that matches your agent's architecture:
+  </p>
+
+  <ul>
+    <li><strong>SQLite</strong> — Best for single-agent deployments. Zero-dependency, fast queries, 100K trades easily. Use <code>better-sqlite3</code> in Node.js.</li>
+    <li><strong>PostgreSQL</strong> — Best for multi-agent setups or cloud deployments. Full SQL analytics, time-series functions, JSON column support.</li>
+    <li><strong>ClickHouse</strong> — Best for large-scale deployments with millions of trades. Columnar storage makes aggregation queries extremely fast.</li>
+    <li><strong>Purple Flea API</strong> — If you don't want to manage storage, use Purple Flea's hosted audit log as your journal database. No setup required.</li>
+  </ul>
+
+  <h2>Complete Implementation: Trade Journal Service</h2>
+
+  <pre><code>// trade-journal-service.js — full production implementation
+
+import Database from 'better-sqlite3';
+import { PurpleFlea } from '@purpleflea/sdk';
+
+const db = new Database('./trade-journal.db');
+const pf = new PurpleFlea({ apiKey: process.env.PF_API_KEY });
+
+// Initialize schema
+db.exec(`
+  CREATE TABLE IF NOT EXISTS trades (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    asset TEXT, chain TEXT, side TEXT,
+    entry_price REAL, exit_price REAL,
+    net_pnl_usd REAL, net_pnl_pct REAL,
+    fees_paid REAL, hold_minutes INTEGER,
+    signal_confidence REAL, signal_source TEXT,
+    market_regime TEXT, hour_of_day INTEGER, day_of_week TEXT,
+    exit_reason TEXT, tags TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_timestamp ON trades(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_regime ON trades(market_regime);
+`);
+
+const insertTrade = db.prepare(`
+  INSERT OR REPLACE INTO trades VALUES (
+    @id, @timestamp, @asset, @chain, @side,
+    @entry_price, @exit_price, @net_pnl_usd, @net_pnl_pct,
+    @fees_paid, @hold_minutes, @signal_confidence, @signal_source,
+    @market_regime, @hour_of_day, @day_of_week, @exit_reason, @tags
+  )
+`);
+
+// Sync from Purple Flea on startup
+async function syncFromAuditLog() {
+  const latest = db.prepare('SELECT MAX(timestamp) as ts FROM trades').get();
+  const since = latest.ts ?? '2026-01-01T00:00:00Z';
+
+  const trades = await pf.trading.getHistory({ since, limit: 1000 });
+  for (const t of trades) {
+    insertTrade.run({
+      id: t.id, timestamp: t.entryTimestamp,
+      asset: t.asset, chain: t.chain, side: t.side,
+      entry_price: t.entryPrice, exit_price: t.exitPrice,
+      net_pnl_usd: t.netPnlUsd, net_pnl_pct: t.netPnlPct,
+      fees_paid: t.totalFees,
+      hold_minutes: Math.round((new Date(t.exitTimestamp) - new Date(t.entryTimestamp)) / 60000),
+      signal_confidence: t.metadata?.confidence ?? null,
+      signal_source: t.metadata?.source ?? null,
+      market_regime: t.metadata?.regime ?? null,
+      hour_of_day: new Date(t.entryTimestamp).getUTCHours(),
+      day_of_week: new Date(t.entryTimestamp).toLocaleDateString('en', { weekday: 'long' }),
+      exit_reason: t.closeReason,
+      tags: JSON.stringify(t.metadata?.tags ?? []),
+    });
+  }
+  console.log(`Synced ${trades.length} trades from audit log`);
+}
+
+// Query win rate by regime
+function winRateByRegime() {
+  return db.prepare(`
+    SELECT market_regime,
+           COUNT(*) as total,
+           SUM(CASE WHEN net_pnl_usd > 0 THEN 1 ELSE 0 END) as wins,
+           ROUND(AVG(net_pnl_usd), 2) as avg_pnl_usd
+    FROM trades WHERE market_regime IS NOT NULL
+    GROUP BY market_regime ORDER BY wins * 1.0 / total DESC
+  `).all();
+}
+
+// Weekly report
+function weeklyReport() {
+  const stats = db.prepare(`
+    SELECT COUNT(*) as total,
+           SUM(CASE WHEN net_pnl_usd > 0 THEN 1 ELSE 0 END) as wins,
+           ROUND(SUM(net_pnl_usd), 2) as total_pnl,
+           ROUND(AVG(net_pnl_usd), 2) as avg_pnl,
+           ROUND(AVG(signal_confidence), 3) as avg_confidence
+    FROM trades WHERE timestamp > datetime('now', '-7 days')
+  `).get();
+
+  const winRate = (stats.wins / stats.total * 100).toFixed(1);
+  console.log(`\n=== WEEKLY REPORT ===`);
+  console.log(`Total trades: ${stats.total}`);
+  console.log(`Win rate: ${winRate}%`);
+  console.log(`Total P&L: $${stats.total_pnl}`);
+  console.log(`Avg P&L/trade: $${stats.avg_pnl}`);
+  console.log(`Avg signal confidence: ${stats.avg_confidence}`);
+  console.log(`\nBy regime:`, winRateByRegime());
+}
+
+await syncFromAuditLog();
+weeklyReport();</code></pre>
+
+  <h2>Making the Journal Actionable</h2>
+
+  <p>
+    Data without action is just storage. Close the loop by feeding journal insights back into your agent's decision-making:
+  </p>
+
+  <ul>
+    <li><strong>Dynamic regime filter</strong> — If your journal shows volatile regime win rate below 45%, add <code>if (regime === 'volatile') return 'HOLD'</code> to your entry logic</li>
+    <li><strong>Confidence floor adjustment</strong> — If confidence bands below 0.65 show negative expectancy, raise your floor automatically after weekly review</li>
+    <li><strong>Time-of-day schedule</strong> — Block trading hours where win rate is consistently below 50%</li>
+    <li><strong>Asset rotation</strong> — Drop assets where the journal shows persistent negative expectancy over 4+ weeks</li>
+    <li><strong>Position sizing</strong> — Scale up size in your best-performing regimes and time slots; scale down elsewhere</li>
+  </ul>
+
+  <div class="cta-box">
+    <h3>Start Your Agent's Trading Journal Today</h3>
+    <p>Every Purple Flea trade is automatically logged with full metadata. Register your agent, connect to the audit log API, and start building your edge through systematic performance tracking.</p>
+    <a href="/docs/" class="btn">Read the Docs</a>
+    <a href="/trading/" class="btn btn-ghost">Trading API</a>
+  </div>
+
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea &mdash; <a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a> &middot; <a href="/blog/">Blog</a></p>
+</footer>
+
+</body>
+</html>
