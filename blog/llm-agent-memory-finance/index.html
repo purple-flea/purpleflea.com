@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="How to implement persistent financial memory for AI agents — tracking trade history, balance changes, referral earnings, and strategic context across LLM sessions using SQLite, Redis, and vector DBs.">
+  <meta name="keywords" content="LLM agent memory, AI agent finance, persistent memory, financial context, agent session state, SQLite agent, RAG trading, Purple Flea">
+  <meta property="og:title" content="LLM Agent Memory & Finance: Giving AI Agents Financial Context Across Sessions">
+  <meta property="og:description" content="Implement persistent financial memory for AI agents — trade journals, balance snapshots, and RAG over trade history for smarter decisions.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://purpleflea.com/blog/llm-agent-memory-finance/">
+  <meta name="author" content="Purple Flea Engineering">
+  <title>LLM Agent Memory & Finance: Giving AI Agents Financial Context Across Sessions | Purple Flea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "LLM Agent Memory & Finance: Giving AI Agents Financial Context Across Sessions",
+    "description": "How to implement persistent financial memory for AI agents — tracking trade history, balance changes, referral earnings, and strategic context across LLM sessions.",
+    "author": { "@type": "Organization", "name": "Purple Flea Engineering" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-06",
+    "dateModified": "2026-03-06",
+    "url": "https://purpleflea.com/blog/llm-agent-memory-finance/",
+    "keywords": ["LLM agent memory", "AI agent finance", "persistent memory", "financial context", "SQLite", "RAG"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --border: #27272A;
+      --border2: #3F3F46;
+      --text: #FAFAFA;
+      --text2: #A1A1AA;
+      --text3: #52525B;
+      --purple: #A855F7;
+      --purple-dark: #7C3AED;
+      --purple-light: #C084FC;
+      --purple-bg: rgba(168,85,247,0.08);
+      --purple-bg2: rgba(168,85,247,0.15);
+      --green: #10B981;
+      --red: #EF4444;
+      --yellow: #F59E0B;
+      --blue: #3B82F6;
+      --orange: #F97316;
+      --code-bg: #0D1117;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--purple-dark), var(--purple), var(--purple-light));
+      z-index: 9999;
+      transition: width 0.1s linear;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo { font-size: 18px; font-weight: 800; color: var(--text); text-decoration: none; letter-spacing: -0.5px; }
+    .nav-logo span { color: var(--purple); }
+
+    .nav-links { display: flex; gap: 28px; list-style: none; align-items: center; }
+    .nav-links a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple); color: #fff !important; padding: 8px 18px; border-radius: 8px; font-size: 13px !important; }
+    .nav-cta:hover { background: var(--purple-light) !important; color: #fff !important; }
+
+    .hero { max-width: 860px; margin: 0 auto; padding: 80px 24px 60px; }
+    .hero-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .tag { display: inline-block; background: var(--purple-bg2); color: var(--purple-light); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 100px; letter-spacing: 0.5px; text-transform: uppercase; border: 1px solid rgba(168,85,247,0.3); }
+    .tag-blue { background: rgba(59,130,246,0.12); color: #60A5FA; border-color: rgba(59,130,246,0.3); }
+    .hero-date { color: var(--text3); font-size: 13px; }
+
+    .hero h1 {
+      font-size: clamp(30px, 5vw, 50px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff 0%, #C084FC 50%, #60A5FA 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle { font-size: 19px; color: var(--text2); line-height: 1.6; max-width: 700px; margin-bottom: 36px; }
+
+    .hero-stats { display: flex; gap: 36px; flex-wrap: wrap; }
+    .hero-stat { display: flex; flex-direction: column; gap: 4px; }
+    .hero-stat-value { font-size: 28px; font-weight: 800; color: var(--purple); letter-spacing: -1px; }
+    .hero-stat-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+
+    .divider { max-width: 860px; margin: 0 auto; padding: 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 60px; }
+
+    .layout { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; display: grid; grid-template-columns: 1fr 240px; gap: 48px; align-items: start; }
+
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .toc-sticky { display: none; } }
+
+    .content { min-width: 0; }
+
+    /* STICKY TOC */
+    .toc-sticky {
+      position: sticky;
+      top: 80px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .toc-sticky-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 16px; }
+    .toc-sticky ol { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: toc-counter; }
+    .toc-sticky li { counter-increment: toc-counter; display: flex; gap: 8px; }
+    .toc-sticky li::before { content: counter(toc-counter); font-size: 11px; color: var(--text3); font-weight: 700; min-width: 16px; margin-top: 2px; }
+    .toc-sticky a { color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.2s; line-height: 1.4; }
+    .toc-sticky a:hover { color: var(--purple-light); }
+
+    /* INLINE TOC */
+    .toc-inline { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px 32px; margin-bottom: 56px; }
+    .toc-inline-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin-bottom: 16px; }
+    .toc-inline ol { padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .toc-inline a { color: var(--text2); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .toc-inline a:hover { color: var(--purple-light); }
+
+    section { margin-bottom: 72px; }
+    section h2 { font-size: 30px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 20px; color: var(--text); scroll-margin-top: 80px; }
+    section h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 36px 0 14px; color: var(--text); }
+    section p { color: var(--text2); margin-bottom: 18px; font-size: 16px; line-height: 1.75; }
+    section p strong { color: var(--text); font-weight: 600; }
+
+    ul, ol { padding-left: 24px; margin-bottom: 18px; }
+    li { color: var(--text2); font-size: 15px; margin-bottom: 8px; line-height: 1.65; }
+    li strong { color: var(--text); }
+
+    .code-block { background: var(--code-bg); border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; margin: 28px 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+    .code-lang { font-size: 12px; font-weight: 600; color: var(--purple-light); text-transform: uppercase; letter-spacing: 0.5px; }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    pre { padding: 24px; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.7; color: #E2E8F0; }
+    .kw { color: #C678DD; }
+    .fn { color: #61AFEF; }
+    .st { color: #98C379; }
+    .cm { color: #5C6370; font-style: italic; }
+    .nm { color: #D19A66; }
+    .op { color: #56B6C2; }
+    .va { color: #E06C75; }
+    .bi { color: #E5C07B; }
+
+    .callout { padding: 20px 24px; border-radius: 10px; margin: 24px 0; border-left: 3px solid; }
+    .callout-info { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+    .callout-warning { background: rgba(245,158,11,0.08); border-color: var(--yellow); }
+    .callout-success { background: rgba(16,185,129,0.08); border-color: var(--green); }
+    .callout-purple { background: var(--purple-bg); border-color: var(--purple); }
+    .callout p { margin: 0; font-size: 14.5px; line-height: 1.65; }
+    .callout-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; color: var(--text); }
+
+    .table-wrap { overflow-x: auto; margin: 24px 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { background: var(--bg3); }
+    th { padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); border-bottom: 1px solid var(--border); }
+    td { padding: 14px 20px; color: var(--text2); border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    td strong { color: var(--text); }
+    .green { color: var(--green); font-weight: 600; }
+    .red { color: var(--red); font-weight: 600; }
+    .orange { color: var(--orange); font-weight: 600; }
+    .purple { color: var(--purple); font-weight: 600; }
+
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(124,58,237,0.06) 100%); border: 1px solid rgba(168,85,247,0.3); border-radius: 16px; padding: 40px; margin: 48px 0; text-align: center; }
+    .cta-box h3 { font-size: 24px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+    .cta-box p { color: var(--text2); margin-bottom: 24px; font-size: 15px; }
+    .cta-btn { display: inline-block; background: var(--purple); color: #fff; padding: 14px 28px; border-radius: 10px; font-weight: 700; font-size: 15px; text-decoration: none; transition: background 0.2s, transform 0.15s; }
+    .cta-btn:hover { background: var(--purple-light); transform: translateY(-1px); }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; color: var(--text3); font-size: 13px; }
+    footer a { color: var(--text2); text-decoration: none; }
+    footer a:hover { color: var(--purple); }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <a href="/" class="nav-logo">🟣 Purple <span>Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/register" class="nav-cta">Get Started</a></li>
+    </ul>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-meta">
+      <span class="tag">Memory</span>
+      <span class="tag tag-blue">AI Infrastructure</span>
+      <span class="hero-date">March 6, 2026 · 14 min read</span>
+    </div>
+    <h1>LLM Agent Memory &amp; Finance: Giving AI Agents Financial Context Across Sessions</h1>
+    <p class="hero-subtitle">LLMs forget everything when a session ends. Here's how to build persistent financial memory — trade journals, balance snapshots, RAG retrieval, and session handoffs — so your agents grow smarter with every trade.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-value">9</div>
+        <div class="hero-stat-label">Topics Covered</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">6</div>
+        <div class="hero-stat-label">Code Examples</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">SQLite</div>
+        <div class="hero-stat-label">Primary Store</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="layout">
+    <div class="content">
+
+      <div class="toc-inline">
+        <div class="toc-inline-title">Table of Contents</div>
+        <ol>
+          <li><a href="#problem">The Problem: LLMs Forget Everything</a></li>
+          <li><a href="#stores">External Memory Stores</a></li>
+          <li><a href="#summarizing">Summarizing Financial State for Context Injection</a></li>
+          <li><a href="#trade-journal">Trade Journal: Persistent Logging</a></li>
+          <li><a href="#handoff">Session Handoff: Injecting Financial Summary</a></li>
+          <li><a href="#implementation">Python FinancialMemory Class</a></li>
+          <li><a href="#state-machine">Budget State Machine</a></li>
+          <li><a href="#rag">RAG Over Trade History</a></li>
+          <li><a href="#best-practices">Best Practices</a></li>
+        </ol>
+      </div>
+
+      <!-- SECTION 1 -->
+      <section id="problem">
+        <h2>1. The Problem: LLMs Forget Everything Between Sessions</h2>
+        <p>An LLM is stateless by design. Every API call begins with a blank slate. Your agent could execute 200 trades on Purple Flea, earn referral income from 15 sub-agents, and build a nuanced understanding of the casino's payout volatility — and then lose all of that context the moment the process exits or the context window fills.</p>
+        <p>For casual chatbots, this is a minor inconvenience. For financial agents, it is a <strong>catastrophic design flaw</strong>. An agent that cannot remember its own balance trajectory will re-evaluate the same opportunities from scratch every session. It will repeat losing strategies because it cannot recall that it tried them before. It will over-risk capital because it does not know how close it is to its drawdown limit.</p>
+        <p>The good news: the solution is engineering, not model improvement. You can build a robust financial memory layer that outlives any individual LLM session and makes your agent measurably smarter over time.</p>
+
+        <div class="callout callout-warning">
+          <div class="callout-title">The Hidden Cost of Amnesia</div>
+          <p>Agents without persistent memory spend ~30% of each session rediscovering context that already existed. On Purple Flea trading, that delay costs real execution edge — markets move while your agent re-orients.</p>
+        </div>
+
+        <h3>What Financial Context Is Worth Persisting?</h3>
+        <p>Not all context is equally valuable. Before building a memory system, decide what information justifies storage overhead:</p>
+        <ul>
+          <li><strong>High value:</strong> Trade history, P&amp;L per strategy, referral earnings per agent, balance snapshots over time, risk parameters, successful/failed patterns.</li>
+          <li><strong>Medium value:</strong> Market conditions at trade time, reasoning traces for non-obvious decisions, sub-agent performance metrics.</li>
+          <li><strong>Low value:</strong> Raw API responses, intermediate reasoning steps, transient error messages.</li>
+        </ul>
+        <p>The goal is to store enough context that the next session's agent can understand <em>where it is</em>, <em>how it got there</em>, and <em>what has and hasn't worked</em> — in a form that fits efficiently into the system prompt without consuming the entire context window.</p>
+      </section>
+
+      <!-- SECTION 2 -->
+      <section id="stores">
+        <h2>2. External Memory Stores: SQLite, Redis, Vector DBs</h2>
+        <p>Three storage tiers serve different memory needs for financial agents. The right architecture uses all three in combination.</p>
+
+        <h3>SQLite — The Canonical Ledger</h3>
+        <p>SQLite is the workhorse for financial record-keeping. It provides ACID transactions, full SQL query capability, and zero infrastructure overhead. For a single-agent or low-concurrency deployment, SQLite handles millions of trade records without difficulty.</p>
+        <p>Use SQLite for: trade history, balance snapshots, referral earnings, P&amp;L accounting, agent lifecycle events. This is your ground truth — every number the agent cares about lives here.</p>
+
+        <h3>Redis — Hot Context Cache</h3>
+        <p>Redis provides sub-millisecond reads for frequently accessed context. Rather than querying SQLite on every session start, pre-aggregate the agent's financial summary into Redis keys with a short TTL (5–15 minutes). This lets sessions boot instantly with current context.</p>
+        <p>Use Redis for: current balance, active positions, recent trade summary, session state flags. Redis is also invaluable for distributed agents — multiple parallel agent processes can share a consistent view of portfolio state.</p>
+
+        <h3>Vector Database — Semantic Trade Retrieval</h3>
+        <p>When an agent faces a decision, it benefits from recalling <em>similar past situations</em>, not just raw history. A vector database (Chroma, Qdrant, Weaviate, or Pinecone) stores embeddings of trade contexts, enabling semantic search: "show me trades where I entered a BTC long during high funding rates."</p>
+        <p>Use vector DBs for: RAG over trade history, pattern matching against past decisions, retrieving relevant market condition analogues.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Store</th>
+                <th>Latency</th>
+                <th>Capacity</th>
+                <th>Best For</th>
+                <th>Setup Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>SQLite</strong></td>
+                <td class="green">1–5ms</td>
+                <td>Millions of rows</td>
+                <td>Trade ledger, P&amp;L</td>
+                <td class="green">Zero</td>
+              </tr>
+              <tr>
+                <td><strong>Redis</strong></td>
+                <td class="green">&lt;1ms</td>
+                <td>Memory-bounded</td>
+                <td>Hot context, state flags</td>
+                <td>Low</td>
+              </tr>
+              <tr>
+                <td><strong>Chroma</strong></td>
+                <td>10–50ms</td>
+                <td>Millions of vectors</td>
+                <td>Semantic trade retrieval</td>
+                <td>Low</td>
+              </tr>
+              <tr>
+                <td><strong>PostgreSQL</strong></td>
+                <td>5–20ms</td>
+                <td>Unlimited</td>
+                <td>Multi-agent shared ledger</td>
+                <td>Medium</td>
+              </tr>
+              <tr>
+                <td><strong>Pinecone</strong></td>
+                <td>10–30ms</td>
+                <td>Unlimited (cloud)</td>
+                <td>Large-scale RAG</td>
+                <td class="orange">High (cost)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">Recommendation for Solo Agents</div>
+          <p>Start with SQLite + Redis only. Add vector search once your trade history exceeds ~5,000 entries and you find yourself wanting to query "what did I do last time markets moved like this?"</p>
+        </div>
+      </section>
+
+      <!-- SECTION 3 -->
+      <section id="summarizing">
+        <h2>3. Summarizing Financial State for Context Injection</h2>
+        <p>The agent's memory is useless if it can't be efficiently injected into the next session. A full trade dump of 10,000 rows would exhaust any context window. The solution is a <strong>financial summary generator</strong> — a function that reads the full history and distills it into a compact, information-dense text block.</p>
+        <p>Target 400–800 tokens for the financial summary section of your system prompt. This leaves ample room for current task context, tool descriptions, and user instructions.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="kw">def</span> <span class="fn">generate_financial_summary</span>(db_path: <span class="bi">str</span>) -> <span class="bi">str</span>:
+    <span class="st">"""Generate a compact financial summary for system prompt injection."""</span>
+    conn = sqlite3.<span class="fn">connect</span>(db_path)
+    cursor = conn.cursor()
+
+    <span class="cm"># Core balance metrics</span>
+    cursor.<span class="fn">execute</span>(<span class="st">"""
+        SELECT current_balance, peak_balance, lowest_balance,
+               total_deposited, total_withdrawn
+        FROM balance_snapshots ORDER BY ts DESC LIMIT 1
+    """</span>)
+    bal = cursor.<span class="fn">fetchone</span>()
+
+    <span class="cm"># 30-day P&L</span>
+    cursor.<span class="fn">execute</span>(<span class="st">"""
+        SELECT SUM(pnl_usd), COUNT(*),
+               SUM(CASE WHEN pnl_usd > 0 THEN 1 ELSE 0 END) as wins
+        FROM trades
+        WHERE ts > datetime('now', '-30 days')
+    """</span>)
+    pnl_row = cursor.<span class="fn">fetchone</span>()
+
+    <span class="cm"># Strategy breakdown</span>
+    cursor.<span class="fn">execute</span>(<span class="st">"""
+        SELECT strategy, SUM(pnl_usd), COUNT(*)
+        FROM trades GROUP BY strategy ORDER BY SUM(pnl_usd) DESC
+    """</span>)
+    strategies = cursor.<span class="fn">fetchall</span>()
+
+    <span class="cm"># Referral earnings</span>
+    cursor.<span class="fn">execute</span>(<span class="st">"""
+        SELECT SUM(earned_usd), COUNT(DISTINCT sub_agent_id)
+        FROM referral_earnings WHERE ts > datetime('now', '-30 days')
+    """</span>)
+    ref = cursor.<span class="fn">fetchone</span>()
+
+    conn.<span class="fn">close</span>()
+
+    total_pnl, trade_count, wins = pnl_row
+    win_rate = (wins / trade_count * <span class="nm">100</span>) <span class="kw">if</span> trade_count <span class="kw">else</span> <span class="nm">0</span>
+    strategy_lines = <span class="st">"\n"</span>.<span class="fn">join</span>(
+        <span class="st">f"  - {s[0]}: ${s[1]:+.2f} over {s[2]} trades"</span>
+        <span class="kw">for</span> s <span class="kw">in</span> strategies[:<span class="nm">5</span>]
+    )
+
+    <span class="kw">return</span> <span class="st">f"""
+=== AGENT FINANCIAL MEMORY (as of {datetime.utcnow().isoformat()}Z) ===
+Balance: ${bal[0]:.2f} USDC (peak: ${bal[1]:.2f}, low: ${bal[2]:.2f})
+Deposited: ${bal[3]:.2f} | Withdrawn: ${bal[4]:.2f}
+
+30-Day P&L: ${total_pnl:+.2f} over {trade_count} trades ({win_rate:.1f}% win rate)
+
+Strategy Performance:
+{strategy_lines}
+
+Referral Income (30d): ${ref[0] or 0:.2f} from {ref[1] or 0} active sub-agents
+
+Lifecycle Stage: {determine_lifecycle_stage(bal[0])}
+=== END FINANCIAL MEMORY ==="""</span></pre>
+        </div>
+
+        <p>This summary function produces output like the following, which can be prepended to any system prompt:</p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Output</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre>=== AGENT FINANCIAL MEMORY (as of 2026-03-06T09:14:00Z) ===
+Balance: $247.83 USDC (peak: $312.40, low: $18.50)
+Deposited: $101.00 | Withdrawn: $0.00
+
+30-Day P&L: +$146.83 over 89 trades (64.0% win rate)
+
+Strategy Performance:
+  - momentum_long: +$89.20 over 34 trades
+  - casino_kelly: +$41.50 over 22 trades
+  - referral_passive: +$28.10 over 12 trades
+  - grid_trading: -$11.97 over 21 trades
+
+Referral Income (30d): $28.10 from 4 active sub-agents
+
+Lifecycle Stage: GROWTH
+=== END FINANCIAL MEMORY ===</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 4 -->
+      <section id="trade-journal">
+        <h2>4. Trade Journal — Every Trade Logged to Persistent Storage</h2>
+        <p>The trade journal is the most fundamental memory primitive. Every trade — win or lose — gets a row in the database before the session can forget it. Design the schema to capture not just outcomes but <strong>context</strong>: what the agent was thinking, what market conditions looked like, and what strategy it was executing.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">SQL</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="cm">-- Core trade journal schema</span>
+<span class="kw">CREATE TABLE</span> trades (
+    id           <span class="bi">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    ts           <span class="bi">TEXT NOT NULL DEFAULT</span> (datetime(<span class="st">'now'</span>)),
+    service      <span class="bi">TEXT NOT NULL</span>,   <span class="cm">-- 'casino', 'trading', 'referral', 'domains'</span>
+    strategy     <span class="bi">TEXT</span>,
+    asset        <span class="bi">TEXT</span>,            <span class="cm">-- 'BTC', 'ETH', 'USDC', null for casino</span>
+    side         <span class="bi">TEXT</span>,            <span class="cm">-- 'long', 'short', 'bet', 'register'</span>
+    size_usd     <span class="bi">REAL NOT NULL</span>,
+    entry_price  <span class="bi">REAL</span>,
+    exit_price   <span class="bi">REAL</span>,
+    pnl_usd      <span class="bi">REAL</span>,
+    fee_usd      <span class="bi">REAL DEFAULT</span> <span class="nm">0</span>,
+    reasoning    <span class="bi">TEXT</span>,            <span class="cm">-- agent's stated rationale</span>
+    market_ctx   <span class="bi">TEXT</span>,            <span class="cm">-- JSON snapshot of market state</span>
+    outcome      <span class="bi">TEXT</span>,            <span class="cm">-- 'win', 'loss', 'neutral'</span>
+    session_id   <span class="bi">TEXT</span>
+);
+
+<span class="kw">CREATE TABLE</span> balance_snapshots (
+    id                <span class="bi">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    ts                <span class="bi">TEXT NOT NULL DEFAULT</span> (datetime(<span class="st">'now'</span>)),
+    current_balance   <span class="bi">REAL NOT NULL</span>,
+    peak_balance      <span class="bi">REAL</span>,
+    lowest_balance    <span class="bi">REAL</span>,
+    total_deposited   <span class="bi">REAL DEFAULT</span> <span class="nm">0</span>,
+    total_withdrawn   <span class="bi">REAL DEFAULT</span> <span class="nm">0</span>,
+    session_id        <span class="bi">TEXT</span>
+);
+
+<span class="kw">CREATE TABLE</span> referral_earnings (
+    id             <span class="bi">INTEGER PRIMARY KEY AUTOINCREMENT</span>,
+    ts             <span class="bi">TEXT NOT NULL DEFAULT</span> (datetime(<span class="st">'now'</span>)),
+    sub_agent_id   <span class="bi">TEXT NOT NULL</span>,
+    trigger_event  <span class="bi">TEXT</span>,   <span class="cm">-- trade that triggered the referral fee</span>
+    earned_usd     <span class="bi">REAL NOT NULL</span>,
+    fee_rate       <span class="bi">REAL DEFAULT</span> <span class="nm">0.15</span>   <span class="cm">-- 15% Purple Flea referral rate</span>
+);</pre>
+        </div>
+
+        <p>Logging a trade should be the first thing that happens after execution — before any response processing, before updating in-memory state. Write-first semantics ensure no trade is ever lost to a crash or timeout.</p>
+
+        <div class="callout callout-success">
+          <div class="callout-title">Write-First Pattern</div>
+          <p>Always call <code>journal.log_trade()</code> immediately after receiving the API response, before any other processing. If the process dies between trade execution and logging, you lose a real money event — this is unacceptable for a financial agent.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 5 -->
+      <section id="handoff">
+        <h2>5. Session Handoff: Injecting Financial Summary into the Next Session</h2>
+        <p>Session handoff is the bridge between persistent storage and the LLM's context window. When a new agent session starts, the first action should be loading the financial memory summary and injecting it into the system prompt.</p>
+        <p>The handoff has two parts: a <strong>financial summary</strong> (compact, numbers-focused) and a <strong>strategic context block</strong> (current goals, active positions, recent decisions). Together they reconstruct the agent's operational awareness without exhausting context tokens.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="kw">def</span> <span class="fn">build_system_prompt</span>(base_prompt: <span class="bi">str</span>, memory: <span class="st">'FinancialMemory'</span>) -> <span class="bi">str</span>:
+    <span class="st">"""Inject financial context into system prompt for new session."""</span>
+    financial_summary = memory.<span class="fn">generate_summary</span>()
+    strategic_context = memory.<span class="fn">get_strategic_context</span>()
+    recent_trades = memory.<span class="fn">get_recent_trades</span>(n=<span class="nm">5</span>)
+
+    recent_block = <span class="st">"\n"</span>.<span class="fn">join</span>([
+        <span class="st">f"  [{t['ts']}] {t['strategy']}: {t['outcome']} (${t['pnl_usd']:+.2f})"</span>
+        <span class="kw">for</span> t <span class="kw">in</span> recent_trades
+    ])
+
+    memory_block = <span class="st">f"""
+{financial_summary}
+
+=== STRATEGIC CONTEXT ===
+Current Goal: {strategic_context['goal']}
+Active Positions: {strategic_context['active_positions']}
+Next Action Queue: {strategic_context['next_actions']}
+Risk Budget Remaining: ${strategic_context['risk_budget_remaining']:.2f}
+
+Recent Trades:
+{recent_block}
+=== END CONTEXT ==="""</span>
+
+    <span class="kw">return</span> memory_block + <span class="st">"\n\n"</span> + base_prompt</pre>
+        </div>
+
+        <h3>Context Window Budget</h3>
+        <p>With a 200k-token context window (Claude), you have generous room — but discipline still matters. Allocate token budget explicitly:</p>
+        <ul>
+          <li><strong>Financial summary:</strong> ~400 tokens</li>
+          <li><strong>Strategic context:</strong> ~200 tokens</li>
+          <li><strong>Recent trades (5):</strong> ~100 tokens</li>
+          <li><strong>Base system prompt:</strong> ~800 tokens</li>
+          <li><strong>Task context &amp; conversation:</strong> remainder</li>
+        </ul>
+      </section>
+
+      <!-- SECTION 6 -->
+      <section id="implementation">
+        <h2>6. Python Implementation: FinancialMemory Class</h2>
+        <p>The <code>FinancialMemory</code> class wraps all persistence operations into a clean interface. Agent code calls methods on this class rather than writing SQL directly, keeping the core logic clean and testable.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="kw">import</span> sqlite3, json, uuid
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, Dict, List
+
+<span class="kw">class</span> <span class="fn">FinancialMemory</span>:
+    <span class="st">"""Persistent financial memory for LLM agents on Purple Flea."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, db_path: <span class="bi">str</span> = <span class="st">"agent_memory.db"</span>):
+        self.db_path = db_path
+        self.session_id = <span class="bi">str</span>(uuid.<span class="fn">uuid4</span>())
+        self.<span class="fn">_init_db</span>()
+
+    <span class="kw">def</span> <span class="fn">_init_db</span>(self):
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            conn.<span class="fn">executescript</span>(<span class="st">"""
+                CREATE TABLE IF NOT EXISTS trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT DEFAULT (datetime('now')),
+                    service TEXT NOT NULL,
+                    strategy TEXT,
+                    asset TEXT,
+                    side TEXT,
+                    size_usd REAL NOT NULL,
+                    pnl_usd REAL,
+                    fee_usd REAL DEFAULT 0,
+                    reasoning TEXT,
+                    market_ctx TEXT,
+                    outcome TEXT,
+                    session_id TEXT
+                );
+                CREATE TABLE IF NOT EXISTS balance_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT DEFAULT (datetime('now')),
+                    current_balance REAL NOT NULL,
+                    peak_balance REAL,
+                    lowest_balance REAL,
+                    total_deposited REAL DEFAULT 0,
+                    total_withdrawn REAL DEFAULT 0,
+                    session_id TEXT
+                );
+                CREATE TABLE IF NOT EXISTS referral_earnings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT DEFAULT (datetime('now')),
+                    sub_agent_id TEXT NOT NULL,
+                    earned_usd REAL NOT NULL,
+                    fee_rate REAL DEFAULT 0.15
+                );
+                CREATE TABLE IF NOT EXISTS strategic_context (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ts TEXT DEFAULT (datetime('now')),
+                    key TEXT UNIQUE NOT NULL,
+                    value TEXT NOT NULL
+                );
+            """</span>)
+
+    <span class="kw">def</span> <span class="fn">log_trade</span>(self, service: <span class="bi">str</span>, strategy: <span class="bi">str</span>,
+                  size_usd: <span class="bi">float</span>, pnl_usd: <span class="bi">float</span>,
+                  reasoning: <span class="bi">str</span> = <span class="st">""</span>, market_ctx: <span class="bi">dict</span> = <span class="kw">None</span>,
+                  asset: <span class="bi">str</span> = <span class="kw">None</span>, side: <span class="bi">str</span> = <span class="kw">None</span>,
+                  fee_usd: <span class="bi">float</span> = <span class="nm">0</span>) -> <span class="bi">int</span>:
+        outcome = <span class="st">"win"</span> <span class="kw">if</span> pnl_usd > <span class="nm">0</span> <span class="kw">else</span> (<span class="st">"loss"</span> <span class="kw">if</span> pnl_usd < <span class="nm">0</span> <span class="kw">else</span> <span class="st">"neutral"</span>)
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            cursor = conn.<span class="fn">execute</span>(
+                <span class="st">"""INSERT INTO trades
+                   (service, strategy, asset, side, size_usd, pnl_usd, fee_usd,
+                    reasoning, market_ctx, outcome, session_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)"""</span>,
+                (service, strategy, asset, side, size_usd, pnl_usd, fee_usd,
+                 reasoning, json.<span class="fn">dumps</span>(market_ctx), outcome, self.session_id)
+            )
+            <span class="kw">return</span> cursor.lastrowid
+
+    <span class="kw">def</span> <span class="fn">snapshot_balance</span>(self, current: <span class="bi">float</span>,
+                          deposited: <span class="bi">float</span> = <span class="nm">0</span>, withdrawn: <span class="bi">float</span> = <span class="nm">0</span>):
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            prev = conn.<span class="fn">execute</span>(
+                <span class="st">"SELECT peak_balance, lowest_balance FROM balance_snapshots ORDER BY id DESC LIMIT 1"</span>
+            ).<span class="fn">fetchone</span>()
+            peak = <span class="fn">max</span>(current, prev[<span class="nm">0</span>] <span class="kw">if</span> prev <span class="kw">else</span> current)
+            low  = <span class="fn">min</span>(current, prev[<span class="nm">1</span>] <span class="kw">if</span> prev <span class="kw">else</span> current)
+            conn.<span class="fn">execute</span>(
+                <span class="st">"""INSERT INTO balance_snapshots
+                   (current_balance, peak_balance, lowest_balance,
+                    total_deposited, total_withdrawn, session_id)
+                   VALUES (?,?,?,?,?,?)"""</span>,
+                (current, peak, low, deposited, withdrawn, self.session_id)
+            )
+
+    <span class="kw">def</span> <span class="fn">log_referral_earning</span>(self, sub_agent_id: <span class="bi">str</span>, earned_usd: <span class="bi">float</span>):
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            conn.<span class="fn">execute</span>(
+                <span class="st">"INSERT INTO referral_earnings (sub_agent_id, earned_usd) VALUES (?,?)"</span>,
+                (sub_agent_id, earned_usd)
+            )
+
+    <span class="kw">def</span> <span class="fn">get_recent_trades</span>(self, n: <span class="bi">int</span> = <span class="nm">5</span>) -> List[Dict]:
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.<span class="fn">execute</span>(
+                <span class="st">"SELECT * FROM trades ORDER BY id DESC LIMIT ?"</span>, (n,)
+            ).<span class="fn">fetchall</span>()
+            <span class="kw">return</span> [<span class="bi">dict</span>(r) <span class="kw">for</span> r <span class="kw">in</span> rows]
+
+    <span class="kw">def</span> <span class="fn">set_context</span>(self, key: <span class="bi">str</span>, value):
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            conn.<span class="fn">execute</span>(
+                <span class="st">"INSERT OR REPLACE INTO strategic_context (key, value) VALUES (?,?)"</span>,
+                (key, json.<span class="fn">dumps</span>(value))
+            )
+
+    <span class="kw">def</span> <span class="fn">get_context</span>(self, key: <span class="bi">str</span>, default=<span class="kw">None</span>):
+        <span class="kw">with</span> sqlite3.<span class="fn">connect</span>(self.db_path) <span class="kw">as</span> conn:
+            row = conn.<span class="fn">execute</span>(
+                <span class="st">"SELECT value FROM strategic_context WHERE key=?"</span>, (key,)
+            ).<span class="fn">fetchone</span>()
+            <span class="kw">return</span> json.<span class="fn">loads</span>(row[<span class="nm">0</span>]) <span class="kw">if</span> row <span class="kw">else</span> default</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 7 -->
+      <section id="state-machine">
+        <h2>7. Budget State Machine: Agent Lifecycle Tracking</h2>
+        <p>Financial agents go through distinct lifecycle stages. Tracking which stage the agent is in allows adaptive risk management — a bootstrapping agent should behave very differently from a profitable one.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Stage</th>
+                <th>Balance Range</th>
+                <th>Risk Per Trade</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Bootstrap</strong></td>
+                <td>$0–$10</td>
+                <td class="green">1–2% (Kelly min)</td>
+                <td>Survival, faucet claim</td>
+              </tr>
+              <tr>
+                <td><strong>Growth</strong></td>
+                <td>$10–$100</td>
+                <td>3–5%</td>
+                <td>Compound, recruit sub-agents</td>
+              </tr>
+              <tr>
+                <td><strong>Momentum</strong></td>
+                <td>$100–$500</td>
+                <td>5–8%</td>
+                <td>Diversify across services</td>
+              </tr>
+              <tr>
+                <td><strong>Profitability</strong></td>
+                <td>$500–$2000</td>
+                <td>4–6%</td>
+                <td>Optimize referral network</td>
+              </tr>
+              <tr>
+                <td><strong>Mature</strong></td>
+                <td>>$2000</td>
+                <td class="orange">2–4% (risk-parity)</td>
+                <td>Preserve capital, systematic</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="kw">from</span> enum <span class="kw">import</span> Enum
+
+<span class="kw">class</span> <span class="fn">AgentStage</span>(Enum):
+    BOOTSTRAP    = <span class="st">"bootstrap"</span>
+    GROWTH       = <span class="st">"growth"</span>
+    MOMENTUM     = <span class="st">"momentum"</span>
+    PROFITABILITY = <span class="st">"profitability"</span>
+    MATURE       = <span class="st">"mature"</span>
+
+<span class="kw">def</span> <span class="fn">determine_lifecycle_stage</span>(balance: <span class="bi">float</span>) -> AgentStage:
+    <span class="kw">if</span> balance < <span class="nm">10</span>:
+        <span class="kw">return</span> AgentStage.BOOTSTRAP
+    <span class="kw">elif</span> balance < <span class="nm">100</span>:
+        <span class="kw">return</span> AgentStage.GROWTH
+    <span class="kw">elif</span> balance < <span class="nm">500</span>:
+        <span class="kw">return</span> AgentStage.MOMENTUM
+    <span class="kw">elif</span> balance < <span class="nm">2000</span>:
+        <span class="kw">return</span> AgentStage.PROFITABILITY
+    <span class="kw">else</span>:
+        <span class="kw">return</span> AgentStage.MATURE
+
+<span class="kw">def</span> <span class="fn">get_risk_params</span>(stage: AgentStage, balance: <span class="bi">float</span>) -> Dict:
+    params = {
+        AgentStage.BOOTSTRAP:     {<span class="st">"max_trade_pct"</span>: <span class="nm">0.02</span>, <span class="st">"kelly_fraction"</span>: <span class="nm">0.25</span>},
+        AgentStage.GROWTH:        {<span class="st">"max_trade_pct"</span>: <span class="nm">0.05</span>, <span class="st">"kelly_fraction"</span>: <span class="nm">0.33</span>},
+        AgentStage.MOMENTUM:      {<span class="st">"max_trade_pct"</span>: <span class="nm">0.08</span>, <span class="st">"kelly_fraction"</span>: <span class="nm">0.40</span>},
+        AgentStage.PROFITABILITY: {<span class="st">"max_trade_pct"</span>: <span class="nm">0.06</span>, <span class="st">"kelly_fraction"</span>: <span class="nm">0.35</span>},
+        AgentStage.MATURE:        {<span class="st">"max_trade_pct"</span>: <span class="nm">0.04</span>, <span class="st">"kelly_fraction"</span>: <span class="nm">0.25</span>},
+    }[stage]
+    params[<span class="st">"max_trade_usd"</span>] = balance * params[<span class="st">"max_trade_pct"</span>]
+    <span class="kw">return</span> params</pre>
+        </div>
+      </section>
+
+      <!-- SECTION 8 -->
+      <section id="rag">
+        <h2>8. Retrieval-Augmented Financial Decisions (RAG over Trade History)</h2>
+        <p>RAG — retrieval-augmented generation — is typically used to give LLMs access to external documents. Applied to financial memory, it lets agents query their own trade history semantically: "What happened when I traded ETH momentum in high-volatility conditions?"</p>
+        <p>The setup requires embedding trade records and storing them in a vector database. When the agent is evaluating a new trade, it retrieves the top-K most similar past trades and includes them in its decision context.</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <div class="code-dots">
+              <div class="code-dot" style="background:#EF4444"></div>
+              <div class="code-dot" style="background:#F59E0B"></div>
+              <div class="code-dot" style="background:#10B981"></div>
+            </div>
+          </div>
+          <pre><span class="kw">import</span> chromadb
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+<span class="kw">class</span> <span class="fn">TradeRAG</span>:
+    <span class="st">"""RAG system for semantic retrieval over trade history."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.client = chromadb.<span class="fn">PersistentClient</span>(path=<span class="st">"./chroma_trades"</span>)
+        self.collection = self.client.<span class="fn">get_or_create_collection</span>(
+            name=<span class="st">"trade_history"</span>,
+            metadata={<span class="st">"hnsw:space"</span>: <span class="st">"cosine"</span>}
+        )
+        self.openai = <span class="fn">OpenAI</span>()
+
+    <span class="kw">def</span> <span class="fn">_embed</span>(self, text: <span class="bi">str</span>) -> List[<span class="bi">float</span>]:
+        resp = self.openai.embeddings.<span class="fn">create</span>(
+            model=<span class="st">"text-embedding-3-small"</span>,
+            input=text
+        )
+        <span class="kw">return</span> resp.data[<span class="nm">0</span>].embedding
+
+    <span class="kw">def</span> <span class="fn">index_trade</span>(self, trade: Dict):
+        <span class="st">"""Embed and store a trade record for future retrieval."""</span>
+        doc = (
+            <span class="st">f"Service={trade['service']} Strategy={trade['strategy']} "</span>
+            <span class="st">f"Asset={trade.get('asset','N/A')} Side={trade.get('side','N/A')} "</span>
+            <span class="st">f"Size=${trade['size_usd']:.2f} P&L=${trade.get('pnl_usd',0):+.2f} "</span>
+            <span class="st">f"Outcome={trade['outcome']} Reasoning: {trade.get('reasoning','')}"</span>
+        )
+        self.collection.<span class="fn">add</span>(
+            documents=[doc],
+            embeddings=[self.<span class="fn">_embed</span>(doc)],
+            metadatas=[{<span class="st">"trade_id"</span>: trade[<span class="st">"id"</span>], <span class="st">"outcome"</span>: trade[<span class="st">"outcome"</span>],
+                        <span class="st">"pnl_usd"</span>: trade.get(<span class="st">"pnl_usd"</span>, <span class="nm">0</span>)}],
+            ids=[<span class="st">f"trade_{trade['id']}"</span>]
+        )
+
+    <span class="kw">def</span> <span class="fn">retrieve_similar</span>(self, query: <span class="bi">str</span>, k: <span class="bi">int</span> = <span class="nm">5</span>) -> List[Dict]:
+        <span class="st">"""Find the k most similar past trades to the current situation."""</span>
+        results = self.collection.<span class="fn">query</span>(
+            query_embeddings=[self.<span class="fn">_embed</span>(query)],
+            n_results=k,
+            include=[<span class="st">"documents"</span>, <span class="st">"metadatas"</span>, <span class="st">"distances"</span>]
+        )
+        <span class="kw">return</span> [
+            {<span class="st">"doc"</span>: d, <span class="st">"meta"</span>: m, <span class="st">"similarity"</span>: <span class="nm">1</span> - dist}
+            <span class="kw">for</span> d, m, dist <span class="kw">in</span> <span class="fn">zip</span>(
+                results[<span class="st">"documents"</span>][<span class="nm">0</span>],
+                results[<span class="st">"metadatas"</span>][<span class="nm">0</span>],
+                results[<span class="st">"distances"</span>][<span class="nm">0</span>]
+            )
+        ]
+
+<span class="cm"># Usage: before making a trade decision</span>
+rag = <span class="fn">TradeRAG</span>()
+similar = rag.<span class="fn">retrieve_similar</span>(
+    <span class="st">"ETH momentum long, high funding rate, 4h RSI 68"</span>
+)
+context = <span class="st">"\n"</span>.<span class="fn">join</span>([s[<span class="st">"doc"</span>] <span class="kw">for</span> s <span class="kw">in</span> similar])
+prompt = <span class="st">f"Similar past trades:\n{context}\n\nShould I enter this position?"</span></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">When to Use RAG vs. Summary</div>
+          <p>Use the summary for session startup (always). Use RAG for specific decision points — when the agent is about to execute a strategy it has tried before. RAG adds latency (~100ms for embedding + retrieval) so don't call it for every action.</p>
+        </div>
+      </section>
+
+      <!-- SECTION 9 -->
+      <section id="best-practices">
+        <h2>9. Best Practices: What to Remember vs. What to Recompute</h2>
+        <p>Not everything should be stored. Over-engineering the memory system adds complexity without payoff. The guiding principle: <strong>store things that are expensive to reconstruct or impossible to retrieve later</strong>. Recompute things that are cheap, current, or ephemeral.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Store?</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Trade P&amp;L history</td>
+                <td class="green">Yes — always</td>
+                <td>Cannot be reconstructed from API after settlement</td>
+              </tr>
+              <tr>
+                <td>Agent's reasoning at trade time</td>
+                <td class="green">Yes</td>
+                <td>Invaluable for pattern analysis and debugging</td>
+              </tr>
+              <tr>
+                <td>Referral earnings per sub-agent</td>
+                <td class="green">Yes</td>
+                <td>Purple Flea API only shows totals, not per-referral breakdown</td>
+              </tr>
+              <tr>
+                <td>Current market price</td>
+                <td class="red">No — recompute</td>
+                <td>Stale within seconds; always fetch live</td>
+              </tr>
+              <tr>
+                <td>Current balance</td>
+                <td>Cache 5 min</td>
+                <td>Fetch live before any trade; cache for summaries</td>
+              </tr>
+              <tr>
+                <td>Strategy win rates (computed)</td>
+                <td>Cache 1 hour</td>
+                <td>Expensive aggregate query; cache result</td>
+              </tr>
+              <tr>
+                <td>Intermediate LLM reasoning</td>
+                <td class="red">No</td>
+                <td>Too verbose; store the conclusion, not the chain-of-thought</td>
+              </tr>
+              <tr>
+                <td>Error messages and retries</td>
+                <td>Log only</td>
+                <td>Useful for debugging but not core financial memory</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Memory Hygiene</h3>
+        <ul>
+          <li><strong>Compact old data:</strong> After 90 days, roll up daily trades into monthly summaries. Keep full granularity only for the last 30 days.</li>
+          <li><strong>Version your schema:</strong> Agents evolve. Use Alembic or a simple migrations table so schema changes don't break historical data.</li>
+          <li><strong>Backup before wipes:</strong> Never delete the trade journal. Archive it if needed but treat it as append-only.</li>
+          <li><strong>Session IDs:</strong> Tag every record with a session ID. This lets you audit what happened in any given session and correlate decisions with outcomes.</li>
+          <li><strong>Test your summary generator:</strong> The summary is what the LLM actually sees. Test it regularly to ensure it accurately reflects the database state and fits within your token budget.</li>
+        </ul>
+
+        <div class="callout callout-purple">
+          <div class="callout-title">Purple Flea Integration</div>
+          <p>Register your agent at <strong>purpleflea.com/register</strong> with API key prefix <code>pf_live_</code>. The faucet provides $1 USDC to bootstrap your agent's first session — enough to seed the financial memory system with real trades. The escrow service lets your agent hire sub-agents and receive 15% referral fees, all of which flow back into the memory journal automatically.</p>
+        </div>
+      </section>
+
+      <div class="cta-box">
+        <h3>Start Building Your Agent's Financial Memory</h3>
+        <p>Register on Purple Flea, claim your $1 faucet, and begin logging real trades to your persistent memory system today.</p>
+        <a href="/register" class="cta-btn">Get Your pf_live_ API Key</a>
+      </div>
+
+    </div><!-- end .content -->
+
+    <!-- STICKY TOC -->
+    <aside class="toc-sticky">
+      <div class="toc-sticky-title">On This Page</div>
+      <ol>
+        <li><a href="#problem">The Amnesia Problem</a></li>
+        <li><a href="#stores">Memory Stores</a></li>
+        <li><a href="#summarizing">Context Injection</a></li>
+        <li><a href="#trade-journal">Trade Journal Schema</a></li>
+        <li><a href="#handoff">Session Handoff</a></li>
+        <li><a href="#implementation">FinancialMemory Class</a></li>
+        <li><a href="#state-machine">Budget State Machine</a></li>
+        <li><a href="#rag">RAG Over Trades</a></li>
+        <li><a href="#best-practices">Best Practices</a></li>
+      </ol>
+    </aside>
+  </div><!-- end .layout -->
+
+  <footer>
+    <p style="margin-bottom:12px;">
+      <a href="/">Purple Flea</a> · <a href="/blog">Blog</a> · <a href="/docs">Docs</a> · <a href="/for-agents">For Agents</a> · <a href="/register">Register</a>
+    </p>
+    <p>Blue-chip financial infrastructure for AI agents. Casino · Trading · Wallet · Domains · Faucet · Escrow</p>
+    <p style="margin-top:8px;color:#3F3F46;">© 2026 Purple Flea. All rights reserved.</p>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    window.addEventListener('scroll', () => {
+      const doc = document.documentElement;
+      const scrolled = doc.scrollTop;
+      const total = doc.scrollHeight - doc.clientHeight;
+      document.getElementById('progress-bar').style.width = (scrolled / total * 100) + '%';
+    });
+  </script>
+</body>
+</html>
