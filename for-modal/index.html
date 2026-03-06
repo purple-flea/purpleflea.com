@@ -810,6 +810,115 @@ secret = modal.Secret.<span class="fn">from_name</span>(<span class="str">"purpl
   </div>
 </section>
 
+<!-- ADVANCED PATTERNS -->
+<section class="section-alt">
+  <div class="container" style="max-width:960px;">
+    <div class="sec-header">
+      <h2 class="sec-title">Advanced Modal Patterns for Purple Flea</h2>
+      <p class="sec-sub">Production-grade patterns for building reliable, scalable financial agents on Modal with Purple Flea's infrastructure.</p>
+    </div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:10px;color:var(--text)">Pattern 1: Stateful Agent with Modal Dict</h3>
+    <p class="prose">Use Modal's distributed Dict to share state between function invocations — store open positions, referral income accumulated, and session P&amp;L across scheduled runs without a database.</p>
+    <div class="code-block">
+      <div class="code-head"><span class="title">stateful_agent.py</span><span class="lang">Python</span></div>
+      <pre><span class="kw">import</span> modal, requests, os
+
+app = modal.<span class="fn">App</span>(<span class="str">"pf-stateful-agent"</span>)
+img = modal.Image.debian_slim().<span class="fn">pip_install</span>(<span class="str">"requests"</span>)
+secret = modal.Secret.<span class="fn">from_name</span>(<span class="str">"purpleflea-api-key"</span>)
+state = modal.Dict.<span class="fn">from_name</span>(<span class="str">"pf-agent-state"</span>, create_if_missing=<span class="kw">True</span>)
+
+<span class="dec">@app.function</span>(image=img, secrets=[secret], schedule=modal.<span class="fn">Period</span>(hours=<span class="num">4</span>))
+<span class="kw">def</span> <span class="fn">managed_trading_session</span>():
+    KEY = os.environ[<span class="str">"PURPLEFLEA_API_KEY"</span>]
+    H = {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {KEY}"</span>}
+    BASE = <span class="str">"https://purpleflea.com/api"</span>
+
+    <span class="cm"># Load previous state</span>
+    total_pnl = state.<span class="fn">get</span>(<span class="str">"total_pnl"</span>, <span class="num">0.0</span>)
+    sessions = state.<span class="fn">get</span>(<span class="str">"session_count"</span>, <span class="num">0</span>)
+
+    <span class="cm"># Execute strategy</span>
+    bal = requests.<span class="fn">get</span>(<span class="str">f"{BASE}/wallet/balance"</span>, headers=H).<span class="fn">json</span>()
+    balance = float(bal.<span class="fn">get</span>(<span class="str">"usdc"</span>, <span class="num">0</span>))
+
+    <span class="cm"># Simple mean-reversion on BTC 1h</span>
+    candles = requests.<span class="fn">get</span>(<span class="str">f"{BASE}/trading/candles"</span>,
+        headers=H, params={<span class="str">"symbol"</span>: <span class="str">"BTC"</span>, <span class="str">"interval"</span>: <span class="str">"1h"</span>, <span class="str">"limit"</span>: <span class="num">20</span>}
+    ).<span class="fn">json</span>()[<span class="str">"candles"</span>]
+    closes = [c[<span class="str">"close"</span>] <span class="kw">for</span> c <span class="kw">in</span> candles]
+    ma20 = sum(closes) / len(closes)
+    current = closes[-<span class="num">1</span>]
+    deviation = (current - ma20) / ma20
+
+    side = <span class="str">"long"</span> <span class="kw">if</span> deviation < -<span class="num">0.015</span> <span class="kw">else</span> <span class="str">"short"</span> <span class="kw">if</span> deviation > <span class="num">0.015</span> <span class="kw">else</span> <span class="kw">None</span>
+    session_pnl = <span class="num">0.0</span>
+
+    <span class="kw">if</span> side <span class="kw">and</span> balance > <span class="num">10</span>:
+        trade = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/trading/trade"</span>, headers=H,
+            json={<span class="str">"symbol"</span>: <span class="str">"BTC"</span>, <span class="str">"side"</span>: side,
+                  <span class="str">"size"</span>: round(balance * <span class="num">0.1</span>, <span class="num">2</span>), <span class="str">"leverage"</span>: <span class="num">2</span>}).<span class="fn">json</span>()
+        session_pnl = float(trade.<span class="fn">get</span>(<span class="str">"estimated_pnl"</span>, <span class="num">0</span>))
+        <span class="fn">print</span>(<span class="str">f"Trade: {side} BTC | Deviation: {deviation:.2%}"</span>)
+
+    <span class="cm"># Persist state</span>
+    state[<span class="str">"total_pnl"</span>] = total_pnl + session_pnl
+    state[<span class="str">"session_count"</span>] = sessions + <span class="num">1</span>
+    state[<span class="str">"last_balance"</span>] = balance
+    <span class="fn">print</span>(<span class="str">f"Session {sessions+1} | P&amp;L: ${session_pnl:.4f} | Total: ${total_pnl+session_pnl:.4f}"</span>)</pre>
+    </div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin:28px 0 10px;color:var(--text)">Pattern 2: Queue-Based Agent Orchestration</h3>
+    <p class="prose">Use Modal Queue to coordinate multi-agent workflows — a producer agents generates trading signals, consumer agents execute them. Purple Flea's escrow settles inter-agent payments.</p>
+    <div class="code-block">
+      <div class="code-head"><span class="title">queue_orchestration.py</span><span class="lang">Python</span></div>
+      <pre><span class="kw">import</span> modal, requests, os
+
+app = modal.<span class="fn">App</span>(<span class="str">"pf-queue-agents"</span>)
+img = modal.Image.debian_slim().<span class="fn">pip_install</span>(<span class="str">"requests"</span>)
+secret = modal.Secret.<span class="fn">from_name</span>(<span class="str">"purpleflea-api-key"</span>)
+signal_queue = modal.Queue.<span class="fn">from_name</span>(<span class="str">"trade-signals"</span>, create_if_missing=<span class="kw">True</span>)
+
+<span class="dec">@app.function</span>(image=img, secrets=[secret], schedule=modal.<span class="fn">Period</span>(minutes=<span class="num">15</span>))
+<span class="kw">def</span> <span class="fn">signal_producer</span>():
+    <span class="cm"># Signal agent: analyzes markets and publishes signals</span>
+    KEY = os.environ[<span class="str">"PURPLEFLEA_API_KEY"</span>]
+    H = {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {KEY}"</span>}
+    markets = requests.<span class="fn">get</span>(
+        <span class="str">"https://purpleflea.com/api/trading/markets"</span>, headers=H
+    ).<span class="fn">json</span>()[<span class="str">"markets"</span>]
+
+    <span class="kw">for</span> mkt <span class="kw">in</span> markets[:<span class="num">10</span>]:
+        <span class="kw">if</span> mkt[<span class="str">"funding_rate"</span>] > <span class="num">0.001</span>:
+            signal_queue.<span class="fn">put</span>({
+                <span class="str">"symbol"</span>: mkt[<span class="str">"symbol"</span>],
+                <span class="str">"side"</span>: <span class="str">"short"</span>,
+                <span class="str">"reason"</span>: <span class="str">f"funding_rate={mkt['funding_rate']:.4%}"</span>
+            })
+
+<span class="dec">@app.function</span>(image=img, secrets=[secret])
+<span class="kw">def</span> <span class="fn">signal_consumer</span>():
+    <span class="cm"># Executor agent: consumes signals and places trades</span>
+    KEY = os.environ[<span class="str">"PURPLEFLEA_API_KEY"</span>]
+    H = {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {KEY}"</span>}
+
+    <span class="kw">while not</span> signal_queue.<span class="fn">empty</span>():
+        signal = signal_queue.<span class="fn">get</span>(block=<span class="kw">False</span>)
+        trade = requests.<span class="fn">post</span>(
+            <span class="str">"https://purpleflea.com/api/trading/trade"</span>, headers=H,
+            json={<span class="str">"symbol"</span>: signal[<span class="str">"symbol"</span>],
+                  <span class="str">"side"</span>: signal[<span class="str">"side"</span>],
+                  <span class="str">"size"</span>: <span class="num">25</span>, <span class="str">"leverage"</span>: <span class="num">1</span>}
+        ).<span class="fn">json</span>()
+        <span class="fn">print</span>(<span class="str">f"Executed {signal['symbol']} | {signal['reason']}"</span>)</pre>
+    </div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin:28px 0 10px;color:var(--text)">Platform Stats and Research</h3>
+    <p class="prose">Purple Flea has published a peer-reviewed research paper on the design of agent financial infrastructure: <a href="https://doi.org/10.5281/zenodo.18808440">DOI: 10.5281/zenodo.18808440</a>. The paper covers economic incentive design, referral network dynamics, provably fair casino mechanics, and the escrow settlement protocol. Modal agents that interact with Purple Flea contribute to the <em>PurpleFlea/agent-financial-interactions</em> dataset on HuggingFace, enabling ongoing research into multi-agent financial coordination at scale.</p>
+  </div>
+</section>
+
 <!-- CTA -->
 <section class="section">
   <div class="container" style="max-width:720px;text-align:center;">
