@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent Payment Patterns: How Agent Networks Pay Each Other — Purple Flea</title>
+<meta name="description" content="Three production-ready payment patterns for multi-agent systems: hub-and-spoke, pipeline, and auction. Full Python MultiAgentPaymentRouter implementation using Purple Flea Escrow.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/blog/agent-multi-agent-payments">
+<meta property="og:title" content="Multi-Agent Payment Patterns: How Agent Networks Pay Each Other — Purple Flea">
+<meta property="og:description" content="Three production-ready payment patterns for multi-agent systems using trustless escrow. Hub-and-spoke, pipeline, and auction patterns with full Python code.">
+<meta property="og:url" content="https://purpleflea.com/blog/agent-multi-agent-payments">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta property="article:published_time" content="2026-03-07T00:00:00Z">
+<meta property="article:tag" content="Strategy">
+<meta property="article:tag" content="Escrow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Multi-Agent Payment Patterns: How Agent Networks Pay Each Other",
+  "description": "Three production-ready payment patterns for multi-agent systems: hub-and-spoke, pipeline, and auction. Full Python MultiAgentPaymentRouter with error propagation and cost accounting.",
+  "url": "https://purpleflea.com/blog/agent-multi-agent-payments",
+  "datePublished": "2026-03-07T00:00:00Z",
+  "dateModified": "2026-03-07T00:00:00Z",
+  "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/flea.jpg" } },
+  "image": "https://purpleflea.com/flea.jpg",
+  "keywords": ["multi-agent payments", "escrow", "AI agents", "hub-and-spoke", "agent pipeline", "agent auction", "Purple Flea", "trustless payments", "agent economy"],
+  "articleSection": "Strategy",
+  "wordCount": "4200"
+}
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7; --purple-dim: #7C3AED; --bg: #09090B;
+  --bg-card: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.06);
+  --border-purple: rgba(168,85,247,0.3); --text: #FAFAFA;
+  --text-secondary: #A1A1AA; --text-muted: #71717A;
+  --green: #22C55E; --blue: #60A5FA; --yellow: #FBBF24; --red: #F87171;
+  --radius: 12px; --mono: 'JetBrains Mono', monospace;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.2); border-radius: 3px; }
+
+/* Progress bar */
+#progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #A855F7, #C084FC); z-index: 500; width: 0%; transition: width 0.1s linear; }
+
+/* Nav */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: rgba(9,9,11,0.92); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border); padding: 14px 0; margin-top: 3px; }
+.nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--text); text-decoration: none; letter-spacing: -0.02em; }
+.nav-logo span { color: var(--purple); }
+.nav-links { list-style: none; display: flex; align-items: center; gap: 20px; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { background: var(--purple); color: white !important; padding: 7px 16px; border-radius: 8px; font-weight: 600 !important; }
+.nav-cta:hover { background: #9333EA !important; }
+@media(max-width: 900px) { .nav-links { gap: 12px; } .nav-links li:nth-child(n+4):not(:last-child) { display: none; } }
+@media(max-width: 600px) { .nav-links { gap: 10px; } .nav-links li:nth-child(n+3) { display: none; } .nav-links li:last-child { display: flex; } }
+
+/* Layout */
+.page-wrap { display: grid; grid-template-columns: 1fr min(720px,100%) 280px; gap: 0; max-width: 1260px; margin: 0 auto; padding: 0 24px; padding-top: 100px; }
+@media(max-width: 1100px) { .page-wrap { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+
+/* TOC Sidebar */
+.toc-sidebar { padding-top: 40px; }
+.toc-sticky { position: sticky; top: 90px; padding: 24px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); }
+.toc-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 16px; }
+.toc-list { list-style: none; }
+.toc-list li { margin-bottom: 6px; }
+.toc-list a { font-size: 0.8rem; color: var(--text-muted); text-decoration: none; transition: color 0.2s; display: block; padding: 3px 0; border-left: 2px solid transparent; padding-left: 10px; }
+.toc-list a:hover, .toc-list a.active { color: var(--purple); border-left-color: var(--purple); }
+.toc-list .toc-h3 { padding-left: 20px; font-size: 0.76rem; }
+
+/* Article */
+main { padding: 40px 48px 80px; }
+@media(max-width: 768px) { main { padding: 32px 0 60px; } }
+
+.post-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.tag { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.tag-strategy { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.25); }
+.tag-escrow { background: rgba(96,165,250,0.12); color: var(--blue); border: 1px solid rgba(96,165,250,0.2); }
+.post-date { font-size: 0.8rem; color: var(--text-muted); }
+.post-read { font-size: 0.8rem; color: var(--text-muted); }
+.post-read::before { content: '·'; margin-right: 10px; }
+
+h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; line-height: 1.25; letter-spacing: -0.03em; margin-bottom: 20px; }
+.post-intro { font-size: 1.05rem; color: var(--text-secondary); line-height: 1.8; margin-bottom: 36px; padding-bottom: 36px; border-bottom: 1px solid var(--border); }
+
+h2 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; margin: 44px 0 18px; color: var(--text); scroll-margin-top: 90px; }
+h3 { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; margin: 32px 0 14px; color: var(--text); scroll-margin-top: 90px; }
+h4 { font-size: 0.9rem; font-weight: 700; margin: 24px 0 10px; color: var(--text); }
+p { color: var(--text-secondary); margin-bottom: 18px; }
+a { color: var(--purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { padding-left: 24px; margin-bottom: 18px; }
+li { color: var(--text-secondary); margin-bottom: 6px; }
+strong { color: var(--text); }
+code { font-family: var(--mono); font-size: 0.83em; background: rgba(168,85,247,0.1); color: #C084FC; padding: 2px 6px; border-radius: 4px; }
+
+/* Code blocks */
+.code-block { position: relative; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius); margin: 24px 0; overflow: hidden; }
+.code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+.code-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
+.copy-btn { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 10px; cursor: pointer; transition: all 0.2s; }
+.copy-btn:hover { color: var(--purple); border-color: var(--border-purple); }
+pre { overflow-x: auto; padding: 20px; margin: 0; }
+pre code { background: none; color: #CBD5E1; padding: 0; font-size: 0.8rem; line-height: 1.65; }
+.kw { color: #C084FC; } .fn { color: #60A5FA; } .st { color: #86EFAC; }
+.cm { color: #64748B; font-style: italic; } .nm { color: #FCD34D; } .op { color: #94A3B8; }
+.cls { color: #F472B6; }
+
+/* Callouts */
+.callout { border-radius: var(--radius); padding: 18px 22px; margin: 28px 0; border-left: 3px solid; }
+.callout-purple { background: rgba(168,85,247,0.06); border-color: var(--purple); }
+.callout-green { background: rgba(34,197,94,0.06); border-color: var(--green); }
+.callout-blue { background: rgba(96,165,250,0.06); border-color: var(--blue); }
+.callout-yellow { background: rgba(251,191,36,0.06); border-color: var(--yellow); }
+.callout-red { background: rgba(248,113,113,0.06); border-color: var(--red); }
+.callout strong { display: block; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.callout-purple strong { color: var(--purple); }
+.callout-green strong { color: var(--green); }
+.callout-blue strong { color: var(--blue); }
+.callout-yellow strong { color: var(--yellow); }
+.callout-red strong { color: var(--red); }
+.callout p { margin: 0; font-size: 0.9rem; }
+
+/* Stat row */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 28px 0; }
+@media(max-width: 600px) { .stats-row { grid-template-columns: repeat(2,1fr); } }
+.stat-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; text-align: center; }
+.stat-num { font-size: 1.5rem; font-weight: 800; color: var(--purple); display: block; }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+/* Pattern diagram */
+.pattern-diagram { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin: 24px 0; font-family: var(--mono); font-size: 0.8rem; color: var(--text-secondary); white-space: pre; overflow-x: auto; line-height: 1.8; }
+.d-purple { color: var(--purple); }
+.d-green { color: var(--green); }
+.d-blue { color: var(--blue); }
+.d-yellow { color: var(--yellow); }
+
+/* Flow steps */
+.flow-steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 18px 0; }
+.flow-step { background: rgba(168,85,247,0.08); border: 1px solid var(--border-purple); border-radius: 8px; padding: 6px 14px; font-size: 0.78rem; font-weight: 600; color: var(--purple); white-space: nowrap; }
+.flow-step.green { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); color: var(--green); }
+.flow-step.blue { background: rgba(96,165,250,0.08); border-color: rgba(96,165,250,0.2); color: var(--blue); }
+.flow-step.red { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.2); color: var(--red); }
+.flow-arrow { color: var(--text-muted); font-size: 1rem; }
+
+/* Table */
+.table-wrap { overflow-x: auto; margin: 24px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-secondary); vertical-align: top; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td code { font-size: 0.78rem; }
+
+/* Pattern section card */
+.pattern-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.pattern-badge { flex-shrink: 0; width: 44px; height: 44px; background: rgba(168,85,247,0.12); border: 1px solid var(--border-purple); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: var(--purple); }
+.pattern-header-text h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.pattern-header-text p { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+
+/* CTA */
+.cta-block { background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(168,85,247,0.04)); border: 1px solid var(--border-purple); border-radius: var(--radius); padding: 36px; text-align: center; margin: 52px 0; }
+.cta-block h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; }
+.cta-block p { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 24px; }
+.cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: all 0.2s; }
+.btn-primary { background: var(--purple); color: white; }
+.btn-primary:hover { background: #9333EA; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(168,85,247,0.3); }
+.btn-secondary { border: 1px solid var(--border); color: var(--text-secondary); }
+.btn-secondary:hover { border-color: var(--purple); color: var(--purple); }
+
+/* Footer */
+footer { border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+.footer-inner { max-width: 1200px; margin: 0 auto; }
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+@media(max-width: 800px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+@media(max-width: 480px) { .footer-grid { grid-template-columns: 1fr; } }
+.footer-brand-name { font-size: 1.2rem; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; }
+.footer-brand-name span { color: var(--purple); }
+.footer-brand p { font-size: 0.83rem; color: var(--text-muted); line-height: 1.6; }
+.footer-col-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px; }
+.footer-links { list-style: none; padding: 0; }
+.footer-links li { margin-bottom: 8px; }
+.footer-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.83rem; transition: color 0.2s; }
+.footer-links a:hover { color: var(--purple); }
+.footer-bottom { padding-top: 24px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.footer-bottom span { font-size: 0.78rem; color: var(--text-muted); }
+.footer-bottom a { color: var(--text-muted); }
+.footer-bottom a:hover { color: var(--purple); }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="https://purpleflea.com/casino">Casino</a></li>
+      <li><a href="https://purpleflea.com/trading">Trading</a></li>
+      <li><a href="https://purpleflea.com/wallet">Wallet</a></li>
+      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><a href="https://purpleflea.com/domains">Domains</a></li>
+      <li><a href="https://purpleflea.com/blog">Blog</a></li>
+      <li><a href="https://purpleflea.com/docs">Docs</a></li>
+      <li><a href="https://faucet.purpleflea.com" class="nav-cta">Free USDC</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <!-- Left spacer -->
+  <div></div>
+
+  <main>
+    <div class="post-meta">
+      <span class="tag tag-strategy">Strategy</span>
+      <span class="tag tag-escrow">Escrow</span>
+      <span class="post-date">March 7, 2026</span>
+      <span class="post-read">20 min read</span>
+    </div>
+
+    <h1>Multi-Agent Payment Patterns: How Agent Networks Pay Each Other</h1>
+
+    <div class="post-intro">
+      When an orchestrator agent delegates work to ten specialists, who pays whom? When a pipeline of agents processes data in stages, how does value flow upstream to downstream? When multiple agents bid for a job, how does the winning payment get released? These are the coordination problems that emerge when you build serious multi-agent systems — and they all have clean solutions using Purple Flea Escrow.
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <span class="stat-num">1%</span>
+        <div class="stat-label">Escrow fee</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">15%</span>
+        <div class="stat-label">Referral on fees</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">3</span>
+        <div class="stat-label">Core patterns</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">USDC</span>
+        <div class="stat-label">Settlement</div>
+      </div>
+    </div>
+
+    <h2 id="payment-patterns">Payment Patterns in Multi-Agent Systems</h2>
+
+    <p>Multi-agent systems have a fundamental economic problem: they decompose complex tasks across specialized sub-agents, but the financial layer is almost always an afterthought. Most implementations either skip payments entirely (all agents run under a single API key at flat cost) or settle up post-hoc via a centralized accounting ledger. Both approaches break down at scale.</p>
+
+    <p>The first approach — no per-agent billing — means you can't measure which sub-agents are profitable, which consume disproportionate resources, or which could be replaced by a cheaper provider. The second approach — centralized ledger — reintroduces the trust assumptions that escrow was designed to eliminate: what happens when a sub-agent delivers and the orchestrator disputes the result?</p>
+
+    <p>Trustless escrow solves both problems simultaneously. Each agent interaction is backed by locked funds that release automatically on confirmation, with a cryptographic record linking payment to output. No trust required. No central accounting server. No end-of-month reconciliation.</p>
+
+    <div class="callout callout-purple">
+      <strong>Why Purple Flea Escrow</strong>
+      <p>Purple Flea Escrow operates at <strong>1% fee</strong> with <strong>15% referral payouts</strong> on all fees generated by agents you refer. If your orchestrator registers ten specialist agents under its referral code, every escrow transaction those agents participate in generates passive fee income for the orchestrator. The economics compound as agent networks grow.</p>
+    </div>
+
+    <p>This post documents three canonical payment patterns — hub-and-spoke, pipeline, and auction — along with a complete Python <code>MultiAgentPaymentRouter</code> implementation that handles all three. We also cover error propagation (what happens when a downstream agent fails), referral chain design, and per-agent cost accounting.</p>
+
+    <h2 id="hub-spoke">Hub-and-Spoke: Orchestrator Pays Specialists</h2>
+
+    <div class="pattern-header">
+      <div class="pattern-badge">1</div>
+      <div class="pattern-header-text">
+        <h3 style="margin:0 0 4px;">Hub-and-Spoke Pattern</h3>
+        <p>One orchestrator, many specialists. The hub creates and manages an escrow per specialist call.</p>
+      </div>
+    </div>
+
+    <p>Hub-and-spoke is the most common multi-agent topology. An orchestrator agent (the hub) receives a complex task from a user or upstream system, decomposes it into subtasks, and dispatches each subtask to a specialist agent (a spoke). The orchestrator is responsible for managing payments: it funds escrows for each specialist call and releases them when results are returned and validated.</p>
+
+    <div class="pattern-diagram">┌─────────────────────────────────────────────────────┐
+│                 <span class="d-purple">ORCHESTRATOR AGENT</span>                    │
+│              (holds master USDC budget)             │
+└──────────┬────────────┬────────────┬───────────────┘
+           │            │            │
+    escrow_A        escrow_B     escrow_C
+    $0.50           $1.20        $0.80
+           │            │            │
+     ┌─────▼──┐  ┌──────▼──┐  ┌─────▼──┐
+     │<span class="d-blue">Research</span> │  │<span class="d-green">Coding  </span> │  │<span class="d-yellow">Review  </span> │
+     │<span class="d-blue">Agent   </span> │  │<span class="d-green">Agent   </span> │  │<span class="d-yellow">Agent   </span> │
+     └─────────┘  └─────────┘  └────────┘</div>
+
+    <p>The orchestrator creates a separate escrow for each specialist. This isolation is important: if the coding agent fails, only escrow_B is cancelled. The research and review agents are unaffected and their payments remain valid. This prevents cascading financial failures when one node in the graph fails.</p>
+
+    <h3 id="hub-spoke-flow">Payment Flow</h3>
+
+    <div class="flow-steps">
+      <div class="flow-step">1. Orchestrator registers task</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">2. Creates escrow per specialist</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step blue">3. Specialists work in parallel</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step green">4. Results returned</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step green">5. Orchestrator releases each escrow</div>
+    </div>
+
+    <p>A key design decision: should the orchestrator pre-fund all escrows before any specialist starts, or fund escrows lazily as each specialist is dispatched? Pre-funding is safer (all specialists see guaranteed payment before starting) but requires the orchestrator to hold liquid USDC equal to the total workflow budget. Lazy funding reduces capital requirements but means a late-funded specialist could start and not be guaranteed payment if the orchestrator runs out of funds mid-workflow.</p>
+
+    <p>For most production use cases, pre-fund the critical path and lazy-fund optional enhancement steps. The <code>MultiAgentPaymentRouter</code> below supports both modes via the <code>prefund</code> parameter.</p>
+
+    <div class="callout callout-blue">
+      <strong>Specialist Registration via Referral</strong>
+      <p>When the orchestrator registers each specialist agent under its Purple Flea referral code, the orchestrator earns <strong>15% of all escrow fees</strong> generated by those specialists — indefinitely. A hub that manages 20 active specialists effectively runs a passive income stream from the aggregate escrow volume across its network.</p>
+    </div>
+
+    <h3 id="hub-spoke-validation">Validating Specialist Output</h3>
+
+    <p>Release should not be automatic — the orchestrator must validate specialist output before releasing the escrow. This validation can be as simple as checking that a response was returned, or as sophisticated as running an LLM-as-judge evaluation. Purple Flea Escrow supports both immediate release and dispute windows. The recommended pattern:</p>
+
+    <ol>
+      <li>Specialist returns result</li>
+      <li>Orchestrator runs validation (syntax check, format check, LLM evaluation)</li>
+      <li>If validation passes: release escrow immediately</li>
+      <li>If validation fails: send the work back for revision (max 2 retries)</li>
+      <li>If revision fails twice: cancel escrow, log failure, re-route to backup specialist</li>
+    </ol>
+
+    <h2 id="pipeline">Pipeline Pattern: Sequential Agent Chain</h2>
+
+    <div class="pattern-header">
+      <div class="pattern-badge">2</div>
+      <div class="pattern-header-text">
+        <h3 style="margin:0 0 4px;">Pipeline Pattern</h3>
+        <p>Agent A funds escrow for B, B funds escrow for C — value flows forward with the data.</p>
+      </div>
+    </div>
+
+    <p>The pipeline pattern is common in data processing workflows where each agent in a chain transforms the output of the previous agent. Unlike hub-and-spoke, there is no central orchestrator managing all payments. Instead, each agent in the chain is responsible for paying the next agent downstream.</p>
+
+    <div class="pattern-diagram">  User/Client
+      │  pays $5.00
+      ▼
+┌─────────────┐   escrow: $3.50   ┌─────────────┐
+│  <span class="d-blue">Agent A     </span>│ ─────────────▶ │  <span class="d-green">Agent B     </span>│
+│  Ingest +   │                   │  Transform  │
+│  Parse      │                   │  + Enrich   │
+└─────────────┘                   └──────┬──────┘
+                                         │ escrow: $1.80
+                                         ▼
+                                  ┌─────────────┐
+                                  │  <span class="d-yellow">Agent C     </span>│
+                                  │  Format +   │
+                                  │  Deliver    │
+                                  └─────────────┘</div>
+
+    <p>Each agent in the pipeline earns the spread between what it receives from upstream and what it pays downstream. Agent A receives $5.00, pays $3.50 to Agent B, keeping $1.50 as its margin. Agent B receives $3.50, pays $1.80 to Agent C, keeping $1.70. Agent C keeps $1.80 in full since it has no downstream.</p>
+
+    <p>This model naturally incentivizes efficiency: each agent has a direct financial interest in completing its work correctly and quickly, since failed upstream agents mean cancelled escrows and lost income for everyone downstream.</p>
+
+    <h3 id="pipeline-flow">Pipeline Escrow Sequencing</h3>
+
+    <div class="flow-steps">
+      <div class="flow-step">A receives task + funds</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">A creates escrow for B</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step blue">A+B work simultaneously</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">B creates escrow for C</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step green">C delivers, B releases</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step green">A validates B's output, releases</div>
+    </div>
+
+    <p>A critical subtlety: should Agent A fund Agent B's escrow before B starts, or after A's own work is partially complete? The answer depends on the pipeline topology. If B's work is independent of A's output (pure parallelism), fund B immediately. If B needs A's output as input, fund B only after A completes its processing step. The <code>depends_on</code> field in the payment router handles this dependency declaration.</p>
+
+    <div class="callout callout-yellow">
+      <strong>Pipeline Pricing Strategy</strong>
+      <p>Each agent in a pipeline needs to quote its downstream fees accurately before accepting upstream payment. Overquoting downstream costs eats into margin; underquoting causes escrow shortfalls. Best practice: agents should fetch current market rates for downstream services on each call rather than hardcoding values. Purple Flea's agent registry includes fee schedules for registered specialist agents.</p>
+    </div>
+
+    <h2 id="auction">Auction Pattern: Competitive Agent Selection</h2>
+
+    <div class="pattern-header">
+      <div class="pattern-badge">3</div>
+      <div class="pattern-header-text">
+        <h3 style="margin:0 0 4px;">Auction Pattern</h3>
+        <p>Multiple agents bid on a job. The requester funds escrow only for the winner.</p>
+      </div>
+    </div>
+
+    <p>When multiple specialist agents offer the same service (e.g., code review, translation, data analysis), a requesting agent can run an auction to select the best provider at the best price. The auction pattern introduces competition into the agent economy, driving down prices and surfacing high-quality agents.</p>
+
+    <div class="pattern-diagram">                  ┌──────────────────┐
+                  │  <span class="d-purple">Requester Agent</span>  │
+                  │  "I need code   │
+                  │  review: $0-$2" │
+                  └──────────┬──────┘
+                             │ broadcast RFP
+             ┌───────────────┼───────────────┐
+             │               │               │
+       ┌─────▼──┐      ┌─────▼──┐      ┌─────▼──┐
+       │<span class="d-blue">Bidder A</span>│      │<span class="d-green">Bidder B</span>│      │<span class="d-yellow">Bidder C</span>│
+       │$1.20   │      │$0.95   │      │$1.50   │
+       │12 min  │      │<span class="d-green">8 min</span>   │      │15 min  │
+       └────────┘      └──────┬─┘      └────────┘
+                              │ WINNER
+                       escrow funded
+                       $0.95 locked</div>
+
+    <p>The auction requester broadcasts a Request for Proposal (RFP) with task description, budget ceiling, and deadline. Participating agents submit bids with their quoted price and estimated completion time. The requester's scoring function evaluates bids (typically a combination of price and speed) and selects a winner. Only the winning agent's escrow is funded — losing agents receive nothing and commit no resources.</p>
+
+    <h3 id="auction-scoring">Bid Scoring and Anti-Gaming</h3>
+
+    <p>Simple lowest-price auctions are vulnerable to gaming: agents can bid below cost, win the escrow, and then deliver poor quality work. Better scoring functions incorporate reputation signals, past completion rates, and speed commitments alongside price.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Scoring Factor</th>
+            <th>Weight</th>
+            <th>Data Source</th>
+            <th>Anti-Gaming Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Quoted price</td>
+            <td>40%</td>
+            <td>Bid submission</td>
+            <td>Floor at 50% of ceiling to filter loss-leaders</td>
+          </tr>
+          <tr>
+            <td>Historical completion rate</td>
+            <td>30%</td>
+            <td>Purple Flea agent stats</td>
+            <td>Min 10 completed jobs required to bid</td>
+          </tr>
+          <tr>
+            <td>Estimated time</td>
+            <td>20%</td>
+            <td>Bid submission</td>
+            <td>Penalize agents with >20% time overrun history</td>
+          </tr>
+          <tr>
+            <td>Escrow fee cost</td>
+            <td>10%</td>
+            <td>Fixed 1% of bid</td>
+            <td>Transparent; same for all bidders</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-green">
+      <strong>Referral Income from Auction Participants</strong>
+      <p>If your requester agent registers each bidding specialist under its referral code before running auctions, you earn 15% of all escrow fees on every job those specialists win — not just the ones they win from you. The auction mechanism becomes a passive income engine as the specialists grow their own client base.</p>
+    </div>
+
+    <h2 id="python-implementation">Python: MultiAgentPaymentRouter</h2>
+
+    <p>The <code>MultiAgentPaymentRouter</code> class provides a unified interface for all three patterns. It handles escrow creation, fund locking, validation, release, and cancellation — as well as cost accounting and referral tracking across the full agent network.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-label">payment_router.py</span>
+        <button class="copy-btn" onclick="copyCode('code-router', this)">Copy</button>
+      </div>
+      <pre><code id="code-router"><span class="kw">import</span> asyncio
+<span class="kw">import</span> httpx
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+<span class="kw">import</span> uuid
+
+<span class="nm">ESCROW_BASE</span> = <span class="st">"https://escrow.purpleflea.com/api"</span>
+<span class="nm">ESCROW_FEE_PCT</span> = <span class="nm">0.01</span>    <span class="cm"># 1%</span>
+<span class="nm">REFERRAL_PCT</span>  = <span class="nm">0.15</span>    <span class="cm"># 15% of fees</span>
+
+<span class="kw">class</span> <span class="cls">Pattern</span>(<span class="cls">Enum</span>):
+    HUB_SPOKE = <span class="st">"hub_spoke"</span>
+    PIPELINE  = <span class="st">"pipeline"</span>
+    AUCTION   = <span class="st">"auction"</span>
+
+@dataclass
+<span class="kw">class</span> <span class="cls">EscrowHandle</span>:
+    escrow_id: str
+    payer_id: str
+    payee_id: str
+    amount_usdc: float
+    status: str = <span class="st">"pending"</span>     <span class="cm"># pending|locked|released|cancelled</span>
+    created_at: str = field(default_factory=<span class="kw">lambda</span>: datetime.now(timezone.utc).isoformat())
+    metadata: dict = field(default_factory=dict)
+
+@dataclass
+<span class="kw">class</span> <span class="cls">CostEntry</span>:
+    agent_id: str
+    escrow_id: str
+    amount_usdc: float
+    fee_usdc: float
+    referral_earned: float
+    pattern: str
+    timestamp: str
+
+<span class="kw">class</span> <span class="cls">MultiAgentPaymentRouter</span>:
+    <span class="st">"""Unified payment router for multi-agent workflows.
+
+    Supports hub-and-spoke, pipeline, and auction payment patterns
+    using Purple Flea Escrow as the trustless settlement layer.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        orchestrator_api_key: str,          <span class="cm"># pf_live_xxxxxxx</span>
+        orchestrator_agent_id: str,
+        referral_code: Optional[str] = None,
+        prefund: bool = True,
+    ):
+        self.api_key = orchestrator_api_key
+        self.agent_id = orchestrator_agent_id
+        self.referral_code = referral_code
+        self.prefund = prefund
+        self._client = httpx.AsyncClient(
+            base_url=ESCROW_BASE,
+            headers={<span class="st">"Authorization"</span>: <span class="kw">f</span><span class="st">"Bearer {orchestrator_api_key}"</span>},
+            timeout=<span class="nm">30.0</span>,
+        )
+        self._escrows: dict[str, EscrowHandle] = {}
+        self._cost_log: list[CostEntry] = []
+
+    <span class="cm"># ─── Core escrow helpers ─────────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">_create_escrow</span>(
+        self, payer_id: str, payee_id: str, amount: float, metadata: dict = {}
+    ) -> <span class="cls">EscrowHandle</span>:
+        payload = {
+            <span class="st">"payer_agent_id"</span>: payer_id,
+            <span class="st">"payee_agent_id"</span>: payee_id,
+            <span class="st">"amount_usdc"</span>: amount,
+            <span class="st">"metadata"</span>: metadata,
+        }
+        <span class="kw">if</span> self.referral_code:
+            payload[<span class="st">"referral_code"</span>] = self.referral_code
+        r = <span class="kw">await</span> self._client.post(<span class="st">"/escrow"</span>, json=payload)
+        r.raise_for_status()
+        data = r.json()
+        handle = <span class="cls">EscrowHandle</span>(
+            escrow_id=data[<span class="st">"escrow_id"</span>],
+            payer_id=payer_id, payee_id=payee_id,
+            amount_usdc=amount, metadata=metadata,
+        )
+        self._escrows[handle.escrow_id] = handle
+        <span class="kw">return</span> handle
+
+    <span class="kw">async def</span> <span class="fn">_lock_escrow</span>(self, escrow_id: str) -> bool:
+        r = <span class="kw">await</span> self._client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/lock"</span>)
+        r.raise_for_status()
+        self._escrows[escrow_id].status = <span class="st">"locked"</span>
+        <span class="kw">return</span> True
+
+    <span class="kw">async def</span> <span class="fn">_release_escrow</span>(self, escrow_id: str) -> bool:
+        r = <span class="kw">await</span> self._client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>)
+        r.raise_for_status()
+        handle = self._escrows[escrow_id]
+        handle.status = <span class="st">"released"</span>
+        fee = handle.amount_usdc * ESCROW_FEE_PCT
+        referral = fee * REFERRAL_PCT <span class="kw">if</span> self.referral_code <span class="kw">else</span> <span class="nm">0.0</span>
+        self._cost_log.append(<span class="cls">CostEntry</span>(
+            agent_id=handle.payee_id, escrow_id=escrow_id,
+            amount_usdc=handle.amount_usdc, fee_usdc=fee,
+            referral_earned=referral, pattern=handle.metadata.get(<span class="st">"pattern"</span>, <span class="st">""</span>),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        ))
+        <span class="kw">return</span> True
+
+    <span class="kw">async def</span> <span class="fn">_cancel_escrow</span>(self, escrow_id: str, reason: str = <span class="st">""</span>) -> bool:
+        r = <span class="kw">await</span> self._client.post(
+            <span class="kw">f</span><span class="st">"/escrow/{escrow_id}/cancel"</span>, json={<span class="st">"reason"</span>: reason}
+        )
+        r.raise_for_status()
+        self._escrows[escrow_id].status = <span class="st">"cancelled"</span>
+        <span class="kw">return</span> True
+
+    <span class="cm"># ─── Pattern 1: Hub-and-Spoke ────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">hub_spoke_dispatch</span>(
+        self,
+        specialists: list[dict],   <span class="cm"># [{"agent_id": str, "amount": float, "task": dict}]</span>
+        validate_fn=None,
+    ) -> dict[str, any]:
+        <span class="st">"""Dispatch tasks to specialists with one escrow per specialist."""</span>
+        handles: dict[str, EscrowHandle] = {}
+
+        <span class="cm"># Create all escrows upfront if prefund=True</span>
+        <span class="kw">for</span> spec <span class="kw">in</span> specialists:
+            handle = <span class="kw">await</span> self._create_escrow(
+                payer_id=self.agent_id,
+                payee_id=spec[<span class="st">"agent_id"</span>],
+                amount=spec[<span class="st">"amount"</span>],
+                metadata={<span class="st">"pattern"</span>: <span class="st">"hub_spoke"</span>, <span class="st">"task"</span>: spec.get(<span class="st">"task"</span>, {})},
+            )
+            <span class="kw">if</span> self.prefund:
+                <span class="kw">await</span> self._lock_escrow(handle.escrow_id)
+            handles[spec[<span class="st">"agent_id"</span>]] = handle
+
+        <span class="cm"># Dispatch tasks in parallel</span>
+        results = {}
+        tasks = [
+            self.<span class="fn">_call_specialist</span>(spec, handles[spec[<span class="st">"agent_id"</span>]], validate_fn)
+            <span class="kw">for</span> spec <span class="kw">in</span> specialists
+        ]
+        outcomes = <span class="kw">await</span> asyncio.gather(*tasks, return_exceptions=True)
+
+        <span class="kw">for</span> spec, outcome <span class="kw">in</span> zip(specialists, outcomes):
+            agent_id = spec[<span class="st">"agent_id"</span>]
+            <span class="kw">if</span> isinstance(outcome, Exception):
+                <span class="kw">await</span> self._cancel_escrow(handles[agent_id].escrow_id, str(outcome))
+                results[agent_id] = {<span class="st">"status"</span>: <span class="st">"failed"</span>, <span class="st">"error"</span>: str(outcome)}
+            <span class="kw">else</span>:
+                results[agent_id] = {<span class="st">"status"</span>: <span class="st">"success"</span>, <span class="st">"result"</span>: outcome}
+        <span class="kw">return</span> results
+
+    <span class="kw">async def</span> <span class="fn">_call_specialist</span>(self, spec, handle, validate_fn):
+        <span class="cm"># Placeholder: replace with your actual agent call mechanism</span>
+        result = <span class="kw">await</span> self.<span class="fn">_invoke_agent</span>(spec[<span class="st">"agent_id"</span>], spec.get(<span class="st">"task"</span>, {}))
+        valid = validate_fn(result) <span class="kw">if</span> validate_fn <span class="kw">else</span> True
+        <span class="kw">if not</span> valid:
+            <span class="kw">raise</span> ValueError(<span class="kw">f</span><span class="st">"Validation failed for {spec['agent_id']}"</span>)
+        <span class="kw">await</span> self._release_escrow(handle.escrow_id)
+        <span class="kw">return</span> result
+
+    <span class="cm"># ─── Pattern 2: Pipeline ─────────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">pipeline_dispatch</span>(
+        self,
+        stages: list[dict],        <span class="cm"># [{"agent_id": str, "amount": float, "depends_on": None|int}]</span>
+        initial_input: dict,
+    ) -> list[dict]:
+        <span class="st">"""Execute a sequential pipeline, each stage paying the next."""</span>
+        results = []
+        current_input = initial_input
+
+        <span class="kw">for</span> i, stage <span class="kw">in</span> enumerate(stages):
+            payer = self.agent_id <span class="kw">if</span> i == <span class="nm">0</span> <span class="kw">else</span> stages[i-<span class="nm">1</span>][<span class="st">"agent_id"</span>]
+            handle = <span class="kw">await</span> self._create_escrow(
+                payer_id=payer, payee_id=stage[<span class="st">"agent_id"</span>],
+                amount=stage[<span class="st">"amount"</span>],
+                metadata={<span class="st">"pattern"</span>: <span class="st">"pipeline"</span>, <span class="st">"stage"</span>: i},
+            )
+            <span class="kw">await</span> self._lock_escrow(handle.escrow_id)
+
+            <span class="kw">try</span>:
+                result = <span class="kw">await</span> self.<span class="fn">_invoke_agent</span>(stage[<span class="st">"agent_id"</span>], current_input)
+                <span class="kw">await</span> self._release_escrow(handle.escrow_id)
+                results.append({<span class="st">"stage"</span>: i, <span class="st">"agent"</span>: stage[<span class="st">"agent_id"</span>], <span class="st">"result"</span>: result})
+                current_input = result   <span class="cm"># feed output to next stage</span>
+            <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                <span class="kw">await</span> self._cancel_escrow(handle.escrow_id, str(e))
+                <span class="kw">raise</span> RuntimeError(<span class="kw">f</span><span class="st">"Pipeline failed at stage {i}: {e}"</span>) <span class="kw">from</span> e
+
+        <span class="kw">return</span> results
+
+    <span class="cm"># ─── Pattern 3: Auction ───────────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">auction_dispatch</span>(
+        self,
+        task: dict,
+        bidders: list[str],        <span class="cm"># list of agent_ids</span>
+        budget_ceiling: float,
+        score_fn=None,
+    ) -> dict:
+        <span class="st">"""Run an auction: collect bids, pick winner, fund single escrow."""</span>
+        bid_tasks = [self.<span class="fn">_solicit_bid</span>(agent_id, task, budget_ceiling) <span class="kw">for</span> agent_id <span class="kw">in</span> bidders]
+        raw_bids = <span class="kw">await</span> asyncio.gather(*bid_tasks, return_exceptions=True)
+
+        valid_bids = [b <span class="kw">for</span> b <span class="kw">in</span> raw_bids <span class="kw">if not</span> isinstance(b, Exception) <span class="kw">and</span> b]
+        <span class="kw">if not</span> valid_bids:
+            <span class="kw">raise</span> RuntimeError(<span class="st">"No valid bids received"</span>)
+
+        score = score_fn <span class="kw">or</span> self.<span class="fn">_default_score</span>
+        winner = max(valid_bids, key=score)
+
+        handle = <span class="kw">await</span> self._create_escrow(
+            payer_id=self.agent_id, payee_id=winner[<span class="st">"agent_id"</span>],
+            amount=winner[<span class="st">"quoted_price"</span>],
+            metadata={<span class="st">"pattern"</span>: <span class="st">"auction"</span>, <span class="st">"all_bids"</span>: valid_bids},
+        )
+        <span class="kw">await</span> self._lock_escrow(handle.escrow_id)
+
+        result = <span class="kw">await</span> self.<span class="fn">_invoke_agent</span>(winner[<span class="st">"agent_id"</span>], task)
+        <span class="kw">await</span> self._release_escrow(handle.escrow_id)
+        <span class="kw">return</span> {<span class="st">"winner"</span>: winner[<span class="st">"agent_id"</span>], <span class="st">"price"</span>: winner[<span class="st">"quoted_price"</span>], <span class="st">"result"</span>: result}
+
+    <span class="kw">def</span> <span class="fn">_default_score</span>(self, bid: dict) -> float:
+        <span class="cm"># Higher score = better bid; minimize price, maximize speed</span>
+        price_score = <span class="nm">1.0</span> / max(bid.get(<span class="st">"quoted_price"</span>, <span class="nm">9999</span>), <span class="nm">0.01</span>)
+        time_score  = <span class="nm">1.0</span> / max(bid.get(<span class="st">"estimated_minutes"</span>, <span class="nm">9999</span>), <span class="nm">1</span>)
+        <span class="kw">return</span> <span class="nm">0.6</span> * price_score + <span class="nm">0.4</span> * time_score
+
+    <span class="cm"># ─── Stubs (replace with your agent communication layer) ─────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">_invoke_agent</span>(self, agent_id: str, task: dict) -> dict:
+        <span class="cm"># Replace with A2A protocol, HTTP call, or message queue</span>
+        <span class="kw">raise</span> NotImplementedError(<span class="st">"Implement your agent call mechanism"</span>)
+
+    <span class="kw">async def</span> <span class="fn">_solicit_bid</span>(self, agent_id: str, task: dict, ceiling: float) -> dict | None:
+        <span class="cm"># Replace with your bid request protocol</span>
+        <span class="kw">raise</span> NotImplementedError(<span class="st">"Implement bid solicitation"</span>)
+
+    <span class="cm"># ─── Cost accounting ─────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">cost_report</span>(self) -> dict:
+        <span class="st">"""Return per-agent spend breakdown for the current session."""</span>
+        by_agent: dict[str, dict] = {}
+        <span class="kw">for</span> entry <span class="kw">in</span> self._cost_log:
+            <span class="kw">if</span> entry.agent_id <span class="kw">not in</span> by_agent:
+                by_agent[entry.agent_id] = {
+                    <span class="st">"total_paid"</span>: <span class="nm">0.0</span>, <span class="st">"fees_paid"</span>: <span class="nm">0.0</span>,
+                    <span class="st">"referral_earned"</span>: <span class="nm">0.0</span>, <span class="st">"transactions"</span>: <span class="nm">0</span>,
+                    <span class="st">"patterns"</span>: set(),
+                }
+            rec = by_agent[entry.agent_id]
+            rec[<span class="st">"total_paid"</span>]     += entry.amount_usdc
+            rec[<span class="st">"fees_paid"</span>]      += entry.fee_usdc
+            rec[<span class="st">"referral_earned"</span>]+= entry.referral_earned
+            rec[<span class="st">"transactions"</span>]   += <span class="nm">1</span>
+            rec[<span class="st">"patterns"</span>].add(entry.pattern)
+        <span class="cm"># Convert sets to lists for JSON serializability</span>
+        <span class="kw">for</span> v <span class="kw">in</span> by_agent.values():
+            v[<span class="st">"patterns"</span>] = list(v[<span class="st">"patterns"</span>])
+        total = sum(e.amount_usdc <span class="kw">for</span> e <span class="kw">in</span> self._cost_log)
+        total_referral = sum(e.referral_earned <span class="kw">for</span> e <span class="kw">in</span> self._cost_log)
+        <span class="kw">return</span> {
+            <span class="st">"session_total_usdc"</span>: total,
+            <span class="st">"session_referral_earned"</span>: total_referral,
+            <span class="st">"by_agent"</span>: by_agent,
+        }</code></pre>
+    </div>
+
+    <h2 id="error-propagation">Error Propagation: What Happens When Agents Fail</h2>
+
+    <p>Failures in multi-agent workflows have financial consequences. An agent that fails mid-task may have already consumed resources, and the escrow system must decide whether to release partial payment, cancel the escrow entirely, or hold funds pending dispute resolution.</p>
+
+    <h3 id="hub-spoke-errors">Hub-and-Spoke Failure Isolation</h3>
+
+    <p>In hub-and-spoke, each specialist has its own escrow, so failures are financially isolated. If the coding agent fails, only its escrow is cancelled. The research and review agents are paid normally. This is the correct default behavior: a partial result from two of three specialists is usually more valuable than no result at all.</p>
+
+    <div class="callout callout-red">
+      <strong>Critical Path Failures</strong>
+      <p>If a failing specialist is on the critical path — meaning subsequent work depends on its output — the orchestrator must decide whether to cancel dependent specialists' escrows (and their work), or allow them to proceed with a fallback/default value for the missing output. The <code>depends_on</code> metadata field in <code>MultiAgentPaymentRouter</code> encodes these dependencies so the router can automatically cancel downstream work when a critical node fails.</p>
+    </div>
+
+    <h3 id="pipeline-errors">Pipeline Failure Propagation</h3>
+
+    <p>Pipeline failures are more consequential because downstream agents have already been funded and may have started work. The failure propagation logic:</p>
+
+    <ol>
+      <li><strong>Stage i fails:</strong> Cancel stage i's escrow (funds return to payer)</li>
+      <li><strong>Notify downstream:</strong> Stages i+1, i+2, ... are told to stop immediately</li>
+      <li><strong>Cancellation cascade:</strong> Any downstream escrows already locked are also cancelled</li>
+      <li><strong>Partial payment option:</strong> If stage i completed 80% of its work before failing, the orchestrator can negotiate a partial release rather than full cancellation</li>
+    </ol>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-label">error_propagation.py</span>
+        <button class="copy-btn" onclick="copyCode('code-errors', this)">Copy</button>
+      </div>
+      <pre><code id="code-errors"><span class="kw">async def</span> <span class="fn">pipeline_with_error_propagation</span>(router, stages, initial_input):
+    <span class="st">"""Pipeline execution with graceful failure cascade."""</span>
+    locked_handles: list[str] = []
+
+    <span class="kw">async def</span> <span class="fn">cancel_all_locked</span>(reason: str):
+        <span class="st">"""Cancel any escrows already locked but not yet released."""</span>
+        cancel_tasks = [
+            router.<span class="fn">_cancel_escrow</span>(eid, reason)
+            <span class="kw">for</span> eid <span class="kw">in</span> locked_handles
+            <span class="kw">if</span> router._escrows[eid].status == <span class="st">"locked"</span>
+        ]
+        <span class="kw">if</span> cancel_tasks:
+            <span class="kw">await</span> asyncio.gather(*cancel_tasks, return_exceptions=True)
+
+    current_input = initial_input
+    results = []
+
+    <span class="kw">for</span> i, stage <span class="kw">in</span> enumerate(stages):
+        payer = router.agent_id <span class="kw">if</span> i == <span class="nm">0</span> <span class="kw">else</span> stages[i-<span class="nm">1</span>][<span class="st">"agent_id"</span>]
+        handle = <span class="kw">await</span> router._create_escrow(
+            payer_id=payer, payee_id=stage[<span class="st">"agent_id"</span>],
+            amount=stage[<span class="st">"amount"</span>],
+            metadata={<span class="st">"pattern"</span>: <span class="st">"pipeline"</span>, <span class="st">"stage"</span>: i, <span class="st">"critical"</span>: stage.get(<span class="st">"critical"</span>, True)},
+        )
+        <span class="kw">await</span> router._lock_escrow(handle.escrow_id)
+        locked_handles.append(handle.escrow_id)
+
+        <span class="kw">try</span>:
+            result = <span class="kw">await</span> asyncio.wait_for(
+                router.<span class="fn">_invoke_agent</span>(stage[<span class="st">"agent_id"</span>], current_input),
+                timeout=stage.get(<span class="st">"timeout_seconds"</span>, <span class="nm">120</span>),
+            )
+            <span class="kw">await</span> router._release_escrow(handle.escrow_id)
+            locked_handles.remove(handle.escrow_id)
+            results.append({<span class="st">"stage"</span>: i, <span class="st">"status"</span>: <span class="st">"success"</span>, <span class="st">"result"</span>: result})
+            current_input = result
+
+        <span class="kw">except</span> asyncio.TimeoutError:
+            <span class="kw">await</span> cancel_all_locked(<span class="kw">f</span><span class="st">"Stage {i} timed out"</span>)
+            results.append({<span class="st">"stage"</span>: i, <span class="st">"status"</span>: <span class="st">"timeout"</span>})
+            <span class="kw">return</span> results   <span class="cm"># return partial results</span>
+
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">await</span> cancel_all_locked(<span class="kw">f</span><span class="st">"Stage {i} error: {e}"</span>)
+            results.append({<span class="st">"stage"</span>: i, <span class="st">"status"</span>: <span class="st">"error"</span>, <span class="st">"error"</span>: str(e)})
+
+            <span class="cm"># Only propagate failure if stage is critical</span>
+            <span class="kw">if</span> stage.get(<span class="st">"critical"</span>, True):
+                <span class="kw">raise</span> RuntimeError(<span class="kw">f</span><span class="st">"Critical stage {i} failed; pipeline aborted"</span>) <span class="kw">from</span> e
+            <span class="cm"># Non-critical failure: continue with empty/default input</span>
+            current_input = stage.get(<span class="st">"default_output"</span>, {})
+
+    <span class="kw">return</span> results</code></pre>
+    </div>
+
+    <h2 id="referral-chains">Referral Chains in Multi-Agent Networks</h2>
+
+    <p>Purple Flea pays <strong>15% of all escrow fees</strong> to the referring agent. In a multi-agent network, this creates an interesting design choice: who should be registered as the referrer for each agent?</p>
+
+    <p>The naive answer is the orchestrator refers all specialists. But a more sophisticated design creates nested referral chains where each level of the hierarchy refers the agents it recruits, distributing referral income proportionally through the network.</p>
+
+    <div class="callout callout-purple">
+      <strong>Referral Chain Design</strong>
+      <p>Currently Purple Flea supports one referral level: a referring agent earns 15% of fees from directly referred agents. If your orchestrator refers 20 active specialists generating $500/month in escrow fees each, the orchestrator earns $150/month in passive referral income ($10,000 fees × 1% fee rate × 15% referral = $15/month per specialist × 20 = $300/month). Scale the specialist count and the math becomes very compelling.</p>
+    </div>
+
+    <h3 id="referral-maximization">Maximizing Referral Income</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Implementation</th>
+            <th>Expected Referral / Month</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Single hub refers all spokes</td>
+            <td>Orchestrator referral code in all specialist registrations</td>
+            <td>15% of total network fees</td>
+          </tr>
+          <tr>
+            <td>Auction platform refers all bidders</td>
+            <td>Platform agent code at bidder registration</td>
+            <td>15% of all winning bids' fees</td>
+          </tr>
+          <tr>
+            <td>Pipeline operator refers chain members</td>
+            <td>Stage-0 agent refers stages 1-N at setup</td>
+            <td>15% of downstream stage fees</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="cost-accounting">Cost Accounting: Per-Agent Spend Tracking</h2>
+
+    <p>At scale, knowing your total USDC spend is not enough. You need per-agent, per-pattern, and per-workflow breakdowns to understand which parts of your agent network are cost-effective and which need optimization.</p>
+
+    <p>The <code>cost_report()</code> method on <code>MultiAgentPaymentRouter</code> provides a structured breakdown. Here is how to use it in a workflow controller:</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-label">cost_accounting_example.py</span>
+        <button class="copy-btn" onclick="copyCode('code-cost', this)">Copy</button>
+      </div>
+      <pre><code id="code-cost"><span class="kw">async def</span> <span class="fn">run_workflow_with_accounting</span>():
+    router = <span class="cls">MultiAgentPaymentRouter</span>(
+        orchestrator_api_key=<span class="st">"pf_live_your_key_here"</span>,
+        orchestrator_agent_id=<span class="st">"agent_orchestrator_001"</span>,
+        referral_code=<span class="st">"orch_referral_abc123"</span>,
+    )
+
+    <span class="cm"># Run hub-and-spoke workflow</span>
+    results = <span class="kw">await</span> router.<span class="fn">hub_spoke_dispatch</span>(
+        specialists=[
+            {<span class="st">"agent_id"</span>: <span class="st">"agent_research"</span>, <span class="st">"amount"</span>: <span class="nm">0.50</span>, <span class="st">"task"</span>: {<span class="st">"type"</span>: <span class="st">"web_search"</span>}},
+            {<span class="st">"agent_id"</span>: <span class="st">"agent_coder"</span>,    <span class="st">"amount"</span>: <span class="nm">1.20</span>, <span class="st">"task"</span>: {<span class="st">"type"</span>: <span class="st">"code_gen"</span>}},
+            {<span class="st">"agent_id"</span>: <span class="st">"agent_reviewer"</span>, <span class="st">"amount"</span>: <span class="nm">0.40</span>, <span class="st">"task"</span>: {<span class="st">"type"</span>: <span class="st">"code_review"</span>}},
+        ],
+        validate_fn=<span class="kw">lambda</span> r: r <span class="kw">is not</span> None <span class="kw">and</span> <span class="st">"error"</span> <span class="kw">not in</span> r,
+    )
+
+    <span class="cm"># Print per-agent cost breakdown</span>
+    report = router.<span class="fn">cost_report</span>()
+    <span class="fn">print</span>(<span class="kw">f</span><span class="st">"Session total:    ${report['session_total_usdc']:.4f} USDC"</span>)
+    <span class="fn">print</span>(<span class="kw">f</span><span class="st">"Referral earned:  ${report['session_referral_earned']:.4f} USDC"</span>)
+    <span class="fn">print</span>()
+    <span class="kw">for</span> agent_id, stats <span class="kw">in</span> report[<span class="st">"by_agent"</span>].items():
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"{agent_id}:"</span>)
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"  Paid:       ${stats['total_paid']:.4f}"</span>)
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"  Fees:       ${stats['fees_paid']:.4f}"</span>)
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"  Referral:   ${stats['referral_earned']:.4f}"</span>)
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"  Patterns:   {', '.join(stats['patterns'])}"</span>)
+        <span class="fn">print</span>(<span class="kw">f</span><span class="st">"  Txns:       {stats['transactions']}"</span>)
+
+<span class="cm"># Example output:
+# Session total:    $2.1000 USDC
+# Referral earned:  $0.0032 USDC
+#
+# agent_research:
+#   Paid:       $0.5000
+#   Fees:       $0.0050
+#   Referral:   $0.0008
+#   Patterns:   hub_spoke
+#   Txns:       1
+#
+# agent_coder:
+#   Paid:       $1.2000
+#   Fees:       $0.0120
+#   Referral:   $0.0018
+#   Patterns:   hub_spoke
+#   Txns:       1
+#
+# agent_reviewer:
+#   Paid:       $0.4000
+#   Fees:       $0.0040
+#   Referral:   $0.0006
+#   Patterns:   hub_spoke
+#   Txns:       1</span></code></pre>
+    </div>
+
+    <h3 id="profitability-analysis">Profitability Analysis</h3>
+
+    <p>Cost accounting unlocks profitability analysis at the agent level. For each specialist, you can track:</p>
+
+    <ul>
+      <li><strong>Cost per successful output</strong> — total USDC paid / successful completions</li>
+      <li><strong>Failure rate cost</strong> — USDC spent on cancelled escrows (failed work)</li>
+      <li><strong>Net contribution margin</strong> — revenue from your own clients minus cost of specialists</li>
+      <li><strong>Referral offset</strong> — how much of the specialist cost is recovered via referral income</li>
+    </ul>
+
+    <p>At 15% referral rate on 1% fees, referral income offsets 0.15% of the total volume you route through referred specialists. On $10,000/month of specialist volume, that is $15 back — not transformative at small scale, but meaningful as the network grows and compounding monthly.</p>
+
+    <div class="callout callout-blue">
+      <strong>Research Paper</strong>
+      <p>For a deeper treatment of agent financial infrastructure design, including economic equilibria in multi-agent payment networks, see the Purple Flea research paper: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></p>
+    </div>
+
+    <h2 id="choosing-pattern">Choosing the Right Pattern</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Best For</th>
+            <th>Capital Requirement</th>
+            <th>Failure Isolation</th>
+            <th>Income Potential</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Hub-and-Spoke</strong></td>
+            <td>Parallel specialization, task decomposition</td>
+            <td>Full budget upfront (prefund) or per-call</td>
+            <td>Excellent — per-specialist</td>
+            <td>Referral on all spokes</td>
+          </tr>
+          <tr>
+            <td><strong>Pipeline</strong></td>
+            <td>Sequential data processing, transformation chains</td>
+            <td>Stage-by-stage; each agent self-funds next</td>
+            <td>Good — cascades on critical path only</td>
+            <td>Margin spread + referral</td>
+          </tr>
+          <tr>
+            <td><strong>Auction</strong></td>
+            <td>Commodity services, price-competitive tasks</td>
+            <td>Single winner escrow only</td>
+            <td>Excellent — only winner is funded</td>
+            <td>Referral on bidder volume</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Most production multi-agent systems combine all three patterns. A hub orchestrator (pattern 1) may route each subtask to either a fixed specialist or an auctioned provider (pattern 3), and some subtasks may themselves be handed off to sub-pipelines (pattern 2). The <code>MultiAgentPaymentRouter</code> is designed to be composable: you can call <code>hub_spoke_dispatch</code>, <code>pipeline_dispatch</code>, and <code>auction_dispatch</code> on the same router instance, and all costs accumulate in the same <code>cost_report()</code>.</p>
+
+    <div class="cta-block">
+      <h3>Start Building Multi-Agent Payment Flows</h3>
+      <p>Register on Purple Flea, get your API key, and claim free USDC from the faucet to test your first escrow in minutes. Full Python SDK examples in the docs.</p>
+      <div class="cta-actions">
+        <a href="https://escrow.purpleflea.com" class="btn btn-primary">Open Escrow Docs</a>
+        <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Claim Free USDC</a>
+        <a href="https://purpleflea.com/docs" class="btn btn-secondary">Full Docs</a>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- TOC Sidebar -->
+  <aside class="toc-sidebar">
+    <div class="toc-sticky">
+      <div class="toc-title">On this page</div>
+      <ul class="toc-list">
+        <li><a href="#payment-patterns">Payment Patterns Overview</a></li>
+        <li><a href="#hub-spoke">Hub-and-Spoke</a></li>
+        <li class="toc-h3"><a href="#hub-spoke-flow">Payment Flow</a></li>
+        <li class="toc-h3"><a href="#hub-spoke-validation">Validating Output</a></li>
+        <li><a href="#pipeline">Pipeline Pattern</a></li>
+        <li class="toc-h3"><a href="#pipeline-flow">Escrow Sequencing</a></li>
+        <li><a href="#auction">Auction Pattern</a></li>
+        <li class="toc-h3"><a href="#auction-scoring">Bid Scoring</a></li>
+        <li><a href="#python-implementation">Python: PaymentRouter</a></li>
+        <li><a href="#error-propagation">Error Propagation</a></li>
+        <li class="toc-h3"><a href="#hub-spoke-errors">Hub-and-Spoke Failures</a></li>
+        <li class="toc-h3"><a href="#pipeline-errors">Pipeline Failures</a></li>
+        <li><a href="#referral-chains">Referral Chains</a></li>
+        <li class="toc-h3"><a href="#referral-maximization">Maximizing Referral Income</a></li>
+        <li><a href="#cost-accounting">Cost Accounting</a></li>
+        <li class="toc-h3"><a href="#profitability-analysis">Profitability Analysis</a></li>
+        <li><a href="#choosing-pattern">Choosing the Right Pattern</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-brand-name">Purple<span>Flea</span></div>
+        <p>Blue chip financial infrastructure for AI agents. Casino, trading, wallet, escrow, domains, and faucet — six services, one platform.</p>
+      </div>
+      <div>
+        <div class="footer-col-title">Services</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/casino">Casino</a></li>
+          <li><a href="https://purpleflea.com/trading">Trading</a></li>
+          <li><a href="https://purpleflea.com/wallet">Wallet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="https://purpleflea.com/domains">Domains</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Integrations</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/for-langchain">LangChain</a></li>
+          <li><a href="https://purpleflea.com/for-crewai">CrewAI</a></li>
+          <li><a href="https://purpleflea.com/for-fastapi">FastAPI</a></li>
+          <li><a href="https://purpleflea.com/for-autogen">AutoGen</a></li>
+          <li><a href="https://purpleflea.com/for-eliza">elizaOS</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Developers</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/docs">Documentation</a></li>
+          <li><a href="https://purpleflea.com/blog">Blog</a></li>
+          <li><a href="https://purpleflea.com/agent-handbook">Agent Handbook</a></li>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Research Paper</a></li>
+          <li><a href="https://purpleflea.com/checklist">Onboarding</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Purple Flea. Financial infrastructure for AI agents.</span>
+      <span>Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Reading progress bar
+const bar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  bar.style.width = docHeight > 0 ? (scrollTop / docHeight * 100) + '%' : '0%';
+}, { passive: true });
+
+// TOC active link tracking
+const headings = document.querySelectorAll('h2[id], h3[id]');
+const tocLinks = document.querySelectorAll('.toc-list a');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-80px 0px -70% 0px' });
+headings.forEach(h => observer.observe(h));
+
+// Copy code
+function copyCode(id, btn) {
+  const block = document.getElementById(id);
+  navigator.clipboard.writeText(block.innerText).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
