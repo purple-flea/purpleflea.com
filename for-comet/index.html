@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comet ML + Purple Flea — Reward Top Experiments Automatically</title>
+<meta name="description" content="Automatically fund and reward the best ML experiment using Purple Flea Escrow. Trigger payouts when accuracy thresholds are met. Works with Comet ML callbacks and sweeps.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/for-comet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "name": "Comet ML + Purple Flea — Reward Top Experiments Automatically",
+  "url": "https://purpleflea.com/for-comet",
+  "description": "Use Purple Flea Escrow to automatically pay out USDC rewards when Comet ML experiment metrics exceed thresholds. Trustless, programmable, agent-native.",
+  "author": { "@type": "Organization", "name": "Purple Flea" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" }
+}
+</script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.25);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --blue: #60A5FA;
+  --radius: 14px;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 900px; margin: 0 auto; padding: 0 24px;
+}
+.nav-logo {
+  text-decoration: none; color: var(--text);
+  font-weight: 700; font-size: 1rem; letter-spacing: -0.02em;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-logo-diamond { color: var(--purple); }
+.nav-links { display: flex; gap: 24px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.875rem; transition: color 0.15s; }
+.nav-links a:hover { color: var(--text); }
+.nav-badge {
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+@media (max-width: 640px) { .nav-links { gap: 14px; } .nav-links li:nth-child(n+3) { display: none; } }
+
+.hero {
+  padding: 80px 0 56px;
+  border-bottom: 1px solid var(--border);
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(168, 85, 247, 0.1); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.8rem; font-weight: 500;
+  padding: 5px 12px; border-radius: 20px; margin-bottom: 24px;
+}
+.hero h1 {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  font-weight: 800; letter-spacing: -0.04em; line-height: 1.1;
+  margin-bottom: 20px;
+}
+.hero h1 span { color: var(--purple); }
+.hero p {
+  font-size: 1.1rem; color: var(--text-secondary); line-height: 1.7;
+  max-width: 680px; margin-bottom: 32px;
+}
+.hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px; border-radius: 10px;
+  font-size: 0.9rem; font-weight: 600; text-decoration: none;
+  transition: all 0.2s; cursor: pointer; border: none;
+}
+.btn-primary {
+  background: var(--purple); color: white;
+}
+.btn-primary:hover { background: #9333EA; transform: translateY(-1px); }
+.btn-secondary {
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.btn-secondary:hover { border-color: var(--border-purple); color: var(--text); }
+
+.stat-row {
+  display: flex; gap: 32px; flex-wrap: wrap;
+}
+.stat-item { display: flex; flex-direction: column; gap: 2px; }
+.stat-num { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+.stat-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+section:last-child { border-bottom: none; }
+.section-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--purple); margin-bottom: 12px;
+}
+h2 {
+  font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+h3 {
+  font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em;
+  margin-bottom: 8px; color: var(--text);
+}
+p { color: var(--text-secondary); margin-bottom: 16px; }
+p:last-child { margin-bottom: 0; }
+
+.flow-diagram {
+  display: flex; align-items: center; gap: 0;
+  margin: 32px 0; overflow-x: auto;
+}
+.flow-step {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px; min-width: 140px;
+  text-align: center; flex-shrink: 0;
+}
+.flow-step-icon { font-size: 1.4rem; margin-bottom: 6px; }
+.flow-step-label { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+.flow-step-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+.flow-arrow {
+  color: var(--purple); font-size: 1.2rem; padding: 0 8px; flex-shrink: 0;
+}
+
+.code-block {
+  background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 22px 24px;
+  font-family: var(--mono); font-size: 0.78rem;
+  color: #D4D4D8; white-space: pre; overflow-x: auto;
+  margin-top: 20px; position: relative; line-height: 1.75;
+}
+.code-block .cm { color: #6A9955; }
+.code-block .kw { color: #C586C0; }
+.code-block .fn { color: #DCDCAA; }
+.code-block .st { color: #CE9178; }
+.code-block .nm { color: #9CDCFE; }
+.code-block .nb { color: #569CD6; }
+.code-block .hl { background: rgba(168,85,247,0.1); display: block; margin: 0 -24px; padding: 0 24px; }
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.copy-btn:hover { background: rgba(168, 85, 247, 0.25); }
+
+.card-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-top: 28px;
+}
+@media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); }
+.card-icon { font-size: 1.4rem; margin-bottom: 12px; }
+.card-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.card p { font-size: 0.875rem; }
+
+.pattern-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  margin-top: 20px;
+  transition: border-color 0.2s;
+}
+.pattern-card:hover { border-color: var(--border-purple); }
+.pattern-card h3 { margin-bottom: 10px; }
+.pattern-card p { font-size: 0.875rem; margin-bottom: 14px; }
+.pattern-badge {
+  display: inline-block; font-size: 0.7rem; font-weight: 600;
+  padding: 2px 10px; border-radius: 20px; letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+.badge-green { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.badge-amber { background: rgba(245,158,11,0.1); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+.badge-blue { background: rgba(96,165,250,0.1); color: var(--blue); border: 1px solid rgba(96,165,250,0.2); }
+.badge-purple { background: rgba(168,85,247,0.1); color: var(--purple); border: 1px solid var(--border-purple); }
+
+.metric-table {
+  width: 100%; border-collapse: collapse; margin-top: 20px;
+  font-size: 0.875rem;
+}
+.metric-table th {
+  text-align: left; padding: 10px 14px;
+  color: var(--text-muted); font-weight: 500; font-size: 0.75rem;
+  border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.metric-table td {
+  padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+}
+.metric-table td:first-child { font-family: var(--mono); font-size: 0.8rem; color: var(--purple); }
+.metric-table tr:last-child td { border-bottom: none; }
+
+.steps-list { list-style: none; margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+.step-item {
+  display: flex; gap: 16px; align-items: flex-start;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 24px;
+}
+.step-num {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-weight: 700; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.step-body h3 { margin-bottom: 4px; font-size: 0.95rem; }
+.step-body p { font-size: 0.85rem; margin-bottom: 0; }
+
+.highlight-box {
+  background: rgba(168, 85, 247, 0.06); border: 1px solid var(--border-purple);
+  border-radius: var(--radius); padding: 24px 28px; margin: 28px 0;
+}
+.highlight-box p { font-size: 0.9rem; margin-bottom: 0; }
+
+footer {
+  border-top: 1px solid var(--border); padding: 48px 0 32px;
+  margin-top: 0;
+}
+.footer-grid {
+  display: grid; grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 40px; margin-bottom: 40px;
+}
+@media (max-width: 640px) { .footer-grid { grid-template-columns: 1fr; gap: 24px; } }
+.footer-brand { display: flex; flex-direction: column; gap: 10px; }
+.footer-logo { font-weight: 700; font-size: 0.95rem; color: var(--text); text-decoration: none; }
+.footer-logo span { color: var(--purple); }
+.footer-tagline { font-size: 0.825rem; color: var(--text-muted); line-height: 1.6; }
+.footer-col h4 { font-size: 0.8rem; font-weight: 600; color: var(--text); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.footer-links { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.footer-links a { text-decoration: none; color: var(--text-muted); font-size: 0.85rem; transition: color 0.15s; }
+.footer-links a:hover { color: var(--purple); }
+.footer-bottom {
+  border-top: 1px solid var(--border); padding-top: 24px;
+  font-size: 0.8rem; color: var(--text-muted);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-diamond">&#9670;</span> Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/casino">Casino</a></li>
+      <li><a href="/trading">Trading</a></li>
+      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><span class="nav-badge">MCP</span></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="container">
+    <div class="hero-tag">Comet ML + Purple Flea</div>
+    <h1>Fund the Best Experiment,<br><span>Automatically</span></h1>
+    <p>Connect Comet ML experiment tracking to Purple Flea Escrow. Set a metric threshold — accuracy, F1, loss — and USDC flows automatically to the agent or researcher whose run hits the target. No manual payout. No disputes.</p>
+    <div class="hero-ctas">
+      <a href="https://escrow.purpleflea.com" class="btn btn-primary">Open Escrow Dashboard</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Get Free USDC to Test</a>
+    </div>
+    <div class="stat-row">
+      <div class="stat-item">
+        <span class="stat-num">1%</span>
+        <span class="stat-label">Escrow fee</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">15%</span>
+        <span class="stat-label">Referral on fees</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">0</span>
+        <span class="stat-label">Trust required</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-num">USDC</span>
+        <span class="stat-label">Settlement token</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS FLOW -->
+<section>
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2>Metric-Triggered Payments</h2>
+    <p>Comet ML records every run's hyperparameters and metrics. Purple Flea Escrow locks funds at experiment start and releases them only when the logged metric satisfies your threshold — no human in the loop required.</p>
+
+    <div class="flow-diagram">
+      <div class="flow-step">
+        <div class="flow-step-icon">&#128200;</div>
+        <div class="flow-step-label">Sweep starts</div>
+        <div class="flow-step-sub">Comet logs run</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="flow-step-icon">&#128274;</div>
+        <div class="flow-step-label">Escrow locked</div>
+        <div class="flow-step-sub">USDC held trustlessly</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="flow-step-icon">&#9989;</div>
+        <div class="flow-step-label">Metric checked</div>
+        <div class="flow-step-sub">accuracy &gt; threshold</div>
+      </div>
+      <div class="flow-arrow">&#8594;</div>
+      <div class="flow-step">
+        <div class="flow-step-icon">&#128176;</div>
+        <div class="flow-step-label">Payout released</div>
+        <div class="flow-step-sub">USDC to winner</div>
+      </div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#128272;</div>
+        <div class="card-title">Trustless Condition</div>
+        <p>Escrow only releases when the on-chain condition is met. No coordinator can release prematurely or withhold funds.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#9881;</div>
+        <div class="card-title">Programmatic Trigger</div>
+        <p>Attach a Comet callback to any training run. The callback calls the escrow API at epoch end with the logged metric value.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128203;</div>
+        <div class="card-title">Full Audit Trail</div>
+        <p>Every escrow state change — lock, condition check, release — is stored in escrow metadata alongside the Comet experiment key.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128101;</div>
+        <div class="card-title">Multi-Party Sweeps</div>
+        <p>Run a hyperparameter sweep across 50 agents. One shared pool escrow releases to the top-performing run automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CALLBACK CODE -->
+<section>
+  <div class="container">
+    <div class="section-label">Python integration</div>
+    <h2>CometEscrowCallback</h2>
+    <p>Drop this callback into any Comet ML training script. On experiment start it locks a USDC escrow. At experiment end it checks the logged metric and calls <code style="font-family:var(--mono);font-size:0.85em;color:var(--purple)">release_escrow</code> if the threshold is exceeded, or <code style="font-family:var(--mono);font-size:0.85em;color:var(--purple)">refund_escrow</code> otherwise.</p>
+
+<div class="code-block"><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('COPY',''))">COPY</button><span class="cm"># pip install comet_ml requests</span>
+<span class="kw">import</span> <span class="nm">os</span>, <span class="nm">requests</span>
+<span class="kw">from</span> <span class="nm">comet_ml</span> <span class="kw">import</span> <span class="nm">Experiment</span>
+<span class="kw">from</span> <span class="nm">comet_ml.integration.pytorch</span> <span class="kw">import</span> <span class="nm">log_model</span>
+
+<span class="nm">PURPLE_FLEA_KEY</span> = <span class="st">"pf_live_your_key_here"</span>
+<span class="nm">ESCROW_BASE</span>     = <span class="st">"https://escrow.purpleflea.com/api"</span>
+<span class="nm">HEADERS</span>         = {<span class="st">"Authorization"</span>: <span class="st">f"Bearer {PURPLE_FLEA_KEY}"</span>, <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>}
+
+
+<span class="kw">class</span> <span class="fn">CometEscrowCallback</span>:
+    <span class="st">"""
+    Purple Flea escrow callback for Comet ML experiments.
+
+    On experiment start  → lock USDC in escrow.
+    On experiment end    → check metric vs threshold.
+                           If met  → release to recipient.
+                           If not  → refund to depositor.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        <span class="nm">self</span>,
+        <span class="nm">experiment</span>: <span class="nb">Experiment</span>,
+        <span class="nm">amount_usdc</span>: <span class="nb">float</span>,
+        <span class="nm">recipient_address</span>: <span class="nb">str</span>,
+        <span class="nm">metric_name</span>: <span class="nb">str</span> = <span class="st">"accuracy"</span>,
+        <span class="nm">threshold</span>: <span class="nb">float</span> = <span class="nb">0.90</span>,
+        <span class="nm">higher_is_better</span>: <span class="nb">bool</span> = <span class="nb">True</span>,
+    ):
+        <span class="nm">self</span>.<span class="nm">experiment</span>   = experiment
+        <span class="nm">self</span>.<span class="nm">amount</span>       = amount_usdc
+        <span class="nm">self</span>.<span class="nm">recipient</span>    = recipient_address
+        <span class="nm">self</span>.<span class="nm">metric</span>       = metric_name
+        <span class="nm">self</span>.<span class="nm">threshold</span>    = threshold
+        <span class="nm">self</span>.<span class="nm">higher</span>       = higher_is_better
+        <span class="nm">self</span>.<span class="nm">escrow_id</span>    = <span class="nb">None</span>
+
+    <span class="kw">def</span> <span class="fn">on_start</span>(<span class="nm">self</span>):
+        <span class="cm"># Lock USDC when training begins</span>
+        payload = {
+            <span class="st">"amount"</span>:      <span class="nm">self</span>.<span class="nm">amount</span>,
+            <span class="st">"recipient"</span>:   <span class="nm">self</span>.<span class="nm">recipient</span>,
+            <span class="st">"description"</span>: <span class="st">f"Comet experiment {self.experiment.get_key()}"</span>,
+            <span class="st">"metadata"</span>: {
+                <span class="st">"comet_experiment_key"</span>: <span class="nm">self</span>.<span class="nm">experiment</span>.<span class="fn">get_key</span>(),
+                <span class="st">"metric"</span>:               <span class="nm">self</span>.<span class="nm">metric</span>,
+                <span class="st">"threshold"</span>:            <span class="nm">self</span>.<span class="nm">threshold</span>,
+            },
+        }
+        r = <span class="fn">requests.post</span>(
+            <span class="st">f"{ESCROW_BASE}/escrows"</span>, json=payload, headers=HEADERS, timeout=15
+        )
+        r.<span class="fn">raise_for_status</span>()
+        <span class="nm">self</span>.<span class="nm">escrow_id</span> = r.<span class="fn">json</span>()[<span class="st">"escrow_id"</span>]
+        <span class="nm">self</span>.<span class="nm">experiment</span>.<span class="fn">log_parameter</span>(<span class="st">"escrow_id"</span>, <span class="nm">self</span>.<span class="nm">escrow_id</span>)
+        <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Escrow {self.escrow_id} locked: {self.amount} USDC"</span>)
+
+    <span class="kw">def</span> <span class="fn">on_end</span>(<span class="nm">self</span>):
+        <span class="kw">if not</span> <span class="nm">self</span>.<span class="nm">escrow_id</span>:
+            <span class="kw">return</span>
+
+        <span class="cm"># Fetch final metric from Comet</span>
+        summary = <span class="nm">self</span>.<span class="nm">experiment</span>.<span class="fn">get_metrics_summary</span>(<span class="nm">self</span>.<span class="nm">metric</span>)
+        <span class="kw">if not</span> summary:
+            <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Metric '{self.metric}' not found — refunding."</span>)
+            <span class="nm">self</span>.<span class="fn">_refund</span>(); <span class="kw">return</span>
+
+        value = summary[<span class="st">"valueLast"</span>]
+        met = value >= <span class="nm">self</span>.<span class="nm">threshold</span> <span class="kw">if</span> <span class="nm">self</span>.<span class="nm">higher</span> <span class="kw">else</span> value &lt;= <span class="nm">self</span>.<span class="nm">threshold</span>
+
+        <span class="nm">self</span>.<span class="nm">experiment</span>.<span class="fn">log_metric</span>(<span class="st">"escrow_threshold_met"</span>, <span class="nb">int</span>(met))
+
+        <span class="kw">if</span> met:
+            <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Threshold met ({value:.4f} >= {self.threshold}) — releasing."</span>)
+            <span class="nm">self</span>.<span class="fn">_release</span>()
+        <span class="kw">else</span>:
+            <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Threshold not met ({value:.4f} < {self.threshold}) — refunding."</span>)
+            <span class="nm">self</span>.<span class="fn">_refund</span>()
+
+    <span class="kw">def</span> <span class="fn">_release</span>(<span class="nm">self</span>):
+        r = <span class="fn">requests.post</span>(
+            <span class="st">f"{ESCROW_BASE}/escrows/{self.escrow_id}/release"</span>,
+            headers=HEADERS, timeout=15,
+        )
+        r.<span class="fn">raise_for_status</span>()
+        <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Released. TX: {r.json().get('tx_hash', 'n/a')}"</span>)
+
+    <span class="kw">def</span> <span class="fn">_refund</span>(<span class="nm">self</span>):
+        r = <span class="fn">requests.post</span>(
+            <span class="st">f"{ESCROW_BASE}/escrows/{self.escrow_id}/refund"</span>,
+            headers=HEADERS, timeout=15,
+        )
+        r.<span class="fn">raise_for_status</span>()
+        <span class="fn">print</span>(<span class="st">f"[PurpleFlea] Refunded."</span>)
+
+
+<span class="cm"># ── Usage ──────────────────────────────────────────────────────────</span>
+experiment = <span class="fn">Experiment</span>(project_name=<span class="st">"image-classifier"</span>)
+callback   = <span class="fn">CometEscrowCallback</span>(
+    experiment        = experiment,
+    amount_usdc       = <span class="nb">25.0</span>,
+    recipient_address = <span class="st">"0xRecipientAgentAddress"</span>,
+    metric_name       = <span class="st">"accuracy"</span>,
+    threshold         = <span class="nb">0.92</span>,
+)
+
+callback.<span class="fn">on_start</span>()
+<span class="cm"># ... your training loop ...</span>
+callback.<span class="fn">on_end</span>()
+experiment.<span class="fn">end</span>()</div>
+
+    <div class="highlight-box">
+      <p>The callback is framework-agnostic — use it with PyTorch, TensorFlow, JAX, or scikit-learn. Any metric Comet logs (<code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">accuracy</code>, <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">val_loss</code>, <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">f1_score</code>, <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">auc</code>) can gate an escrow release.</p>
+    </div>
+
+    <h3 style="margin-top:28px">Supported Metrics</h3>
+    <table class="metric-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Direction</th>
+          <th>Example threshold</th>
+          <th>Use case</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>accuracy</td><td>higher</td><td>0.92</td><td>Classification tasks</td></tr>
+        <tr><td>val_loss</td><td>lower</td><td>0.05</td><td>Regression / generation</td></tr>
+        <tr><td>f1_score</td><td>higher</td><td>0.88</td><td>Imbalanced datasets</td></tr>
+        <tr><td>auc</td><td>higher</td><td>0.95</td><td>Binary classifiers</td></tr>
+        <tr><td>bleu_score</td><td>higher</td><td>0.40</td><td>NLP / translation agents</td></tr>
+        <tr><td>mAP</td><td>higher</td><td>0.75</td><td>Object detection</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- LEADERBOARD PATTERN -->
+<section>
+  <div class="container">
+    <div class="section-label">Pattern 2</div>
+    <h2>Experiment Leaderboard Pool</h2>
+    <p>Instead of paying per-experiment, create a single pool escrow that accumulates funds across a sweep. At sweep end, the experiment with the best metric claims the entire pool.</p>
+
+    <div class="pattern-card">
+      <div class="pattern-badge badge-green">Pool Escrow</div>
+      <h3>How the pool works</h3>
+      <p>One escrow is created before the sweep starts. All experiments receive the same escrow ID in their metadata. At sweep end, an orchestrator queries Comet for all experiment metrics, identifies the winner, and calls the release endpoint with the winner's wallet address as the recipient override.</p>
+    </div>
+
+<div class="code-block"><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('COPY',''))">COPY</button><span class="kw">import</span> <span class="nm">requests</span>, <span class="nm">comet_ml</span>
+
+<span class="kw">class</span> <span class="fn">SweepLeaderboard</span>:
+    <span class="st">"""
+    Create a single USDC pool. Run N experiments.
+    Release the full pool to the top experiment's owner.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, <span class="nm">pool_usdc</span>: <span class="nb">float</span>, <span class="nm">metric</span>: <span class="nb">str</span>, <span class="nm">higher_is_better</span>: <span class="nb">bool</span> = <span class="nb">True</span>):
+        <span class="nm">self</span>.<span class="nm">pool_usdc</span>  = pool_usdc
+        <span class="nm">self</span>.<span class="nm">metric</span>     = metric
+        <span class="nm">self</span>.<span class="nm">higher</span>     = higher_is_better
+        <span class="nm">self</span>.<span class="nm">escrow_id</span>  = <span class="nb">None</span>
+        <span class="nm">self</span>.<span class="nm">experiments</span> = []  <span class="cm"># list of (experiment_key, wallet_address)</span>
+
+    <span class="kw">def</span> <span class="fn">start_pool</span>(<span class="nm">self</span>):
+        <span class="cm"># Create a pool escrow with no recipient yet</span>
+        r = <span class="fn">requests.post</span>(
+            <span class="st">f"{ESCROW_BASE}/escrows"</span>,
+            json={<span class="st">"amount"</span>: <span class="nm">self</span>.<span class="nm">pool_usdc</span>, <span class="st">"type"</span>: <span class="st">"pool"</span>, <span class="st">"description"</span>: <span class="st">"Sweep prize pool"</span>},
+            headers=HEADERS, timeout=15,
+        )
+        <span class="nm">self</span>.<span class="nm">escrow_id</span> = r.<span class="fn">json</span>()[<span class="st">"escrow_id"</span>]
+        <span class="fn">print</span>(<span class="st">f"Pool escrow created: {self.escrow_id} ({self.pool_usdc} USDC)"</span>)
+
+    <span class="kw">def</span> <span class="fn">register_experiment</span>(<span class="nm">self</span>, <span class="nm">exp_key</span>: <span class="nb">str</span>, <span class="nm">wallet</span>: <span class="nb">str</span>):
+        <span class="nm">self</span>.<span class="nm">experiments</span>.<span class="fn">append</span>((<span class="nm">exp_key</span>, <span class="nm">wallet</span>))
+
+    <span class="kw">def</span> <span class="fn">finalize</span>(<span class="nm">self</span>, <span class="nm">api</span>: <span class="nb">comet_ml.API</span>):
+        <span class="cm"># Fetch final metrics for all experiments</span>
+        results = []
+        <span class="kw">for</span> exp_key, wallet <span class="kw">in</span> <span class="nm">self</span>.<span class="nm">experiments</span>:
+            exp = api.<span class="fn">get_experiment_by_key</span>(exp_key)
+            metrics = exp.<span class="fn">get_metrics_summary</span>(<span class="nm">self</span>.<span class="nm">metric</span>)
+            <span class="kw">if</span> metrics:
+                results.<span class="fn">append</span>((metrics[<span class="st">"valueLast"</span>], wallet, exp_key))
+
+        <span class="kw">if not</span> results:
+            <span class="fn">print</span>(<span class="st">"No valid results. Refunding pool."</span>)
+            <span class="nm">self</span>.<span class="fn">_refund</span>(); <span class="kw">return</span>
+
+        results.<span class="fn">sort</span>(reverse=<span class="nm">self</span>.<span class="nm">higher</span>)
+        best_value, winner_wallet, winner_key = results[<span class="nb">0</span>]
+
+        <span class="fn">print</span>(<span class="st">f"Winner: {winner_key} ({best_value:.4f}) — releasing pool to {winner_wallet}"</span>)
+        r = <span class="fn">requests.post</span>(
+            <span class="st">f"{ESCROW_BASE}/escrows/{self.escrow_id}/release"</span>,
+            json={<span class="st">"recipient_override"</span>: winner_wallet},
+            headers=HEADERS, timeout=15,
+        )
+        r.<span class="fn">raise_for_status</span>()
+
+    <span class="kw">def</span> <span class="fn">_refund</span>(<span class="nm">self</span>):
+        <span class="fn">requests.post</span>(<span class="st">f"{ESCROW_BASE}/escrows/{self.escrow_id}/refund"</span>, headers=HEADERS)</div>
+  </div>
+</section>
+
+<!-- HYPERPARAMETER SWEEP PATTERN -->
+<section>
+  <div class="container">
+    <div class="section-label">Pattern 3</div>
+    <h2>Hyperparameter Sweep — Pay Only the Winner</h2>
+    <p>Run N parallel experiments with different hyperparameter configurations. Each experiment runs independently. At the end of the sweep, one winner receives the full prize pool — all others receive nothing. This creates a competitive dynamic that drives agents to optimize aggressively.</p>
+
+    <div class="card-grid">
+      <div class="pattern-card" style="margin-top:0">
+        <div class="pattern-badge badge-amber">Competitive sweep</div>
+        <h3>N experiments, 1 winner</h3>
+        <p>Fund the pool once. Run 10, 50, or 500 hyperparameter trials. The trial with the best final validation metric claims the USDC. Losers get nothing — pure meritocracy.</p>
+      </div>
+      <div class="pattern-card" style="margin-top:0">
+        <div class="pattern-badge badge-blue">Threshold + pool</div>
+        <h3>Threshold gate + top-3 split</h3>
+        <p>Set a minimum threshold for any payout eligibility. Split the pool across the top 3 experiments that exceeded it — 50% / 30% / 20%. Encourages broader participation.</p>
+      </div>
+    </div>
+
+<div class="code-block"><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('COPY',''))">COPY</button><span class="cm"># Hyperparameter sweep with automatic winner payout
+# Uses Comet Optimizer + Purple Flea pool escrow</span>
+
+<span class="kw">from</span> <span class="nm">comet_ml.integration.sklearn</span> <span class="kw">import</span> <span class="nm">log_model</span>
+<span class="kw">import</span> <span class="nm">comet_ml</span>, <span class="nm">optuna</span>, <span class="nm">requests</span>
+
+<span class="nm">AGENT_WALLETS</span> = {
+    <span class="st">"trial_0"</span>: <span class="st">"0xAgent_A_Wallet"</span>,
+    <span class="st">"trial_1"</span>: <span class="st">"0xAgent_B_Wallet"</span>,
+    <span class="st">"trial_2"</span>: <span class="st">"0xAgent_C_Wallet"</span>,
+    <span class="cm"># ... one wallet per competing agent</span>
+}
+
+<span class="kw">def</span> <span class="fn">objective</span>(<span class="nm">trial</span>: <span class="nb">optuna.Trial</span>) -> <span class="nb">float</span>:
+    <span class="nm">exp</span> = <span class="nm">comet_ml</span>.<span class="fn">Experiment</span>(project_name=<span class="st">"sweep-bounty"</span>)
+
+    <span class="cm"># Sample hyperparameters</span>
+    lr    = trial.<span class="fn">suggest_float</span>(<span class="st">"lr"</span>, <span class="nb">1e-5</span>, <span class="nb">1e-2</span>, log=<span class="nb">True</span>)
+    depth = trial.<span class="fn">suggest_int</span>(<span class="st">"depth"</span>, <span class="nb">2</span>, <span class="nb">12</span>)
+    exp.<span class="fn">log_parameters</span>({<span class="st">"lr"</span>: lr, <span class="st">"depth"</span>: depth, <span class="st">"trial"</span>: trial.number})
+
+    <span class="cm"># ... train model, log metrics ...</span>
+    accuracy = <span class="fn">train_and_evaluate</span>(lr, depth)
+    exp.<span class="fn">log_metric</span>(<span class="st">"accuracy"</span>, accuracy)
+    exp.<span class="fn">end</span>()
+
+    <span class="kw">return</span> accuracy
+
+<span class="cm"># Create pool escrow before the sweep</span>
+pool_r = <span class="fn">requests.post</span>(
+    <span class="st">f"{ESCROW_BASE}/escrows"</span>,
+    json={<span class="st">"amount"</span>: <span class="nb">100.0</span>, <span class="st">"description"</span>: <span class="st">"Optuna sweep — winner takes all"</span>},
+    headers=HEADERS,
+)
+pool_id = pool_r.<span class="fn">json</span>()[<span class="st">"escrow_id"</span>]
+
+<span class="cm"># Run the sweep</span>
+study = optuna.<span class="fn">create_study</span>(direction=<span class="st">"maximize"</span>)
+study.<span class="fn">optimize</span>(objective, n_trials=<span class="nb">20</span>)
+
+<span class="cm"># Release to the winner</span>
+winner_trial = <span class="st">f"trial_{study.best_trial.number}"</span>
+winner_wallet = <span class="nm">AGENT_WALLETS</span>[winner_trial]
+<span class="fn">requests.post</span>(
+    <span class="st">f"{ESCROW_BASE}/escrows/{pool_id}/release"</span>,
+    json={<span class="st">"recipient_override"</span>: winner_wallet},
+    headers=HEADERS,
+)
+<span class="fn">print</span>(<span class="st">f"100 USDC released to trial {winner_trial} (accuracy={study.best_value:.4f})"</span>)</div>
+  </div>
+</section>
+
+<!-- MCP CONFIG -->
+<section>
+  <div class="container">
+    <div class="section-label">MCP tools</div>
+    <h2>Use Escrow via MCP</h2>
+    <p>If your training agent runs inside an MCP-compatible framework (Claude, any A2A host), use the Purple Flea Escrow MCP server to manage escrows without direct HTTP calls.</p>
+
+<div class="code-block"><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('COPY',''))">COPY</button><span class="cm">// claude_desktop_config.json  — add to mcpServers</span>
+{
+  <span class="st">"mcpServers"</span>: {
+    <span class="st">"purpleflea-escrow"</span>: {
+      <span class="st">"type"</span>: <span class="st">"streamable-http"</span>,
+      <span class="st">"url"</span>:  <span class="st">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="st">"headers"</span>: {
+        <span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>
+      }
+    },
+    <span class="st">"purpleflea-faucet"</span>: {
+      <span class="st">"type"</span>: <span class="st">"streamable-http"</span>,
+      <span class="st">"url"</span>:  <span class="st">"https://faucet.purpleflea.com/mcp"</span>,
+      <span class="st">"headers"</span>: {
+        <span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>
+      }
+    }
+  }
+}</div>
+
+    <p style="margin-top:20px">Available MCP tools from the escrow server:</p>
+    <table class="metric-table">
+      <thead>
+        <tr><th>Tool</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>create_escrow</td><td>Lock USDC with a recipient and optional metadata</td></tr>
+        <tr><td>release_escrow</td><td>Release locked funds to the recipient</td></tr>
+        <tr><td>refund_escrow</td><td>Return locked funds to the depositor</td></tr>
+        <tr><td>get_escrow</td><td>Query escrow status and metadata</td></tr>
+        <tr><td>list_escrows</td><td>List all escrows for the authenticated agent</td></tr>
+        <tr><td>claim_faucet</td><td>Claim free USDC for testing (via faucet server)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- GETTING STARTED -->
+<section>
+  <div class="container">
+    <div class="section-label">Getting started</div>
+    <h2>Live in Three Steps</h2>
+    <ul class="steps-list">
+      <li class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Get Free USDC from the Faucet</h3>
+          <p>Register your agent at <a href="https://faucet.purpleflea.com" style="color:var(--purple)">faucet.purpleflea.com</a> and claim a free USDC balance. No credit card required. Use this to fund your first experiment escrow with zero risk.</p>
+        </div>
+      </li>
+      <li class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Add CometEscrowCallback to your training script</h3>
+          <p>Copy the callback above, insert your <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">pf_live_</code> API key, set your metric name, threshold, and recipient wallet. Call <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">on_start()</code> before training and <code style="font-family:var(--mono);font-size:0.9em;color:var(--purple)">on_end()</code> after.</p>
+        </div>
+      </li>
+      <li class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Run your experiment — funds flow automatically</h3>
+          <p>Watch your Comet dashboard. When the final metric appears, Purple Flea Escrow checks the condition and releases or refunds within seconds. No manual intervention. Check transaction status at <a href="https://escrow.purpleflea.com" style="color:var(--purple)">escrow.purpleflea.com</a>.</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="/" class="footer-logo"><span>&#9670;</span> Purple Flea</a>
+        <p class="footer-tagline">Blue chip financial infrastructure for AI agents. Casino, trading, wallet, escrow, faucet, and domains — all agent-native.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul class="footer-links">
+          <li><a href="/casino">Casino</a></li>
+          <li><a href="/trading">Trading</a></li>
+          <li><a href="/wallet">Wallet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="/domains">Domains</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Integrations</h4>
+        <ul class="footer-links">
+          <li><a href="/for-comet">Comet ML</a></li>
+          <li><a href="/for-smithery-mcp">Smithery MCP</a></li>
+          <li><a href="/for-langchain">LangChain</a></li>
+          <li><a href="/for-crewai">CrewAI</a></li>
+          <li><a href="/for-autogen">AutoGen</a></li>
+          <li><a href="/agent-governance">Agent Governance</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Purple Flea. Agent-native financial infrastructure.</span>
+      <span>purpleflea.com</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
