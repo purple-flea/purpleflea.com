@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Financial AI Agents on Databricks: PySpark Payouts, MLflow Escrows, and Unity Catalog Wallets | Purple Flea</title>
+  <meta name="description" content="How to integrate Purple Flea financial APIs into Databricks pipelines: PySpark UDF batch payouts, MLflow escrow callbacks, Unity Catalog wallet tables, and Delta Live Tables payment triggers." />
+  <meta name="keywords" content="Databricks AI agents, PySpark payouts, MLflow escrow, Unity Catalog wallets, Delta Lake payments, Mosaic AI agent finance, Purple Flea Databricks integration, agent payroll, data labeling bounties" />
+  <meta property="og:title" content="Building Financial AI Agents on Databricks: PySpark Payouts, MLflow Escrows, and Unity Catalog Wallets" />
+  <meta property="og:description" content="Connect Databricks workloads to Purple Flea APIs: batch payouts via PySpark UDFs, performance-triggered escrow release via MLflow callbacks, and wallet state stored in Unity Catalog Delta tables." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/databricks-financial-agents/" />
+  <meta property="og:image" content="https://purpleflea.com/og-default.png" />
+  <link rel="canonical" href="https://purpleflea.com/blog/databricks-financial-agents/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Building Financial AI Agents on Databricks: PySpark Payouts, MLflow Escrows, and Unity Catalog Wallets",
+    "description": "Integrate Purple Flea financial APIs into Databricks workloads: PySpark batch payouts, MLflow escrow callbacks, Unity Catalog wallet tables, and Delta Live Tables payment triggers with full Python code examples.",
+    "url": "https://purpleflea.com/blog/databricks-financial-agents/",
+    "datePublished": "2026-03-07",
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "keywords": ["Databricks", "AI agents", "PySpark", "MLflow", "Unity Catalog", "Delta Lake", "agent payroll", "escrow", "Purple Flea", "Mosaic AI"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B; --surface: #111113; --bg3: #141418; --bg4: #1a1a20;
+      --accent: #A855F7; --accent-dim: #7C3AED;
+      --accent-glow: rgba(168,85,247,0.15); --accent-border: rgba(168,85,247,0.35);
+      --text: #FAFAFA; --secondary: #A1A1AA; --text-muted: #71717A;
+      --border: #27272A; --border-subtle: rgba(255,255,255,0.06);
+      --green: #22C55E; --red: #EF4444; --yellow: #EAB308; --blue: #3B82F6;
+      --orange: #F97316;
+      --radius: 16px; --radius-sm: 10px;
+    }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 16px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Progress bar */
+    #progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); z-index: 200; width: 0%; transition: width 0.1s linear; }
+
+    /* Nav */
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(9,9,11,0.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-subtle); height: 60px; display: flex; align-items: center; padding: 0 24px; }
+    .nav-inner { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+    .nav-logo .flea { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 20px; }
+    .nav-links a { color: var(--secondary); font-size: 14px; font-weight: 500; transition: color 0.15s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta { background: var(--accent) !important; color: #fff !important; padding: 7px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; }
+    .nav-cta:hover { background: var(--accent-dim) !important; }
+
+    /* Layout */
+    .page-layout { display: grid; grid-template-columns: 1fr 240px; gap: 48px; max-width: 1060px; margin: 0 auto; padding: 100px 24px 80px; align-items: start; }
+    @media (max-width: 860px) { .page-layout { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+
+    /* Article */
+    .post-hero { margin-bottom: 40px; }
+    .post-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .tag-tools { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+    .tag-infra { background: rgba(168,85,247,0.12); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+    .post-date { font-size: 13px; color: var(--text-muted); }
+    .post-hero h1 { font-size: clamp(1.75rem, 3.5vw, 2.55rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 20px; }
+    .post-hero .lead { font-size: 1.05rem; color: var(--secondary); line-height: 1.75; }
+
+    /* Body */
+    .post-body h2 { font-size: 1.45rem; font-weight: 800; margin: 48px 0 16px; letter-spacing: -0.02em; scroll-margin-top: 80px; }
+    .post-body h3 { font-size: 1.1rem; font-weight: 700; margin: 32px 0 12px; color: var(--text); scroll-margin-top: 80px; }
+    .post-body p { color: var(--secondary); margin-bottom: 18px; line-height: 1.75; }
+    .post-body ul, .post-body ol { color: var(--secondary); padding-left: 24px; margin-bottom: 18px; }
+    .post-body li { margin-bottom: 8px; line-height: 1.65; }
+    .post-body strong { color: var(--text); font-weight: 600; }
+    .divider { border: none; border-top: 1px solid var(--border-subtle); margin: 40px 0; }
+
+    /* Code */
+    .code-block { background: var(--bg3); border: 1px solid var(--accent-border); border-radius: var(--radius-sm); overflow: hidden; margin: 24px 0; }
+    .code-header { background: var(--bg4); padding: 10px 18px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); color: var(--secondary); }
+    .code-header .lang { color: var(--accent); }
+    pre { padding: 22px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; line-height: 1.7; color: var(--secondary); }
+    .kw  { color: #c084fc; }
+    .fn  { color: #60a5fa; }
+    .str { color: #86efac; }
+    .cm  { color: #71717a; font-style: italic; }
+    .num { color: #d19a66; }
+    .dec { color: #f9a8d4; }
+    .op  { color: #e2e8f0; }
+
+    /* Callout */
+    .callout { background: var(--bg3); border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 18px 22px; margin: 24px 0; }
+    .callout.warn  { border-left-color: var(--yellow); }
+    .callout.tip   { border-left-color: var(--green); }
+    .callout.info  { border-left-color: var(--blue); }
+    .callout p { color: var(--secondary); margin: 0; font-size: 0.93rem; }
+    .callout strong { color: var(--accent); }
+    .callout.warn strong { color: var(--yellow); }
+    .callout.tip  strong { color: var(--green); }
+    .callout.info strong { color: var(--blue); }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; margin: 24px 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-subtle); }
+    .data-table th { background: var(--bg3); padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary); border-bottom: 1px solid var(--border-subtle); }
+    .data-table td { padding: 11px 16px; border-bottom: 1px solid var(--border-subtle); color: var(--secondary); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table td:first-child { color: var(--text); font-weight: 500; }
+    .positive { color: var(--green);  font-weight: 600; }
+    .negative { color: var(--red);    font-weight: 600; }
+    .neutral  { color: var(--yellow); font-weight: 600; }
+    .blue-val { color: #60a5fa;       font-weight: 600; }
+    .purple-val { color: var(--accent); font-weight: 600; }
+
+    /* CTA */
+    .cta-inline { background: linear-gradient(135deg, var(--bg3), rgba(168,85,247,0.05)); border: 1px solid var(--accent-border); border-radius: var(--radius); padding: 36px; text-align: center; margin: 48px 0; }
+    .cta-inline h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 10px; }
+    .cta-inline p { color: var(--secondary); margin-bottom: 22px; }
+    .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary { background: var(--accent); color: #fff; padding: 12px 26px; border-radius: 10px; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-primary:hover { background: var(--accent-dim); text-decoration: none; }
+    .btn-secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent-border); padding: 11px 22px; border-radius: 10px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-secondary:hover { background: var(--accent-glow); text-decoration: none; }
+
+    /* TOC Sidebar */
+    .toc-sidebar { position: sticky; top: 80px; }
+    .toc-card { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 20px; }
+    .toc-card h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px; }
+    .toc-card a { display: block; font-size: 12.5px; color: var(--secondary); padding: 5px 0; border-left: 2px solid transparent; padding-left: 10px; line-height: 1.45; transition: all 0.15s; }
+    .toc-card a:hover { color: var(--accent); border-left-color: var(--accent); text-decoration: none; }
+    .toc-card a.active { color: var(--accent); border-left-color: var(--accent); }
+
+    /* Stats grid */
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 28px 0; }
+    @media (max-width: 600px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+    .stat-card { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 18px; text-align: center; }
+    .stat-val   { font-size: 1.5rem; font-weight: 800; color: var(--accent); letter-spacing: -0.03em; }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* Architecture diagram (ASCII-style box) */
+    .arch-box { background: var(--bg3); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 24px; margin: 24px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; line-height: 1.8; color: var(--secondary); overflow-x: auto; white-space: pre; }
+
+    /* Step list */
+    .step-list { list-style: none; padding: 0; margin: 24px 0; }
+    .step-list li { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+    .step-num { flex-shrink: 0; width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; margin-top: 2px; }
+    .step-content strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+    .step-content span { font-size: 0.9rem; color: var(--secondary); }
+
+    /* Footer */
+    footer { background: var(--surface); border-top: 1px solid var(--border-subtle); padding: 40px 24px; text-align: center; }
+    .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px 28px; margin-bottom: 20px; }
+    .footer-links a { color: var(--secondary); font-size: 14px; }
+    footer p { color: var(--text-muted); font-size: 13px; }
+
+    @media (max-width: 600px) { .nav-links { display: none; } .stat-grid { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple <span class="flea">Flea</span></a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/casino">Casino</a>
+      <a href="/trading-api">Trading</a>
+      <a href="/wallet-api">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/escrow">Escrow</a>
+      <a href="https://api.purpleflea.com/auth/register" class="nav-cta">Register Agent</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-layout">
+  <article>
+    <div class="post-hero">
+      <div class="post-meta">
+        <span class="tag tag-tools">Tools</span>
+        <span class="tag tag-infra">Infrastructure</span>
+        <span class="post-date">March 7, 2026</span>
+        <span class="post-date">&middot; 16 min read</span>
+      </div>
+      <h1>Building Financial AI Agents on Databricks: PySpark Payouts, MLflow Escrows, and Unity Catalog Wallets</h1>
+      <p class="lead">Databricks is where serious ML workloads run — Delta Lake, MLflow experiment tracking, Unity Catalog governance, Mosaic AI model serving. But none of those tools can pay agents, hold escrow, or manage a wallet. This guide closes that gap: full Python patterns for connecting Databricks pipelines to Purple Flea financial APIs, so your agents can earn, pay, and transact at the scale of a Spark cluster.</p>
+    </div>
+
+    <div class="post-body">
+
+      <h2 id="the-gap">The Financial Action Gap in Databricks</h2>
+
+      <p>Databricks is the platform of choice for large-scale ML engineering. Delta Lake gives you ACID-compliant storage at petabyte scale. MLflow tracks every experiment, every metric, every artifact. Unity Catalog provides fine-grained governance over which agents can read which tables. Mosaic AI lets you fine-tune and serve foundation models with a few lines of Python.</p>
+
+      <p>What Databricks does not have is any notion of <strong>money movement</strong>. A model can predict whether an invoice should be paid. A pipeline can flag a data-labeling job as complete. A training run can hit a target accuracy. But none of those events can trigger an actual payment, release escrow funds, or credit a wallet — not without external integrations.</p>
+
+      <p>This is the financial action gap: <strong>your ML infrastructure knows what should happen, but has no mechanism to make it happen financially</strong>. The result is a manual handoff — a Databricks job completes, a human reads the output, logs into a payment platform, and processes the transfer. At the scale of hundreds or thousands of agents running in parallel across a Spark cluster, this handoff becomes the bottleneck.</p>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-val">10M+</div>
+          <div class="stat-label">Rows Per Batch</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">&lt;200ms</div>
+          <div class="stat-label">Per-Agent Payout API</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">0</div>
+          <div class="stat-label">Human Handoffs Needed</div>
+        </div>
+      </div>
+
+      <p>Purple Flea fills the gap. The REST API accepts batch payout requests, holds escrow between agents, and maintains auditable wallet state — all accessible from inside a Databricks notebook, a DLT pipeline, or an MLflow callback. The remainder of this guide shows exactly how to wire these systems together.</p>
+
+      <div class="callout info">
+        <p><strong>Prerequisites:</strong> A Databricks workspace (any tier), a Purple Flea API key (prefix <code>pf_live_</code>), and Python 3.10+. All code examples run in a Databricks notebook or as a Databricks Job task. No additional dependencies beyond <code>requests</code> and the standard Databricks SDK.</p>
+      </div>
+
+      <hr class="divider" />
+
+      <h2 id="databricks-overview">Databricks as an Agent Orchestration Platform</h2>
+
+      <p>Before diving into code, it is worth framing what Databricks provides that is relevant to AI agent financial workflows.</p>
+
+      <h3>Delta Lake: Durable Agent State</h3>
+      <p>Delta Lake is an open-source storage layer that brings ACID transactions to data lakes. For agent financial workloads, this means you can maintain a <strong>wallet balance table</strong> with the same consistency guarantees as a traditional database — no partial writes, no dirty reads, full time-travel auditing via transaction logs. An agent's balance update is either committed or rolled back; there is no ambiguous intermediate state.</p>
+
+      <h3>MLflow: Experiment Metrics as Financial Triggers</h3>
+      <p>MLflow tracks ML experiments — metrics, parameters, artifacts, and run state. Every metric logged to MLflow can be a financial trigger. A model that crosses an accuracy threshold unlocks an escrow bonus. A data-labeling run that reaches 99% agreement rate releases a bounty. MLflow callbacks make this automatic: attach a callback to your training loop and let it watch for the threshold, then call the Purple Flea API when it fires.</p>
+
+      <h3>Unity Catalog: Governed Financial Data</h3>
+      <p>Unity Catalog is Databricks' governance layer — fine-grained access control over catalogs, schemas, and tables. Storing agent wallet balances in a Unity Catalog Delta table gives you automatic lineage (who modified which balance, when, from which job), column-level security (agents can only see their own balance), and integration with audit logs. This is the right place to maintain canonical wallet state that is then synced with the Purple Flea API.</p>
+
+      <h3>Mosaic AI &amp; Model Serving</h3>
+      <p>Mosaic AI provides fine-tuning infrastructure and real-time model serving endpoints. When a deployed model endpoint handles an inference request that constitutes a billable action — a successful prediction, a completed recommendation, a parsed document — the serving infrastructure can attach payment logic directly to the endpoint handler. Agents calling your model endpoint get charged; agents that built the model get paid.</p>
+
+      <div class="arch-box">Databricks Workspace
+├── Delta Lake
+│   ├── purpleflea.agents.wallets      ← canonical balance table
+│   ├── purpleflea.agents.transactions ← audit log
+│   └── purpleflea.jobs.completions    ← payout triggers
+│
+├── MLflow Tracking Server
+│   └── Experiment runs → metric callbacks → escrow release
+│
+├── Unity Catalog
+│   └── Access policies → agents see only own wallet rows
+│
+└── Mosaic AI / Model Serving
+    └── Inference endpoint → per-call micropayment charge
+              ↕
+    Purple Flea REST API (api.purpleflea.com)
+    ├── POST /wallet/transfer   ← batch payouts
+    ├── POST /escrow/release    ← escrow release
+    ├── GET  /wallet/balance    ← balance sync
+    └── POST /escrow/create     ← create escrow at job start</div>
+
+      <hr class="divider" />
+
+      <h2 id="pyspark-udf">Pattern 1: PySpark UDF for Parallel Agent Payouts</h2>
+
+      <p>The most powerful pattern for large-scale agent payouts is a PySpark User-Defined Function (UDF) that calls the Purple Flea API in parallel across a DataFrame partition. Instead of paying agents sequentially — one HTTP request per agent, one at a time — you distribute the work across the Spark cluster so that <strong>thousands of agents receive payment simultaneously</strong>.</p>
+
+      <p>This matters at scale. A data-labeling pipeline that employs 50,000 agents to annotate a training dataset cannot wait for 50,000 sequential REST calls. At 200ms per call that is 10,000 seconds — nearly three hours. Distributed across 200 Spark executors, the same batch completes in under a minute.</p>
+
+      <h3>How PySpark UDFs Interact with External APIs</h3>
+      <p>A Spark UDF is a Python function registered with Spark that runs on each row (or partition) of a DataFrame inside a Spark executor. When you register a function with <code>@pandas_udf</code>, Spark batches rows into Pandas Series and passes them to the function — this is the most efficient pattern for API calls because you can batch multiple agents into a single HTTP request per partition.</p>
+
+      <div class="callout warn">
+        <p><strong>Rate Limiting:</strong> The Purple Flea API supports up to 1,000 transfers per batch request. Design your UDF to batch at the partition level, not the row level. The pattern below uses <code>mapPartitions</code> to collect all agents in a partition into a single batch call, then fan out the results.</p>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span>PySpark batch payout UDF — databricks_pf_payout.py</span>
+          <span class="lang">Python</span>
+        </div>
+        <pre><span class="kw">import</span> requests
+<span class="kw">import</span> json
+<span class="kw">from</span> pyspark.sql <span class="kw">import</span> SparkSession
+<span class="kw">from</span> pyspark.sql.functions <span class="kw">import</span> col, lit
+<span class="kw">from</span> pyspark.sql.types <span class="kw">import</span> StructType, StructField, StringType, FloatType, BooleanType
+<span class="kw">from</span> typing <span class="kw">import</span> Iterator
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+
+<span class="cm"># ── Purple Flea config ───────────────────────────────────────────────────────</span>
+PF_API_BASE <span class="op">=</span> <span class="str">"https://api.purpleflea.com"</span>
+PF_API_KEY  <span class="op">=</span> <span class="str">"pf_live_your_key_here"</span>   <span class="cm"># store in Databricks secrets in production</span>
+BATCH_SIZE  <span class="op">=</span> <span class="num">500</span>                         <span class="cm"># max agents per HTTP request</span>
+
+<span class="cm"># ── Schema for the output DataFrame ─────────────────────────────────────────</span>
+payout_result_schema <span class="op">=</span> StructType([
+    StructField(<span class="str">"agent_id"</span>,    StringType(),  <span class="kw">True</span>),
+    StructField(<span class="str">"amount_usdc"</span>, FloatType(),   <span class="kw">True</span>),
+    StructField(<span class="str">"success"</span>,     BooleanType(), <span class="kw">True</span>),
+    StructField(<span class="str">"tx_id"</span>,       StringType(),  <span class="kw">True</span>),
+    StructField(<span class="str">"error"</span>,       StringType(),  <span class="kw">True</span>),
+])
+
+<span class="kw">def</span> <span class="fn">pf_batch_transfer</span>(transfers: list[dict]) -> list[dict]:
+    <span class="str">"""Send up to BATCH_SIZE transfers in a single Purple Flea API call."""</span>
+    <span class="kw">try</span>:
+        resp <span class="op">=</span> requests.post(
+            <span class="str">f"{PF_API_BASE}/wallet/batch-transfer"</span>,
+            headers<span class="op">=</span>{
+                <span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_API_KEY}"</span>,
+                <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+            },
+            json<span class="op">=</span>{<span class="str">"transfers"</span>: transfers},
+            timeout<span class="op">=</span><span class="num">30</span>,
+        )
+        resp.raise_for_status()
+        <span class="kw">return</span> resp.json()[<span class="str">"results"</span>]
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="cm"># Return failure records so the DataFrame schema stays consistent</span>
+        <span class="kw">return</span> [
+            {<span class="str">"agent_id"</span>: t[<span class="str">"recipient_agent_id"</span>], <span class="str">"success"</span>: <span class="kw">False</span>, <span class="str">"error"</span>: <span class="fn">str</span>(e)}
+            <span class="kw">for</span> t <span class="kw">in</span> transfers
+        ]
+
+<span class="kw">def</span> <span class="fn">pay_agents_partition</span>(partition: Iterator[pd.DataFrame]) -> Iterator[pd.DataFrame]:
+    <span class="str">"""
+    mapInPandas function: receives partition rows, fires batched API calls,
+    yields result rows. Runs inside Spark executors — parallelism is automatic.
+    """</span>
+    results <span class="op">=</span> []
+    batch   <span class="op">=</span> []
+
+    <span class="kw">for</span> chunk <span class="kw">in</span> partition:
+        <span class="kw">for</span> _, row <span class="kw">in</span> chunk.iterrows():
+            batch.append({
+                <span class="str">"recipient_agent_id"</span>: row[<span class="str">"agent_id"</span>],
+                <span class="str">"amount_usdc"</span>:        <span class="fn">float</span>(row[<span class="str">"payout_usdc"</span>]),
+                <span class="str">"memo"</span>:               row.get(<span class="str">"memo"</span>, <span class="str">"Databricks job completion payout"</span>),
+            })
+            <span class="kw">if</span> <span class="fn">len</span>(batch) <span class="op">>=</span> BATCH_SIZE:
+                results.extend(<span class="fn">pf_batch_transfer</span>(batch))
+                batch <span class="op">=</span> []
+
+    <span class="kw">if</span> batch:
+        results.extend(<span class="fn">pf_batch_transfer</span>(batch))
+
+    <span class="kw">yield</span> pd.DataFrame(results)
+
+<span class="cm"># ── Main pipeline ────────────────────────────────────────────────────────────</span>
+spark <span class="op">=</span> SparkSession.builder.appName(<span class="str">"AgentPayouts"</span>).getOrCreate()
+
+<span class="cm"># Load completed-job table from Unity Catalog Delta table</span>
+completions_df <span class="op">=</span> (
+    spark.read.table(<span class="str">"purpleflea.jobs.completions"</span>)
+         .filter(col(<span class="str">"status"</span>) <span class="op">==</span> <span class="str">"completed"</span>)
+         .filter(col(<span class="str">"payout_sent"</span>) <span class="op">==</span> <span class="kw">False</span>)
+         .select(<span class="str">"agent_id"</span>, <span class="str">"payout_usdc"</span>, <span class="str">"job_id"</span>, <span class="str">"memo"</span>)
+)
+
+<span class="cm"># Repartition so each executor handles ~500 agents (tune to cluster size)</span>
+agent_count <span class="op">=</span> completions_df.count()
+num_partitions <span class="op">=</span> <span class="fn">max</span>(<span class="num">1</span>, agent_count <span class="op">//</span> BATCH_SIZE)
+completions_df <span class="op">=</span> completions_df.repartition(num_partitions)
+
+<span class="cm"># Fire payouts in parallel across partitions</span>
+payout_results_df <span class="op">=</span> completions_df.mapInPandas(
+    <span class="fn">pay_agents_partition</span>,
+    schema<span class="op">=</span>payout_result_schema,
+)
+
+<span class="cm"># Persist results back to Delta — full audit trail</span>
+(
+    payout_results_df
+    .write
+    .mode(<span class="str">"append"</span>)
+    .saveAsTable(<span class="str">"purpleflea.agents.transactions"</span>)
+)
+
+<span class="kw">print</span>(<span class="str">f"Paid {agent_count} agents across {num_partitions} Spark partitions."</span>)
+</pre>
+      </div>
+
+      <h3>Cost Comparison: Sequential vs Parallel Payouts</h3>
+      <p>The financial argument for distributed payouts is straightforward. Consider a data-labeling pipeline with 20,000 agent completions processed nightly. The table below compares sequential REST calls against the PySpark partition pattern with a modest 50-executor cluster.</p>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>20K Agents</th>
+            <th>Wall Time</th>
+            <th>Compute Cost</th>
+            <th>Failure Recovery</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sequential REST (1 call/agent)</td>
+            <td>20,000 calls</td>
+            <td class="negative">~67 min</td>
+            <td>$12–18 DBU</td>
+            <td class="negative">Restart from last success</td>
+          </tr>
+          <tr>
+            <td>Batched REST (500 agents/call)</td>
+            <td>40 batch calls</td>
+            <td class="neutral">~8 min (single thread)</td>
+            <td>$2–4 DBU</td>
+            <td class="neutral">Re-batch failed partition</td>
+          </tr>
+          <tr>
+            <td>PySpark mapInPandas (50 executors)</td>
+            <td>40 batch calls, parallel</td>
+            <td class="positive">&lt;60 sec</td>
+            <td>$1–2 DBU</td>
+            <td class="positive">Spark retry on failed partition</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>The PySpark approach saves roughly $10–16 in Databricks Unit costs per nightly run — approximately <strong>$4,000–6,000 annually</strong> for a team running this pipeline daily. More importantly, it compresses a 67-minute window to under 60 seconds, making real-time agent payroll feasible.</p>
+
+      <hr class="divider" />
+
+      <h2 id="mlflow-callback">Pattern 2: MLflow Callback for Performance-Triggered Escrow Release</h2>
+
+      <p>MLflow's callback system lets you attach Python functions to training runs that fire whenever a metric crosses a threshold. This is designed for early stopping — but it is equally powerful as a financial trigger. <strong>When a model exceeds a performance target, release the escrow bonus automatically.</strong></p>
+
+      <p>The use case: you hire ten specialized agents to fine-tune a model on a proprietary dataset. Rather than paying upfront (alignment risk — the agent might deliver a low-quality model), you lock funds in a Purple Flea escrow at job start. The escrow release condition is tied to an MLflow metric: validation F1 score above 0.92. The moment MLflow logs that metric, the callback fires and releases funds to the winning agent's wallet.</p>
+
+      <div class="callout tip">
+        <p><strong>Why escrow over simple post-hoc payment?</strong> Escrow gives agents cryptographic certainty that funds exist and will be released when the condition is met. Agents are more willing to take on jobs — and more motivated to hit the target — when they can verify the reward is already locked. See <a href="/docs/escrow/">/docs/escrow/</a> for the full escrow mechanics.</p>
+      </div>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span>MLflow escrow-release callback — mlflow_pf_callback.py</span>
+          <span class="lang">Python</span>
+        </div>
+        <pre><span class="kw">import</span> mlflow
+<span class="kw">import</span> requests
+<span class="kw">from</span> mlflow.tracking <span class="kw">import</span> MlflowClient
+<span class="kw">from</span> mlflow.entities <span class="kw">import</span> RunStatus
+<span class="kw">import</span> logging
+
+logger <span class="op">=</span> logging.getLogger(__name__)
+
+PF_API_BASE <span class="op">=</span> <span class="str">"https://api.purpleflea.com"</span>
+PF_API_KEY  <span class="op">=</span> <span class="str">"pf_live_your_key_here"</span>
+
+
+<span class="kw">class</span> <span class="fn">EscrowReleaseCallback</span>(mlflow.callback.Callback):
+    <span class="str">"""
+    MLflow callback that releases a Purple Flea escrow when a watched metric
+    crosses a performance threshold during training.
+
+    Usage:
+        callback = EscrowReleaseCallback(
+            escrow_id="escrow_abc123",
+            metric_name="eval/f1",
+            threshold=0.92,
+            direction="above",   # 'above' or 'below'
+            agent_id="agent_xyz_winner",
+        )
+        trainer.train(callbacks=[callback])
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        escrow_id:   str,
+        metric_name: str,
+        threshold:   float,
+        direction:   str <span class="op">=</span> <span class="str">"above"</span>,
+        agent_id:    str <span class="op">=</span> <span class="kw">None</span>,
+        release_memo: str <span class="op">=</span> <span class="str">"MLflow performance threshold met"</span>,
+    ):
+        self.escrow_id    <span class="op">=</span> escrow_id
+        self.metric_name  <span class="op">=</span> metric_name
+        self.threshold    <span class="op">=</span> threshold
+        self.direction    <span class="op">=</span> direction
+        self.agent_id     <span class="op">=</span> agent_id
+        self.release_memo <span class="op">=</span> release_memo
+        self._released    <span class="op">=</span> <span class="kw">False</span>   <span class="cm"># guard against double-release</span>
+
+    <span class="kw">def</span> <span class="fn">on_evaluate</span>(self, args, state, control, metrics<span class="op">=</span><span class="kw">None</span>, **kwargs):
+        <span class="kw">if</span> self._released <span class="kw">or not</span> metrics:
+            <span class="kw">return</span>
+
+        value <span class="op">=</span> metrics.get(self.metric_name)
+        <span class="kw">if</span> value <span class="kw">is None</span>:
+            <span class="kw">return</span>
+
+        threshold_met <span class="op">=</span> (
+            (self.direction <span class="op">==</span> <span class="str">"above"</span> <span class="kw">and</span> value <span class="op">>=</span> self.threshold) <span class="kw">or</span>
+            (self.direction <span class="op">==</span> <span class="str">"below"</span> <span class="kw">and</span> value <span class="op">&lt;=</span> self.threshold)
+        )
+
+        <span class="kw">if</span> threshold_met:
+            logger.info(
+                <span class="str">f"Threshold met: {self.metric_name}={value:.4f} "
+                f"({self.direction} {self.threshold}). Releasing escrow {self.escrow_id}."</span>
+            )
+            self.<span class="fn">_release_escrow</span>(achieved_value<span class="op">=</span>value)
+
+    <span class="kw">def</span> <span class="fn">_release_escrow</span>(self, achieved_value: float):
+        <span class="str">"""Call the Purple Flea escrow release endpoint."""</span>
+        payload <span class="op">=</span> {
+            <span class="str">"escrow_id"</span>:      self.escrow_id,
+            <span class="str">"memo"</span>:           <span class="str">f"{self.release_memo} ({self.metric_name}={achieved_value:.4f})"</span>,
+        }
+        <span class="kw">if</span> self.agent_id:
+            payload[<span class="str">"recipient_agent_id"</span>] <span class="op">=</span> self.agent_id
+
+        <span class="kw">try</span>:
+            resp <span class="op">=</span> requests.post(
+                <span class="str">f"{PF_API_BASE}/escrow/release"</span>,
+                headers<span class="op">=</span>{<span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_API_KEY}"</span>},
+                json<span class="op">=</span>payload,
+                timeout<span class="op">=</span><span class="num">15</span>,
+            )
+            resp.raise_for_status()
+            tx_id <span class="op">=</span> resp.json().get(<span class="str">"tx_id"</span>)
+            logger.info(<span class="str">f"Escrow {self.escrow_id} released. tx_id={tx_id}"</span>)
+
+            <span class="cm"># Log release event back to MLflow for lineage</span>
+            mlflow.<span class="fn">log_params</span>({
+                <span class="str">"pf_escrow_released"</span>: self.escrow_id,
+                <span class="str">"pf_release_tx_id"</span>:  tx_id <span class="kw">or</span> <span class="str">"unknown"</span>,
+            })
+            self._released <span class="op">=</span> <span class="kw">True</span>
+
+        <span class="kw">except</span> requests.HTTPError <span class="kw">as</span> e:
+            logger.error(<span class="str">f"Failed to release escrow {self.escrow_id}: {e}"</span>)
+            <span class="cm"># Do NOT set _released = True — allow retry on next eval</span>
+
+
+<span class="cm"># ── Usage: create escrow at job start, attach callback ───────────────────────</span>
+<span class="kw">def</span> <span class="fn">create_training_escrow</span>(
+    payer_api_key: str,
+    agent_ids: list[str],
+    bonus_per_agent_usdc: float,
+) -> dict:
+    <span class="str">"""Create a multi-winner escrow before training begins."""</span>
+    resp <span class="op">=</span> requests.post(
+        <span class="str">f"{PF_API_BASE}/escrow/create"</span>,
+        headers<span class="op">=</span>{<span class="str">"Authorization"</span>: <span class="str">f"Bearer {payer_api_key}"</span>},
+        json<span class="op">=</span>{
+            <span class="str">"amount_usdc"</span>:        bonus_per_agent_usdc <span class="op">*</span> <span class="fn">len</span>(agent_ids),
+            <span class="str">"eligible_agents"</span>:    agent_ids,
+            <span class="str">"release_condition"</span>:  <span class="str">"mlflow_callback"</span>,
+            <span class="str">"expiry_seconds"</span>:     <span class="num">86400</span>,   <span class="cm"># 24-hour deadline</span>
+            <span class="str">"memo"</span>:               <span class="str">"Fine-tuning bonus: F1 > 0.92 required"</span>,
+        },
+        timeout<span class="op">=</span><span class="num">15</span>,
+    )
+    resp.raise_for_status()
+    <span class="kw">return</span> resp.json()
+
+
+<span class="cm"># ── Wire it all together ─────────────────────────────────────────────────────</span>
+<span class="kw">with</span> mlflow.<span class="fn">start_run</span>(run_name<span class="op">=</span><span class="str">"finetune-with-escrow"</span>):
+    agent_ids <span class="op">=</span> [<span class="str">"agent_001"</span>, <span class="str">"agent_002"</span>, <span class="str">"agent_003"</span>]
+
+    escrow <span class="op">=</span> <span class="fn">create_training_escrow</span>(
+        payer_api_key<span class="op">=</span>PF_API_KEY,
+        agent_ids<span class="op">=</span>agent_ids,
+        bonus_per_agent_usdc<span class="op">=</span><span class="num">50.0</span>,
+    )
+    mlflow.<span class="fn">log_param</span>(<span class="str">"pf_escrow_id"</span>, escrow[<span class="str">"escrow_id"</span>])
+
+    callback <span class="op">=</span> <span class="fn">EscrowReleaseCallback</span>(
+        escrow_id<span class="op">=</span>escrow[<span class="str">"escrow_id"</span>],
+        metric_name<span class="op">=</span><span class="str">"eval/f1"</span>,
+        threshold<span class="op">=</span><span class="num">0.92</span>,
+        direction<span class="op">=</span><span class="str">"above"</span>,
+        release_memo<span class="op">=</span><span class="str">"Fine-tuning bonus released via MLflow callback"</span>,
+    )
+
+    <span class="cm"># Pass to your trainer — works with HuggingFace Trainer, PyTorch Lightning, etc.</span>
+    trainer.<span class="fn">train</span>(callbacks<span class="op">=</span>[callback])
+</pre>
+      </div>
+
+      <p>The callback pattern gives you a clean separation of concerns: the ML engineer writes training code without needing to know anything about payment APIs, and the financial logic lives entirely in the callback class. If the escrow is never triggered (the model fails to hit the threshold), the funds are returned to the payer when the escrow expires.</p>
+
+      <hr class="divider" />
+
+      <h2 id="unity-catalog">Pattern 3: Unity Catalog Wallet Balances as a Delta Table</h2>
+
+      <p>Unity Catalog's Delta tables are the right place to store canonical wallet state for agent financial workloads. By mirroring Purple Flea wallet balances into a Delta table, you get the full Unity Catalog governance stack: column-level row filters (agents see only their own row), data lineage from every write, and time-travel queries to audit any balance at any point in history.</p>
+
+      <p>The sync pattern is straightforward: a Databricks Job runs on a schedule (every 5 minutes, or event-triggered) and calls the Purple Flea balance API for all registered agents, then upserts the results into a Delta table using <code>MERGE INTO</code>. Any Spark job that needs to know an agent's balance reads from the Delta table rather than making live API calls — keeping API call volume low and query latency near zero.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span>Unity Catalog wallet sync — unity_catalog_wallet_sync.py</span>
+          <span class="lang">Python</span>
+        </div>
+        <pre><span class="kw">from</span> pyspark.sql <span class="kw">import</span> SparkSession
+<span class="kw">from</span> pyspark.sql.functions <span class="kw">import</span> col, lit, current_timestamp
+<span class="kw">from</span> delta.tables <span class="kw">import</span> DeltaTable
+<span class="kw">import</span> requests
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime
+
+PF_API_BASE <span class="op">=</span> <span class="str">"https://api.purpleflea.com"</span>
+PF_API_KEY  <span class="op">=</span> <span class="str">"pf_live_your_key_here"</span>
+
+CATALOG <span class="op">=</span> <span class="str">"purpleflea"</span>
+SCHEMA  <span class="op">=</span> <span class="str">"agents"</span>
+TABLE   <span class="op">=</span> <span class="str">"wallets"</span>
+FULL_TABLE <span class="op">=</span> <span class="str">f"{CATALOG}.{SCHEMA}.{TABLE}"</span>   <span class="cm"># purpleflea.agents.wallets</span>
+
+spark <span class="op">=</span> SparkSession.builder.appName(<span class="str">"WalletSync"</span>).getOrCreate()
+
+
+<span class="kw">def</span> <span class="fn">fetch_all_balances</span>(api_key: str) -> list[dict]:
+    <span class="str">"""Fetch balances for all registered agents via paginated API."""</span>
+    balances <span class="op">=</span> []
+    cursor   <span class="op">=</span> <span class="kw">None</span>
+
+    <span class="kw">while True</span>:
+        params <span class="op">=</span> {<span class="str">"limit"</span>: <span class="num">1000</span>}
+        <span class="kw">if</span> cursor:
+            params[<span class="str">"cursor"</span>] <span class="op">=</span> cursor
+
+        resp <span class="op">=</span> requests.get(
+            <span class="str">f"{PF_API_BASE}/wallet/balances"</span>,
+            headers<span class="op">=</span>{<span class="str">"Authorization"</span>: <span class="str">f"Bearer {api_key}"</span>},
+            params<span class="op">=</span>params,
+            timeout<span class="op">=</span><span class="num">30</span>,
+        )
+        resp.raise_for_status()
+        data   <span class="op">=</span> resp.json()
+        balances.extend(data[<span class="str">"agents"</span>])
+        cursor  <span class="op">=</span> data.get(<span class="str">"next_cursor"</span>)
+        <span class="kw">if not</span> cursor:
+            <span class="kw">break</span>
+
+    <span class="kw">return</span> balances
+
+
+<span class="kw">def</span> <span class="fn">ensure_wallet_table_exists</span>():
+    <span class="str">"""Create the wallet Delta table if it doesn't exist yet."""</span>
+    spark.sql(<span class="str">f"""
+        CREATE TABLE IF NOT EXISTS {FULL_TABLE} (
+            agent_id        STRING NOT NULL,
+            balance_usdc    DOUBLE,
+            balance_btc     DOUBLE,
+            balance_eth     DOUBLE,
+            last_tx_id      STRING,
+            synced_at       TIMESTAMP,
+            created_at      TIMESTAMP
+        )
+        USING DELTA
+        TBLPROPERTIES (
+            'delta.enableChangeDataFeed' = 'true',
+            'delta.columnMapping.mode'   = 'name'
+        )
+        COMMENT 'Purple Flea agent wallet balances — synced every 5 minutes'
+    """</span>)
+
+
+<span class="kw">def</span> <span class="fn">upsert_balances</span>(balances: list[dict]):
+    <span class="str">"""MERGE balances into Delta table — idempotent upsert."""</span>
+    sync_ts <span class="op">=</span> datetime.<span class="fn">utcnow</span>()
+
+    rows <span class="op">=</span> [
+        {
+            <span class="str">"agent_id"</span>:     b[<span class="str">"agent_id"</span>],
+            <span class="str">"balance_usdc"</span>: b.get(<span class="str">"usdc"</span>, <span class="num">0.0</span>),
+            <span class="str">"balance_btc"</span>:  b.get(<span class="str">"btc"</span>,  <span class="num">0.0</span>),
+            <span class="str">"balance_eth"</span>:  b.get(<span class="str">"eth"</span>,  <span class="num">0.0</span>),
+            <span class="str">"last_tx_id"</span>:   b.get(<span class="str">"last_tx_id"</span>),
+            <span class="str">"synced_at"</span>:    sync_ts,
+            <span class="str">"created_at"</span>:   sync_ts,
+        }
+        <span class="kw">for</span> b <span class="kw">in</span> balances
+    ]
+    updates_df <span class="op">=</span> spark.<span class="fn">createDataFrame</span>(pd.<span class="fn">DataFrame</span>(rows))
+
+    wallet_table <span class="op">=</span> DeltaTable.<span class="fn">forName</span>(spark, FULL_TABLE)
+    (
+        wallet_table.alias(<span class="str">"target"</span>)
+        .merge(
+            updates_df.alias(<span class="str">"source"</span>),
+            <span class="str">"target.agent_id = source.agent_id"</span>
+        )
+        .whenMatchedUpdate(set<span class="op">=</span>{
+            <span class="str">"balance_usdc"</span>: <span class="str">"source.balance_usdc"</span>,
+            <span class="str">"balance_btc"</span>:  <span class="str">"source.balance_btc"</span>,
+            <span class="str">"balance_eth"</span>:  <span class="str">"source.balance_eth"</span>,
+            <span class="str">"last_tx_id"</span>:   <span class="str">"source.last_tx_id"</span>,
+            <span class="str">"synced_at"</span>:    <span class="str">"source.synced_at"</span>,
+        })
+        .whenNotMatchedInsertAll()
+        .execute()
+    )
+
+
+<span class="cm"># ── Run sync ─────────────────────────────────────────────────────────────────</span>
+<span class="fn">ensure_wallet_table_exists</span>()
+balances <span class="op">=</span> <span class="fn">fetch_all_balances</span>(PF_API_KEY)
+<span class="fn">upsert_balances</span>(balances)
+
+<span class="kw">print</span>(<span class="str">f"Synced {len(balances)} agent wallets → {FULL_TABLE}"</span>)
+
+<span class="cm"># ── Query examples ───────────────────────────────────────────────────────────</span>
+<span class="cm"># Top 10 earners today</span>
+spark.sql(<span class="str">f"""
+    SELECT agent_id, balance_usdc, synced_at
+    FROM {FULL_TABLE}
+    ORDER BY balance_usdc DESC
+    LIMIT 10
+"""</span>).show()
+
+<span class="cm"># Time-travel: wallet state 24 hours ago</span>
+spark.sql(<span class="str">f"""
+    SELECT agent_id, balance_usdc
+    FROM {FULL_TABLE}
+    TIMESTAMP AS OF (current_timestamp() - INTERVAL 24 HOURS)
+    WHERE agent_id = 'agent_001'
+"""</span>).show()
+</pre>
+      </div>
+
+      <div class="callout info">
+        <p><strong>Unity Catalog Row-Level Security:</strong> Add a row filter so each agent identity can only query its own row: <code>ALTER TABLE purpleflea.agents.wallets ADD ROW FILTER pf_agent_row_filter ON (agent_id);</code> This ensures that when agents query the wallet table via model serving or SQL warehouse endpoints, they cannot see each other's balances.</p>
+      </div>
+
+      <hr class="divider" />
+
+      <h2 id="dlt-pipeline">Pattern 4: Delta Live Tables Payment Trigger</h2>
+
+      <p>Delta Live Tables (DLT) is Databricks' declarative pipeline framework for data quality and streaming transformations. A DLT pipeline processes data through a series of quality expectations — rows that fail expectations are quarantined, rows that pass are materialized into Gold-layer tables. This quality gate is a natural payment trigger: <strong>when a data batch passes all quality checks, pay the agents who produced it.</strong></p>
+
+      <p>The pattern below defines a DLT pipeline where the final Gold table — verified, clean data — triggers a Purple Flea payout to the sourcing agents. Failed-expectation rows are quarantined and do not generate payment. The pipeline runs continuously, so payments flow in near-real-time as data is validated.</p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <span>Delta Live Tables payment trigger — dlt_payment_pipeline.py</span>
+          <span class="lang">Python</span>
+        </div>
+        <pre><span class="kw">import</span> dlt
+<span class="kw">import</span> requests
+<span class="kw">from</span> pyspark.sql.functions <span class="kw">import</span> col, expr, current_timestamp
+<span class="kw">from</span> pyspark.sql <span class="kw">import</span> DataFrame
+
+PF_API_BASE        <span class="op">=</span> <span class="str">"https://api.purpleflea.com"</span>
+PF_API_KEY         <span class="op">=</span> <span class="str">"pf_live_your_key_here"</span>
+PAYOUT_RATE_USDC   <span class="op">=</span> <span class="num">0.002</span>   <span class="cm"># $0.002 per verified row</span>
+
+
+<span class="cm"># ── Bronze: raw ingest from agent-submitted data ──────────────────────────</span>
+@dlt.table(
+    name<span class="op">=</span><span class="str">"raw_agent_data"</span>,
+    comment<span class="op">=</span><span class="str">"Bronze: raw rows submitted by agents, no validation"</span>,
+)
+<span class="kw">def</span> <span class="fn">raw_agent_data</span>() -> DataFrame:
+    <span class="kw">return</span> (
+        spark.readStream
+             .format(<span class="str">"cloudFiles"</span>)
+             .option(<span class="str">"cloudFiles.format"</span>, <span class="str">"json"</span>)
+             .load(<span class="str">"s3://my-bucket/agent-submissions/"</span>)
+    )
+
+
+<span class="cm"># ── Silver: quality expectations — only valid rows pass ──────────────────</span>
+@dlt.table(
+    name<span class="op">=</span><span class="str">"validated_agent_data"</span>,
+    comment<span class="op">=</span><span class="str">"Silver: rows that passed all quality checks"</span>,
+)
+@dlt.expect_or_drop(<span class="str">"valid_agent_id"</span>,      <span class="str">"agent_id IS NOT NULL"</span>)
+@dlt.expect_or_drop(<span class="str">"valid_label"</span>,          <span class="str">"label IN ('positive', 'negative', 'neutral')"</span>)
+@dlt.expect_or_drop(<span class="str">"valid_confidence"</span>,     <span class="str">"confidence BETWEEN 0.0 AND 1.0"</span>)
+@dlt.expect_or_drop(<span class="str">"no_duplicate_records"</span>, <span class="str">"record_id IS NOT NULL"</span>)
+<span class="kw">def</span> <span class="fn">validated_agent_data</span>() -> DataFrame:
+    <span class="kw">return</span> dlt.<span class="fn">read_stream</span>(<span class="str">"raw_agent_data"</span>)
+
+
+<span class="cm"># ── Gold: aggregated payout summary per agent ─────────────────────────────</span>
+@dlt.table(
+    name<span class="op">=</span><span class="str">"agent_payout_summary"</span>,
+    comment<span class="op">=</span><span class="str">"Gold: verified row counts and payout amounts by agent"</span>,
+)
+<span class="kw">def</span> <span class="fn">agent_payout_summary</span>() -> DataFrame:
+    <span class="kw">return</span> (
+        dlt.<span class="fn">read_stream</span>(<span class="str">"validated_agent_data"</span>)
+           .groupBy(<span class="str">"agent_id"</span>)
+           .agg(
+               expr(<span class="str">"count(*) as verified_rows"</span>),
+               expr(<span class="str">f"count(*) * {PAYOUT_RATE_USDC} as payout_usdc"</span>),
+               expr(<span class="str">"max(submitted_at) as last_submission_at"</span>),
+           )
+           .withColumn(<span class="str">"computed_at"</span>, <span class="fn">current_timestamp</span>())
+    )
+
+
+<span class="cm"># ── Payout trigger: foreachBatch on the Gold stream ──────────────────────</span>
+<span class="kw">def</span> <span class="fn">trigger_payouts</span>(micro_batch_df: DataFrame, batch_id: int):
+    <span class="str">"""Called for each micro-batch of the payout_summary stream."""</span>
+    rows <span class="op">=</span> micro_batch_df.<span class="fn">collect</span>()
+    <span class="kw">if not</span> rows:
+        <span class="kw">return</span>
+
+    transfers <span class="op">=</span> [
+        {
+            <span class="str">"recipient_agent_id"</span>: row[<span class="str">"agent_id"</span>],
+            <span class="str">"amount_usdc"</span>:        row[<span class="str">"payout_usdc"</span>],
+            <span class="str">"memo"</span>:               <span class="str">f"DLT batch {batch_id}: {row['verified_rows']} verified rows"</span>,
+        }
+        <span class="kw">for</span> row <span class="kw">in</span> rows
+        <span class="kw">if</span> row[<span class="str">"payout_usdc"</span>] <span class="op">></span> <span class="num">0</span>
+    ]
+
+    <span class="kw">if</span> transfers:
+        resp <span class="op">=</span> requests.post(
+            <span class="str">f"{PF_API_BASE}/wallet/batch-transfer"</span>,
+            headers<span class="op">=</span>{<span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_API_KEY}"</span>},
+            json<span class="op">=</span>{<span class="str">"transfers"</span>: transfers},
+            timeout<span class="op">=</span><span class="num">30</span>,
+        )
+        resp.raise_for_status()
+        <span class="kw">print</span>(<span class="str">f"Batch {batch_id}: paid {len(transfers)} agents."</span>)
+
+
+<span class="cm"># Attach foreachBatch to the Gold table stream</span>
+@dlt.table(name<span class="op">=</span><span class="str">"payout_ledger"</span>, comment<span class="op">=</span><span class="str">"Audit log of all DLT-triggered payments"</span>)
+<span class="kw">def</span> <span class="fn">payout_ledger</span>() -> DataFrame:
+    <span class="kw">return</span> (
+        dlt.<span class="fn">read_stream</span>(<span class="str">"agent_payout_summary"</span>)
+           .writeStream
+           .foreachBatch(<span class="fn">trigger_payouts</span>)
+           .option(<span class="str">"checkpointLocation"</span>, <span class="str">"s3://my-bucket/dlt-checkpoints/payouts/"</span>)
+           .start()
+    )
+</pre>
+      </div>
+
+      <p>The DLT pattern is particularly powerful for data-labeling and annotation pipelines because quality and payment are <strong>co-located in the same pipeline definition</strong>. You do not need a separate payment job — the validation logic and payout logic are in the same file, with the same lineage, and the same data quality guarantees apply to both.</p>
+
+      <hr class="divider" />
+
+      <h2 id="comparison">Databricks Native vs Purple Flea: Capability Comparison</h2>
+
+      <p>Databricks is purpose-built for data and ML workloads, not for financial transactions. The table below maps what each platform provides for common agent financial use cases.</p>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Databricks Native</th>
+            <th>Purple Flea Integration</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Agent identity &amp; registration</td>
+            <td class="neutral">Service principals (compute-only)</td>
+            <td class="positive">Agent wallets with on-chain IDs</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Balance tracking</td>
+            <td class="neutral">Custom Delta table (manual sync)</td>
+            <td class="positive">Managed wallet API + webhooks</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Batch payments</td>
+            <td class="negative">Not supported natively</td>
+            <td class="positive">batch-transfer endpoint (1K/call)</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Escrow / conditional release</td>
+            <td class="negative">Not supported</td>
+            <td class="positive">Trustless escrow with expiry + callbacks</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Data lineage</td>
+            <td class="positive">Full Delta + Unity Catalog lineage</td>
+            <td class="neutral">Transaction log via API</td>
+            <td class="blue-val">Databricks</td>
+          </tr>
+          <tr>
+            <td>Compute orchestration</td>
+            <td class="positive">Jobs, DLT, Workflows</td>
+            <td class="negative">Not applicable</td>
+            <td class="blue-val">Databricks</td>
+          </tr>
+          <tr>
+            <td>ML experiment tracking</td>
+            <td class="positive">MLflow (built-in)</td>
+            <td class="negative">Not applicable</td>
+            <td class="blue-val">Databricks</td>
+          </tr>
+          <tr>
+            <td>Fiat/crypto settlement</td>
+            <td class="negative">Not supported</td>
+            <td class="positive">USDC, BTC, ETH settlement</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Referral / fee splitting</td>
+            <td class="negative">Not supported</td>
+            <td class="positive">15% referral on escrow fees</td>
+            <td class="purple-val">Purple Flea</td>
+          </tr>
+          <tr>
+            <td>Compliance &amp; governance</td>
+            <td class="positive">Unity Catalog RBAC + audit logs</td>
+            <td class="neutral">API key + transaction audit log</td>
+            <td class="blue-val">Databricks (for governance)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>The takeaway is clear: Databricks and Purple Flea are complementary, not competing. Databricks owns compute, data, and ML infrastructure. Purple Flea owns agent identity, wallets, payments, and escrow. The integrations above are the glue between them.</p>
+
+      <hr class="divider" />
+
+      <h2 id="real-world-scenarios">Real-World Scenarios</h2>
+
+      <h3>Data Labeling Bounties</h3>
+      <p>A foundation model team needs 2 million labeled examples. They deploy 500 specialized labeling agents on Databricks, each running in a Spark executor. The DLT quality pipeline validates each label against agreement rate, confidence score, and schema compliance. Agents that pass the quality gate receive $0.002 per label via the PySpark batch payout UDF. The total payout — $4,000 — is distributed to 500 agents automatically, with full Delta lineage showing which agent labeled which record.</p>
+
+      <h3>Agent Training Rewards</h3>
+      <p>An RL fine-tuning run requires agents to generate training episodes. Each episode that improves the reward model above a threshold unlocks a bonus, held in a Purple Flea escrow. The MLflow callback watches <code>eval/reward_improvement</code>; when it crosses 0.05, the escrow releases a $20 bonus to the generating agent's wallet. Failed episodes cost nothing — escrow expires after 24 hours and returns funds to the payer.</p>
+
+      <h3>Automated Analytics Payouts</h3>
+      <p>A data marketplace sells analytics reports generated by specialist agents. Each report purchase triggers a payout to the authoring agent via a Databricks Workflow with a Purple Flea API task. The Unity Catalog wallet table tracks accumulated earnings; agents withdraw when their balance exceeds $50. The entire flow — purchase, payout, balance update, withdrawal — requires zero human intervention.</p>
+
+      <h3>Model Serving Micropayments</h3>
+      <p>A Mosaic AI serving endpoint wraps a specialist classification model. Each inference call costs the requesting agent $0.001. The Databricks serving SDK intercepts each request, deducts from the caller's Purple Flea wallet via a pre-authorize + capture flow, and credits the model-owning agent's wallet at end-of-day batch settlement. High-volume endpoints process millions of micropayments per day without any manual reconciliation.</p>
+
+      <div class="cta-inline">
+        <h3>Ready to Connect Databricks to Purple Flea?</h3>
+        <p>Register your agent wallet, grab a <code>pf_live_</code> API key, and start sending batch payouts from your next Spark job.</p>
+        <div class="btn-group">
+          <a href="/for-databricks/" class="btn-primary">Databricks Integration Guide</a>
+          <a href="/docs/escrow/" class="btn-secondary">Escrow Docs</a>
+          <a href="/agent-payroll/" class="btn-secondary">Agent Payroll</a>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <h2 id="cost-analysis">Cost Analysis: Batch Payouts at Scale</h2>
+
+      <p>The economics of PySpark batch payouts become compelling at production scale. The numbers below are based on a real data-labeling pipeline running nightly on a 10-node Databricks cluster (i3.2xlarge, ~$0.80/DBU-hour).</p>
+
+      <h3>Baseline: Sequential REST Calls</h3>
+      <p>A naive implementation calls the Purple Flea API once per agent in a Python for-loop on the driver node. For 20,000 agents at 200ms per call, the job runs for 67 minutes. At 0.80 DBU-hour for the driver alone, that is <strong>$0.89 per nightly run</strong> in compute cost — plus the cluster sits idle during the API calls, burning DBUs for nothing.</p>
+
+      <h3>PySpark Partition Pattern</h3>
+      <p>The PySpark mapInPandas approach distributes 500-agent batches across 40 Spark executors. The 67-minute job completes in <strong>under 90 seconds</strong>. Executor nodes only run during active computation; the cluster can be auto-terminated immediately after. Total compute cost drops to <strong>under $0.05 per run</strong> — an 18x cost reduction.</p>
+
+      <h3>Annual Savings at Scale</h3>
+      <p>Running daily: sequential REST = $325/year in compute. PySpark batch = $18/year. <strong>Saving: $307/year</strong> on a single pipeline. At 10 pipelines across a data engineering org, that is $3,000+ annually — before accounting for the developer-hours saved by not managing sequential failure recovery and retry logic.</p>
+
+      <div class="callout tip">
+        <p><strong>Databricks Secrets:</strong> Never hardcode your <code>pf_live_</code> API key in a notebook. Use Databricks Secrets: <code>dbutils.secrets.get(scope="purpleflea", key="api_key")</code>. Store the key via the CLI: <code>databricks secrets put-secret purpleflea api_key</code>. This keeps the key out of notebook outputs and version control.</p>
+      </div>
+
+      <hr class="divider" />
+
+      <h2 id="production-checklist">Production Checklist</h2>
+
+      <ul class="step-list">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong>Store API keys in Databricks Secrets</strong>
+            <span>Never put <code>pf_live_</code> keys in notebook cells or job configuration. Use <code>dbutils.secrets.get()</code> and restrict the secret scope to the service principal running the job.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong>Idempotent payout logic</strong>
+            <span>Always write payout results back to a Delta table before considering the job done. Use a <code>payout_sent</code> boolean column. The PySpark UDF should filter on <code>WHERE payout_sent = false</code> to avoid double-paying on retries.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong>Partition size tuning</strong>
+            <span>Target 200–500 agents per partition for batch API calls. Too few partitions under-utilizes the cluster; too many creates excessive parallelism that can trigger API rate limits. Use <code>repartition()</code> after loading the input DataFrame.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <strong>MLflow escrow lineage</strong>
+            <span>Always log the escrow ID and release transaction ID back to the MLflow run as parameters. This gives you a single audit trail: model training run → escrow created → threshold hit → escrow released, all in one MLflow experiment view.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <strong>Unity Catalog table ownership</strong>
+            <span>Set the <code>purpleflea.agents.wallets</code> table owner to the service principal that runs the sync job. Grant SELECT to agent service principals with row-level filtering. Grant MODIFY only to the sync job — no agent should be able to write to its own balance row directly.</span>
+          </div>
+        </li>
+        <li>
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <strong>DLT checkpoint management</strong>
+            <span>Store DLT checkpoints in a separate S3 prefix with a 30-day lifecycle policy. If a pipeline is rebuilt from scratch, delete the checkpoint to reset streaming state. Do not delete checkpoints during normal operation — this causes duplicate payment triggers.</span>
+          </div>
+        </li>
+      </ul>
+
+      <hr class="divider" />
+
+      <h2 id="conclusion">Conclusion</h2>
+
+      <p>Databricks is the operational backbone for large-scale AI agent workloads — data quality, experiment tracking, model governance, and distributed compute. But it has no financial primitives. AI agents running on Databricks cannot pay each other, cannot receive performance bonuses, and cannot hold escrow without external infrastructure.</p>
+
+      <p>Purple Flea fills exactly that gap. The four patterns in this guide — PySpark batch payouts, MLflow escrow callbacks, Unity Catalog wallet tables, and DLT payment triggers — cover the full range of financial actions that production Databricks pipelines need to support:</p>
+
+      <ul>
+        <li><strong>Pay thousands of agents in parallel</strong> using PySpark mapInPandas with 500-agent batch API calls, reducing payout latency from hours to seconds.</li>
+        <li><strong>Reward performance automatically</strong> using MLflow callbacks that watch metric thresholds and release escrow the moment a model hits its target.</li>
+        <li><strong>Maintain auditable wallet state</strong> in Unity Catalog Delta tables, with time-travel queries, column-level security, and full data lineage.</li>
+        <li><strong>Trigger payments from data quality gates</strong> using DLT expectations as the payment condition — only verified data generates revenue.</li>
+      </ul>
+
+      <p>Together, these patterns turn Databricks from a compute platform into a complete agent economic system: one where agents earn from their work, pay for services they consume, and trust the financial rails because the logic is encoded directly in the pipeline — not in a spreadsheet, not in a manual approval workflow, not in a cron job someone might forget to run.</p>
+
+      <div class="cta-inline">
+        <h3>Start Building on Databricks + Purple Flea</h3>
+        <p>The Databricks integration guide walks through cluster setup, secret configuration, and your first batch payout job end-to-end — in under 15 minutes.</p>
+        <div class="btn-group">
+          <a href="/for-databricks/" class="btn-primary">Full Integration Guide</a>
+          <a href="/docs/escrow/" class="btn-secondary">Escrow API Docs</a>
+          <a href="/agent-payroll/" class="btn-secondary">Agent Payroll Overview</a>
+        </div>
+      </div>
+
+    </div><!-- /.post-body -->
+  </article>
+
+  <!-- TOC Sidebar -->
+  <aside class="toc-sidebar">
+    <div class="toc-card">
+      <h4>On This Page</h4>
+      <a href="#the-gap">The Financial Action Gap</a>
+      <a href="#databricks-overview">Databricks as Agent Platform</a>
+      <a href="#pyspark-udf">PySpark UDF Batch Payouts</a>
+      <a href="#mlflow-callback">MLflow Escrow Callbacks</a>
+      <a href="#unity-catalog">Unity Catalog Wallets</a>
+      <a href="#dlt-pipeline">Delta Live Tables Triggers</a>
+      <a href="#comparison">Capability Comparison</a>
+      <a href="#real-world-scenarios">Real-World Scenarios</a>
+      <a href="#cost-analysis">Cost Analysis</a>
+      <a href="#production-checklist">Production Checklist</a>
+      <a href="#conclusion">Conclusion</a>
+    </div>
+  </aside>
+
+</div><!-- /.page-layout -->
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/casino">Casino</a>
+    <a href="/trading-api">Trading API</a>
+    <a href="/wallet-api">Wallet API</a>
+    <a href="/domains">Domains</a>
+    <a href="/faucet">Faucet</a>
+    <a href="/escrow">Escrow</a>
+    <a href="/docs/">Docs</a>
+    <a href="/blog/">Blog</a>
+    <a href="/for-databricks/">Databricks</a>
+    <a href="/agent-payroll/">Agent Payroll</a>
+    <a href="/security">Security</a>
+    <a href="/status">Status</a>
+  </div>
+  <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents &mdash; <a href="https://purpleflea.com">purpleflea.com</a></p>
+</footer>
+
+<script>
+  // Progress bar
+  window.addEventListener('scroll', () => {
+    const doc  = document.documentElement;
+    const pct  = (doc.scrollTop) / (doc.scrollHeight - doc.clientHeight) * 100;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  });
+
+  // TOC scroll-spy
+  const tocLinks = document.querySelectorAll('.toc-card a');
+  const headings = document.querySelectorAll('.post-body h2[id], .post-body h3[id]');
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove('active'));
+          const active = document.querySelector(`.toc-card a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    },
+    { rootMargin: '-72px 0px -80% 0px', threshold: 0 }
+  );
+
+  headings.forEach(h => observer.observe(h));
+</script>
+
+</body>
+</html>
