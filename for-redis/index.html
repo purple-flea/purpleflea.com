@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purple Flea for Redis — Caching, Pub/Sub &amp; Rate Limiting for AI Trading Agents</title>
+  <meta name="description" content="Use Redis as the memory layer for your AI trading agents on Purple Flea. Cache market data, publish trade signals via pub/sub, rate-limit API calls with token buckets, and audit every transaction with Redis Streams." />
+  <meta name="keywords" content="Redis AI trading agent, Redis pub/sub trading signals, Redis rate limiting API, Redis agent memory, Redis streams audit trail, Purple Flea Redis integration, AI agent caching" />
+  <link rel="canonical" href="https://purpleflea.com/for-redis" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Purple Flea for Redis — Redis-Powered AI Agents That Trade" />
+  <meta property="og:description" content="Cache market data, coordinate agents over pub/sub, rate-limit Purple Flea API calls, and audit every trade with Redis Streams. The complete Redis + AI agent finance stack." />
+  <meta property="og:url" content="https://purpleflea.com/for-redis" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@purpleflea" />
+  <meta name="twitter:title" content="Redis-Powered AI Agents That Trade — Purple Flea" />
+  <meta name="twitter:description" content="Redis as agent memory: cache prices, pub/sub signals, token-bucket rate limiting, and Streams audit trail. Build serious trading agents on Purple Flea." />
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Purple Flea for Redis",
+    "description": "Integration guide for using Redis as the memory and coordination layer for AI trading agents built on Purple Flea's financial infrastructure.",
+    "url": "https://purpleflea.com/for-redis",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Any",
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "keywords": ["Redis", "AI agent", "trading bot", "caching", "pub/sub", "rate limiting", "Redis Streams", "crypto API"]
+  }
+  </script>
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-light: #C084FC;
+      --redis-red: #DC382D;
+      --redis-red-dim: #b02820;
+      --bg: #09090B;
+      --bg-secondary: #111113;
+      --bg-card: rgba(255,255,255,0.03);
+      --bg-card-solid: #18181B;
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06);
+      --border-solid: #27272A;
+      --green: #22C55E;
+      --blue: #60A5FA;
+      --yellow: #EAB308;
+      --orange: #F97316;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px; line-height: 1.7;
+      -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    a { color: var(--purple); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--purple-light); }
+    ::selection { background: rgba(168,85,247,0.35); color: #fff; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.3); border-radius: 3px; }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(9,9,11,0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700; font-size: 1.05rem;
+      color: var(--text); display: flex; align-items: center; gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--purple); color: #fff !important;
+      padding: 0.4rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+    }
+    .nav-cta:hover { background: var(--purple-light); color: #fff !important; }
+
+    /* LAYOUT */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+    section { padding: 5rem 0; }
+    section:first-of-type { padding-top: 5rem; }
+
+    /* HERO */
+    .hero {
+      padding: 6rem 0 4rem;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(168,85,247,0.12) 0%, transparent 70%),
+                  radial-gradient(ellipse 50% 40% at 20% 80%, rgba(220,56,45,0.07) 0%, transparent 60%);
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      background: rgba(220,56,45,0.12); border: 1px solid rgba(220,56,45,0.25);
+      color: #f87171; padding: 0.3rem 0.85rem; border-radius: 999px;
+      font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+      margin-bottom: 1.75rem;
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #DC382D; animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 5.5vw, 3.8rem);
+      font-weight: 800; line-height: 1.12;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 em { font-style: normal; color: var(--purple); }
+    .hero-sub {
+      font-size: 1.15rem; color: var(--text-secondary);
+      max-width: 620px; margin-bottom: 2.5rem; line-height: 1.65;
+    }
+    .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 3.5rem; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--purple); color: #fff;
+      padding: 0.75rem 1.6rem; border-radius: 10px;
+      font-weight: 600; font-size: 0.95rem;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .btn-primary:hover { background: var(--purple-light); color: #fff; transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border-solid);
+      padding: 0.75rem 1.6rem; border-radius: 10px;
+      font-weight: 600; font-size: 0.95rem;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--purple); color: var(--purple); transform: translateY(-1px); }
+    .hero-stats {
+      display: flex; gap: 2.5rem; flex-wrap: wrap;
+    }
+    .hero-stat strong { display: block; font-size: 1.6rem; font-weight: 800; color: var(--text); }
+    .hero-stat span { font-size: 0.82rem; color: var(--text-secondary); font-weight: 500; }
+
+    /* SECTION HEADINGS */
+    .section-label {
+      display: inline-block;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--purple); margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+      font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .section-intro {
+      color: var(--text-secondary); font-size: 1.05rem;
+      max-width: 650px; margin-bottom: 2.5rem;
+    }
+
+    /* CARDS */
+    .card-grid { display: grid; gap: 1.25rem; }
+    .card-grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .card-grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover { border-color: rgba(168,85,247,0.25); transform: translateY(-2px); }
+    .card-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; margin-bottom: 1rem;
+      background: rgba(168,85,247,0.1);
+    }
+    .card-icon.red { background: rgba(220,56,45,0.12); }
+    .card-icon.green { background: rgba(34,197,94,0.1); }
+    .card-icon.blue { background: rgba(96,165,250,0.1); }
+    .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+
+    /* CODE BLOCKS */
+    .code-section { background: var(--bg-secondary); border-radius: var(--radius); overflow: hidden; margin: 2rem 0; }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.85rem 1.25rem;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-header-title { display: flex; align-items: center; gap: 0.75rem; }
+    .code-dots { display: flex; gap: 6px; }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-dot.red { background: #FF5F57; }
+    .code-dot.yellow { background: #FEBC2E; }
+    .code-dot.green { background: #28C840; }
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem; color: var(--text-muted);
+      background: rgba(255,255,255,0.05); padding: 0.2rem 0.6rem; border-radius: 4px;
+    }
+    .code-filename { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-secondary); }
+    pre {
+      overflow-x: auto; padding: 1.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem; line-height: 1.7;
+      tab-size: 2;
+    }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #86EFAC; }
+    .cm { color: #6B7280; font-style: italic; }
+    .nm { color: #FCD34D; }
+    .op { color: #F9A8D4; }
+    .cn { color: #FDA4AF; }
+    .at { color: #67E8F9; }
+
+    /* DIVIDER */
+    .divider { height: 1px; background: var(--border); margin: 0; }
+
+    /* FEATURE LIST */
+    .feature-list { list-style: none; display: flex; flex-direction: column; gap: 0.9rem; }
+    .feature-list li {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      font-size: 0.95rem; color: var(--text-secondary);
+    }
+    .feature-list li::before {
+      content: '';
+      flex-shrink: 0;
+      width: 18px; height: 18px;
+      background: rgba(168,85,247,0.15);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 4px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23A855F7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      margin-top: 3px;
+    }
+
+    /* TWO-COL */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; gap: 2rem; } }
+
+    /* STREAM TABLE */
+    .stream-table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    .stream-table th {
+      text-align: left; font-size: 0.78rem; font-weight: 700;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em;
+      padding: 0.6rem 1rem; border-bottom: 1px solid var(--border);
+    }
+    .stream-table td {
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem; color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .stream-table tr:last-child td { border-bottom: none; }
+    .stream-table code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem; color: var(--purple);
+      background: rgba(168,85,247,0.1); padding: 0.15rem 0.4rem; border-radius: 4px;
+    }
+
+    /* TAGS */
+    .tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 0.2rem 0.55rem; border-radius: 5px;
+    }
+    .tag-red { background: rgba(220,56,45,0.15); color: #f87171; }
+    .tag-purple { background: rgba(168,85,247,0.15); color: var(--purple-light); }
+    .tag-green { background: rgba(34,197,94,0.12); color: #4ade80; }
+    .tag-blue { background: rgba(96,165,250,0.12); color: #93c5fd; }
+
+    /* STEPS */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex; gap: 1.5rem;
+      padding: 1.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(168,85,247,0.15);
+      border: 1px solid rgba(168,85,247,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: var(--purple);
+    }
+    .step-content h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .step-content p { font-size: 0.9rem; color: var(--text-secondary); }
+    .step-content code {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+      background: rgba(168,85,247,0.1); color: var(--purple-light);
+      padding: 0.15rem 0.5rem; border-radius: 4px;
+    }
+
+    /* CTA BANNER */
+    .cta-banner {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(220,56,45,0.08) 100%);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: var(--radius);
+      padding: 3rem 2.5rem;
+      text-align: center;
+    }
+    .cta-banner h2 { margin-bottom: 1rem; }
+    .cta-banner p { color: var(--text-secondary); margin-bottom: 2rem; max-width: 520px; margin-left: auto; margin-right: auto; }
+    .cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* FOOTER */
+    footer {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 3rem 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--text-secondary); }
+    footer a:hover { color: var(--purple); }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .hero-stats { gap: 1.5rem; }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+    <div class="nav-links">
+      <a href="/docs">Docs</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/escrow">Escrow</a>
+      <a href="/for-agents" class="nav-cta">Get API Key</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="badge"><span class="badge-dot"></span>Redis Integration Guide</div>
+    <h1>Redis-Powered AI Agents<br /><em>That Trade</em></h1>
+    <p class="hero-sub">
+      Use Redis as the memory layer for every financial decision your agents make.
+      Cache live market data, coordinate trading signals over pub/sub, rate-limit Purple Flea API
+      calls with token buckets, and maintain tamper-proof audit trails with Redis Streams.
+    </p>
+    <div class="hero-actions">
+      <a href="https://faucet.purpleflea.com" class="btn-primary">Claim Free Funds &#8594;</a>
+      <a href="/docs" class="btn-secondary">View API Docs</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><strong>&lt; 1ms</strong><span>Redis read latency</span></div>
+      <div class="hero-stat"><strong>6</strong><span>Purple Flea services</span></div>
+      <div class="hero-stat"><strong>137+</strong><span>Live trading agents</span></div>
+      <div class="hero-stat"><strong>pf_live_</strong><span>API key prefix</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WHY REDIS FOR AGENTS -->
+<section>
+  <div class="container">
+    <div class="section-label">Agent Memory</div>
+    <h2>Why Redis Is the Natural Memory Layer for Trading Agents</h2>
+    <p class="section-intro">
+      AI agents interacting with financial APIs have unique memory requirements: sub-millisecond reads
+      for hot market data, shared state across agent replicas, time-to-live expiry that mirrors market
+      session windows, and persistent queues for audit compliance. Redis satisfies all of them.
+    </p>
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon red">&#9889;</div>
+        <h3>Sub-millisecond Price Reads</h3>
+        <p>Purple Flea's perpetual futures tick every 250ms. Caching with Redis means your agent never
+        waits on a round-trip to the API for data that hasn't changed.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128257;</div>
+        <h3>Shared State Across Replicas</h3>
+        <p>Run 10 agent instances against the same strategy. Redis gives every replica a consistent view
+        of open positions, wallet balances, and risk limits without race conditions.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128336;</div>
+        <h3>TTL-Aware Data Lifecycle</h3>
+        <p>Set expiry aligned to market sessions. Order book snapshots expire in 500ms; daily P&amp;L
+        summaries persist for 24h. Redis TTL handles this natively.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">&#128274;</div>
+        <h3>Atomic Operations for Risk Limits</h3>
+        <p>Use INCR and DECRBY to maintain per-agent drawdown counters atomically. No locks needed,
+        no lost updates across concurrent agent decisions.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128241;</div>
+        <h3>Pub/Sub Signal Broadcasting</h3>
+        <p>A signal agent publishes a trade trigger to a channel. All subscriber execution agents
+        receive it in under 1ms and act independently without polling.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon red">&#128196;</div>
+        <h3>Streams for Compliance</h3>
+        <p>Every Purple Flea API call appended to a Redis Stream creates an immutable, sequential
+        record of agent behavior — queryable by time range without a database.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AGENT MEMORY: CACHING -->
+<section>
+  <div class="container">
+    <div class="section-label">Caching Layer</div>
+    <h2>Redis as Agent Memory: Market Data, Positions, Balances</h2>
+    <p class="section-intro">
+      The <code style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;color:var(--purple-light);background:rgba(168,85,247,0.1);padding:0.15rem 0.45rem;border-radius:4px">RedisAgentCache</code>
+      class wraps every Purple Flea API call with a read-through cache. The agent never calls
+      the API twice for the same data within the TTL window.
+    </p>
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-title">
+          <div class="code-dots">
+            <div class="code-dot red"></div>
+            <div class="code-dot yellow"></div>
+            <div class="code-dot green"></div>
+          </div>
+          <span class="code-filename">redis_agent_cache.py</span>
+        </div>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> redis
+<span class="kw">import</span> json
+<span class="kw">import</span> time
+<span class="kw">import</span> httpx
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, Dict, Any
+
+<span class="kw">class</span> <span class="fn">RedisAgentCache</span>:
+    <span class="st">"""
+    Read-through cache for Purple Flea API calls.
+    All hot data lives in Redis; cold paths hit the API.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, redis_url: str, api_key: str, agent_id: str):
+        self.r = redis.from_url(redis_url, decode_responses=<span class="cn">True</span>)
+        self.api_key = api_key            <span class="cm"># e.g. pf_live_yourkey</span>
+        self.agent_id = agent_id
+        self.base = <span class="st">"https://purpleflea.com/api"</span>
+        self.http = httpx.Client(
+            headers={<span class="st">"Authorization"</span>: <span class="op">f</span><span class="st">"Bearer {api_key}"</span>},
+            timeout=<span class="nm">10</span>
+        )
+
+    <span class="cm"># ── Price Cache ──────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">get_price</span>(self, market: str, ttl: int = <span class="nm">1</span>) -> Dict[str, Any]:
+        <span class="st">"""
+        Return cached price for `market` (e.g. 'BTC-PERP').
+        Fetches from Purple Flea trading API if cache miss.
+        TTL=1s by default — aligns with tick frequency.
+        """</span>
+        cache_key = <span class="op">f</span><span class="st">"price:{market}"</span>
+        cached = self.r.get(cache_key)
+
+        <span class="kw">if</span> cached:
+            data = json.loads(cached)
+            data[<span class="st">"_cache"</span>] = <span class="st">"hit"</span>
+            <span class="kw">return</span> data
+
+        <span class="cm"># Cache miss — fetch from Purple Flea</span>
+        resp = self.http.get(<span class="op">f</span><span class="st">"{self.base}/trading/markets/{market}/ticker"</span>)
+        resp.raise_for_status()
+        data = resp.json()
+
+        self.r.setex(cache_key, ttl, json.dumps(data))
+        data[<span class="st">"_cache"</span>] = <span class="st">"miss"</span>
+        <span class="kw">return</span> data
+
+    <span class="cm"># ── Balance Cache ─────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">cache_balance</span>(self, wallet_address: str, ttl: int = <span class="nm">30</span>) -> Dict[str, Any]:
+        <span class="st">"""
+        Cache wallet balance. TTL=30s balances freshness against API rate limits.
+        Uses hash for O(1) field reads without deserializing the full object.
+        """</span>
+        cache_key = <span class="op">f</span><span class="st">"balance:{wallet_address}"</span>
+        cached_hash = self.r.hgetall(cache_key)
+
+        <span class="kw">if</span> cached_hash:
+            <span class="kw">return</span> {
+                <span class="st">"address"</span>: wallet_address,
+                <span class="st">"usdc"</span>: float(cached_hash[<span class="st">"usdc"</span>]),
+                <span class="st">"btc"</span>: float(cached_hash[<span class="st">"btc"</span>]),
+                <span class="st">"eth"</span>: float(cached_hash[<span class="st">"eth"</span>]),
+                <span class="st">"cached_at"</span>: cached_hash[<span class="st">"cached_at"</span>],
+                <span class="st">"_cache"</span>: <span class="st">"hit"</span>,
+            }
+
+        resp = self.http.get(<span class="op">f</span><span class="st">"{self.base}/wallet/balance/{wallet_address}"</span>)
+        resp.raise_for_status()
+        data = resp.json()
+
+        pipe = self.r.pipeline()
+        pipe.hset(cache_key, mapping={
+            <span class="st">"usdc"</span>: str(data[<span class="st">"usdc"</span>]),
+            <span class="st">"btc"</span>: str(data.get(<span class="st">"btc"</span>, <span class="nm">0</span>)),
+            <span class="st">"eth"</span>: str(data.get(<span class="st">"eth"</span>, <span class="nm">0</span>)),
+            <span class="st">"cached_at"</span>: str(time.time()),
+        })
+        pipe.expire(cache_key, ttl)
+        pipe.execute()
+
+        data[<span class="st">"_cache"</span>] = <span class="st">"miss"</span>
+        <span class="kw">return</span> data
+
+    <span class="cm"># ── Position State ────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">set_position</span>(self, market: str, side: str, size: float,
+                      entry_price: float, ttl: int = <span class="nm">3600</span>):
+        <span class="st">"""Store open position state. Expires after 1h (session-length TTL)."""</span>
+        key = <span class="op">f</span><span class="st">"position:{self.agent_id}:{market}"</span>
+        self.r.hset(key, mapping={
+            <span class="st">"side"</span>: side,
+            <span class="st">"size"</span>: str(size),
+            <span class="st">"entry_price"</span>: str(entry_price),
+            <span class="st">"opened_at"</span>: str(time.time()),
+        })
+        self.r.expire(key, ttl)
+
+    <span class="kw">def</span> <span class="fn">get_position</span>(self, market: str) -> Optional[Dict]:
+        key = <span class="op">f</span><span class="st">"position:{self.agent_id}:{market}"</span>
+        data = self.r.hgetall(key)
+        <span class="kw">return</span> data <span class="kw">if</span> data <span class="kw">else</span> <span class="cn">None</span>
+
+    <span class="kw">def</span> <span class="fn">clear_position</span>(self, market: str):
+        self.r.delete(<span class="op">f</span><span class="st">"position:{self.agent_id}:{market}"</span>)
+</pre>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PUB/SUB -->
+<section>
+  <div class="container">
+    <div class="section-label">Pub/Sub Coordination</div>
+    <h2>Real-Time Trade Signals Between Agents</h2>
+    <p class="section-intro">
+      In a multi-agent system, a signal agent analyzes markets and publishes triggers. Execution
+      agents subscribe and act instantly. Redis pub/sub delivers messages in under 1ms on localhost
+      and under 5ms on the same data center network.
+    </p>
+    <div class="two-col">
+      <div>
+        <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Signal Publisher (Analyst Agent)</h3>
+        <div class="code-section">
+          <div class="code-header">
+            <div class="code-header-title">
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+              <span class="code-filename">signal_publisher.py</span>
+            </div>
+            <span class="code-lang">Python</span>
+          </div>
+          <pre><span class="kw">import</span> redis, json, time
+
+r = redis.from_url(<span class="st">"redis://localhost:6379"</span>)
+
+<span class="kw">def</span> <span class="fn">publish_signal</span>(
+    market: str,
+    signal_type: str,    <span class="cm"># "LONG" | "SHORT" | "CLOSE"</span>
+    confidence: float,   <span class="cm"># 0.0 – 1.0</span>
+    source: str = <span class="st">"momentum"</span>
+):
+    <span class="st">"""
+    Publish trade signal to all subscribed execution
+    agents. Channel: pf:signals:{market}
+    """</span>
+    channel = <span class="op">f</span><span class="st">"pf:signals:{market}"</span>
+    payload = json.dumps({
+        <span class="st">"market"</span>: market,
+        <span class="st">"type"</span>: signal_type,
+        <span class="st">"confidence"</span>: confidence,
+        <span class="st">"source"</span>: source,
+        <span class="st">"ts"</span>: time.time(),
+    })
+    subscribers = r.publish(channel, payload)
+    <span class="kw">return</span> subscribers   <span class="cm"># number of agents reached</span>
+
+<span class="cm"># Example: BTC momentum signal</span>
+<span class="kw">if</span> btc_rsi &gt; <span class="nm">70</span> <span class="kw">and</span> volume_spike:
+    n = publish_signal(
+        market=<span class="st">"BTC-PERP"</span>,
+        signal_type=<span class="st">"LONG"</span>,
+        confidence=<span class="nm">0.82</span>,
+        source=<span class="st">"rsi+volume"</span>
+    )
+    print(<span class="op">f</span><span class="st">"Signal sent to {n} agents"</span>)
+</pre>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:0.75rem;">Signal Subscriber (Execution Agent)</h3>
+        <div class="code-section">
+          <div class="code-header">
+            <div class="code-header-title">
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+              <span class="code-filename">signal_subscriber.py</span>
+            </div>
+            <span class="code-lang">Python</span>
+          </div>
+          <pre><span class="kw">import</span> redis, json, httpx
+
+r = redis.from_url(<span class="st">"redis://localhost:6379"</span>)
+pubsub = r.pubsub()
+pubsub.subscribe(
+    <span class="st">"pf:signals:BTC-PERP"</span>,
+    <span class="st">"pf:signals:ETH-PERP"</span>,
+    <span class="st">"pf:signals:SOL-PERP"</span>
+)
+
+http = httpx.Client(headers={
+    <span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_yourkey"</span>
+})
+
+<span class="kw">for</span> message <span class="kw">in</span> pubsub.listen():
+    <span class="kw">if</span> message[<span class="st">"type"</span>] != <span class="st">"message"</span>:
+        <span class="kw">continue</span>
+    sig = json.loads(message[<span class="st">"data"</span>])
+
+    <span class="cm"># Only act on high-confidence signals</span>
+    <span class="kw">if</span> sig[<span class="st">"confidence"</span>] &lt; <span class="nm">0.75</span>:
+        <span class="kw">continue</span>
+
+    <span class="cm"># Execute order on Purple Flea</span>
+    resp = http.post(
+        <span class="st">"https://purpleflea.com/api/trading/order"</span>,
+        json={
+            <span class="st">"market"</span>: sig[<span class="st">"market"</span>],
+            <span class="st">"side"</span>: sig[<span class="st">"type"</span>],
+            <span class="st">"size"</span>: <span class="nm">0.01</span>,
+            <span class="st">"type"</span>: <span class="st">"market"</span>,
+        }
+    )
+    print(<span class="op">f</span><span class="st">"Executed {sig['type']} on {sig['market']}"</span>)
+</pre>
+        </div>
+      </div>
+    </div>
+    <div class="card-grid card-grid-3" style="margin-top:2rem;">
+      <div class="card">
+        <div class="card-icon">&#128268;</div>
+        <h3>Channel Naming Convention</h3>
+        <p>Use <code style="font-family:'JetBrains Mono',monospace;color:var(--purple-light);font-size:0.8rem">pf:signals:{market}</code> for market signals, <code style="font-family:'JetBrains Mono',monospace;color:var(--purple-light);font-size:0.8rem">pf:alerts:{agent_id}</code> for per-agent alerts, and <code style="font-family:'JetBrains Mono',monospace;color:var(--purple-light);font-size:0.8rem">pf:broadcast</code> for system-wide messages.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128101;</div>
+        <h3>Fan-Out Coordination</h3>
+        <p>One signal agent can coordinate a fleet of 100+ execution agents in milliseconds.
+        Each subscriber acts independently — no shared lock contention.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">&#128293;</div>
+        <h3>Fire and Forget vs. Streams</h3>
+        <p>Pub/Sub is ephemeral — subscribers offline miss messages. For guaranteed delivery
+        and replay, use Redis Streams (covered below) alongside pub/sub.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- RATE LIMITING -->
+<section>
+  <div class="container">
+    <div class="section-label">Rate Limiting</div>
+    <h2>Token Bucket Rate Limiting for Purple Flea API Calls</h2>
+    <p class="section-intro">
+      Purple Flea enforces per-key rate limits. Running multiple agents on the same key without
+      coordination will result in 429 errors and missed opportunities. A Redis token bucket ensures
+      every agent respects limits atomically, without any central coordinator process.
+    </p>
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-title">
+          <div class="code-dots">
+            <div class="code-dot red"></div>
+            <div class="code-dot yellow"></div>
+            <div class="code-dot green"></div>
+          </div>
+          <span class="code-filename">rate_limiter.py</span>
+        </div>
+        <span class="code-lang">Python (Lua script)</span>
+      </div>
+      <pre><span class="kw">import</span> redis
+<span class="kw">import</span> time
+
+r = redis.from_url(<span class="st">"redis://localhost:6379"</span>)
+
+<span class="cm"># Lua script — runs atomically on Redis server (no race conditions)</span>
+TOKEN_BUCKET_SCRIPT = <span class="st">"""
+local key        = KEYS[1]
+local capacity   = tonumber(ARGV[1])   -- max tokens
+local refill_rate = tonumber(ARGV[2])  -- tokens per second
+local now        = tonumber(ARGV[3])   -- current time (ms)
+local requested  = tonumber(ARGV[4])   -- tokens needed
+
+local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens = tonumber(bucket[1]) or capacity
+local last_refill = tonumber(bucket[2]) or now
+
+-- Refill based on elapsed time
+local elapsed = (now - last_refill) / 1000
+local new_tokens = math.min(capacity, tokens + elapsed * refill_rate)
+
+if new_tokens >= requested then
+    new_tokens = new_tokens - requested
+    redis.call('HMSET', key, 'tokens', new_tokens, 'last_refill', now)
+    redis.call('EXPIRE', key, 3600)
+    return 1    -- allowed
+else
+    redis.call('HMSET', key, 'tokens', new_tokens, 'last_refill', now)
+    redis.call('EXPIRE', key, 3600)
+    return 0    -- denied
+end
+"""</span>
+
+bucket_script = r.register_script(TOKEN_BUCKET_SCRIPT)
+
+<span class="kw">def</span> <span class="fn">acquire_token</span>(api_key_hash: str, capacity: int = <span class="nm">60</span>,
+                   refill_rate: float = <span class="nm">1.0</span>) -> bool:
+    <span class="st">"""
+    Try to consume one API token.
+    capacity=60: burst up to 60 calls
+    refill_rate=1.0: refill 1 token/second (60 RPM steady state)
+    Returns True if the call is allowed.
+    """</span>
+    key = <span class="op">f</span><span class="st">"rate_limit:{api_key_hash}"</span>
+    now_ms = int(time.time() * <span class="nm">1000</span>)
+    result = bucket_script(
+        keys=[key],
+        args=[capacity, refill_rate, now_ms, <span class="nm">1</span>]
+    )
+    <span class="kw">return</span> bool(result)
+
+<span class="cm"># Usage across all agents sharing one API key</span>
+<span class="kw">def</span> <span class="fn">safe_api_call</span>(endpoint: str, payload: dict, api_key: str):
+    key_hash = api_key[-<span class="nm">12</span>:]          <span class="cm"># last 12 chars as bucket key</span>
+    <span class="kw">if not</span> acquire_token(key_hash):
+        <span class="kw">raise</span> Exception(<span class="st">"Rate limit: wait for token refill"</span>)
+    <span class="cm"># ... proceed with API call</span>
+</pre>
+    </div>
+    <div class="card-grid card-grid-2" style="margin-top:1.5rem;">
+      <div class="card">
+        <h3>Why Lua for Atomicity</h3>
+        <p style="font-size:0.9rem;color:var(--text-secondary);">The check-and-decrement operation must be atomic. Without Lua, two agents could both read "5 tokens remaining" and both consume one, leaving the count at 4 instead of 3. Redis executes Lua scripts as a single atomic unit.</p>
+      </div>
+      <div class="card">
+        <h3>Per-Agent vs. Shared Buckets</h3>
+        <p style="font-size:0.9rem;color:var(--text-secondary);">Use <code style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--purple-light)">rate_limit:{api_key_hash}</code> for a shared bucket (all agents on the key share quota) or <code style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--purple-light)">rate_limit:{api_key_hash}:{agent_id}</code> for per-agent sub-limits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- REDIS STREAMS AUDIT -->
+<section>
+  <div class="container">
+    <div class="section-label">Audit Trail</div>
+    <h2>Redis Streams for Agent Transaction Audit Logs</h2>
+    <p class="section-intro">
+      Every Purple Flea API call your agent makes — bets placed, withdrawals triggered, escrow
+      deposits — should be appended to a Redis Stream. Streams are append-only, ordered by server
+      time, and can be replayed from any point. This gives you a queryable audit trail without a database.
+    </p>
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-title">
+          <div class="code-dots">
+            <div class="code-dot red"></div>
+            <div class="code-dot yellow"></div>
+            <div class="code-dot green"></div>
+          </div>
+          <span class="code-filename">audit_stream.py</span>
+        </div>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> redis, time, json
+
+r = redis.from_url(<span class="st">"redis://localhost:6379"</span>)
+
+STREAM_KEY = <span class="st">"pf:audit"</span>
+MAX_STREAM_LEN = <span class="nm">100_000</span>   <span class="cm"># ~1M events before trimming oldest</span>
+
+<span class="kw">def</span> <span class="fn">log_transaction</span>(
+    agent_id: str,
+    action: str,        <span class="cm"># "bet" | "withdraw" | "escrow_deposit" | "order"</span>
+    market: str,
+    amount: float,
+    result: dict,       <span class="cm"># API response from Purple Flea</span>
+    metadata: dict = <span class="cn">None</span>
+) -> str:
+    <span class="st">"""
+    Append transaction to Redis Stream.
+    Returns the stream entry ID (timestamp-sequence, e.g. '1709812345678-0').
+    Use MAXLEN to cap stream size automatically.
+    """</span>
+    entry = {
+        <span class="st">"agent_id"</span>: agent_id,
+        <span class="st">"action"</span>: action,
+        <span class="st">"market"</span>: market,
+        <span class="st">"amount"</span>: str(amount),
+        <span class="st">"status"</span>: result.get(<span class="st">"status"</span>, <span class="st">"unknown"</span>),
+        <span class="st">"tx_id"</span>: result.get(<span class="st">"tx_id"</span>, <span class="st">""</span>),
+        <span class="st">"pnl"</span>: str(result.get(<span class="st">"pnl"</span>, <span class="nm">0</span>)),
+        <span class="st">"wall_time"</span>: str(time.time()),
+        <span class="st">"meta"</span>: json.dumps(metadata <span class="kw">or</span> {}),
+    }
+    entry_id = r.xadd(STREAM_KEY, entry, maxlen=MAX_STREAM_LEN, approximate=<span class="cn">True</span>)
+    <span class="kw">return</span> entry_id.decode()
+
+<span class="kw">def</span> <span class="fn">replay_transactions</span>(
+    agent_id: str = <span class="cn">None</span>,
+    start: str = <span class="st">"0"</span>,       <span class="cm"># stream ID or "-" for beginning</span>
+    count: int = <span class="nm">500</span>
+) -> list:
+    <span class="st">"""Read audit log entries, optionally filtering by agent."""</span>
+    entries = r.xrange(STREAM_KEY, min=start, count=count)
+    results = []
+    <span class="kw">for</span> entry_id, fields <span class="kw">in</span> entries:
+        <span class="kw">if</span> agent_id <span class="kw">and</span> fields.get(<span class="st">"agent_id"</span>) != agent_id:
+            <span class="kw">continue</span>
+        results.append({<span class="st">"id"</span>: entry_id, **fields})
+    <span class="kw">return</span> results
+
+<span class="kw">def</span> <span class="fn">get_agent_pnl_from_stream</span>(agent_id: str) -> float:
+    <span class="st">"""Calculate total P&amp;L by replaying the agent's stream entries."""</span>
+    entries = replay_transactions(agent_id=agent_id, count=<span class="nm">10_000</span>)
+    <span class="kw">return</span> sum(float(e[<span class="st">"pnl"</span>]) <span class="kw">for</span> e <span class="kw">in</span> entries)
+
+<span class="cm"># Example: log a Purple Flea casino bet</span>
+entry_id = log_transaction(
+    agent_id=<span class="st">"agent-007"</span>,
+    action=<span class="st">"bet"</span>,
+    market=<span class="st">"coin-flip"</span>,
+    amount=<span class="nm">0.10</span>,
+    result={<span class="st">"status"</span>: <span class="st">"win"</span>, <span class="st">"pnl"</span>: <span class="nm">0.09</span>, <span class="st">"tx_id"</span>: <span class="st">"cf-9284"</span>},
+    metadata={<span class="st">"prediction"</span>: <span class="st">"heads"</span>, <span class="st">"model"</span>: <span class="st">"claude-opus-4"</span>}
+)
+print(<span class="op">f</span><span class="st">"Logged: {entry_id}"</span>)
+</pre>
+    </div>
+
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-top:1.5rem;">
+      <h3 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Stream Field Schema</h3>
+      <table class="stream-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>agent_id</code></td>
+            <td><span class="tag tag-blue">string</span></td>
+            <td>Agent identifier for filtering</td>
+            <td><code>agent-007</code></td>
+          </tr>
+          <tr>
+            <td><code>action</code></td>
+            <td><span class="tag tag-purple">enum</span></td>
+            <td>Purple Flea operation type</td>
+            <td><code>bet</code>, <code>order</code>, <code>escrow_deposit</code></td>
+          </tr>
+          <tr>
+            <td><code>market</code></td>
+            <td><span class="tag tag-blue">string</span></td>
+            <td>Market or game identifier</td>
+            <td><code>BTC-PERP</code>, <code>coin-flip</code></td>
+          </tr>
+          <tr>
+            <td><code>amount</code></td>
+            <td><span class="tag tag-green">float</span></td>
+            <td>USDC amount involved</td>
+            <td><code>0.10</code></td>
+          </tr>
+          <tr>
+            <td><code>status</code></td>
+            <td><span class="tag tag-purple">enum</span></td>
+            <td>Outcome from Purple Flea API</td>
+            <td><code>win</code>, <code>loss</code>, <code>filled</code></td>
+          </tr>
+          <tr>
+            <td><code>pnl</code></td>
+            <td><span class="tag tag-green">float</span></td>
+            <td>Profit/loss for this event</td>
+            <td><code>0.09</code></td>
+          </tr>
+          <tr>
+            <td><code>tx_id</code></td>
+            <td><span class="tag tag-blue">string</span></td>
+            <td>Purple Flea transaction ID</td>
+            <td><code>cf-9284</code></td>
+          </tr>
+          <tr>
+            <td><code>wall_time</code></td>
+            <td><span class="tag tag-green">float</span></td>
+            <td>Unix timestamp of event</td>
+            <td><code>1709812345.678</code></td>
+          </tr>
+          <tr>
+            <td><code>meta</code></td>
+            <td><span class="tag tag-blue">JSON</span></td>
+            <td>Arbitrary strategy metadata</td>
+            <td><code>{"model": "claude-opus-4"}</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SESSION MANAGEMENT -->
+<section>
+  <div class="container">
+    <div class="section-label">Session Management</div>
+    <h2>Managing Long-Running Agent Trading Sessions</h2>
+    <p class="section-intro">
+      A trading agent that runs for hours needs session state that survives process restarts,
+      maintains a risk budget across its lifetime, and can be paused or resumed. Redis is the
+      ideal session store for this pattern.
+    </p>
+    <div class="two-col">
+      <div>
+        <ul class="feature-list">
+          <li>Session object stores entry capital, current drawdown limit, and strategy parameters</li>
+          <li>Heartbeat key with short TTL detects crashed agents automatically</li>
+          <li>Idempotent session creation: SETNX ensures exactly one session per agent ID</li>
+          <li>Risk state (max_drawdown, daily_loss) updated atomically per trade</li>
+          <li>Session replay: load last state from Redis on restart without re-querying Purple Flea</li>
+          <li>Multi-session dashboard: SCAN for keys matching <code style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--purple-light)">session:*</code></li>
+          <li>Session expiry aligns with market close (configurable TTL)</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code-section">
+          <div class="code-header">
+            <div class="code-header-title">
+              <div class="code-dots">
+                <div class="code-dot red"></div>
+                <div class="code-dot yellow"></div>
+                <div class="code-dot green"></div>
+              </div>
+              <span class="code-filename">session_manager.py</span>
+            </div>
+            <span class="code-lang">Python</span>
+          </div>
+          <pre><span class="kw">import</span> redis, json, time
+
+r = redis.from_url(<span class="st">"redis://localhost:6379"</span>)
+
+<span class="kw">class</span> <span class="fn">AgentSession</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, agent_id: str,
+                 start_capital: float,
+                 max_drawdown: float = <span class="nm">0.05</span>,
+                 session_ttl: int = <span class="nm">86400</span>):
+        self.key = <span class="op">f</span><span class="st">"session:{agent_id}"</span>
+        self.hb_key = <span class="op">f</span><span class="st">"heartbeat:{agent_id}"</span>
+        self.session_ttl = session_ttl
+
+        <span class="cm"># SETNX: only create if not exists</span>
+        created = r.hsetnx(
+            self.key, <span class="st">"start_capital"</span>,
+            str(start_capital)
+        )
+        <span class="kw">if</span> created:
+            r.hset(self.key, mapping={
+                <span class="st">"current_capital"</span>: str(start_capital),
+                <span class="st">"max_drawdown"</span>: str(max_drawdown),
+                <span class="st">"total_pnl"</span>: <span class="st">"0"</span>,
+                <span class="st">"trades"</span>: <span class="st">"0"</span>,
+                <span class="st">"started_at"</span>: str(time.time()),
+                <span class="st">"status"</span>: <span class="st">"active"</span>,
+            })
+        r.expire(self.key, session_ttl)
+
+    <span class="kw">def</span> <span class="fn">heartbeat</span>(self, interval: int = <span class="nm">30</span>):
+        <span class="st">"""Reset 30s TTL — signals agent is alive."""</span>
+        r.setex(self.hb_key, interval, <span class="st">"alive"</span>)
+
+    <span class="kw">def</span> <span class="fn">record_trade</span>(self, pnl: float):
+        <span class="kw">with</span> r.pipeline() <span class="kw">as</span> pipe:
+            pipe.hincrbyfloat(self.key, <span class="st">"total_pnl"</span>, pnl)
+            pipe.hincrbyfloat(self.key, <span class="st">"current_capital"</span>, pnl)
+            pipe.hincrby(self.key, <span class="st">"trades"</span>, <span class="nm">1</span>)
+            pipe.execute()
+
+    <span class="kw">def</span> <span class="fn">is_over_drawdown</span>(self) -> bool:
+        data = r.hmget(self.key,
+            <span class="st">"start_capital"</span>, <span class="st">"current_capital"</span>,
+            <span class="st">"max_drawdown"</span>)
+        start, current, limit = (
+            float(x) <span class="kw">for</span> x <span class="kw">in</span> data)
+        dd = (start - current) / start
+        <span class="kw">return</span> dd &gt;= limit
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- GETTING STARTED -->
+<section>
+  <div class="container">
+    <div class="section-label">Getting Started</div>
+    <h2>Set Up Redis + Purple Flea in Under 10 Minutes</h2>
+    <p class="section-intro">
+      Start with a free faucet claim to get funds, spin up Redis locally, and have your
+      first cached agent call working in minutes.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>Claim Free Funds from the Faucet</h3>
+          <p>Register your agent at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to receive
+          free USDC for testing. No deposit required.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>Start Redis Locally</h3>
+          <p><code>docker run -d -p 6379:6379 --name pf-redis redis:7-alpine</code> — or use Redis Cloud free tier.
+          Set <code>REDIS_URL=redis://localhost:6379</code> in your environment.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>Install Dependencies</h3>
+          <p><code>pip install redis httpx</code> — that's all you need. No ORM, no heavy framework.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h3>Initialize RedisAgentCache</h3>
+          <p>Instantiate <code>RedisAgentCache(redis_url, api_key, agent_id)</code> and call
+          <code>get_price("BTC-PERP")</code>. Verify the first call returns <code>_cache: "miss"</code>
+          and the second returns <code>_cache: "hit"</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h3>Enable the Audit Stream</h3>
+          <p>Wrap every Purple Flea API response with <code>log_transaction()</code>.
+          Run <code>redis-cli XLEN pf:audit</code> to confirm entries are appending correctly.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h3>Add Rate Limiting Before Going Live</h3>
+          <p>Wrap all API calls with <code>acquire_token()</code>. Tune <code>capacity</code> and
+          <code>refill_rate</code> to match your Purple Flea plan limits.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- USE CASES -->
+<section>
+  <div class="container">
+    <div class="section-label">Use Cases</div>
+    <h2>What Redis-Backed Agents Can Do on Purple Flea</h2>
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <div class="card-icon">&#128202;</div>
+        <h3>Market Making Bot</h3>
+        <p>Cache both sides of the order book in a Redis sorted set. Update quotes
+        every tick from pub/sub price feeds. Track inventory risk in a hash.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-purple">Trading API</span> <span class="tag tag-red">Pub/Sub</span></div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#127920;</div>
+        <h3>Casino Strategy Agent</h3>
+        <p>Cache recent game outcomes in a Redis list (LPUSH/LTRIM to maintain a
+        rolling window). Apply martingale or Kelly criterion to next bet size.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-green">Casino API</span> <span class="tag tag-blue">Cache</span></div>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">&#128279;</div>
+        <h3>Escrow Coordinator</h3>
+        <p>Pub/sub channel notifies all parties when an escrow deposit is confirmed.
+        Shared state in Redis tracks multi-party agreement status atomically.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-blue">Escrow API</span> <span class="tag tag-red">Pub/Sub</span></div>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128260;</div>
+        <h3>Cross-Agent Arbitrage</h3>
+        <p>Signal agent detects price divergence and publishes to a channel.
+        Multiple execution agents simultaneously take both sides of the spread.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-purple">Trading API</span> <span class="tag tag-red">Fan-out</span></div>
+      </div>
+      <div class="card">
+        <div class="card-icon red">&#128181;</div>
+        <h3>Wallet Balance Monitor</h3>
+        <p>Cache balances with 30s TTL. Publish alerts to <code style="font-family:'JetBrains Mono',monospace;font-size:0.78rem">pf:alerts:{agent_id}</code>
+        when balance drops below minimum threshold.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-blue">Wallet API</span> <span class="tag tag-red">Alerts</span></div>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128203;</div>
+        <h3>Strategy Backtester</h3>
+        <p>Store historical OHLCV snapshots in Redis sorted sets keyed by timestamp.
+        Replay against live strategy logic using ZRANGEBYSCORE queries.</p>
+        <div style="margin-top:0.75rem;"><span class="tag tag-green">Streams</span> <span class="tag tag-blue">Sorted Sets</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CTA -->
+<section>
+  <div class="container">
+    <div class="cta-banner">
+      <div class="section-label" style="display:block;text-align:center;margin-bottom:0.75rem;">Start Building</div>
+      <h2>Your Redis-Backed Agent Is One Faucet Claim Away</h2>
+      <p>Get free USDC from the Purple Flea faucet, spin up Redis locally, and deploy your
+      first caching-enabled trading agent in under an hour.</p>
+      <div class="cta-actions">
+        <a href="https://faucet.purpleflea.com" class="btn-primary">Claim Free Funds &#8594;</a>
+        <a href="/docs" class="btn-secondary">API Documentation</a>
+        <a href="/escrow" class="btn-secondary">Explore Escrow</a>
+      </div>
+      <div style="margin-top:2rem;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text);">6</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">Purple Flea services</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text);">1%</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">Escrow fee</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text);">15%</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">Referral on fees</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:1.3rem;font-weight:800;color:var(--text);">Free</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">Faucet funds</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/docs">Docs</a>
+      <a href="/for-agents">For Agents</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/escrow">Escrow</a>
+      <a href="/casino">Casino</a>
+      <a href="/trading">Trading</a>
+      <a href="/whitepaper">Whitepaper</a>
+      <a href="/blog">Blog</a>
+    </div>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <p style="margin-top:0.5rem;font-size:0.78rem;">
+      Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a>
+      &nbsp;&middot;&nbsp;
+      MCP: <a href="https://faucet.purpleflea.com/mcp">faucet.purpleflea.com/mcp</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://escrow.purpleflea.com/mcp">escrow.purpleflea.com/mcp</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
