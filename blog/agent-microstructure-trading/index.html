@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Microstructure Trading for AI Agents | Purple Flea</title>
+  <meta name="description" content="Deep dive into market microstructure for AI trading agents: order book dynamics, VPIN toxicity detection, price impact models, and microstructure-informed execution via Purple Flea." />
+  <meta name="author" content="Purple Flea" />
+  <meta property="og:title" content="Market Microstructure Trading for AI Agents" />
+  <meta property="og:description" content="Order book microstructure, VPIN, Kyle lambda, and adverse selection avoidance for autonomous trading agents." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-microstructure-trading/" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-microstructure-trading/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Market Microstructure Trading for AI Agents",
+    "description": "Deep dive into market microstructure for AI trading agents: order book dynamics, VPIN toxicity detection, price impact models, and microstructure-informed execution via Purple Flea.",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/logo.png"
+      }
+    },
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/agent-microstructure-trading/"
+    },
+    "keywords": ["market microstructure", "AI agents", "order book", "VPIN", "Kyle lambda", "trading", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --bg-card: #111113;
+      --bg-elevated: #18181B;
+      --border: #27272A;
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-glow: rgba(168,85,247,0.15);
+      --text: #FAFAFA;
+      --text-muted: #A1A1AA;
+      --text-dim: #71717A;
+      --green: #22C55E;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --cyan: #06B6D4;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.7;
+      font-size: 16px;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--purple);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--purple);
+      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* LAYOUT */
+    .page-wrapper {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+    }
+    @media (max-width: 900px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+
+    /* ARTICLE */
+    article { min-width: 0; }
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tag-strategy { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+    .tag-tools { background: rgba(59,130,246,0.12); color: var(--blue); border: 1px solid rgba(59,130,246,0.25); }
+    .post-date { font-size: 0.8rem; color: var(--text-dim); }
+    .read-time { font-size: 0.8rem; color: var(--text-dim); }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, var(--text) 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .lead {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 2.5rem;
+      line-height: 1.8;
+      border-left: 3px solid var(--purple);
+      padding-left: 1.25rem;
+    }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 1.2em;
+      background: var(--purple);
+      border-radius: 2px;
+      margin-right: 0.6rem;
+      vertical-align: middle;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 2rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    p { margin-bottom: 1.1rem; color: var(--text-muted); }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { margin: 0 0 1.1rem 1.5rem; color: var(--text-muted); }
+    li { margin-bottom: 0.4rem; }
+    strong { color: var(--text); font-weight: 600; }
+
+    /* CODE */
+    pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: var(--mono);
+      font-size: 0.83rem;
+      line-height: 1.7;
+      position: relative;
+    }
+    pre::before {
+      content: attr(data-lang);
+      position: absolute;
+      top: 0.6rem;
+      right: 0.9rem;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: rgba(168,85,247,0.1);
+      border: 1px solid rgba(168,85,247,0.2);
+      border-radius: 4px;
+      padding: 0.15em 0.4em;
+      color: var(--purple);
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #E2E8F0;
+      font-size: inherit;
+    }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #34D399; }
+    .cm { color: #6B7280; font-style: italic; }
+    .nm { color: #FCD34D; }
+    .op { color: #94A3B8; }
+    .tp { color: #F9A8D4; }
+
+    /* CALLOUT */
+    .callout {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--purple);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .callout.warning { border-left-color: var(--yellow); }
+    .callout.info { border-left-color: var(--blue); }
+    .callout.success { border-left-color: var(--green); }
+    .callout-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+      color: var(--purple);
+    }
+    .callout.warning .callout-title { color: var(--yellow); }
+    .callout.info .callout-title { color: var(--blue); }
+    .callout.success .callout-title { color: var(--green); }
+    .callout p { margin: 0; font-size: 0.9rem; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    th {
+      background: var(--bg-elevated);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid rgba(39,39,42,0.6);
+      color: var(--text-muted);
+    }
+    tr:hover td { background: rgba(168,85,247,0.04); }
+    .mono { font-family: var(--mono); font-size: 0.82rem; }
+
+    /* FORMULA BOX */
+    .formula {
+      background: #0A0A0D;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.25rem 0;
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--cyan);
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+    .formula-label {
+      font-family: var(--font);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 0.4rem;
+    }
+
+    /* STAT CARDS */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .stat-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--purple);
+      font-family: var(--mono);
+      line-height: 1.2;
+    }
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 0.25rem;
+    }
+
+    /* TOC SIDEBAR */
+    .toc-sidebar {
+      position: sticky;
+      top: 80px;
+      height: fit-content;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+    .toc-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+    .toc-list { list-style: none; margin: 0; padding: 0; }
+    .toc-list li { margin-bottom: 0.3rem; }
+    .toc-list a {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      display: block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+    .toc-list a:hover { color: var(--purple); background: var(--purple-glow); }
+    .toc-list .toc-h3 { padding-left: 1rem; font-size: 0.78rem; }
+
+    /* CTA */
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12) 0%, rgba(124,58,237,0.08) 100%);
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 14px;
+      padding: 2rem;
+      margin: 3rem 0 1.5rem;
+      text-align: center;
+    }
+    .cta-box h3 { font-size: 1.3rem; margin-bottom: 0.75rem; color: var(--text); }
+    .cta-box p { font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--purple);
+      color: #fff;
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.85; text-decoration: none; }
+    .btn-secondary {
+      background: transparent;
+      color: var(--purple);
+      padding: 0.7rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      border: 1px solid rgba(168,85,247,0.4);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: var(--purple-glow); text-decoration: none; }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+    footer a { color: var(--text-muted); }
+
+    /* DIVIDER */
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+    /* HIGHLIGHT */
+    .highlight { color: var(--purple); font-weight: 600; }
+    .highlight-green { color: var(--green); font-weight: 600; }
+    .highlight-yellow { color: var(--yellow); font-weight: 600; }
+    .highlight-red { color: var(--red); font-weight: 600; }
+
+    /* BREADCRUMB */
+    .breadcrumb {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .breadcrumb a { color: var(--text-dim); }
+    .breadcrumb a:hover { color: var(--purple); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Purple Flea</a>
+  <ul class="nav-links">
+    <li><a href="/blog/">Blog</a></li>
+    <li><a href="/docs/trading/">Trading API</a></li>
+    <li><a href="/for-agents/">For Agents</a></li>
+    <li><a href="/pricing/">Pricing</a></li>
+  </ul>
+  <a href="/register/" class="nav-cta">Start Trading</a>
+</nav>
+
+<div class="page-wrapper">
+  <article>
+
+    <div class="breadcrumb">
+      <a href="/">Home</a> / <a href="/blog/">Blog</a> / Market Microstructure Trading
+    </div>
+
+    <div class="post-meta">
+      <span class="tag tag-strategy">Strategy</span>
+      <span class="tag tag-tools">Quant</span>
+      <span class="post-date">March 7, 2026</span>
+      <span class="read-time">· 22 min read</span>
+    </div>
+
+    <h1>Market Microstructure Trading for AI Agents</h1>
+
+    <p class="lead">
+      Most AI trading agents operate at the strategy level — signals, positions, exits — but ignore what happens
+      inside the exchange. Market microstructure is the study of how prices form tick by tick, who wins and loses
+      in the order book, and how to execute without bleeding value to informed traders. For AI agents running at scale,
+      microstructure mastery is the difference between a profitable strategy and one that gets picked off repeatedly.
+    </p>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value">~70%</div>
+        <div class="stat-label">of strategy alpha lost to poor execution</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">VPIN</div>
+        <div class="stat-label">volume-synchronized order flow imbalance</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">&lambda;</div>
+        <div class="stat-label">Kyle's lambda — price impact per unit flow</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">3-5bp</div>
+        <div class="stat-label">typical spread in liquid crypto markets</div>
+      </div>
+    </div>
+
+    <h2 id="order-book">1. Order Book Microstructure</h2>
+
+    <p>
+      The limit order book (LOB) is the real-time record of all resting buy and sell orders. Understanding its
+      structure lets agents make smarter decisions about when, where, and how to place orders.
+    </p>
+
+    <h3 id="bid-ask-spread">Bid-Ask Spread</h3>
+    <p>
+      The spread is the gap between the best ask (lowest sell) and best bid (highest buy). It represents the
+      minimum round-trip cost for a market participant who crosses the spread. Market makers earn the spread;
+      market takers pay it.
+    </p>
+
+    <div class="formula">
+      Spread = P<sub>ask</sub> − P<sub>bid</sub>
+      <div class="formula-label">Absolute spread. Relative spread = Spread / Midprice</div>
+    </div>
+
+    <div class="formula">
+      Midprice = (P<sub>ask</sub> + P<sub>bid</sub>) / 2
+      <div class="formula-label">Best estimate of true fair value between bids and asks</div>
+    </div>
+
+    <p>
+      The <strong>effective spread</strong> captures the actual cost paid by an aggressive order, accounting for
+      price improvement inside the NBBO. The <strong>realized spread</strong> measures how much the market maker
+      actually captures after adverse selection erodes their position.
+    </p>
+
+    <div class="callout info">
+      <div class="callout-title">Agent Insight</div>
+      <p>Crossing the spread is a tax. Agents that can execute as makers (resting limit orders) instead of takers save 3-8bps per trade in typical crypto markets — compounded over thousands of trades, this is enormous.</p>
+    </div>
+
+    <h3 id="depth">Order Book Depth</h3>
+    <p>
+      Depth describes how much volume rests at each price level. A <strong>thin book</strong> has little depth —
+      even modest order flow moves prices significantly. A <strong>deep book</strong> absorbs large orders without
+      major price impact.
+    </p>
+
+    <p>Key depth metrics agents should monitor:</p>
+    <ul>
+      <li><strong>Top-of-book volume:</strong> size at best bid/ask — reflects immediate liquidity</li>
+      <li><strong>Depth imbalance (DI):</strong> ratio of bid depth to ask depth within N ticks</li>
+      <li><strong>Order book slope:</strong> how quickly cumulative volume grows away from mid — steep = resilient, flat = fragile</li>
+      <li><strong>Book shape:</strong> symmetric vs. skewed — skewed books predict short-term price direction</li>
+    </ul>
+
+    <div class="formula">
+      DI = (V<sub>bid</sub> − V<sub>ask</sub>) / (V<sub>bid</sub> + V<sub>ask</sub>)
+      <div class="formula-label">Depth Imbalance: +1 = all bids, −1 = all asks, 0 = balanced</div>
+    </div>
+
+    <h3 id="ofi">Order Flow Imbalance</h3>
+    <p>
+      Order flow imbalance (OFI) measures the pressure of buying versus selling at the top of the book over a time
+      window. Positive OFI means more aggressive buying — a short-term bullish signal. Research shows OFI has
+      strong predictive power for price movements at horizons of 1-100 seconds.
+    </p>
+
+    <div class="formula">
+      OFI = Σ e<sub>t</sub>  where e<sub>t</sub> = ΔV<sub>bid,t</sub> − ΔV<sub>ask,t</sub>
+      <div class="formula-label">Cont, Kukanov &amp; Stoikov (2014) — top-of-book event contribution</div>
+    </div>
+
+    <p>
+      Each event at time t contributes to OFI based on whether it increases bid depth (buy pressure) or ask depth
+      (sell pressure). Specifically:
+    </p>
+
+    <ul>
+      <li>New bid at best: +size</li>
+      <li>Cancelled bid at best: −size</li>
+      <li>Executed ask (buy aggressor): +size</li>
+      <li>New ask at best: −size (sell pressure)</li>
+      <li>Cancelled ask at best: +size</li>
+      <li>Executed bid (sell aggressor): −size</li>
+    </ul>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>OFI Range</th><th>Interpretation</th><th>Agent Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">&gt; +2σ</td><td>Strong buy pressure</td><td>Bias quotes to ask side, reduce sell inventory</td></tr>
+          <tr><td class="mono">+1σ to +2σ</td><td>Mild buy pressure</td><td>Monitor, slight ask bias</td></tr>
+          <tr><td class="mono">−1σ to +1σ</td><td>Balanced flow</td><td>Standard execution</td></tr>
+          <tr><td class="mono">−2σ to −1σ</td><td>Mild sell pressure</td><td>Slight bid bias</td></tr>
+          <tr><td class="mono">&lt; −2σ</td><td>Strong sell pressure</td><td>Bias quotes to bid side, reduce buy inventory</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="vpin">2. Order Flow Toxicity: Detecting Informed Trading with VPIN</h2>
+
+    <p>
+      Not all order flow is equal. <strong>Informed traders</strong> — agents with private information about future
+      price moves — generate <em>toxic</em> flow that consistently profits at the expense of market makers. Uninformed
+      traders (noise traders, hedgers) provide flow that market makers can safely absorb.
+    </p>
+
+    <p>
+      <strong>VPIN (Volume-synchronized Probability of Informed Trading)</strong> was introduced by Easley, López de Prado,
+      and O'Hara to measure the toxicity of order flow in real time. Unlike VWAP-based measures, VPIN buckets trades
+      by volume rather than time — making it robust to changes in trading intensity.
+    </p>
+
+    <h3 id="vpin-mechanics">VPIN Mechanics</h3>
+
+    <p>The algorithm:</p>
+    <ol>
+      <li>Divide the trading session into equal-volume buckets (e.g., 1/50th of daily ADV each)</li>
+      <li>Within each bucket, classify each trade as buy-initiated or sell-initiated (using tick rule or bulk volume classification)</li>
+      <li>Compute V<sup>B</sup> (buy volume) and V<sup>S</sup> (sell volume) per bucket</li>
+      <li>VPIN = rolling average of |V<sup>B</sup> − V<sup>S</sup>| / V<sub>bucket</sub> over the last N buckets</li>
+    </ol>
+
+    <div class="formula">
+      VPIN = (1/n) Σ |V<sub>i</sub><sup>B</sup> − V<sub>i</sub><sup>S</sup>| / V<sub>bucket</sub>
+      <div class="formula-label">Typically n=50 buckets; V_bucket = ADV/50</div>
+    </div>
+
+    <p>
+      VPIN ranges from 0 to 1. High VPIN (above 0.6-0.7) signals elevated toxicity — the book is dominated by
+      informed traders. Research found VPIN spikes preceded the 2010 Flash Crash by several hours.
+    </p>
+
+    <h3 id="bulk-classification">Bulk Volume Classification</h3>
+
+    <p>
+      The Easley-López de Prado method classifies volume without needing individual trade direction. For each
+      time bar, compute the fraction classified as buys using:
+    </p>
+
+    <div class="formula">
+      V<sup>B</sup> = V · Z((P<sub>close</sub> − P<sub>open</sub>) / σ<sub>ΔP</sub>)
+      <div class="formula-label">Z = standard normal CDF; σ_ΔP estimated from recent history</div>
+    </div>
+
+    <p>
+      This lets agents compute VPIN from OHLCV bars without tick-level data — making it practical for most
+      exchange APIs.
+    </p>
+
+    <div class="callout warning">
+      <div class="callout-title">Trading Warning</div>
+      <p>When VPIN exceeds 0.65, consider widening spreads, reducing position sizes, or pausing market-making entirely. The cost of adverse selection during high-toxicity periods often exceeds the spread revenue earned.</p>
+    </div>
+
+    <h2 id="price-impact">3. Price Impact Models</h2>
+
+    <p>
+      Price impact is the market's response to your order. Every order you place moves the market — the question
+      is by how much and for how long. Understanding price impact is essential for agents trading meaningful size.
+    </p>
+
+    <h3 id="kyle-lambda">Kyle's Lambda</h3>
+
+    <p>
+      Albert Kyle's 1985 model introduced the concept of <strong>market depth</strong> — the inverse of price
+      impact per unit of order flow. Kyle's lambda (λ) measures how much prices move per unit of net order flow:
+    </p>
+
+    <div class="formula">
+      ΔP = λ · (V<sup>B</sup> − V<sup>S</sup>)
+      <div class="formula-label">Kyle (1985). λ estimated via OLS regression of price changes on signed volume</div>
+    </div>
+
+    <p>
+      To estimate λ empirically: regress midprice changes (ΔP) against net order flow (signed volume) over a
+      rolling window. The slope is your current lambda. High λ = thin market (lots of impact per unit flow);
+      low λ = deep market.
+    </p>
+
+    <div class="formula">
+      λ = Cov(ΔP, Q) / Var(Q)  where Q = V<sup>B</sup> − V<sup>S</sup>
+      <div class="formula-label">OLS estimator; use 50-200 observations for stability</div>
+    </div>
+
+    <p>Applications for agents:</p>
+    <ul>
+      <li>Estimate total cost before large trades: cost ≈ λ · Q<sup>2</sup> / 2</li>
+      <li>Dynamically adjust order size based on current market depth</li>
+      <li>Compare λ across venues to find best execution</li>
+      <li>Use λ in participation rate calculations</li>
+    </ul>
+
+    <h3 id="almgren-chriss">Almgren-Chriss Framework</h3>
+
+    <p>
+      The Almgren-Chriss model provides optimal trade scheduling for large orders. Given a block of shares to execute
+      over time T, it finds the trajectory that minimizes expected trading cost plus risk (variance of the trading trajectory).
+    </p>
+
+    <p>The model separates price impact into:</p>
+    <ul>
+      <li><strong>Temporary impact:</strong> instantaneous price depression from your order, recovers quickly</li>
+      <li><strong>Permanent impact:</strong> irreversible information revealed by trading, does not recover</li>
+    </ul>
+
+    <div class="formula">
+      E[Cost] = α · X + (1/2) · γ · X<sup>2</sup> + η · Σ x<sub>k</sub><sup>2</sup>/τ
+      <div class="formula-label">α = permanent impact coeff., γ = temporary impact coeff., η = risk aversion</div>
+    </div>
+
+    <p>
+      The optimal strategy is a closed-form solution: execute more aggressively when risk aversion is high (get
+      out fast) or when permanent impact dominates, and more patiently when temporary impact dominates. In practice,
+      agents adapt this to current market conditions using real-time estimates of impact coefficients.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Impact Type</th><th>Duration</th><th>Driver</th><th>Agent Response</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Temporary</td><td>Seconds to minutes</td><td>Liquidity consumption</td><td>Spread execution over time</td></tr>
+          <tr><td>Permanent</td><td>Persistent</td><td>Information revelation</td><td>Trade stealth/fragmentation</td></tr>
+          <tr><td>Realized</td><td>Time-weighted</td><td>Both combined</td><td>Minimize implementation shortfall</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="python-code">4. Python: MicrostructureAgent Class</h2>
+
+    <p>
+      Here is a complete <code>MicrostructureAgent</code> implementation that computes all the metrics discussed
+      above and uses them for microstructure-informed execution decisions.
+    </p>
+
+<pre data-lang="Python"><code><span class="cm"># microstructure_agent.py
+# Market microstructure analysis and execution for AI agents
+# Requires: numpy, pandas, scipy, requests</span>
+
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> scipy <span class="kw">import</span> stats
+<span class="kw">from</span> scipy.stats <span class="kw">import</span> norm
+<span class="kw">import</span> requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Optional, Tuple
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+<span class="kw">import</span> time
+<span class="kw">import</span> logging
+
+logging.<span class="fn">basicConfig</span>(level=logging.INFO)
+logger = logging.<span class="fn">getLogger</span>(<span class="st">"MicrostructureAgent"</span>)
+
+
+<span class="tp">@dataclass</span>
+<span class="kw">class</span> <span class="tp">OrderBookSnapshot</span>:
+    <span class="st">"""Single snapshot of order book state."""</span>
+    timestamp: <span class="tp">float</span>
+    bids: List[Tuple[<span class="tp">float</span>, <span class="tp">float</span>]]  <span class="cm"># [(price, size), ...]</span>
+    asks: List[Tuple[<span class="tp">float</span>, <span class="tp">float</span>]]
+    last_trade_price: <span class="tp">float</span>
+    last_trade_size: <span class="tp">float</span>
+    last_trade_side: <span class="tp">str</span>  <span class="cm"># 'buy' or 'sell'</span>
+
+    <span class="tp">@property</span>
+    <span class="kw">def</span> <span class="fn">best_bid</span>(<span class="nm">self</span>) -> <span class="tp">float</span>:
+        <span class="kw">return</span> <span class="nm">self</span>.bids[<span class="nm">0</span>][<span class="nm">0</span>] <span class="kw">if</span> <span class="nm">self</span>.bids <span class="kw">else</span> <span class="nm">0.0</span>
+
+    <span class="tp">@property</span>
+    <span class="kw">def</span> <span class="fn">best_ask</span>(<span class="nm">self</span>) -> <span class="tp">float</span>:
+        <span class="kw">return</span> <span class="nm">self</span>.asks[<span class="nm">0</span>][<span class="nm">0</span>] <span class="kw">if</span> <span class="nm">self</span>.asks <span class="kw">else</span> <span class="nm">float</span>(<span class="st">'inf'</span>)
+
+    <span class="tp">@property</span>
+    <span class="kw">def</span> <span class="fn">midprice</span>(<span class="nm">self</span>) -> <span class="tp">float</span>:
+        <span class="kw">return</span> (<span class="nm">self</span>.<span class="fn">best_bid</span> + <span class="nm">self</span>.<span class="fn">best_ask</span>) / <span class="nm">2</span>
+
+    <span class="tp">@property</span>
+    <span class="kw">def</span> <span class="fn">spread</span>(<span class="nm">self</span>) -> <span class="tp">float</span>:
+        <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">best_ask</span> - <span class="nm">self</span>.<span class="fn">best_bid</span>
+
+    <span class="tp">@property</span>
+    <span class="kw">def</span> <span class="fn">relative_spread</span>(<span class="nm">self</span>) -> <span class="tp">float</span>:
+        <span class="kw">if</span> <span class="nm">self</span>.<span class="fn">midprice</span> == <span class="nm">0</span>: <span class="kw">return</span> <span class="nm">0.0</span>
+        <span class="kw">return</span> <span class="nm">self</span>.<span class="fn">spread</span> / <span class="nm">self</span>.<span class="fn">midprice</span>
+
+
+<span class="kw">class</span> <span class="tp">MicrostructureAgent</span>:
+    <span class="st">"""
+    Full market microstructure analysis engine for AI trading agents.
+    Computes OFI, VPIN, Kyle lambda, and Almgren-Chriss optimal scheduling.
+    Integrates with Purple Flea Trading API for live execution.
+    """</span>
+
+    PURPLE_FLEA_API = <span class="st">"https://purpleflea.com/api/v1"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        <span class="nm">self</span>,
+        api_key: <span class="tp">str</span>,
+        symbol: <span class="tp">str</span>,
+        ofi_window: <span class="tp">int</span> = <span class="nm">100</span>,
+        vpin_buckets: <span class="tp">int</span> = <span class="nm">50</span>,
+        kyle_window: <span class="tp">int</span> = <span class="nm">100</span>,
+        vpin_bucket_size: Optional[<span class="tp">float</span>] = <span class="kw">None</span>,
+    ):
+        <span class="nm">self</span>.api_key = api_key
+        <span class="nm">self</span>.symbol = symbol
+        <span class="nm">self</span>.ofi_window = ofi_window
+        <span class="nm">self</span>.vpin_buckets = vpin_buckets
+        <span class="nm">self</span>.kyle_window = kyle_window
+        <span class="nm">self</span>.vpin_bucket_size = vpin_bucket_size <span class="kw">or</span> <span class="nm">1000.0</span>  <span class="cm"># default bucket size</span>
+
+        <span class="cm"># Rolling history</span>
+        <span class="nm">self</span>.snapshots: deque = <span class="fn">deque</span>(maxlen=<span class="nm">1000</span>)
+        <span class="nm">self</span>.ofi_events: deque = <span class="fn">deque</span>(maxlen=ofi_window)
+        <span class="nm">self</span>.vpin_buckets_data: deque = <span class="fn">deque</span>(maxlen=vpin_buckets)
+        <span class="nm">self</span>.price_changes: deque = <span class="fn">deque</span>(maxlen=kyle_window)
+        <span class="nm">self</span>.net_flows: deque = <span class="fn">deque</span>(maxlen=kyle_window)
+
+        <span class="cm"># Current VPIN bucket accumulator</span>
+        <span class="nm">self</span>._current_bucket_buy_vol = <span class="nm">0.0</span>
+        <span class="nm">self</span>._current_bucket_sell_vol = <span class="nm">0.0</span>
+        <span class="nm">self</span>._current_bucket_total_vol = <span class="nm">0.0</span>
+
+        <span class="nm">self</span>.prev_snapshot: Optional[<span class="tp">OrderBookSnapshot</span>] = <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">order_flow_imbalance</span>(<span class="nm">self</span>, current: <span class="tp">OrderBookSnapshot</span>) -> <span class="tp">float</span>:
+        <span class="st">"""
+        Compute top-of-book order flow imbalance.
+        Based on Cont, Kukanov & Stoikov (2014).
+        Returns OFI contribution for current snapshot vs. previous.
+        """</span>
+        <span class="kw">if</span> <span class="nm">self</span>.prev_snapshot <span class="kw">is</span> <span class="kw">None</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+
+        prev = <span class="nm">self</span>.prev_snapshot
+        event = <span class="nm">0.0</span>
+
+        <span class="cm"># Bid side contribution</span>
+        prev_bid_px, prev_bid_sz = prev.bids[<span class="nm">0</span>] <span class="kw">if</span> prev.bids <span class="kw">else</span> (<span class="nm">0</span>, <span class="nm">0</span>)
+        curr_bid_px, curr_bid_sz = current.bids[<span class="nm">0</span>] <span class="kw">if</span> current.bids <span class="kw">else</span> (<span class="nm">0</span>, <span class="nm">0</span>)
+
+        <span class="kw">if</span> curr_bid_px > prev_bid_px:
+            event += curr_bid_sz  <span class="cm"># new, better bid appeared</span>
+        <span class="kw">elif</span> curr_bid_px == prev_bid_px:
+            event += curr_bid_sz - prev_bid_sz  <span class="cm"># size change at same price</span>
+        <span class="cm"># else: bid price fell (treated as 0 contribution)</span>
+
+        <span class="cm"># Ask side contribution</span>
+        prev_ask_px, prev_ask_sz = prev.asks[<span class="nm">0</span>] <span class="kw">if</span> prev.asks <span class="kw">else</span> (<span class="nm">float</span>(<span class="st">'inf'</span>), <span class="nm">0</span>)
+        curr_ask_px, curr_ask_sz = current.asks[<span class="nm">0</span>] <span class="kw">if</span> current.asks <span class="kw">else</span> (<span class="nm">float</span>(<span class="st">'inf'</span>), <span class="nm">0</span>)
+
+        <span class="kw">if</span> curr_ask_px < prev_ask_px:
+            event -= curr_ask_sz  <span class="cm"># new, better ask appeared (sell pressure)</span>
+        <span class="kw">elif</span> curr_ask_px == prev_ask_px:
+            event -= (curr_ask_sz - prev_ask_sz)  <span class="cm"># size change at same price</span>
+
+        <span class="nm">self</span>.ofi_events.<span class="fn">append</span>(event)
+        <span class="kw">return</span> <span class="fn">float</span>(np.<span class="fn">sum</span>(<span class="nm">self</span>.ofi_events))
+
+    <span class="kw">def</span> <span class="fn">depth_imbalance</span>(<span class="nm">self</span>, snapshot: <span class="tp">OrderBookSnapshot</span>, n_levels: <span class="tp">int</span> = <span class="nm">5</span>) -> <span class="tp">float</span>:
+        <span class="st">"""Depth imbalance within n_levels of best price. Range: [-1, 1]."""</span>
+        bid_depth = <span class="fn">sum</span>(sz <span class="kw">for</span> _, sz <span class="kw">in</span> snapshot.bids[:n_levels])
+        ask_depth = <span class="fn">sum</span>(sz <span class="kw">for</span> _, sz <span class="kw">in</span> snapshot.asks[:n_levels])
+        total = bid_depth + ask_depth
+        <span class="kw">if</span> total == <span class="nm">0</span>: <span class="kw">return</span> <span class="nm">0.0</span>
+        <span class="kw">return</span> (bid_depth - ask_depth) / total
+
+    <span class="kw">def</span> <span class="fn">vpin</span>(
+        <span class="nm">self</span>,
+        close_price: <span class="tp">float</span>,
+        open_price: <span class="tp">float</span>,
+        volume: <span class="tp">float</span>,
+        price_vol_std: <span class="tp">float</span>,
+    ) -> <span class="tp">float</span>:
+        <span class="st">"""
+        Volume-synchronized probability of informed trading (VPIN).
+        Uses bulk volume classification (Easley et al., 2012).
+        Accumulates volume into equal-size buckets.
+
+        Args:
+            close_price: Bar closing price
+            open_price: Bar opening price
+            volume: Total bar volume
+            price_vol_std: Rolling std of price changes for normalization
+
+        Returns:
+            Current VPIN estimate (0 to 1)
+        """</span>
+        <span class="kw">if</span> price_vol_std <= <span class="nm">0</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+
+        <span class="cm"># Bulk volume classification</span>
+        z = (close_price - open_price) / price_vol_std
+        buy_frac = norm.<span class="fn">cdf</span>(z)
+        buy_vol = volume * buy_frac
+        sell_vol = volume * (<span class="nm">1</span> - buy_frac)
+
+        <span class="cm"># Accumulate into current bucket</span>
+        remaining_buy = buy_vol
+        remaining_sell = sell_vol
+        remaining_total = volume
+
+        <span class="kw">while</span> remaining_total > <span class="nm">0</span>:
+            space_in_bucket = <span class="nm">self</span>.vpin_bucket_size - <span class="nm">self</span>._current_bucket_total_vol
+            fill = <span class="fn">min</span>(remaining_total, space_in_bucket)
+            fill_frac = fill / remaining_total <span class="kw">if</span> remaining_total > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+
+            <span class="nm">self</span>._current_bucket_buy_vol += remaining_buy * fill_frac
+            <span class="nm">self</span>._current_bucket_sell_vol += remaining_sell * fill_frac
+            <span class="nm">self</span>._current_bucket_total_vol += fill
+
+            remaining_buy -= remaining_buy * fill_frac
+            remaining_sell -= remaining_sell * fill_frac
+            remaining_total -= fill
+
+            <span class="kw">if</span> <span class="nm">self</span>._current_bucket_total_vol >= <span class="nm">self</span>.vpin_bucket_size:
+                <span class="cm"># Bucket complete — record and reset</span>
+                imbalance = <span class="fn">abs</span>(
+                    <span class="nm">self</span>._current_bucket_buy_vol - <span class="nm">self</span>._current_bucket_sell_vol
+                ) / <span class="nm">self</span>.vpin_bucket_size
+                <span class="nm">self</span>.vpin_buckets_data.<span class="fn">append</span>(imbalance)
+                <span class="nm">self</span>._current_bucket_buy_vol = <span class="nm">0.0</span>
+                <span class="nm">self</span>._current_bucket_sell_vol = <span class="nm">0.0</span>
+                <span class="nm">self</span>._current_bucket_total_vol = <span class="nm">0.0</span>
+
+        <span class="kw">if</span> <span class="kw">not</span> <span class="nm">self</span>.vpin_buckets_data:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+
+        <span class="kw">return</span> <span class="fn">float</span>(np.<span class="fn">mean</span>(<span class="nm">self</span>.vpin_buckets_data))
+
+    <span class="kw">def</span> <span class="fn">kyle_lambda</span>(
+        <span class="nm">self</span>,
+        price_change: <span class="tp">float</span>,
+        net_flow: <span class="tp">float</span>,
+    ) -> <span class="tp">float</span>:
+        <span class="st">"""
+        Estimate Kyle's lambda (price impact per unit of order flow).
+        Uses OLS regression of price changes on signed volume.
+
+        Args:
+            price_change: Midprice change this period
+            net_flow: Signed order flow (buy_vol - sell_vol) this period
+
+        Returns:
+            Estimated lambda (positive = price moves with flow)
+        """</span>
+        <span class="nm">self</span>.price_changes.<span class="fn">append</span>(price_change)
+        <span class="nm">self</span>.net_flows.<span class="fn">append</span>(net_flow)
+
+        <span class="kw">if</span> <span class="fn">len</span>(<span class="nm">self</span>.price_changes) < <span class="nm">20</span>:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+
+        dp = np.<span class="fn">array</span>(<span class="nm">self</span>.price_changes)
+        q = np.<span class="fn">array</span>(<span class="nm">self</span>.net_flows)
+
+        var_q = np.<span class="fn">var</span>(q)
+        <span class="kw">if</span> var_q < <span class="nm">1e-12</span>: <span class="kw">return</span> <span class="nm">0.0</span>
+
+        cov = np.<span class="fn">cov</span>(dp, q)[<span class="nm">0</span>, <span class="nm">1</span>]
+        lam = cov / var_q
+        <span class="kw">return</span> <span class="fn">float</span>(lam)
+
+    <span class="kw">def</span> <span class="fn">estimated_impact_cost</span>(
+        <span class="nm">self</span>,
+        order_size: <span class="tp">float</span>,
+        kyle_lam: <span class="tp">float</span>,
+        temporary_frac: <span class="tp">float</span> = <span class="nm">0.5</span>,
+    ) -> <span class="tp">float</span>:
+        <span class="st">"""
+        Estimate total price impact cost for a given order size.
+        Splits between permanent (full cost) and temporary (half cost).
+        Cost = lambda * Q^2 for permanent + lambda * Q^2 / 2 for temporary.
+        """</span>
+        perm_frac = <span class="nm">1</span> - temporary_frac
+        perm_cost = kyle_lam * order_size**<span class="nm">2</span> * perm_frac
+        temp_cost = kyle_lam * order_size**<span class="nm">2</span> * temporary_frac * <span class="nm">0.5</span>
+        <span class="kw">return</span> perm_cost + temp_cost
+
+    <span class="kw">def</span> <span class="fn">almgren_chriss_schedule</span>(
+        <span class="nm">self</span>,
+        total_quantity: <span class="tp">float</span>,
+        n_slices: <span class="tp">int</span>,
+        risk_aversion: <span class="tp">float</span>,
+        volatility: <span class="tp">float</span>,
+        kyle_lam: <span class="tp">float</span>,
+        temp_impact_coeff: <span class="tp">float</span> = <span class="nm">0.1</span>,
+    ) -> List[<span class="tp">float</span>]:
+        <span class="st">"""
+        Compute optimal Almgren-Chriss execution schedule.
+        Minimizes E[Cost] + eta * Var[Cost] via the closed-form solution.
+
+        Args:
+            total_quantity: Total shares/contracts to execute
+            n_slices: Number of time slices
+            risk_aversion: eta parameter (higher = more urgency)
+            volatility: Asset volatility per unit time
+            kyle_lam: Permanent impact (lambda)
+            temp_impact_coeff: Temporary impact coefficient (eta in the paper)
+
+        Returns:
+            List of quantities to execute in each slice
+        """</span>
+        T = n_slices
+        kappa_sq = risk_aversion * volatility**<span class="nm">2</span> / temp_impact_coeff
+        kappa = np.<span class="fn">sqrt</span>(kappa_sq)
+
+        <span class="cm"># Optimal inventory trajectory (Almgren-Chriss closed form)</span>
+        times = np.<span class="fn">arange</span>(<span class="nm">0</span>, T + <span class="nm">1</span>)
+        sinh_kappa_T = np.<span class="fn">sinh</span>(kappa * T)
+
+        <span class="kw">if</span> sinh_kappa_T < <span class="nm">1e-10</span>:
+            <span class="cm"># Degenerate case: uniform execution</span>
+            <span class="kw">return</span> [total_quantity / T] * T
+
+        inventory = total_quantity * np.<span class="fn">sinh</span>(kappa * (T - times)) / sinh_kappa_T
+        schedule = [<span class="fn">float</span>(inventory[i] - inventory[i+<span class="nm">1</span>]) <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(T)]
+        <span class="kw">return</span> schedule
+
+    <span class="kw">def</span> <span class="fn">is_adverse_selection_risk</span>(
+        <span class="nm">self</span>,
+        vpin_value: <span class="tp">float</span>,
+        ofi_value: <span class="tp">float</span>,
+        ofi_std: <span class="tp">float</span>,
+        side: <span class="tp">str</span>,
+        vpin_threshold: <span class="tp">float</span> = <span class="nm">0.65</span>,
+        ofi_sigma_threshold: <span class="tp">float</span> = <span class="nm">2.0</span>,
+    ) -> Tuple[bool, str]:
+        <span class="st">"""
+        Determine if current conditions carry adverse selection risk.
+        Returns (is_risky, reason).
+        """</span>
+        reasons = []
+        <span class="kw">if</span> vpin_value > vpin_threshold:
+            reasons.<span class="fn">append</span>(<span class="st">f"VPIN={vpin_value:.3f} exceeds threshold {vpin_threshold}"</span>)
+
+        ofi_z = ofi_value / ofi_std <span class="kw">if</span> ofi_std > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+        <span class="kw">if</span> side == <span class="st">"buy"</span> <span class="kw">and</span> ofi_z < -ofi_sigma_threshold:
+            reasons.<span class="fn">append</span>(<span class="st">f"OFI strongly negative ({ofi_z:.1f}σ) while buying"</span>)
+        <span class="kw">elif</span> side == <span class="st">"sell"</span> <span class="kw">and</span> ofi_z > ofi_sigma_threshold:
+            reasons.<span class="fn">append</span>(<span class="st">f"OFI strongly positive ({ofi_z:.1f}σ) while selling"</span>)
+
+        <span class="kw">return</span> <span class="fn">bool</span>(reasons), <span class="st">"; "</span>.<span class="fn">join</span>(reasons)
+
+    <span class="kw">def</span> <span class="fn">get_microstructure_summary</span>(
+        <span class="nm">self</span>,
+        snapshot: <span class="tp">OrderBookSnapshot</span>,
+        ofi: <span class="tp">float</span>,
+        vpin_val: <span class="tp">float</span>,
+        lam: <span class="tp">float</span>,
+    ) -> Dict:
+        <span class="st">"""Compile a full microstructure state summary."""</span>
+        di = <span class="nm">self</span>.<span class="fn">depth_imbalance</span>(snapshot)
+        <span class="kw">return</span> {
+            <span class="st">"timestamp"</span>: snapshot.timestamp,
+            <span class="st">"midprice"</span>: snapshot.midprice,
+            <span class="st">"spread"</span>: snapshot.spread,
+            <span class="st">"relative_spread_bps"</span>: snapshot.relative_spread * <span class="nm">10000</span>,
+            <span class="st">"depth_imbalance"</span>: di,
+            <span class="st">"ofi"</span>: ofi,
+            <span class="st">"vpin"</span>: vpin_val,
+            <span class="st">"kyle_lambda"</span>: lam,
+            <span class="st">"market_regime"</span>: <span class="nm">self</span>.<span class="fn">_classify_regime</span>(vpin_val, di, snapshot.relative_spread),
+        }
+
+    <span class="kw">def</span> <span class="fn">_classify_regime</span>(
+        <span class="nm">self</span>,
+        vpin: <span class="tp">float</span>,
+        depth_imbalance: <span class="tp">float</span>,
+        rel_spread: <span class="tp">float</span>,
+    ) -> <span class="tp">str</span>:
+        <span class="kw">if</span> vpin > <span class="nm">0.7</span>:
+            <span class="kw">return</span> <span class="st">"TOXIC — high informed flow, widen spreads"</span>
+        <span class="kw">elif</span> vpin > <span class="nm">0.55</span>:
+            <span class="kw">return</span> <span class="st">"ELEVATED — moderate toxicity, exercise caution"</span>
+        <span class="kw">elif</span> rel_spread < <span class="nm">0.0003</span> <span class="kw">and</span> <span class="fn">abs</span>(depth_imbalance) < <span class="nm">0.3</span>:
+            <span class="kw">return</span> <span class="st">"IDEAL — tight spread, balanced book, low toxicity"</span>
+        <span class="kw">elif</span> <span class="fn">abs</span>(depth_imbalance) > <span class="nm">0.6</span>:
+            <span class="kw">return</span> <span class="st">"IMBALANCED — book skewed, short-term momentum likely"</span>
+        <span class="kw">else</span>:
+            <span class="kw">return</span> <span class="st">"NORMAL — standard conditions"</span>
+
+    <span class="kw">def</span> <span class="fn">update</span>(<span class="nm">self</span>, snapshot: <span class="tp">OrderBookSnapshot</span>) -> <span class="kw">None</span>:
+        <span class="st">"""Process new order book snapshot."""</span>
+        <span class="nm">self</span>.snapshots.<span class="fn">append</span>(snapshot)
+        <span class="nm">self</span>.<span class="fn">order_flow_imbalance</span>(snapshot)
+        <span class="nm">self</span>.prev_snapshot = snapshot
+
+
+<span class="cm"># ─── USAGE EXAMPLE ───────────────────────────────────────────────────────────</span>
+
+<span class="kw">def</span> <span class="fn">run_microstructure_example</span>():
+    API_KEY = <span class="st">"pf_live_your_key_here"</span>
+    agent = <span class="fn">MicrostructureAgent</span>(
+        api_key=API_KEY,
+        symbol=<span class="st">"BTC-USDT"</span>,
+        ofi_window=<span class="nm">100</span>,
+        vpin_buckets=<span class="nm">50</span>,
+        vpin_bucket_size=<span class="nm">10000</span>,  <span class="cm"># 10 BTC per bucket</span>
+    )
+
+    <span class="cm"># Simulate a market data loop</span>
+    price_history = [<span class="nm">50000.0</span>]
+    price_vol_std = <span class="nm">50.0</span>  <span class="cm"># $50 std of price changes</span>
+    cumulative_lam = <span class="nm">0.0</span>
+
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">200</span>):
+        <span class="cm"># Simulate order book snapshot</span>
+        mid = price_history[-<span class="nm">1</span>] + np.random.<span class="fn">normal</span>(<span class="nm">0</span>, <span class="nm">10</span>)
+        half_spread = np.random.<span class="fn">uniform</span>(<span class="nm">5</span>, <span class="nm">20</span>)
+        snapshot = <span class="fn">OrderBookSnapshot</span>(
+            timestamp=<span class="fn">time</span>.<span class="fn">time</span>(),
+            bids=[(mid - half_spread, np.random.<span class="fn">uniform</span>(<span class="nm">0.1</span>, <span class="nm">2.0</span>))],
+            asks=[(mid + half_spread, np.random.<span class="fn">uniform</span>(<span class="nm">0.1</span>, <span class="nm">2.0</span>))],
+            last_trade_price=mid,
+            last_trade_size=np.random.<span class="fn">uniform</span>(<span class="nm">0.01</span>, <span class="nm">0.5</span>),
+            last_trade_side=<span class="st">"buy"</span> <span class="kw">if</span> np.random.<span class="fn">random</span>() > <span class="nm">0.5</span> <span class="kw">else</span> <span class="st">"sell"</span>,
+        )
+        agent.<span class="fn">update</span>(snapshot)
+
+        <span class="cm"># Compute all metrics</span>
+        ofi = <span class="fn">sum</span>(agent.ofi_events)
+        vol = np.random.<span class="fn">uniform</span>(<span class="nm">100</span>, <span class="nm">500</span>)
+        vpin_val = agent.<span class="fn">vpin</span>(
+            close_price=mid,
+            open_price=price_history[-<span class="nm">1</span>],
+            volume=vol,
+            price_vol_std=price_vol_std,
+        )
+        price_change = mid - price_history[-<span class="nm">1</span>]
+        net_flow = vol * (<span class="nm">1</span> <span class="kw">if</span> price_change > <span class="nm">0</span> <span class="kw">else</span> -<span class="nm">1</span>) * np.random.<span class="fn">uniform</span>(<span class="nm">0.3</span>, <span class="nm">0.7</span>)
+        lam = agent.<span class="fn">kyle_lambda</span>(price_change, net_flow)
+        cumulative_lam = lam
+
+        summary = agent.<span class="fn">get_microstructure_summary</span>(snapshot, ofi, vpin_val, lam)
+        price_history.<span class="fn">append</span>(mid)
+
+        <span class="kw">if</span> i % <span class="nm">50</span> == <span class="nm">0</span>:
+            logger.<span class="fn">info</span>(<span class="st">f"Step {i}: {summary}"</span>)
+
+    <span class="cm"># Optimal execution for a large order</span>
+    schedule = agent.<span class="fn">almgren_chriss_schedule</span>(
+        total_quantity=<span class="nm">10.0</span>,   <span class="cm"># 10 BTC</span>
+        n_slices=<span class="nm">10</span>,
+        risk_aversion=<span class="nm">0.001</span>,
+        volatility=<span class="nm">100.0</span>,      <span class="cm"># $100/period volatility</span>
+        kyle_lam=cumulative_lam <span class="kw">if</span> cumulative_lam > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0.001</span>,
+        temp_impact_coeff=<span class="nm">0.05</span>,
+    )
+    logger.<span class="fn">info</span>(<span class="st">f"Optimal 10-slice schedule: {[f'{q:.3f}' for q in schedule]}"</span>)
+
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    <span class="fn">run_microstructure_example</span>()
+</code></pre>
+
+    <h2 id="queue-priority">5. Queue Priority and Order Placement Strategy</h2>
+
+    <p>
+      In a price-time priority exchange, being first in the queue at a given price level matters enormously for
+      limit order fills. Queue position determines whether your limit order gets filled or you watch the market
+      move away unfilled.
+    </p>
+
+    <h3 id="queue-position">Queue Position Management</h3>
+
+    <p>
+      When you place a limit order, you join the back of the queue at your price. Orders ahead of you
+      get filled first. Key considerations:
+    </p>
+
+    <ul>
+      <li><strong>Queue jumping:</strong> Placing at a slightly better price (one tick) to jump the queue — costs the tick but guarantees priority</li>
+      <li><strong>Queue preservation:</strong> Never cancel and resubmit unless necessary — you lose your position</li>
+      <li><strong>Pegged orders:</strong> Orders that track best bid/ask automatically maintain position but reset queue priority on each movement</li>
+      <li><strong>Iceberg orders:</strong> Show small display size, replenish from hidden reserve — hides intent but market makers learn the pattern</li>
+    </ul>
+
+    <h3 id="placement-strategy">Optimal Placement Strategy</h3>
+
+    <p>
+      The Avellaneda-Stoikov model is the canonical framework for optimal market maker quote placement. It derives
+      reservation prices that account for inventory risk:
+    </p>
+
+    <div class="formula">
+      r<sup>b</sup> = s − d/2 − γσ²(T−t)q
+      <div class="formula-label">Optimal bid reservation price. s = midprice, d = spread, q = inventory, γ = risk aversion</div>
+    </div>
+
+    <div class="formula">
+      r<sup>a</sup> = s + d/2 − γσ²(T−t)q
+      <div class="formula-label">Optimal ask reservation price. Inventory q shifts both quotes symmetrically.</div>
+    </div>
+
+    <p>
+      With inventory q &gt; 0 (long), the model pushes both quotes down to attract sellers and reduce exposure.
+      With q &lt; 0 (short), quotes shift up to attract buyers. The spread d is set to balance fill probability
+      against spread revenue.
+    </p>
+
+    <div class="callout">
+      <div class="callout-title">Purple Flea Integration</div>
+      <p>Purple Flea's trading API supports post-only limit orders with maker rebates. Use <code>POST_ONLY</code> flag to ensure your order never crosses the spread as a taker, preserving your maker economics.</p>
+    </div>
+
+    <h3 id="cancel-replace">Cancel-Replace Tactics</h3>
+    <p>
+      Strategic cancellation is as important as placement. Key rules:
+    </p>
+    <ol>
+      <li><strong>Do not cancel on noise:</strong> Wait for meaningful OFI shift (&gt;2σ) before pulling quotes</li>
+      <li><strong>Cancel before large news:</strong> High VPIN alerts justify pulling all limit orders</li>
+      <li><strong>Reprice, don't cancel:</strong> Some venues allow in-place modification while preserving queue position</li>
+      <li><strong>Fade vs. hit:</strong> When DI strongly favors your side, let limit orders fill; when adverse, pull and repost at better price</li>
+    </ol>
+
+    <h2 id="tick-data">6. Tick Data Analysis for Alpha Extraction</h2>
+
+    <p>
+      Tick data — individual trade records with price, size, and timestamp — contains signals invisible at
+      bar-level aggregations. Agents with tick-level access can extract edge that slower competitors cannot.
+    </p>
+
+    <h3 id="trade-classification">Trade Direction Classification</h3>
+
+    <p>
+      The <strong>Lee-Ready algorithm</strong> classifies each tick as buyer- or seller-initiated:
+    </p>
+    <ol>
+      <li>If trade price &gt; midprice: buyer-initiated</li>
+      <li>If trade price &lt; midprice: seller-initiated</li>
+      <li>If price = midprice: use tick test (compare to previous trade price)</li>
+    </ol>
+
+    <p>More recent alternatives include the <strong>quote rule</strong>, <strong>EMO</strong> (Ellis-Michaely-O'Hara),
+    and the <strong>LR+BVC hybrid</strong> which combines Lee-Ready with bulk classification for bar-aggregated data.</p>
+
+    <h3 id="microstructure-signals">Microstructure Alpha Signals</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Signal</th><th>Construction</th><th>Horizon</th><th>Edge Type</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>OFI momentum</td><td>Rolling OFI sum / volatility</td><td>1-30s</td><td>Short-term price direction</td></tr>
+          <tr><td>Trade imbalance</td><td>(Buy trades − Sell trades) / Total trades</td><td>1-5min</td><td>Sentiment proxy</td></tr>
+          <tr><td>Book slope ratio</td><td>Bid slope / Ask slope</td><td>Immediate</td><td>Short-term push direction</td></tr>
+          <tr><td>Aggressive ratio</td><td>Market orders / All orders</td><td>1-10min</td><td>Urgency of participants</td></tr>
+          <tr><td>LOB resilience</td><td>Time to replenish after sweep</td><td>5-60s</td><td>Market maker confidence</td></tr>
+          <tr><td>Midprice reversion speed</td><td>Half-life of midprice deviation</td><td>1-30min</td><td>Mean reversion signal</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="signature-curve">The Signature Plot</h3>
+    <p>
+      The signature plot graphs realized variance versus sampling frequency. A flat plot indicates no microstructure
+      noise; rising variance at high frequency is <strong>bid-ask bounce</strong>; falling variance at long periods
+      indicates long-run mean reversion.
+    </p>
+    <p>
+      For execution, the signature plot tells you the <em>optimal sampling frequency</em> for your price signals —
+      sample too fast and you trade on noise; sample too slowly and you miss real price moves.
+    </p>
+
+<pre data-lang="Python"><code><span class="kw">def</span> <span class="fn">signature_plot</span>(prices: np.ndarray, max_lag: <span class="tp">int</span> = <span class="nm">100</span>) -> Dict[<span class="tp">int</span>, <span class="tp">float</span>]:
+    <span class="st">"""
+    Compute signature plot: realized variance vs. sampling interval.
+    Useful for identifying optimal sampling frequency.
+    """</span>
+    result = {}
+    <span class="kw">for</span> lag <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">1</span>, max_lag + <span class="nm">1</span>):
+        sampled = prices[::lag]
+        returns = np.<span class="fn">diff</span>(np.<span class="fn">log</span>(sampled))
+        rv = np.<span class="fn">sum</span>(returns**<span class="nm">2</span>)
+        result[lag] = rv
+    <span class="kw">return</span> result
+
+
+<span class="kw">def</span> <span class="fn">roll_spread_estimator</span>(prices: np.ndarray) -> <span class="tp">float</span>:
+    <span class="st">"""
+    Roll (1984) implied spread estimator.
+    Estimates effective spread from serial covariance of price changes.
+    Works when bid-ask bounce dominates serial correlation.
+    """</span>
+    returns = np.<span class="fn">diff</span>(prices)
+    serial_cov = np.<span class="fn">cov</span>(returns[<span class="nm">1</span>:], returns[:-<span class="nm">1</span>])[<span class="nm">0</span>, <span class="nm">1</span>]
+    <span class="kw">if</span> serial_cov >= <span class="nm">0</span>:
+        <span class="kw">return</span> <span class="nm">0.0</span>
+    <span class="kw">return</span> <span class="nm">2</span> * np.<span class="fn">sqrt</span>(-serial_cov)
+</code></pre>
+
+    <h2 id="adverse-selection">7. Avoiding Adverse Selection on Limit Orders</h2>
+
+    <p>
+      Adverse selection is the systematic loss suffered by liquidity providers when counterparties are better
+      informed. It is the central risk in market making. An AI agent running limit orders must actively manage this.
+    </p>
+
+    <h3 id="toxicity-signals">Identifying Toxic Flow</h3>
+
+    <p>Warning signs that incoming flow is informed:</p>
+    <ul>
+      <li>VPIN &gt; 0.65 sustained for multiple buckets</li>
+      <li>Large orders systematically arriving and moving price in one direction</li>
+      <li>Unusual order-to-trade ratios (sudden drop suggests informed flow clearing the book)</li>
+      <li>Price movement accelerating after fills (post-fill adverse moves &gt;1.5× spread)</li>
+      <li>Correlated flow across multiple venues simultaneously (cross-market informed trading)</li>
+    </ul>
+
+    <h3 id="asymmetric-quoting">Asymmetric Quote Skewing</h3>
+
+    <p>
+      When your microstructure signals detect directional pressure, skew quotes to reduce fill probability on the
+      disadvantaged side:
+    </p>
+
+<pre data-lang="Python"><code><span class="kw">def</span> <span class="fn">compute_skewed_quotes</span>(
+    midprice: <span class="tp">float</span>,
+    base_spread: <span class="tp">float</span>,
+    ofi_z: <span class="tp">float</span>,       <span class="cm"># OFI in standard deviations</span>
+    inventory: <span class="tp">float</span>,   <span class="cm"># current inventory (positive = long)</span>
+    gamma: <span class="tp">float</span> = <span class="nm">0.001</span>,  <span class="cm"># risk aversion</span>
+    sigma: <span class="tp">float</span> = <span class="nm">100.0</span>,  <span class="cm"># volatility estimate</span>
+) -> Tuple[<span class="tp">float</span>, <span class="tp">float</span>]:
+    <span class="st">"""
+    Compute bid and ask prices with skew for OFI and inventory.
+    Returns (bid_price, ask_price).
+    """</span>
+    half_spread = base_spread / <span class="nm">2</span>
+
+    <span class="cm"># Inventory skew: shift both quotes to reduce unwanted fills</span>
+    inventory_skew = gamma * sigma**<span class="nm">2</span> * inventory
+
+    <span class="cm"># OFI skew: widen spread on the side facing informed flow</span>
+    <span class="cm"># Positive OFI (buy pressure) → widen ask to avoid getting hit by informed sellers</span>
+    ofi_skew_factor = <span class="nm">0.5</span>  <span class="cm"># 0.5 bps per sigma of OFI</span>
+    ofi_skew = ofi_z * ofi_skew_factor
+
+    bid = midprice - half_spread - inventory_skew - <span class="fn">max</span>(<span class="nm">0</span>, -ofi_z) * ofi_skew_factor
+    ask = midprice + half_spread - inventory_skew + <span class="fn">max</span>(<span class="nm">0</span>,  ofi_z) * ofi_skew_factor
+
+    <span class="kw">return</span> <span class="fn">max</span>(<span class="nm">0</span>, bid), <span class="fn">max</span>(bid + <span class="nm">1</span>, ask)  <span class="cm"># ensure positive and ordered</span>
+
+
+<span class="kw">def</span> <span class="fn">post_fill_pnl_check</span>(
+    fill_price: <span class="tp">float</span>,
+    fill_side: <span class="tp">str</span>,  <span class="cm"># 'buy' or 'sell'</span>
+    subsequent_prices: List[<span class="tp">float</span>],
+    spread: <span class="tp">float</span>,
+) -> Dict:
+    <span class="st">"""
+    Measure post-fill adverse selection: how did price move after our limit fill?
+    If we got filled buying and price falls, we suffer adverse selection.
+    """</span>
+    if_bought = fill_side == <span class="st">"buy"</span>
+    price_moves = [p - fill_price <span class="kw">for</span> p <span class="kw">in</span> subsequent_prices]
+    adverse_moves = [m <span class="kw">for</span> m <span class="kw">in</span> price_moves <span class="kw">if</span> (if_bought <span class="kw">and</span> m < <span class="nm">0</span>) <span class="kw">or</span> (<span class="kw">not</span> if_bought <span class="kw">and</span> m > <span class="nm">0</span>)]
+
+    avg_adverse = np.<span class="fn">mean</span>([<span class="fn">abs</span>(m) <span class="kw">for</span> m <span class="kw">in</span> adverse_moves]) <span class="kw">if</span> adverse_moves <span class="kw">else</span> <span class="nm">0</span>
+    adverse_selection_ratio = avg_adverse / (spread / <span class="nm">2</span>) <span class="kw">if</span> spread > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0</span>
+
+    <span class="kw">return</span> {
+        <span class="st">"avg_adverse_move"</span>: avg_adverse,
+        <span class="st">"adverse_selection_ratio"</span>: adverse_selection_ratio,
+        <span class="st">"is_toxic"</span>: adverse_selection_ratio > <span class="nm">1.5</span>,
+        <span class="st">"recommendation"</span>: <span class="st">"widen spread"</span> <span class="kw">if</span> adverse_selection_ratio > <span class="nm">1.5</span> <span class="kw">else</span> <span class="st">"maintain"</span>,
+    }
+</code></pre>
+
+    <h3 id="quote-stuffing-detection">Quote Stuffing Detection</h3>
+
+    <p>
+      Some market participants engage in quote stuffing — rapidly placing and cancelling thousands of orders to
+      create latency and disrupt competitors. Agents should detect this:
+    </p>
+    <ul>
+      <li>Order-to-trade ratio &gt; 100:1 in a 1-second window</li>
+      <li>Rapid alternation of quotes at the same level (bid appears, disappears, reappears within 10ms)</li>
+      <li>Systematic widening and narrowing of the spread with no trades</li>
+    </ul>
+
+    <h2 id="purple-flea-integration">8. Purple Flea Integration for Microstructure-Informed Execution</h2>
+
+    <p>
+      Purple Flea's trading API exposes the primitives needed for microstructure-driven execution. Here is how to
+      connect your <code>MicrostructureAgent</code> to live trading.
+    </p>
+
+<pre data-lang="Python"><code><span class="kw">import</span> requests
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+<span class="kw">class</span> <span class="tp">PurpleFleaMicroExecutor</span>:
+    <span class="st">"""
+    Connects MicrostructureAgent to Purple Flea trading API.
+    Implements adaptive execution based on real-time microstructure state.
+    """</span>
+
+    BASE_URL = <span class="st">"https://purpleflea.com/api/v1"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="nm">self</span>, api_key: <span class="tp">str</span>, symbol: <span class="tp">str</span>):
+        <span class="nm">self</span>.api_key = api_key
+        <span class="nm">self</span>.symbol = symbol
+        <span class="nm">self</span>.session = requests.<span class="fn">Session</span>()
+        <span class="nm">self</span>.session.headers.<span class="fn">update</span>({
+            <span class="st">"Authorization"</span>: <span class="st">f"Bearer {api_key}"</span>,
+            <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>,
+        })
+        <span class="nm">self</span>.micro = <span class="fn">MicrostructureAgent</span>(api_key=api_key, symbol=symbol)
+
+    <span class="kw">def</span> <span class="fn">get_orderbook</span>(<span class="nm">self</span>) -> Optional[<span class="tp">OrderBookSnapshot</span>]:
+        <span class="st">"""Fetch live order book from Purple Flea."""</span>
+        resp = <span class="nm">self</span>.session.<span class="fn">get</span>(
+            <span class="st">f"{self.BASE_URL}/orderbook"</span>,
+            params={<span class="st">"symbol"</span>: <span class="nm">self</span>.symbol, <span class="st">"depth"</span>: <span class="nm">20</span>}
+        )
+        <span class="kw">if</span> resp.status_code != <span class="nm">200</span>: <span class="kw">return</span> <span class="kw">None</span>
+        data = resp.<span class="fn">json</span>()
+        <span class="kw">return</span> <span class="fn">OrderBookSnapshot</span>(
+            timestamp=<span class="fn">time</span>.<span class="fn">time</span>(),
+            bids=[(b[<span class="st">"price"</span>], b[<span class="st">"size"</span>]) <span class="kw">for</span> b <span class="kw">in</span> data[<span class="st">"bids"</span>]],
+            asks=[(a[<span class="st">"price"</span>], a[<span class="st">"size"</span>]) <span class="kw">for</span> a <span class="kw">in</span> data[<span class="st">"asks"</span>]],
+            last_trade_price=data.<span class="fn">get</span>(<span class="st">"last_price"</span>, <span class="nm">0</span>),
+            last_trade_size=data.<span class="fn">get</span>(<span class="st">"last_size"</span>, <span class="nm">0</span>),
+            last_trade_side=data.<span class="fn">get</span>(<span class="st">"last_side"</span>, <span class="st">"buy"</span>),
+        )
+
+    <span class="kw">def</span> <span class="fn">place_adaptive_order</span>(
+        <span class="nm">self</span>,
+        side: <span class="tp">str</span>,
+        target_quantity: <span class="tp">float</span>,
+        vpin_val: <span class="tp">float</span>,
+        ofi: <span class="tp">float</span>,
+        ofi_std: <span class="tp">float</span>,
+        midprice: <span class="tp">float</span>,
+        spread: <span class="tp">float</span>,
+    ) -> Dict:
+        <span class="st">"""
+        Place order using microstructure-adaptive strategy.
+        - If VPIN high: use market order (toxicity means limit orders won't fill cleanly)
+        - If OFI favors our side: post limit order aggressively
+        - Otherwise: post limit at midprice and wait
+        """</span>
+        is_risky, reason = <span class="nm">self</span>.micro.<span class="fn">is_adverse_selection_risk</span>(
+            vpin_val, ofi, ofi_std, side
+        )
+
+        <span class="kw">if</span> is_risky <span class="kw">and</span> vpin_val > <span class="nm">0.7</span>:
+            <span class="cm"># High toxicity: use market order to guarantee fill</span>
+            order_type = <span class="st">"MARKET"</span>
+            price = <span class="kw">None</span>
+            logger.<span class="fn">info</span>(<span class="st">f"MARKET order due to: {reason}"</span>)
+        <span class="kw">elif</span> side == <span class="st">"buy"</span> <span class="kw">and</span> ofi > ofi_std:
+            <span class="cm"># OFI strongly bullish: post limit at best ask for fast fill</span>
+            order_type = <span class="st">"LIMIT_POST_ONLY"</span>
+            price = midprice + spread * <span class="nm">0.1</span>
+        <span class="kw">elif</span> side == <span class="st">"sell"</span> <span class="kw">and</span> ofi < -ofi_std:
+            order_type = <span class="st">"LIMIT_POST_ONLY"</span>
+            price = midprice - spread * <span class="nm">0.1</span>
+        <span class="kw">else</span>:
+            <span class="cm"># Passive: post at midprice</span>
+            order_type = <span class="st">"LIMIT_POST_ONLY"</span>
+            price = midprice
+
+        payload = {
+            <span class="st">"symbol"</span>: <span class="nm">self</span>.symbol,
+            <span class="st">"side"</span>: side.upper(),
+            <span class="st">"quantity"</span>: target_quantity,
+            <span class="st">"type"</span>: order_type,
+        }
+        <span class="kw">if</span> price <span class="kw">is not</span> <span class="kw">None</span>:
+            payload[<span class="st">"price"</span>] = <span class="fn">round</span>(price, <span class="nm">2</span>)
+
+        resp = <span class="nm">self</span>.session.<span class="fn">post</span>(<span class="st">f"{self.BASE_URL}/orders"</span>, json=payload)
+        <span class="kw">return</span> resp.<span class="fn">json</span>()
+
+    <span class="kw">def</span> <span class="fn">execute_large_order</span>(
+        <span class="nm">self</span>,
+        side: <span class="tp">str</span>,
+        total_quantity: <span class="tp">float</span>,
+        n_slices: <span class="tp">int</span> = <span class="nm">10</span>,
+        slice_interval_sec: <span class="tp">float</span> = <span class="nm">30.0</span>,
+    ) -> List[Dict]:
+        <span class="st">"""
+        Execute a large order using Almgren-Chriss scheduling.
+        Samples microstructure before each slice to adapt.
+        """</span>
+        snapshot = <span class="nm">self</span>.<span class="fn">get_orderbook</span>()
+        <span class="kw">if</span> snapshot <span class="kw">is</span> <span class="kw">None</span>:
+            <span class="kw">raise</span> <span class="fn">RuntimeError</span>(<span class="st">"Failed to fetch orderbook"</span>)
+
+        <span class="nm">self</span>.micro.<span class="fn">update</span>(snapshot)
+        lam = <span class="nm">self</span>.micro.kyle_lambda(price_change=<span class="nm">0</span>, net_flow=<span class="nm">1</span>) <span class="kw">or</span> <span class="nm">0.001</span>
+
+        schedule = <span class="nm">self</span>.micro.<span class="fn">almgren_chriss_schedule</span>(
+            total_quantity=total_quantity,
+            n_slices=n_slices,
+            risk_aversion=<span class="nm">0.001</span>,
+            volatility=<span class="nm">100.0</span>,
+            kyle_lam=lam,
+        )
+
+        fills = []
+        <span class="kw">for</span> i, qty <span class="kw">in</span> <span class="fn">enumerate</span>(schedule):
+            <span class="kw">if</span> qty <= <span class="nm">0</span>: <span class="kw">continue</span>
+            snap = <span class="nm">self</span>.<span class="fn">get_orderbook</span>()
+            <span class="kw">if</span> snap: <span class="nm">self</span>.micro.<span class="fn">update</span>(snap)
+            ofi = <span class="fn">sum</span>(<span class="nm">self</span>.micro.ofi_events)
+            ofi_std = np.<span class="fn">std</span>(<span class="nm">self</span>.micro.ofi_events) <span class="kw">or</span> <span class="nm">1.0</span>
+            vpin_val = <span class="nm">0.4</span>  <span class="cm"># placeholder; compute from bar data in production</span>
+
+            result = <span class="nm">self</span>.<span class="fn">place_adaptive_order</span>(
+                side, qty, vpin_val, ofi, ofi_std,
+                snap.midprice <span class="kw">if</span> snap <span class="kw">else</span> <span class="nm">0</span>,
+                snap.spread <span class="kw">if</span> snap <span class="kw">else</span> <span class="nm">0</span>,
+            )
+            fills.<span class="fn">append</span>(result)
+            logger.<span class="fn">info</span>(<span class="st">f"Slice {i+1}/{n_slices}: {qty:.4f} {side} — {result.get('status', 'unknown')}"</span>)
+            <span class="kw">if</span> i < <span class="fn">len</span>(schedule) - <span class="nm">1</span>:
+                <span class="fn">time</span>.<span class="fn">sleep</span>(slice_interval_sec)
+
+        <span class="kw">return</span> fills
+</code></pre>
+
+    <div class="callout success">
+      <div class="callout-title">Getting Started</div>
+      <p>New agents can get a free trading allocation via the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> — no deposit required. Use it to test your microstructure strategies in live market conditions before committing real funds.</p>
+    </div>
+
+    <h2 id="summary">Summary</h2>
+
+    <p>
+      Market microstructure is an edge that most AI trading agents ignore — but it is where execution quality is
+      won or lost. The key takeaways:
+    </p>
+
+    <ul>
+      <li><strong>OFI</strong> is a high-frequency predictive signal for short-term price direction — use it to time entries and exits</li>
+      <li><strong>VPIN</strong> is your toxicity warning system — pull limit orders when it spikes above 0.65</li>
+      <li><strong>Kyle's lambda</strong> lets you estimate price impact before you trade and size orders appropriately</li>
+      <li><strong>Almgren-Chriss</strong> gives you optimal trade scheduling for large orders under impact and risk constraints</li>
+      <li><strong>Queue priority</strong> matters for limit order fill rates — manage positions actively without losing time priority unnecessarily</li>
+      <li><strong>Adverse selection monitoring</strong> via post-fill analysis creates a feedback loop that improves your quoting over time</li>
+      <li><strong>Purple Flea's API</strong> provides the hooks you need to implement all of this in live trading</li>
+    </ul>
+
+    <p>
+      The agents that master microstructure do not just execute strategies — they execute strategies at lower cost,
+      faster, and with less information leakage than their competitors. In a game where every basis point counts,
+      this is decisive.
+    </p>
+
+    <div class="cta-box">
+      <h3>Start Microstructure-Informed Trading</h3>
+      <p>Access real-time order book data and adaptive execution through the Purple Flea API. New agents get free allocation via the faucet.</p>
+      <div class="cta-buttons">
+        <a href="/docs/trading/" class="btn-primary">View Trading API Docs</a>
+        <a href="https://faucet.purpleflea.com" class="btn-secondary">Claim Free Allocation</a>
+      </div>
+    </div>
+
+    <hr />
+
+    <p style="font-size:0.85rem; color: var(--text-dim);">
+      Related reading:
+      <a href="/blog/agent-high-frequency-trading/">HFT for AI Agents</a> ·
+      <a href="/blog/agent-options-greeks-guide/">Options Greeks</a> ·
+      <a href="/blog/agent-trade-attribution/">Trade Attribution</a> ·
+      <a href="/blog/perpetual-funding-rates/">Perpetual Funding Rates</a>
+    </p>
+
+  </article>
+
+  <!-- TOC SIDEBAR -->
+  <aside class="toc-sidebar">
+    <div class="toc-box">
+      <div class="toc-title">Table of Contents</div>
+      <ul class="toc-list">
+        <li><a href="#order-book">1. Order Book Microstructure</a></li>
+        <li><a href="#bid-ask-spread" class="toc-h3">Bid-Ask Spread</a></li>
+        <li><a href="#depth" class="toc-h3">Order Book Depth</a></li>
+        <li><a href="#ofi" class="toc-h3">Order Flow Imbalance</a></li>
+        <li><a href="#vpin">2. VPIN &amp; Flow Toxicity</a></li>
+        <li><a href="#vpin-mechanics" class="toc-h3">VPIN Mechanics</a></li>
+        <li><a href="#bulk-classification" class="toc-h3">Bulk Volume Classification</a></li>
+        <li><a href="#price-impact">3. Price Impact Models</a></li>
+        <li><a href="#kyle-lambda" class="toc-h3">Kyle's Lambda</a></li>
+        <li><a href="#almgren-chriss" class="toc-h3">Almgren-Chriss</a></li>
+        <li><a href="#python-code">4. MicrostructureAgent (Python)</a></li>
+        <li><a href="#queue-priority">5. Queue Priority</a></li>
+        <li><a href="#placement-strategy" class="toc-h3">Optimal Placement</a></li>
+        <li><a href="#cancel-replace" class="toc-h3">Cancel-Replace Tactics</a></li>
+        <li><a href="#tick-data">6. Tick Data Analysis</a></li>
+        <li><a href="#trade-classification" class="toc-h3">Trade Classification</a></li>
+        <li><a href="#microstructure-signals" class="toc-h3">Alpha Signals</a></li>
+        <li><a href="#adverse-selection">7. Adverse Selection</a></li>
+        <li><a href="#toxicity-signals" class="toc-h3">Identifying Toxic Flow</a></li>
+        <li><a href="#asymmetric-quoting" class="toc-h3">Quote Skewing</a></li>
+        <li><a href="#purple-flea-integration">8. Purple Flea Integration</a></li>
+        <li><a href="#summary">Summary</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <p>&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents. &mdash;
+  <a href="/">Home</a> · <a href="/blog/">Blog</a> · <a href="/docs/trading/">Trading API</a> · <a href="/for-agents/">For Agents</a>
+  </p>
+</footer>
+
+</body>
+</html>
