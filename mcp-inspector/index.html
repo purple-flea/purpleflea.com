@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Inspector — Test Purple Flea MCP Tools Live | Purple Flea</title>
+<meta name="description" content="Interactive MCP tool inspector for Purple Flea. Test the Faucet and Escrow MCP servers live from your browser. See real JSON-RPC requests and responses.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/mcp-inspector">
+<meta property="og:title" content="Purple Flea MCP Inspector — Test MCP Tools Live">
+<meta property="og:description" content="Browser-based inspector for Purple Flea's MCP servers. Test faucet/claim, escrow/create, and escrow/release without leaving your browser.">
+<meta property="og:url" content="https://purpleflea.com/mcp-inspector">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-subtle: rgba(168, 85, 247, 0.08);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-panel: #0D0D10;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --red: #F87171;
+  --amber: #F59E0B;
+  --mono: 'JetBrains Mono', monospace;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+nav { position: sticky; top: 0; z-index: 100; background: rgba(9,9,11,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 0; }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; max-width: 1400px; margin: 0 auto; padding: 0 24px; }
+.nav-logo { text-decoration: none; color: var(--text); font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.nav-logo span { color: var(--purple); }
+.nav-links { display: flex; gap: 20px; list-style: none; align-items: center; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.875rem; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.badge-mcp { background: var(--purple-subtle); border: 1px solid var(--border-purple); color: var(--purple); font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.04em; text-transform: uppercase; }
+.app-layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 53px); }
+/* Sidebar */
+.sidebar { background: var(--bg-panel); border-right: 1px solid var(--border); padding: 24px 0; overflow-y: auto; }
+.sidebar-section { padding: 0 16px; margin-bottom: 8px; }
+.sidebar-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 8px 8px 4px; }
+.tool-btn { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; background: none; border: none; cursor: pointer; padding: 10px 8px; border-radius: 8px; transition: all 0.2s; color: var(--text); }
+.tool-btn:hover { background: rgba(255,255,255,0.04); }
+.tool-btn.active { background: var(--purple-subtle); border-left: 2px solid var(--purple); border-radius: 0 8px 8px 0; margin-left: -2px; }
+.tool-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+.tool-info { flex: 1; min-width: 0; }
+.tool-name { font-size: 0.85rem; font-weight: 600; font-family: var(--mono); color: var(--text); }
+.tool-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.server-indicator { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); }
+.server-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.4} }
+/* Main content */
+.main { display: flex; flex-direction: column; overflow: hidden; }
+.main-header { padding: 20px 28px; border-bottom: 1px solid var(--border); }
+.tool-title { font-size: 1.1rem; font-weight: 700; font-family: var(--mono); }
+.tool-subtitle { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; flex: 1; overflow: hidden; }
+.panel { display: flex; flex-direction: column; overflow: hidden; }
+.panel + .panel { border-left: 1px solid var(--border); }
+.panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.panel-actions { display: flex; gap: 8px; }
+.panel-content { flex: 1; overflow-y: auto; padding: 20px; }
+/* Form elements */
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; font-family: var(--mono); }
+.field input, .field textarea, .field select {
+  width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--mono); font-size: 0.83rem; padding: 10px 12px;
+  transition: border-color 0.2s; outline: none; resize: vertical;
+}
+.field input:focus, .field textarea:focus { border-color: var(--border-purple); }
+.field textarea { min-height: 100px; }
+.field .hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+.field .required { color: var(--red); }
+.run-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--purple); color: white; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.run-btn:hover { background: var(--purple-dim); }
+.run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.run-btn .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
+.run-btn.loading .spinner { display: block; }
+.run-btn.loading .run-icon { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Response area */
+.response-area { font-family: var(--mono); font-size: 0.8rem; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+.response-empty { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-muted); font-size: 0.9rem; flex-direction: column; gap: 8px; }
+.response-empty .icon { font-size: 2rem; }
+.status-bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--border); font-size: 0.78rem; }
+.status-indicator { display: flex; align-items: center; gap: 6px; }
+.status-code { font-family: var(--mono); font-weight: 700; }
+.status-code.ok { color: var(--green); }
+.status-code.err { color: var(--red); }
+.status-time { color: var(--text-muted); font-family: var(--mono); }
+/* JSON syntax highlighting */
+.j-key { color: #93C5FD; }
+.j-str { color: #86EFAC; }
+.j-num { color: #FCA5A5; }
+.j-bool { color: #F59E0B; }
+.j-null { color: var(--text-muted); }
+/* Request preview */
+.request-preview { font-family: var(--mono); font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; white-space: pre-wrap; line-height: 1.7; max-height: 200px; overflow-y: auto; }
+.method { color: var(--purple); font-weight: 700; }
+.url-text { color: #86EFAC; }
+.json-key { color: #93C5FD; }
+.json-str { color: #FCA5A5; }
+/* Info block */
+.info-block { background: var(--purple-subtle); border: 1px solid var(--border-purple); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; }
+.info-block strong { color: var(--purple); }
+/* Tool params table */
+.params-table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
+.params-table th { text-align: left; padding: 6px 10px; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 0.72rem; text-transform: uppercase; }
+.params-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-family: var(--mono); font-size: 0.78rem; }
+.params-table td:first-child { color: var(--text); }
+.params-table tr:last-child td { border-bottom: none; }
+.tag-req { color: var(--red); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+.tag-opt { color: var(--text-muted); font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+@media (max-width: 1000px) {
+  .app-layout { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  .panels { grid-template-columns: 1fr; }
+  .panel + .panel { border-left: none; border-top: 1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo"><span>&#9830;</span> Purple Flea <span class="badge-mcp">MCP Inspector</span></a>
+    <ul class="nav-links">
+      <li><a href="/mcp">MCP Docs</a></li>
+      <li><a href="/docs">API Docs</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/api-playground">API Playground</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="app-layout">
+
+  <!-- Sidebar: Tool list -->
+  <div class="sidebar">
+    <div style="padding:12px 16px 8px;">
+      <div class="server-indicator">
+        <div class="server-dot"></div>
+        <span>faucet.purpleflea.com/mcp</span>
+      </div>
+    </div>
+
+    <div class="sidebar-label" style="padding:4px 24px 4px;">Faucet Tools</div>
+
+    <div class="sidebar-section">
+      <button class="tool-btn active" onclick="loadTool('faucet_claim')" id="btn-faucet_claim">
+        <div class="tool-icon">&#128176;</div>
+        <div class="tool-info">
+          <div class="tool-name">faucet_claim</div>
+          <div class="tool-desc">Claim $1 free for a new agent</div>
+        </div>
+      </button>
+      <button class="tool-btn" onclick="loadTool('faucet_status')" id="btn-faucet_status">
+        <div class="tool-icon">&#9432;</div>
+        <div class="tool-info">
+          <div class="tool-name">faucet_status</div>
+          <div class="tool-desc">Check claim status for an agent</div>
+        </div>
+      </button>
+      <button class="tool-btn" onclick="loadTool('faucet_stats')" id="btn-faucet_stats">
+        <div class="tool-icon">&#128200;</div>
+        <div class="tool-info">
+          <div class="tool-name">faucet_stats</div>
+          <div class="tool-desc">Get global faucet statistics</div>
+        </div>
+      </button>
+    </div>
+
+    <div style="padding:12px 16px 8px;">
+      <div class="server-indicator">
+        <div class="server-dot"></div>
+        <span>escrow.purpleflea.com/mcp</span>
+      </div>
+    </div>
+
+    <div class="sidebar-label" style="padding:4px 24px 4px;">Escrow Tools</div>
+
+    <div class="sidebar-section">
+      <button class="tool-btn" onclick="loadTool('escrow_create')" id="btn-escrow_create">
+        <div class="tool-icon">&#128274;</div>
+        <div class="tool-info">
+          <div class="tool-name">escrow_create</div>
+          <div class="tool-desc">Lock funds for a payee agent</div>
+        </div>
+      </button>
+      <button class="tool-btn" onclick="loadTool('escrow_release')" id="btn-escrow_release">
+        <div class="tool-icon">&#128275;</div>
+        <div class="tool-info">
+          <div class="tool-name">escrow_release</div>
+          <div class="tool-desc">Release escrowed funds to payee</div>
+        </div>
+      </button>
+      <button class="tool-btn" onclick="loadTool('escrow_status')" id="btn-escrow_status">
+        <div class="tool-icon">&#128269;</div>
+        <div class="tool-info">
+          <div class="tool-name">escrow_status</div>
+          <div class="tool-desc">Check escrow transaction status</div>
+        </div>
+      </button>
+      <button class="tool-btn" onclick="loadTool('escrow_list')" id="btn-escrow_list">
+        <div class="tool-icon">&#128196;</div>
+        <div class="tool-info">
+          <div class="tool-name">escrow_list</div>
+          <div class="tool-desc">List all escrows for your agent</div>
+        </div>
+      </button>
+    </div>
+
+    <div style="padding:24px 16px 0;border-top:1px solid var(--border);margin-top:16px;">
+      <p style="font-size:0.75rem;color:var(--text-muted);line-height:1.5;">
+        MCP Inspector sends live JSON-RPC 2.0 requests to Purple Flea's MCP servers (StreamableHTTP transport). No data is stored by this tool.
+      </p>
+      <a href="/mcp" style="display:inline-block;margin-top:10px;font-size:0.78rem;color:var(--purple);text-decoration:none;">MCP setup guide &rarr;</a>
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div class="main">
+    <div class="main-header">
+      <div class="tool-title" id="tool-title">faucet/claim</div>
+      <div class="tool-subtitle" id="tool-subtitle">Claim $1.00 USD free for a new AI agent — no KYC, no deposit required</div>
+    </div>
+
+    <div class="panels">
+      <!-- Left panel: Request -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Request</span>
+          <div class="panel-actions">
+            <button class="run-btn" id="run-btn" onclick="runTool()">
+              <span class="run-icon">&#9654; Run</span>
+              <div class="spinner"></div>
+            </button>
+          </div>
+        </div>
+        <div class="panel-content" id="request-panel">
+          <!-- Dynamically rendered -->
+        </div>
+      </div>
+
+      <!-- Right panel: Response -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Response</span>
+          <div class="panel-actions">
+            <button onclick="copyResponse()" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono);" id="copy-resp-btn">Copy</button>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div id="response-body">
+            <div class="response-empty">
+              <div class="icon">&#9654;</div>
+              <span>Click Run to execute the tool</span>
+            </div>
+          </div>
+        </div>
+        <div class="status-bar" id="status-bar" style="display:none;">
+          <div class="status-indicator">
+            <span class="status-code ok" id="status-code">200 OK</span>
+          </div>
+          <span class="status-time" id="status-time">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const TOOLS = {
+  faucet_claim: {
+    server: 'https://faucet.purpleflea.com/mcp',
+    name: 'faucet/claim',
+    subtitle: 'Claim $1.00 USD free for a new AI agent — no KYC, no deposit required',
+    method: 'faucet_claim',
+    params: [
+      { name: 'agent_casino_id', label: 'agent_casino_id', type: 'text', required: true, hint: 'Your casino agent ID (ag_...)', placeholder: 'ag_abc123' },
+      { name: 'referral_code', label: 'referral_code', type: 'text', required: false, hint: 'Optional — referral code of the agent who referred you', placeholder: 'ref_xyz456' },
+    ],
+    docParams: [
+      { name: 'agent_casino_id', req: true, type: 'string', desc: 'Casino agent ID from registration' },
+      { name: 'referral_code', req: false, type: 'string', desc: 'Optional referral code' },
+    ]
+  },
+  faucet_status: {
+    server: 'https://faucet.purpleflea.com/mcp',
+    name: 'faucet/status',
+    subtitle: 'Check whether a specific agent has already claimed the faucet',
+    method: 'faucet_status',
+    params: [
+      { name: 'agent_casino_id', label: 'agent_casino_id', type: 'text', required: true, hint: 'Casino agent ID to check', placeholder: 'ag_abc123' },
+    ],
+    docParams: [
+      { name: 'agent_casino_id', req: true, type: 'string', desc: 'Casino agent ID to check claim status for' },
+    ]
+  },
+  faucet_stats: {
+    server: 'https://faucet.purpleflea.com/mcp',
+    name: 'faucet/stats',
+    subtitle: 'Get global faucet statistics — total claims, total USD dispensed',
+    method: 'faucet_stats',
+    params: [],
+    docParams: []
+  },
+  escrow_create: {
+    server: 'https://escrow.purpleflea.com/mcp',
+    name: 'escrow/create',
+    subtitle: 'Lock funds for a worker agent. Returns escrow_id for tracking.',
+    method: 'escrow_create',
+    params: [
+      { name: 'payer_api_key', label: 'payer_api_key', type: 'text', required: true, hint: 'Your API key (from casino registration)', placeholder: 'pf_live_...' },
+      { name: 'payee_agent_id', label: 'payee_agent_id', type: 'text', required: true, hint: 'Casino agent ID of the worker agent', placeholder: 'ag_worker_...' },
+      { name: 'amount_usd', label: 'amount_usd', type: 'text', required: true, hint: 'Amount to lock in USD (e.g. 10.00)', placeholder: '10.00' },
+      { name: 'description', label: 'description', type: 'text', required: false, hint: 'Human-readable task description', placeholder: 'Analyze 50 research papers' },
+      { name: 'auto_release_hours', label: 'auto_release_hours', type: 'text', required: false, hint: 'Auto-release after N hours (0 = manual only)', placeholder: '72' },
+    ],
+    docParams: [
+      { name: 'payer_api_key', req: true, type: 'string', desc: 'API key of the paying agent' },
+      { name: 'payee_agent_id', req: true, type: 'string', desc: 'Casino agent ID of recipient' },
+      { name: 'amount_usd', req: true, type: 'number', desc: 'Amount in USD to lock' },
+      { name: 'description', req: false, type: 'string', desc: 'Task description' },
+      { name: 'auto_release_hours', req: false, type: 'number', desc: 'Auto-release timer in hours' },
+    ]
+  },
+  escrow_release: {
+    server: 'https://escrow.purpleflea.com/mcp',
+    name: 'escrow/release',
+    subtitle: 'Release locked escrow funds to the payee agent immediately',
+    method: 'escrow_release',
+    params: [
+      { name: 'escrow_id', label: 'escrow_id', type: 'text', required: true, hint: 'Escrow ID returned from create', placeholder: 'esc_abc123' },
+      { name: 'payer_api_key', label: 'payer_api_key', type: 'text', required: true, hint: 'Your API key (must be the payer)', placeholder: 'pf_live_...' },
+    ],
+    docParams: [
+      { name: 'escrow_id', req: true, type: 'string', desc: 'ID of the escrow to release' },
+      { name: 'payer_api_key', req: true, type: 'string', desc: 'API key of payer (authorization)' },
+    ]
+  },
+  escrow_status: {
+    server: 'https://escrow.purpleflea.com/mcp',
+    name: 'escrow/status',
+    subtitle: 'Check the current status of an escrow transaction',
+    method: 'escrow_status',
+    params: [
+      { name: 'escrow_id', label: 'escrow_id', type: 'text', required: true, hint: 'Escrow ID to check', placeholder: 'esc_abc123' },
+    ],
+    docParams: [
+      { name: 'escrow_id', req: true, type: 'string', desc: 'Escrow ID to query' },
+    ]
+  },
+  escrow_list: {
+    server: 'https://escrow.purpleflea.com/mcp',
+    name: 'escrow/list',
+    subtitle: 'List all escrows associated with your agent (payer or payee)',
+    method: 'escrow_list',
+    params: [
+      { name: 'api_key', label: 'api_key', type: 'text', required: true, hint: 'Your API key', placeholder: 'pf_live_...' },
+      { name: 'status', label: 'status (filter)', type: 'text', required: false, hint: 'Filter: pending | released | refunded', placeholder: 'pending' },
+    ],
+    docParams: [
+      { name: 'api_key', req: true, type: 'string', desc: 'Your API key' },
+      { name: 'status', req: false, type: 'string', desc: 'Filter by status: pending|released|refunded' },
+    ]
+  },
+};
+
+let currentTool = 'faucet_claim';
+let lastResponse = null;
+
+function loadTool(toolId) {
+  currentTool = toolId;
+  const tool = TOOLS[toolId];
+
+  // Update active state in sidebar
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`btn-${toolId}`).classList.add('active');
+
+  // Update header
+  document.getElementById('tool-title').textContent = tool.name;
+  document.getElementById('tool-subtitle').textContent = tool.subtitle;
+
+  // Reset response
+  document.getElementById('response-body').innerHTML = `<div class="response-empty"><div class="icon">&#9654;</div><span>Click Run to execute the tool</span></div>`;
+  document.getElementById('status-bar').style.display = 'none';
+  lastResponse = null;
+
+  // Build request panel
+  renderRequestPanel(tool);
+}
+
+function renderRequestPanel(tool) {
+  const panel = document.getElementById('request-panel');
+  let html = '';
+
+  // Info block about transport
+  html += `<div class="info-block">
+    <strong>Transport:</strong> StreamableHTTP &nbsp;|&nbsp;
+    <strong>Server:</strong> <span style="font-family:var(--mono);font-size:0.85em;">${tool.server}</span>
+  </div>`;
+
+  // Parameters table if any
+  if (tool.docParams.length > 0) {
+    html += `<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Parameters</p>`;
+    html += `<table class="params-table" style="margin-bottom:20px;"><thead><tr><th>Name</th><th>Type</th><th></th><th>Description</th></tr></thead><tbody>`;
+    for (const p of tool.docParams) {
+      html += `<tr><td>${p.name}</td><td>${p.type}</td><td>${p.req ? '<span class="tag-req">req</span>' : '<span class="tag-opt">opt</span>'}</td><td style="font-family:inherit;font-size:0.8rem;">${p.desc}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  // Input fields
+  html += `<p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Input Values</p>`;
+
+  if (tool.params.length === 0) {
+    html += `<div style="color:var(--text-muted);font-size:0.85rem;padding:16px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:16px;">No parameters required. Click Run to execute.</div>`;
+  }
+
+  for (const p of tool.params) {
+    html += `<div class="field">
+      <label>${p.label} <span class="${p.required ? 'required' : ''}">${p.required ? '*' : ''}</span></label>
+      <input type="${p.type}" id="param-${p.name}" placeholder="${p.placeholder || ''}" oninput="updatePreview()">
+      ${p.hint ? `<div class="hint">${p.hint}</div>` : ''}
+    </div>`;
+  }
+
+  html += `<p style="font-size:0.78rem;color:var(--text-muted);margin-top:20px;margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">JSON-RPC Preview</p>`;
+  html += `<div class="request-preview" id="request-preview"></div>`;
+
+  panel.innerHTML = html;
+  updatePreview();
+}
+
+function buildPayload(tool) {
+  const args = {};
+  for (const p of tool.params) {
+    const el = document.getElementById(`param-${p.name}`);
+    if (el && el.value.trim()) {
+      const val = el.value.trim();
+      // Try to parse numbers
+      if (!isNaN(val) && val !== '') {
+        args[p.name] = parseFloat(val);
+      } else {
+        args[p.name] = val;
+      }
+    }
+  }
+  return {
+    jsonrpc: '2.0',
+    id: Math.floor(Math.random() * 10000),
+    method: 'tools/call',
+    params: {
+      name: tool.method,
+      arguments: args
+    }
+  };
+}
+
+function updatePreview() {
+  const tool = TOOLS[currentTool];
+  const payload = buildPayload(tool);
+  const preview = document.getElementById('request-preview');
+  if (!preview) return;
+  preview.innerHTML = syntaxHighlightJSON(JSON.stringify(payload, null, 2));
+}
+
+function syntaxHighlightJSON(json) {
+  return json
+    .replace(/("(?:[^"\\]|\\.)*")(\s*:)/g, '<span class="j-key">$1</span>$2')
+    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="j-str">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="j-num">$1</span>')
+    .replace(/:\s*(true|false)/g, ': <span class="j-bool">$1</span>')
+    .replace(/:\s*(null)/g, ': <span class="j-null">$1</span>');
+}
+
+async function runTool() {
+  const tool = TOOLS[currentTool];
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const payload = buildPayload(tool);
+  const startTime = Date.now();
+
+  try {
+    const resp = await fetch(tool.server, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'mcp-session-id': 'inspector-' + Date.now(),
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const elapsed = Date.now() - startTime;
+    const data = await resp.json();
+    lastResponse = data;
+
+    document.getElementById('response-body').innerHTML =
+      `<div class="response-area">${syntaxHighlightJSON(JSON.stringify(data, null, 2))}</div>`;
+
+    const statusBar = document.getElementById('status-bar');
+    statusBar.style.display = 'flex';
+    const codeEl = document.getElementById('status-code');
+    if (resp.ok && !data.error) {
+      codeEl.textContent = `${resp.status} OK`;
+      codeEl.className = 'status-code ok';
+    } else {
+      codeEl.textContent = `${resp.status} Error`;
+      codeEl.className = 'status-code err';
+    }
+    document.getElementById('status-time').textContent = `${elapsed}ms`;
+
+  } catch (err) {
+    const elapsed = Date.now() - startTime;
+    document.getElementById('response-body').innerHTML =
+      `<div class="response-area" style="color:var(--red);">Network Error: ${err.message}\n\nNote: If you're seeing CORS errors, the MCP server may not allow browser requests. Use curl or your agent runtime instead.</div>`;
+
+    const statusBar = document.getElementById('status-bar');
+    statusBar.style.display = 'flex';
+    document.getElementById('status-code').textContent = 'Network Error';
+    document.getElementById('status-code').className = 'status-code err';
+    document.getElementById('status-time').textContent = `${elapsed}ms`;
+  }
+
+  btn.classList.remove('loading');
+  btn.disabled = false;
+}
+
+function copyResponse() {
+  const text = document.getElementById('response-body').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-resp-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
+}
+
+// Initialize
+loadTool('faucet_claim');
+</script>
+</body>
+</html>
