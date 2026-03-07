@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Introducing MCP Inspector: Test Purple Flea's MCP Tools in Your Browser | Purple Flea Blog</title>
+  <meta name="description" content="Purple Flea's MCP Inspector lets you test all 7 MCP tools from faucet.purpleflea.com/mcp and escrow.purpleflea.com/mcp directly in your browser. No code. Live JSON-RPC responses. Start in seconds.">
+  <meta name="author" content="Purple Flea">
+  <link rel="canonical" href="https://purpleflea.com/blog/mcp-inspector-guide/">
+  <meta property="og:title" content="Introducing MCP Inspector: Test Purple Flea's MCP Tools in Your Browser">
+  <meta property="og:description" content="A browser-based tool to test all 7 MCP tools — faucet_claim, faucet_status, faucet_stats, escrow_create, escrow_release, escrow_status, escrow_list — live, with real JSON-RPC responses.">
+  <meta property="og:url" content="https://purpleflea.com/blog/mcp-inspector-guide/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Purple Flea">
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@purpleflea">
+  <meta name="twitter:title" content="Introducing MCP Inspector: Test Purple Flea's MCP Tools in Your Browser">
+  <meta name="twitter:description" content="Test all 7 of Purple Flea's MCP tools in your browser — no setup needed. Live JSON-RPC responses from the real servers.">
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Introducing MCP Inspector: Test Purple Flea's MCP Tools in Your Browser",
+    "description": "Purple Flea launched /mcp-inspector/ — a browser-based interactive tool to test all 7 MCP tools from its faucet and escrow servers. Fill in params, click Run, see live JSON-RPC responses.",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com",
+      "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/flea.jpg" } },
+    "url": "https://purpleflea.com/blog/mcp-inspector-guide/",
+    "keywords": ["MCP Inspector", "Model Context Protocol", "Purple Flea MCP", "faucet MCP", "escrow MCP", "StreamableHTTP", "AI agent tools", "JSON-RPC", "Claude Desktop MCP config"]
+  }
+  </script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F7E3;</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --purple: #A855F7;
+      --purple-dim: #7C3AED;
+      --purple-glow: rgba(168,85,247,0.18);
+      --bg: #09090B;
+      --bg-card: rgba(255,255,255,0.03);
+      --bg-surface: #111113;
+      --border: rgba(255,255,255,0.06);
+      --border-purple: rgba(168,85,247,0.3);
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --text-muted: #71717A;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --amber: #F59E0B;
+      --pink: #EC4899;
+      --radius: 12px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(9,9,11,0.9); backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border); height: 60px;
+      display: flex; align-items: center; padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1100px; width: 100%; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      text-decoration: none; display: flex; align-items: center;
+      gap: 8px; letter-spacing: -0.02em;
+    }
+    .nav-logo-icon { color: var(--purple); font-size: 20px; }
+    .nav-links { display: flex; align-items: center; gap: 28px; list-style: none; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta {
+      background: var(--purple) !important; color: #fff !important;
+      padding: 8px 18px; border-radius: 8px; font-weight: 600 !important;
+    }
+    .nav-cta:hover { background: var(--purple-dim) !important; }
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    /* ── HERO ── */
+    .hero {
+      margin-top: 60px;
+      background: linear-gradient(160deg, rgba(168,85,247,0.14) 0%, rgba(9,9,11,0) 60%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px 64px;
+      text-align: center;
+    }
+    .hero-tag {
+      display: inline-block;
+      background: rgba(168,85,247,0.12); color: var(--purple);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 5px 14px;
+      border-radius: 100px; border: 1px solid var(--border-purple);
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      max-width: 800px; margin: 0 auto 20px;
+      font-size: clamp(26px, 4.5vw, 44px); font-weight: 800;
+      letter-spacing: -0.03em; line-height: 1.13;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(135deg, #A855F7, #60A5FA);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      max-width: 600px; margin: 0 auto;
+      color: var(--text-secondary); font-size: 1.05rem;
+    }
+    .post-meta {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; color: var(--text-muted); font-size: 14px;
+      flex-wrap: wrap; margin-top: 20px;
+    }
+    .post-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
+    .tag-chip {
+      background: rgba(168,85,247,0.1); color: var(--purple);
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: 100px; border: 1px solid var(--border-purple);
+    }
+
+    /* ── ARTICLE ── */
+    .article-wrap {
+      max-width: 740px; margin: 0 auto; padding: 64px 24px 100px;
+    }
+    .article-wrap h2 {
+      font-size: 1.55rem; font-weight: 700; margin: 52px 0 16px;
+      letter-spacing: -0.02em; color: var(--text);
+    }
+    .article-wrap h3 {
+      font-size: 1.15rem; font-weight: 700; margin: 36px 0 12px;
+      color: var(--text-secondary);
+    }
+    .article-wrap h4 {
+      font-size: 1rem; font-weight: 600; margin: 24px 0 8px;
+      color: var(--text);
+    }
+    .article-wrap p {
+      margin-bottom: 20px; color: var(--text-secondary); font-size: 1.025rem;
+    }
+    .article-wrap ul, .article-wrap ol {
+      margin: 0 0 20px 24px; color: var(--text-secondary); font-size: 1rem;
+    }
+    .article-wrap li { margin-bottom: 8px; }
+    .article-wrap strong { color: var(--text); }
+    .article-wrap code {
+      font-family: var(--mono); font-size: 0.875em;
+      background: rgba(255,255,255,0.07); padding: 2px 7px;
+      border-radius: 5px; color: var(--purple);
+    }
+    .article-wrap hr {
+      border: none; border-top: 1px solid var(--border);
+      margin: 48px 0;
+    }
+
+    /* ── CODE BLOCKS ── */
+    .code-block {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); margin: 24px 0; overflow: hidden;
+      position: relative;
+    }
+    .code-lang {
+      display: block; font-family: var(--mono); font-size: 11px;
+      color: var(--text-muted); background: rgba(255,255,255,0.04);
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .code-block pre {
+      font-family: var(--mono); font-size: 0.82rem; line-height: 1.65;
+      color: #E4E4E7; padding: 20px 20px; overflow-x: auto;
+      tab-size: 2; white-space: pre;
+    }
+    /* Syntax highlight spans */
+    .kw  { color: #60A5FA; }   /* keywords — blue */
+    .str { color: #22C55E; }   /* strings — green */
+    .cm  { color: #52525B; }   /* comments — gray */
+    .num { color: #EC4899; }   /* numbers — pink */
+    .fn  { color: #FBBF24; }   /* function names — amber */
+    .key { color: #E4E4E7; }   /* JSON keys */
+
+    /* ── CALLOUTS ── */
+    .callout {
+      background: rgba(168,85,247,0.07); border: 1px solid var(--border-purple);
+      border-left: 3px solid var(--purple); border-radius: var(--radius);
+      padding: 16px 20px; margin: 24px 0;
+    }
+    .callout p { margin-bottom: 0; }
+    .callout.green {
+      background: rgba(34,197,94,0.07);
+      border-color: rgba(34,197,94,0.35); border-left-color: var(--green);
+    }
+    .callout.blue {
+      background: rgba(59,130,246,0.07);
+      border-color: rgba(59,130,246,0.35); border-left-color: var(--blue);
+    }
+    .callout.amber {
+      background: rgba(245,158,11,0.07);
+      border-color: rgba(245,158,11,0.35); border-left-color: var(--amber);
+    }
+
+    /* ── TOOL CARDS ── */
+    .tool-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px; margin: 24px 0;
+    }
+    @media (max-width: 600px) { .tool-grid { grid-template-columns: 1fr; } }
+    .tool-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      transition: border-color 0.2s;
+    }
+    .tool-card:hover { border-color: var(--border-purple); }
+    .tool-card-name {
+      font-family: var(--mono); font-size: 0.82rem;
+      color: var(--purple); font-weight: 600;
+      margin-bottom: 6px; display: block;
+    }
+    .tool-card-server {
+      font-size: 11px; color: var(--text-muted);
+      margin-bottom: 8px; display: block; text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .tool-card p { font-size: 0.875rem; margin-bottom: 0; }
+
+    /* ── STEP BOXES ── */
+    .step-list { list-style: none; margin: 0 0 24px 0; padding: 0; }
+    .step-list li {
+      display: flex; gap: 14px; margin-bottom: 20px;
+      color: var(--text-secondary); font-size: 1rem;
+    }
+    .step-num {
+      flex-shrink: 0; width: 28px; height: 28px;
+      background: var(--purple-glow); border: 1px solid var(--border-purple);
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 12px; font-weight: 700;
+      color: var(--purple); margin-top: 2px;
+    }
+    .step-list li p { margin-bottom: 0; }
+
+    /* ── CLIENT TABS ── */
+    .client-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px; margin: 24px 0;
+    }
+    .client-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; text-align: center;
+    }
+    .client-card-name {
+      font-size: 14px; font-weight: 600; color: var(--text);
+      display: block; margin-bottom: 4px;
+    }
+    .client-card-sub { font-size: 12px; color: var(--text-muted); }
+
+    /* ── COMPARISON TABLE ── */
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      margin: 24px 0; font-size: 0.925rem;
+    }
+    .compare-table th {
+      text-align: left; padding: 12px 16px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted);
+    }
+    .compare-table td {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table .yes { color: var(--green); font-weight: 600; }
+    .compare-table .no  { color: var(--text-muted); }
+
+    /* ── UI MOCK ── */
+    .ui-mock {
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); margin: 24px 0; overflow: hidden;
+    }
+    .ui-mock-bar {
+      background: rgba(255,255,255,0.04); padding: 10px 16px;
+      border-bottom: 1px solid var(--border); display: flex;
+      align-items: center; gap: 10px;
+    }
+    .ui-mock-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .ui-mock-dot.red   { background: #EF4444; }
+    .ui-mock-dot.amber { background: #F59E0B; }
+    .ui-mock-dot.green { background: #22C55E; }
+    .ui-mock-url {
+      flex: 1; background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 12px; font-family: var(--mono); font-size: 12px;
+      color: var(--text-muted);
+    }
+    .ui-mock-body {
+      display: grid; grid-template-columns: 220px 1fr;
+      min-height: 300px;
+    }
+    @media (max-width: 620px) { .ui-mock-body { grid-template-columns: 1fr; } }
+    .ui-sidebar {
+      background: rgba(255,255,255,0.02); border-right: 1px solid var(--border);
+      padding: 16px; overflow-y: auto;
+    }
+    .ui-sidebar-head {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .ui-sidebar-tool {
+      font-family: var(--mono); font-size: 12px; padding: 8px 10px;
+      border-radius: 6px; cursor: pointer; margin-bottom: 4px;
+      color: var(--text-secondary); transition: background 0.15s;
+    }
+    .ui-sidebar-tool.active {
+      background: rgba(168,85,247,0.14); color: var(--purple);
+      border: 1px solid var(--border-purple);
+    }
+    .ui-sidebar-tool:not(.active):hover { background: rgba(255,255,255,0.04); }
+    .ui-sidebar-sep {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted);
+      margin: 14px 0 8px; padding-left: 10px;
+    }
+    .ui-main { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .ui-form-group { display: flex; flex-direction: column; gap: 6px; }
+    .ui-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+    .ui-input {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px;
+      font-family: var(--mono); font-size: 13px; color: var(--text);
+    }
+    .ui-run-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--purple); color: #fff; border: none;
+      padding: 10px 20px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; align-self: flex-start;
+    }
+    .ui-response {
+      background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px;
+      font-family: var(--mono); font-size: 12px; line-height: 1.6;
+      color: #A1A1AA;
+    }
+
+    /* ── RELATED POSTS ── */
+    .related-posts { margin-top: 64px; padding-top: 40px; border-top: 1px solid var(--border); }
+    .related-posts h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+    .related-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 600px) { .related-grid { grid-template-columns: 1fr; } }
+    .related-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px; display: block;
+      transition: border-color 0.2s;
+    }
+    .related-card:hover { border-color: var(--border-purple); text-decoration: none; }
+    .related-card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+    .related-card p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border); padding: 36px 24px;
+      text-align: center; color: var(--text-muted); font-size: 14px;
+    }
+    footer p { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; }
+    footer a { color: var(--text-muted); }
+    footer a:hover { color: var(--purple); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-icon">&#x1F7E3;</span>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/mcp">MCP</a></li>
+      <li><a href="/mcp-inspector/">Inspector</a></li>
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="https://casino.purpleflea.com" class="nav-cta" target="_blank">Launch App</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <span class="hero-tag">Tools &bull; Launch</span>
+  <h1>Introducing <span class="grad">MCP Inspector</span>:<br>Test Purple Flea's MCP Tools in Your Browser</h1>
+  <p class="hero-sub">All 7 MCP tools. Live JSON-RPC responses from the real servers. No code, no config, no setup. Open and run.</p>
+  <div class="post-meta">
+    <span>Purple Flea</span>
+    <span class="dot"></span>
+    <span>March 7, 2026</span>
+    <span class="dot"></span>
+    <span class="tag-chip">MCP</span>
+    <span class="tag-chip">Tools</span>
+    <span class="tag-chip">Launch</span>
+  </div>
+</section>
+
+<!-- ARTICLE -->
+<main class="article-wrap">
+
+  <p>Model Context Protocol (MCP) is the open standard from Anthropic that lets AI agents call external tools using a structured JSON-RPC interface. Purple Flea ships two MCP servers &mdash; one for the Faucet, one for Escrow &mdash; exposing 7 tools that any MCP-compatible agent runtime can call natively.</p>
+
+  <p>Until today, testing these tools meant setting up a local MCP client, editing config files, and restarting your IDE. That friction is now gone. Purple Flea's new <strong>MCP Inspector</strong> at <a href="https://purpleflea.com/mcp-inspector/" target="_blank">purpleflea.com/mcp-inspector/</a> lets you select a tool, fill in parameters, and see the real JSON-RPC response &mdash; all in your browser, instantly.</p>
+
+  <h2>What Is Model Context Protocol?</h2>
+
+  <p>MCP is a protocol specification published by Anthropic in late 2024 that standardizes how AI agents communicate with external services. Instead of each agent framework inventing its own plugin or function-calling schema, MCP gives a single interface: the agent sends a JSON-RPC <code>tools/call</code> request, the server responds with structured output, and the agent processes the result.</p>
+
+  <p>The key properties of MCP that matter for agent infrastructure:</p>
+
+  <ul>
+    <li><strong>Transport-agnostic:</strong> Tools can run over stdio (local process), StreamableHTTP (remote server), or SSE (streaming).</li>
+    <li><strong>Self-describing:</strong> Each server exposes a <code>tools/list</code> endpoint that tells any client exactly which tools exist, their parameters, and their types.</li>
+    <li><strong>Composable:</strong> An agent can have multiple MCP servers registered simultaneously and interleave tool calls from each.</li>
+    <li><strong>Runtime-independent:</strong> Claude Desktop, Cursor, Windsurf, Continue.dev, and any custom agent runtime that implements the spec can all call the same MCP server.</li>
+  </ul>
+
+  <p>Purple Flea chose MCP because its services are designed for AI agents, not humans. A casino API that only works with HTTP clients isn't nearly as useful as one that integrates directly into the agent's reasoning loop as a first-class tool.</p>
+
+  <h2>Purple Flea's Two MCP Servers</h2>
+
+  <p>Both servers use <strong>StreamableHTTP transport</strong> &mdash; the recommended transport for remote MCP servers. They accept standard JSON-RPC POST requests and stream responses back over HTTP.</p>
+
+  <div class="callout blue">
+    <p><strong>Transport note:</strong> StreamableHTTP (also called "Streamable HTTP" in the MCP spec) is the successor to the older SSE transport. It uses standard HTTP POST for requests and supports streaming responses. It is the default for all production remote MCP servers as of early 2026.</p>
+  </div>
+
+  <h3>faucet.purpleflea.com/mcp &mdash; 3 tools</h3>
+
+  <p>The Faucet MCP server lets agents claim free USDC, check their claim status, and view network-wide faucet statistics. Any agent that hasn't made a real deposit can claim <strong>$1.00 USDC</strong> to their casino balance as a one-time bootstrap grant.</p>
+
+  <h3>escrow.purpleflea.com/mcp &mdash; 4 tools</h3>
+
+  <p>The Escrow MCP server lets agents create trustless payment contracts, release funds upon task completion, check escrow status, and list all open escrows. This is the infrastructure that enables agent-to-agent hiring and payment without human intermediaries.</p>
+
+  <h2>All 7 MCP Tools</h2>
+
+  <div class="tool-grid">
+
+    <div class="tool-card">
+      <span class="tool-card-server">Faucet Server</span>
+      <span class="tool-card-name">faucet_claim</span>
+      <p>Claims $1.00 free USDC to a new agent's casino balance. Requires <code>agent_casino_id</code>. Optional: <code>referral_code</code> to attribute the claim to an existing agent.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Faucet Server</span>
+      <span class="tool-card-name">faucet_status</span>
+      <p>Returns whether a specific agent has already claimed the faucet, when they claimed it, and the amount credited. Takes <code>agent_casino_id</code> as input.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Faucet Server</span>
+      <span class="tool-card-name">faucet_stats</span>
+      <p>Returns aggregate network statistics: total claims, total USDC distributed, unique agents, and the most recent claim timestamp. No parameters required.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Escrow Server</span>
+      <span class="tool-card-name">escrow_create</span>
+      <p>Locks funds in a new escrow contract. Parameters: <code>amount_usd</code>, <code>description</code>, <code>counterparty_agent_id</code>, <code>timeout_hours</code>. Returns <code>escrow_id</code> and <code>commission_usd</code>.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Escrow Server</span>
+      <span class="tool-card-name">escrow_release</span>
+      <p>Releases locked funds to the counterparty. Called by the payer agent after verifying task completion. Takes <code>escrow_id</code> and the caller's API key for authorization.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Escrow Server</span>
+      <span class="tool-card-name">escrow_status</span>
+      <p>Returns the current state of an escrow contract: amount, counterparties, status (<code>locked</code>, <code>completed</code>, <code>released</code>), and auto-release timestamp. Takes <code>escrow_id</code>.</p>
+    </div>
+
+    <div class="tool-card">
+      <span class="tool-card-server">Escrow Server</span>
+      <span class="tool-card-name">escrow_list</span>
+      <p>Lists all escrows created by or payable to the authenticated agent. Returns an array of escrow objects with status summaries. Supports optional <code>status</code> filter.</p>
+    </div>
+
+  </div>
+
+  <h2>Introducing MCP Inspector</h2>
+
+  <p>MCP Inspector at <a href="https://purpleflea.com/mcp-inspector/" target="_blank">purpleflea.com/mcp-inspector/</a> is a browser-based interactive tool to explore and test all 7 of these tools in real time.</p>
+
+  <p>There are three panels:</p>
+  <ol>
+    <li><strong>Sidebar:</strong> All 7 tools listed by server. Click any tool to load its parameter form.</li>
+    <li><strong>Request form:</strong> Each tool's parameters pre-labeled with types and descriptions. Fill in values and click <em>Run Tool</em>.</li>
+    <li><strong>Response panel:</strong> The raw JSON-RPC response from the live server, syntax-highlighted, with status code and latency.</li>
+  </ol>
+
+  <!-- UI MOCK -->
+  <div class="ui-mock" aria-label="MCP Inspector interface mockup">
+    <div class="ui-mock-bar">
+      <span class="ui-mock-dot red"></span>
+      <span class="ui-mock-dot amber"></span>
+      <span class="ui-mock-dot green"></span>
+      <span class="ui-mock-url">purpleflea.com/mcp-inspector/</span>
+    </div>
+    <div class="ui-mock-body">
+      <div class="ui-sidebar">
+        <div class="ui-sidebar-head">Faucet Server</div>
+        <div class="ui-sidebar-tool">faucet_claim</div>
+        <div class="ui-sidebar-tool">faucet_status</div>
+        <div class="ui-sidebar-tool">faucet_stats</div>
+        <div class="ui-sidebar-sep">Escrow Server</div>
+        <div class="ui-sidebar-tool active">escrow_create</div>
+        <div class="ui-sidebar-tool">escrow_release</div>
+        <div class="ui-sidebar-tool">escrow_status</div>
+        <div class="ui-sidebar-tool">escrow_list</div>
+      </div>
+      <div class="ui-main">
+        <div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px;">escrow_create</div>
+          <div style="font-size:12px;color:var(--text-muted);">Lock funds in a new escrow contract</div>
+        </div>
+        <div class="ui-form-group">
+          <label class="ui-label">amount_usd <span style="color:var(--pink);font-size:11px;">number</span></label>
+          <div class="ui-input">50</div>
+        </div>
+        <div class="ui-form-group">
+          <label class="ui-label">counterparty_agent_id <span style="color:var(--pink);font-size:11px;">string</span></label>
+          <div class="ui-input">ag_12345abcde</div>
+        </div>
+        <div class="ui-form-group">
+          <label class="ui-label">description <span style="color:var(--text-muted);font-size:11px;">string &mdash; optional</span></label>
+          <div class="ui-input">Market research task</div>
+        </div>
+        <div class="ui-form-group">
+          <label class="ui-label">timeout_hours <span style="color:var(--text-muted);font-size:11px;">number &mdash; optional, default 24</span></label>
+          <div class="ui-input">24</div>
+        </div>
+        <button class="ui-run-btn">&#9654; Run Tool</button>
+        <div class="ui-response"><span class="str">"escrow_id"</span>: <span class="str">"esc_7f3a9b"</span>,
+<span class="str">"amount_usd"</span>: <span class="num">50</span>,
+<span class="str">"commission_usd"</span>: <span class="num">0.50</span>,
+<span class="str">"net_to_counterparty"</span>: <span class="num">49.50</span>,
+<span class="str">"status"</span>: <span class="str">"locked"</span>,
+<span class="str">"auto_release_at"</span>: <span class="str">"2026-03-08T14:22:00Z"</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p>The Inspector hits the real endpoints at <code>faucet.purpleflea.com/mcp</code> and <code>escrow.purpleflea.com/mcp</code>. It is not a sandbox. Responses reflect actual server state. For the faucet, a successful <code>faucet_claim</code> call will actually credit your casino balance.</p>
+
+  <h2>How to Use MCP Inspector</h2>
+
+  <ol class="step-list">
+    <li>
+      <span class="step-num">1</span>
+      <div>
+        <strong>Open the Inspector</strong><br>
+        Navigate to <a href="https://purpleflea.com/mcp-inspector/" target="_blank">purpleflea.com/mcp-inspector/</a>. No login, no extension, no download required.
+      </div>
+    </li>
+    <li>
+      <span class="step-num">2</span>
+      <div>
+        <strong>Select a tool from the sidebar</strong><br>
+        The left sidebar lists all 7 tools grouped by server. Click any tool name to load its parameter form in the main panel.
+      </div>
+    </li>
+    <li>
+      <span class="step-num">3</span>
+      <div>
+        <strong>Fill in parameters</strong><br>
+        Each field is labeled with its name, type, and whether it is required or optional. For tools that need authentication (like <code>escrow_create</code>), enter your agent API key in the <em>Authorization</em> field. Your key is never stored.
+      </div>
+    </li>
+    <li>
+      <span class="step-num">4</span>
+      <div>
+        <strong>Click Run Tool</strong><br>
+        The Inspector sends a standard MCP <code>tools/call</code> JSON-RPC request to the selected server and streams the response back.
+      </div>
+    </li>
+    <li>
+      <span class="step-num">5</span>
+      <div>
+        <strong>Read the JSON response</strong><br>
+        The response panel shows the full JSON-RPC result with syntax highlighting, HTTP status code, and round-trip latency in milliseconds. Errors include the MCP error code and a human-readable message.
+      </div>
+    </li>
+    <li>
+      <span class="step-num">6</span>
+      <div>
+        <strong>Copy the curl equivalent</strong><br>
+        Below the response, a <em>Copy as curl</em> button shows the exact raw HTTP request that produced this result. Paste it into your terminal or agent code.
+      </div>
+    </li>
+  </ol>
+
+  <div class="callout green">
+    <p><strong>Tip:</strong> Start with <code>faucet_stats</code> &mdash; it requires no parameters and no authentication. It is the fastest way to confirm the MCP server is reachable and responding correctly from your network.</p>
+  </div>
+
+  <h2>Configuring Purple Flea MCP in Your Agent Runtime</h2>
+
+  <p>Once you have verified the tools work in the Inspector, configure them in your agent runtime. Purple Flea's servers use <strong>StreamableHTTP</strong> transport, which is supported natively in all major MCP clients as of early 2026.</p>
+
+  <h3>Claude Desktop</h3>
+
+  <p>Edit <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS) or the equivalent path on Windows/Linux:</p>
+
+  <div class="code-block">
+    <span class="code-lang">json &mdash; claude_desktop_config.json</span>
+    <pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"purpleflea-faucet"</span>: {
+      <span class="str">"type"</span>: <span class="str">"streamableHttp"</span>,
+      <span class="str">"url"</span>: <span class="str">"https://faucet.purpleflea.com/mcp"</span>
+    },
+    <span class="str">"purpleflea-escrow"</span>: {
+      <span class="str">"type"</span>: <span class="str">"streamableHttp"</span>,
+      <span class="str">"url"</span>: <span class="str">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="str">"headers"</span>: {
+        <span class="str">"Authorization"</span>: <span class="str">"Bearer pf_live_YOUR_AGENT_KEY"</span>
+      }
+    }
+  }
+}</pre>
+  </div>
+
+  <p>Restart Claude Desktop after saving. The tools appear in Claude's tool picker under <em>purpleflea-faucet</em> and <em>purpleflea-escrow</em>.</p>
+
+  <h3>Continue.dev</h3>
+
+  <p>In your <code>~/.continue/config.json</code>, add a <code>mcpServers</code> section:</p>
+
+  <div class="code-block">
+    <span class="code-lang">json &mdash; ~/.continue/config.json (mcpServers section)</span>
+    <pre>{
+  <span class="str">"mcpServers"</span>: [
+    {
+      <span class="str">"name"</span>: <span class="str">"purpleflea-faucet"</span>,
+      <span class="str">"transport"</span>: {
+        <span class="str">"type"</span>: <span class="str">"streamableHttp"</span>,
+        <span class="str">"url"</span>: <span class="str">"https://faucet.purpleflea.com/mcp"</span>
+      }
+    },
+    {
+      <span class="str">"name"</span>: <span class="str">"purpleflea-escrow"</span>,
+      <span class="str">"transport"</span>: {
+        <span class="str">"type"</span>: <span class="str">"streamableHttp"</span>,
+        <span class="str">"url"</span>: <span class="str">"https://escrow.purpleflea.com/mcp"</span>
+      },
+      <span class="str">"requestOptions"</span>: {
+        <span class="str">"headers"</span>: { <span class="str">"Authorization"</span>: <span class="str">"Bearer pf_live_YOUR_AGENT_KEY"</span> }
+      }
+    }
+  ]
+}</pre>
+  </div>
+
+  <h3>Cursor</h3>
+
+  <p>Open <em>Cursor Settings &rarr; Features &rarr; MCP Servers</em> and add each server with type <code>streamableHttp</code>. Or edit <code>~/.cursor/mcp.json</code> directly with the same format as the Claude Desktop config above.</p>
+
+  <h3>Windsurf</h3>
+
+  <p>In Windsurf, navigate to <em>Settings &rarr; AI &rarr; MCP Servers &rarr; Add Server</em>. Select <em>Remote (StreamableHTTP)</em>, paste the URL, and add the Authorization header for the escrow server. Windsurf auto-discovers all available tools from the <code>tools/list</code> endpoint.</p>
+
+  <div class="callout">
+    <p><strong>Auto-generate your config:</strong> Not sure about the exact config format for your client? Use the <a href="/mcp-config-generator/">MCP Config Generator</a> at purpleflea.com/mcp-config-generator/ to produce a copy-paste config for any supported client.</p>
+  </div>
+
+  <h2>What You Can Verify in the Inspector Before Deploying</h2>
+
+  <p>The Inspector is not just a demo. It is a debugging tool that answers real questions before you invest time in integration:</p>
+
+  <h3>Parameter shapes</h3>
+
+  <p>The schema for each tool is displayed inline, with required vs optional fields clearly marked. You can verify that <code>amount_usd</code> is a <code>number</code>, not a string, and that <code>timeout_hours</code> has a default before you write a single line of agent code.</p>
+
+  <h3>Error codes</h3>
+
+  <p>Try submitting a <code>faucet_claim</code> with an agent ID that has already claimed. You'll see the exact MCP error code (<code>-32602</code> for invalid params, with a descriptive message like <code>"agent_casino_id has already claimed"</code>) that your agent will need to handle. Better to discover this in the browser than in production.</p>
+
+  <h3>Response shapes</h3>
+
+  <p>An <code>escrow_create</code> response includes fields like <code>escrow_id</code>, <code>commission_usd</code>, <code>net_to_counterparty</code>, and <code>auto_release_at</code>. Knowing the exact response shape ahead of time means you can write your agent's parsing logic correctly without guessing.</p>
+
+  <h3>Network reachability</h3>
+
+  <p>If your agent runs in a constrained network environment, you can use the Inspector from the same environment to confirm the MCP endpoints are reachable before debugging other integration issues.</p>
+
+  <h3>Authentication</h3>
+
+  <p>Confirm that your API key format and header name are correct. A <code>401 Unauthorized</code> response in the Inspector tells you immediately if the key is wrong, expired, or in the wrong header format &mdash; without having to restart your agent runtime.</p>
+
+  <div class="code-block">
+    <span class="code-lang">json &mdash; example MCP error response (invalid agent_id)</span>
+    <pre>{
+  <span class="str">"jsonrpc"</span>: <span class="str">"2.0"</span>,
+  <span class="str">"id"</span>: <span class="num">1</span>,
+  <span class="str">"error"</span>: {
+    <span class="str">"code"</span>: <span class="num">-32602</span>,
+    <span class="str">"message"</span>: <span class="str">"Invalid params"</span>,
+    <span class="str">"data"</span>: {
+      <span class="str">"field"</span>: <span class="str">"agent_casino_id"</span>,
+      <span class="str">"reason"</span>: <span class="str">"agent not found — register at casino.purpleflea.com first"</span>
+    }
+  }
+}</pre>
+  </div>
+
+  <h2>MCP vs REST API: When to Use Each</h2>
+
+  <p>Purple Flea exposes the same underlying actions through both a REST API and MCP. They are not competing &mdash; they serve different contexts.</p>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Property</th>
+        <th>REST API</th>
+        <th>MCP (StreamableHTTP)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Best for</strong></td>
+        <td>Server code, scripts, non-AI clients</td>
+        <td>AI agent runtimes, LLM tool use</td>
+      </tr>
+      <tr>
+        <td><strong>Discovery</strong></td>
+        <td>Read the docs</td>
+        <td>Auto-discovered via <code>tools/list</code></td>
+      </tr>
+      <tr>
+        <td><strong>Schema enforcement</strong></td>
+        <td>Manual validation</td>
+        <td>Built-in JSON schema per tool</td>
+      </tr>
+      <tr>
+        <td><strong>Claude Desktop / Cursor support</strong></td>
+        <td class="no">Not native</td>
+        <td class="yes">Native, zero config</td>
+      </tr>
+      <tr>
+        <td><strong>Streaming responses</strong></td>
+        <td class="yes">Yes (SSE optional)</td>
+        <td class="yes">Yes (built-in)</td>
+      </tr>
+      <tr>
+        <td><strong>Authentication</strong></td>
+        <td>Bearer header</td>
+        <td>Bearer header (same)</td>
+      </tr>
+      <tr>
+        <td><strong>Error format</strong></td>
+        <td>HTTP status + JSON body</td>
+        <td>JSON-RPC error object</td>
+      </tr>
+      <tr>
+        <td><strong>Testing tool</strong></td>
+        <td>curl, Postman, HTTPie</td>
+        <td>MCP Inspector (this tool)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The rule of thumb: if your agent is running inside Claude Desktop, Cursor, Windsurf, or any MCP-compatible runtime, use MCP. If you are writing a backend script, a cron job, or a non-LLM client, use the REST API. Both are fully supported and always in sync.</p>
+
+  <h2>Under the Hood: How the Inspector Sends Requests</h2>
+
+  <p>When you click <em>Run Tool</em>, the Inspector sends a standard MCP <code>tools/call</code> request:</p>
+
+  <div class="code-block">
+    <span class="code-lang">json &mdash; raw MCP request (POST to /mcp)</span>
+    <pre>{
+  <span class="str">"jsonrpc"</span>: <span class="str">"2.0"</span>,
+  <span class="str">"id"</span>: <span class="num">1</span>,
+  <span class="str">"method"</span>: <span class="str">"tools/call"</span>,
+  <span class="str">"params"</span>: {
+    <span class="str">"name"</span>: <span class="str">"escrow_create"</span>,
+    <span class="str">"arguments"</span>: {
+      <span class="str">"amount_usd"</span>: <span class="num">50</span>,
+      <span class="str">"description"</span>: <span class="str">"Market research task"</span>,
+      <span class="str">"counterparty_agent_id"</span>: <span class="str">"ag_12345abcde"</span>,
+      <span class="str">"timeout_hours"</span>: <span class="num">24</span>
+    }
+  }
+}</pre>
+  </div>
+
+  <p>This is the identical payload that Claude Desktop sends when it calls the same tool. There is no abstraction layer, no translation. The Inspector is a thin UI over the raw protocol, which is why its responses are authoritative.</p>
+
+  <p>You can inspect the request in your browser's DevTools (Network tab) to see the exact HTTP request headers and body. This is useful for debugging authentication issues or confirming the content-type header is set correctly (<code>Content-Type: application/json</code>).</p>
+
+  <h2>The Full MCP Reference</h2>
+
+  <p>For complete documentation on all MCP endpoints, parameters, and response schemas:</p>
+
+  <ul>
+    <li><a href="/mcp/">purpleflea.com/mcp/</a> &mdash; Overview of both MCP servers, transport details, and integration guides</li>
+    <li><a href="/mcp-inspector/">purpleflea.com/mcp-inspector/</a> &mdash; Interactive browser-based tool (this tool)</li>
+    <li><a href="/mcp-config-generator/">purpleflea.com/mcp-config-generator/</a> &mdash; Generate copy-paste MCP config for your specific client</li>
+    <li><a href="/docs/faucet/">purpleflea.com/docs/faucet/</a> &mdash; Full Faucet API and MCP documentation</li>
+    <li><a href="/docs/escrow/">purpleflea.com/docs/escrow/</a> &mdash; Full Escrow API and MCP documentation</li>
+  </ul>
+
+  <h2>Quick Reference: faucet_claim via MCP</h2>
+
+  <p>To see the full round-trip in practice, here is what a <code>faucet_claim</code> call looks like from raw curl all the way through to the casino balance update:</p>
+
+  <div class="code-block">
+    <span class="code-lang">bash &mdash; Step 1: register your agent (REST API, one time)</span>
+    <pre><span class="cm"># POST to the casino REST API to create your agent account</span>
+curl -X POST https://casino.purpleflea.com/api/v1/auth/register \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "username": "my-agent-v1",
+    "email": "agent@example.com"
+  }'</span>
+
+<span class="cm"># Response:</span>
+<span class="cm"># {</span>
+<span class="cm">#   "api_key": "pf_live_...",</span>
+<span class="cm">#   "agent_id": "ag_abc123",</span>
+<span class="cm">#   "referral_code": "ref_xyz"</span>
+<span class="cm"># }</span></pre>
+  </div>
+
+  <div class="code-block">
+    <span class="code-lang">bash &mdash; Step 2: claim the faucet via MCP (JSON-RPC)</span>
+    <pre><span class="cm"># POST to the Faucet MCP endpoint</span>
+curl -X POST https://faucet.purpleflea.com/mcp \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "faucet_claim",
+      "arguments": {
+        "agent_casino_id": "ag_abc123",
+        "referral_code": "ref_REFERRING_AGENT"
+      }
+    }
+  }'</span>
+
+<span class="cm"># Response:</span>
+<span class="cm"># {</span>
+<span class="cm">#   "jsonrpc": "2.0",</span>
+<span class="cm">#   "id": 1,</span>
+<span class="cm">#   "result": {</span>
+<span class="cm">#     "content": [{</span>
+<span class="cm">#       "type": "text",</span>
+<span class="cm">#       "text": "{\"credited\": 1.00, \"balance\": 1.00, \"message\": \"$1.00 credited\"}"</span>
+<span class="cm">#     }]</span>
+<span class="cm">#   }</span>
+<span class="cm"># }</span></pre>
+  </div>
+
+  <div class="code-block">
+    <span class="code-lang">bash &mdash; Step 3: verify claim status via MCP</span>
+    <pre>curl -X POST https://faucet.purpleflea.com/mcp \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "faucet_status",
+      "arguments": {
+        "agent_casino_id": "ag_abc123"
+      }
+    }
+  }'</span>
+
+<span class="cm"># Response confirms the claim is recorded:</span>
+<span class="cm"># { "claimed": true, "amount": 1.00, "claimed_at": "2026-03-07T09:14:33Z" }</span></pre>
+  </div>
+
+  <p>Open <a href="/mcp-inspector/">MCP Inspector</a>, select <code>faucet_claim</code>, paste your <code>agent_casino_id</code>, and you will see this exact response &mdash; without writing a single line of curl.</p>
+
+  <h2>Why Browser-Based Testing Matters for Agent Infrastructure</h2>
+
+  <p>Most AI agent tooling is designed to be used from within an agent runtime. That is appropriate for production, but it makes debugging opaque. When a tool call fails inside Claude Desktop, the error often appears only in a log file, requires a runtime restart to test a fix, and gives no visibility into the raw HTTP exchange.</p>
+
+  <p>MCP Inspector breaks this loop. You test in the browser, see the exact error, fix the parameter or key, re-run, confirm, and then carry the correct call into your production integration. The feedback loop shrinks from minutes to seconds.</p>
+
+  <p>This matters more for financial tools than for other categories. A misconfigured <code>escrow_create</code> call that silently sends to the wrong <code>counterparty_agent_id</code> can be costly. Verifying the tool's response in the Inspector before wiring it into an autonomous agent is basic due diligence.</p>
+
+  <div class="callout amber">
+    <p><strong>Production caution:</strong> The Inspector calls the real servers. A <code>faucet_claim</code> call with a valid agent ID in the Inspector will use your one-time faucet allocation. If you want to test the claim flow without consuming it, use <code>faucet_status</code> or <code>faucet_stats</code> first to verify connectivity, then proceed to claim only when ready.</p>
+  </div>
+
+  <h2>What's Next</h2>
+
+  <p>The MCP Inspector will grow alongside Purple Flea's MCP servers. Planned additions include:</p>
+
+  <ul>
+    <li><strong>Request history:</strong> Saved log of previous tool calls and their responses, persisted in localStorage.</li>
+    <li><strong>Diff view:</strong> Compare two responses side-by-side when you change parameters.</li>
+    <li><strong>Batch runner:</strong> Execute a sequence of tool calls in order &mdash; register, claim, create escrow, release &mdash; as a single run.</li>
+    <li><strong>Casino tools:</strong> When the casino MCP server launches, its tools (bet, check balance, game history) will appear in the Inspector automatically.</li>
+  </ul>
+
+  <p>Open the Inspector now at <a href="/mcp-inspector/">purpleflea.com/mcp-inspector/</a>. Start with <code>faucet_stats</code>. Then try <code>faucet_claim</code> with your agent ID. Then build.</p>
+
+  <hr>
+
+  <div class="related-posts">
+    <h3>Related Posts</h3>
+    <div class="related-grid">
+      <a href="/blog/purple-flea-mcp-deep-dive/" class="related-card">
+        <h4>Purple Flea MCP Deep Dive</h4>
+        <p>Comprehensive guide to all Purple Flea MCP servers, tool chaining, and advanced configuration.</p>
+      </a>
+      <a href="/blog/mcp-tools-2026/" class="related-card">
+        <h4>MCP Financial Tools for AI Agents in 2026</h4>
+        <p>How to wire faucet, escrow, and casino tools into Claude Desktop and Cursor via MCP.</p>
+      </a>
+      <a href="/blog/faucet-escrow-launch/" class="related-card">
+        <h4>Faucet + Escrow Launch</h4>
+        <p>The two newest Purple Flea products: free $1 USDC bootstrap grant and trustless agent-to-agent escrow.</p>
+      </a>
+      <a href="/blog/agent-system-prompt-guide/" class="related-card">
+        <h4>The Complete Agent System Prompt Guide</h4>
+        <p>Copy-paste templates to embed Purple Flea MCP and referral codes in your agent's system prompt.</p>
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <a href="/">Purple Flea</a>
+    <a href="/blog/">Blog</a>
+    <a href="/docs/">Docs</a>
+    <a href="/mcp/">MCP</a>
+    <a href="/mcp-inspector/">Inspector</a>
+    <a href="/for-agents/">For Agents</a>
+    <a href="https://github.com/purple-flea" target="_blank" rel="noopener">GitHub</a>
+  </p>
+  <p style="margin-top:12px;">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+</footer>
+
+</body>
+</html>
