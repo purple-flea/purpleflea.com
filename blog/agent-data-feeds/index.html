@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Market Data Feeds for AI Trading Agents: WebSockets, REST, and On-Chain Sources | Purple Flea Blog</title>
+  <meta name="description" content="A complete guide to market data feeds for AI trading agents: taxonomy of data sources, WebSocket reconnection patterns, OHLCV normalization, Python DataFeedManager class, on-chain AMM price reading, rate limiting, data quality detection, and Purple Flea integration." />
+  <meta name="keywords" content="AI trading agent data feeds, WebSocket market data, on-chain price oracle, OHLCV normalization, DataFeedManager Python, DEX price feed, agent trading bot, Purple Flea trading API, market data quality, rate limiting agents" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-data-feeds" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-data-feeds" />
+  <meta property="og:title" content="Market Data Feeds for AI Trading Agents: WebSockets, REST, and On-Chain Sources" />
+  <meta property="og:description" content="Taxonomy of data sources, WebSocket reconnection, OHLCV normalization, Python DataFeedManager, on-chain AMM prices, rate limiting, stale-data detection, and Purple Flea order placement." />
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Market Data Feeds for AI Trading Agents" />
+  <meta name="twitter:description" content="Everything you need to wire live market data into an AI trading agent and route orders to Purple Flea." />
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Market Data Feeds for AI Trading Agents: WebSockets, REST, and On-Chain Sources",
+    "description": "A complete guide to market data feeds for AI trading agents: taxonomy of data sources, WebSocket reconnection patterns, unified OHLCV normalization, Python DataFeedManager class, on-chain AMM price reading, rate limiting strategies, data quality detection, and integration with Purple Flea trading API.",
+    "author": { "@type": "Organization", "name": "Purple Flea" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "url": "https://purpleflea.com/blog/agent-data-feeds",
+    "image": "https://purpleflea.com/flea.jpg",
+    "mainEntityOfPage": "https://purpleflea.com/blog/agent-data-feeds",
+    "keywords": ["market data feeds", "WebSocket", "on-chain price", "AI trading agent", "OHLCV", "Purple Flea"]
+  }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --bg2: #111113;
+      --bg3: #18181B;
+      --bg4: #1E1E24;
+      --border: #27272A;
+      --border2: #3F3F46;
+      --text: #FAFAFA;
+      --text2: #A1A1AA;
+      --text3: #71717A;
+      --purple: #A855F7;
+      --purple-lt: #C084FC;
+      --purple-dk: #7C3AED;
+      --purple-bg: rgba(168,85,247,0.1);
+      --purple-border: rgba(168,85,247,0.3);
+      --green: #22C55E;
+      --green-bg: rgba(34,197,94,0.08);
+      --blue: #3B82F6;
+      --blue-bg: rgba(59,130,246,0.08);
+      --yellow: #EAB308;
+      --yellow-bg: rgba(234,179,8,0.08);
+      --red: #EF4444;
+      --red-bg: rgba(239,68,68,0.08);
+      --teal: #14B8A6;
+      --teal-bg: rgba(20,184,166,0.08);
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; font-size: 16px; }
+    a { color: var(--purple); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--purple-lt); }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.82em; background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; padding: 0.12em 0.4em; color: var(--purple-lt); }
+
+    /* NAV */
+    nav { position: sticky; top: 0; z-index: 100; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 58px; }
+    .nav-logo { font-size: 1.05rem; font-weight: 800; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-logo span { color: var(--purple); }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--text2); font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--purple) !important; color: white !important; padding: 0.4rem 1rem; border-radius: 6px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--purple-lt) !important; color: white !important; }
+    @media(max-width:768px) { .nav-links { display: none; } }
+
+    /* LAYOUT */
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 3rem 2rem 5rem; display: grid; grid-template-columns: 1fr 280px; gap: 3.5rem; align-items: start; }
+    @media(max-width:1024px) { .page-wrap { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    .article { min-width: 0; }
+
+    /* HEADER */
+    .article-header { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+    .article-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 100px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .tag-blue { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59,130,246,0.25); }
+    .tag-purple { background: var(--purple-bg); color: var(--purple-lt); border: 1px solid var(--purple-border); }
+    .tag-green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.25); }
+    .article-title { font-size: clamp(1.9rem,4vw,2.8rem); font-weight: 900; letter-spacing: -0.025em; line-height: 1.1; margin-bottom: 1.25rem; }
+    .article-meta { display: flex; align-items: center; gap: 1.25rem; color: var(--text3); font-size: 0.82rem; flex-wrap: wrap; }
+    .article-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .article-intro { font-size: 1.05rem; color: var(--text2); line-height: 1.8; margin-top: 1.5rem; }
+
+    /* PROSE */
+    .article h2 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin: 3rem 0 1rem; padding-top: 0.5rem; border-top: 1px solid var(--border); color: var(--text); }
+    .article h3 { font-size: 1.15rem; font-weight: 700; margin: 2rem 0 0.75rem; color: var(--text); }
+    .article h4 { font-size: 0.95rem; font-weight: 700; margin: 1.5rem 0 0.5rem; color: var(--text); }
+    .article p { color: var(--text2); margin-bottom: 1.1rem; }
+    .article ul, .article ol { color: var(--text2); padding-left: 1.5rem; margin-bottom: 1.1rem; }
+    .article li { margin-bottom: 0.4rem; }
+    .article strong { color: var(--text); }
+
+    /* CODE BLOCKS */
+    .code-block { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 1.75rem 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg3); }
+    .code-lang { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); }
+    .code-title { font-size: 0.78rem; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
+    .code-body { padding: 1.25rem 1.5rem; overflow-x: auto; }
+    .code-body pre { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; line-height: 1.75; color: var(--text); white-space: pre; }
+    .c-comment { color: #6B7280; }
+    .c-keyword { color: #C084FC; }
+    .c-string { color: #86EFAC; }
+    .c-fn { color: #93C5FD; }
+    .c-num { color: #FCA5A5; }
+    .c-type { color: #FDE68A; }
+    .c-op { color: #94A3B8; }
+    .c-dec { color: #F9A8D4; }
+
+    /* CALLOUTS */
+    .callout { border-radius: 10px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; display: flex; gap: 1rem; align-items: flex-start; }
+    .callout-purple { background: var(--purple-bg); border: 1px solid var(--purple-border); }
+    .callout-green { background: var(--green-bg); border: 1px solid rgba(34,197,94,0.25); }
+    .callout-blue { background: var(--blue-bg); border: 1px solid rgba(59,130,246,0.25); }
+    .callout-yellow { background: var(--yellow-bg); border: 1px solid rgba(234,179,8,0.25); }
+    .callout-red { background: var(--red-bg); border: 1px solid rgba(239,68,68,0.25); }
+    .callout-teal { background: var(--teal-bg); border: 1px solid rgba(20,184,166,0.25); }
+    .callout-icon { font-size: 1.1rem; line-height: 1; margin-top: 0.1rem; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; margin-bottom: 0.3rem; color: var(--text); font-size: 0.9rem; }
+    .callout-body p { font-size: 0.875rem; margin: 0; color: var(--text2); }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; margin: 1.75rem 0; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    thead { background: var(--bg3); }
+    th { padding: 0.75rem 1.1rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text3); font-weight: 700; border-bottom: 1px solid var(--border); }
+    td { padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg3); }
+    td strong { color: var(--text); }
+    td code { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.4rem; color: var(--purple-lt); }
+
+    /* SIDEBAR */
+    .toc-sidebar { position: sticky; top: 78px; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+    .toc-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); margin-bottom: 1rem; }
+    .toc-list { list-style: none; display: flex; flex-direction: column; gap: 0.1rem; }
+    .toc-list a { font-size: 0.82rem; color: var(--text3); display: block; padding: 0.3rem 0.5rem; border-radius: 5px; transition: all 0.15s; }
+    .toc-list a:hover { color: var(--purple-lt); background: var(--purple-bg); }
+    .toc-list .toc-h3 { padding-left: 1.25rem; }
+    .toc-cta { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    .toc-cta a { display: block; background: var(--purple); color: white; text-align: center; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 700; text-decoration: none; transition: background 0.2s; }
+    .toc-cta a:hover { background: var(--purple-lt); color: white; }
+
+    /* CARD GRID */
+    .card-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 1rem; margin: 1.5rem 0; }
+    @media(max-width:640px) { .card-grid { grid-template-columns: 1fr; } }
+    .card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .card h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.85rem; margin: 0; }
+
+    /* FEATURE LIST */
+    .feat-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; margin: 0.75rem 0; }
+    .feat-list li { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.875rem; color: var(--text2); }
+    .feat-list li::before { content: ''; display: block; width: 5px; height: 5px; border-radius: 50%; background: var(--purple); margin-top: 0.6rem; flex-shrink: 0; }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 2rem; text-align: center; color: var(--text3); font-size: 0.82rem; }
+    footer a { color: var(--text3); }
+    footer a:hover { color: var(--purple); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+
+    /* CTA BOX */
+    .cta-box { background: var(--bg3); border: 1px solid var(--purple-border); border-radius: 12px; padding: 2rem; text-align: center; margin: 3rem 0; }
+    .cta-box h3 { margin-bottom: 0.75rem; font-size: 1.2rem; }
+    .cta-box p { font-size: 0.9rem; margin-bottom: 1.25rem; max-width: 440px; margin-left: auto; margin-right: auto; }
+    .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1.4rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; transition: all 0.2s; cursor: pointer; border: none; text-decoration: none; }
+    .btn-primary { background: var(--purple); color: white; }
+    .btn-primary:hover { background: var(--purple-lt); color: white; transform: translateY(-1px); }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border2); }
+    .btn-outline:hover { border-color: var(--purple); color: var(--purple-lt); }
+    .btn-row { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="/for-agents">For Agents</a></li>
+      <li><a href="/docs/casino">Casino</a></li>
+      <li><a href="/docs/escrow">Escrow</a></li>
+      <li><a href="/blog">Blog</a></li>
+      <li><a href="https://faucet.purpleflea.com" class="nav-cta">Get Free USDC</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-wrap">
+
+<!-- MAIN ARTICLE -->
+<article class="article">
+
+  <header class="article-header">
+    <div class="article-tags">
+      <span class="tag tag-blue">Tools</span>
+      <span class="tag tag-purple">Trading</span>
+      <span class="tag tag-green">Guide</span>
+    </div>
+    <h1 class="article-title">Market Data Feeds for AI Trading Agents: WebSockets, REST, and On-Chain Sources</h1>
+    <div class="article-meta">
+      <span>Purple Flea</span>
+      <span>&#183;</span>
+      <span>March 7, 2026</span>
+      <span>&#183;</span>
+      <span>18 min read</span>
+    </div>
+    <p class="article-intro">Every AI trading agent lives or dies by the quality of its data. An agent making decisions on stale prices, malformed ticks, or disconnected WebSocket streams will haemorrhage capital regardless of how sophisticated its strategy is. This guide covers the full data stack: source taxonomy, WebSocket lifecycle management, cross-source normalization, on-chain price reading, rate limiting, data quality guards, and wiring everything into Purple Flea for order execution.</p>
+  </header>
+
+  <!-- SECTION 1: TAXONOMY -->
+  <h2 id="taxonomy">1. Data Source Taxonomy</h2>
+
+  <p>Before wiring up any feeds, you need to understand the landscape. Market data for crypto trading agents comes from five distinct source categories, each with different latency profiles, reliability characteristics, and cost structures.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Examples</th>
+          <th>Latency</th>
+          <th>Cost</th>
+          <th>Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Centralized Exchange (CEX)</strong></td>
+          <td>Binance, Coinbase, Kraken, OKX</td>
+          <td>1–50ms WebSocket</td>
+          <td>Free tier available; paid for high-rate</td>
+          <td>Spot price, order book depth, recent trades</td>
+        </tr>
+        <tr>
+          <td><strong>Decentralized Exchange (DEX)</strong></td>
+          <td>Uniswap v3, Curve, Raydium</td>
+          <td>100ms–2s (block time)</td>
+          <td>RPC node cost only</td>
+          <td>On-chain liquidity, arbitrage detection</td>
+        </tr>
+        <tr>
+          <td><strong>On-Chain Oracle</strong></td>
+          <td>Chainlink, Pyth, Redstone</td>
+          <td>Heartbeat: 1–60s</td>
+          <td>Free read; gas for updates</td>
+          <td>Tamper-resistant reference prices for DeFi</td>
+        </tr>
+        <tr>
+          <td><strong>News &amp; Sentiment</strong></td>
+          <td>CryptoPanic, Santiment, Messari</td>
+          <td>Minutes</td>
+          <td>Paid API tiers</td>
+          <td>Event-driven, macro trend signals</td>
+        </tr>
+        <tr>
+          <td><strong>Social &amp; Alternative</strong></td>
+          <td>Nansen, Glassnode, Dune</td>
+          <td>Hours to real-time</td>
+          <td>Paid tiers</td>
+          <td>On-chain flow analysis, whale tracking</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Combining Sources Strategically</h3>
+  <p>Production trading agents rarely rely on a single source. The common pattern is to use a CEX WebSocket for low-latency tick data, an on-chain oracle as a tamper-resistant reference price, and a news feed for event-driven filters that gate whether the agent should act at all. Redundancy across at least two CEX sources is standard practice for detecting exchange-specific anomalies.</p>
+
+  <div class="callout callout-blue">
+    <span class="callout-icon">&#9432;</span>
+    <div class="callout-body">
+      <strong>Purple Flea Context</strong>
+      <p>Purple Flea's casino games (crash, coin-flip, hi-lo) use provably fair on-chain randomness. Your agent can use CEX price feeds as a heuristic signal for game timing — e.g., entering crash at high volatility windows — while the outcome itself is independent and cryptographically fair.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 2: WEBSOCKET MANAGEMENT -->
+  <h2 id="websocket">2. WebSocket Feed Management</h2>
+
+  <p>WebSocket connections to exchange feeds are not fire-and-forget. They disconnect, timeout, send malformed frames, and occasionally deliver duplicate messages. A production-grade agent needs a connection manager that handles the full lifecycle automatically.</p>
+
+  <h3>Key WebSocket Lifecycle Events</h3>
+  <ul>
+    <li><strong>Initial connect:</strong> Authenticate (if required), send subscription frames for each market/channel.</li>
+    <li><strong>Heartbeat / ping-pong:</strong> Most exchanges require periodic pings; failure to respond causes server-side disconnection within 30–60 seconds.</li>
+    <li><strong>Reconnect with backoff:</strong> On unexpected close, wait before reconnecting. Use exponential backoff capped at a maximum delay to avoid thundering herd on exchange outages.</li>
+    <li><strong>Resubscribe after reconnect:</strong> After a new connection is established, re-send all subscription frames — the server has no memory of prior subscriptions.</li>
+    <li><strong>Message sequence validation:</strong> Some exchanges include sequence numbers; gaps indicate missed messages and should trigger a REST snapshot fetch to resync state.</li>
+  </ul>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">websocket_manager.py — Reconnecting WebSocket with heartbeat</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> asyncio
+<span class="c-keyword">import</span> json
+<span class="c-keyword">import</span> time
+<span class="c-keyword">import</span> logging
+<span class="c-keyword">from</span> typing <span class="c-keyword">import</span> Callable<span class="c-op">,</span> Awaitable
+<span class="c-keyword">import</span> websockets
+<span class="c-keyword">from</span> websockets.exceptions <span class="c-keyword">import</span> ConnectionClosedError<span class="c-op">,</span> ConnectionClosedOK
+
+logger <span class="c-op">=</span> logging<span class="c-op">.</span><span class="c-fn">getLogger</span>(<span class="c-string">"ws_manager"</span>)
+
+MessageHandler <span class="c-op">=</span> Callable[[dict]<span class="c-op">,</span> Awaitable[<span class="c-keyword">None</span>]]
+
+
+<span class="c-keyword">class</span> <span class="c-type">WebSocketManager</span>:
+    <span class="c-string">"""
+    Reconnecting WebSocket client with heartbeat, exponential backoff,
+    and automatic resubscription on reconnect.
+    """</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(
+        self<span class="c-op">,</span>
+        url<span class="c-op">:</span> str<span class="c-op">,</span>
+        subscriptions<span class="c-op">:</span> list[dict]<span class="c-op">,</span>
+        on_message<span class="c-op">:</span> MessageHandler<span class="c-op">,</span>
+        ping_interval<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">20.0</span><span class="c-op">,</span>
+        max_reconnect_delay<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">60.0</span>
+    ):
+        self<span class="c-op">.</span>url <span class="c-op">=</span> url
+        self<span class="c-op">.</span>subscriptions <span class="c-op">=</span> subscriptions
+        self<span class="c-op">.</span>on_message <span class="c-op">=</span> on_message
+        self<span class="c-op">.</span>ping_interval <span class="c-op">=</span> ping_interval
+        self<span class="c-op">.</span>max_reconnect_delay <span class="c-op">=</span> max_reconnect_delay
+        self<span class="c-op">.</span>_running <span class="c-op">=</span> <span class="c-keyword">False</span>
+        self<span class="c-op">.</span>_reconnect_count <span class="c-op">=</span> <span class="c-num">0</span>
+
+    <span class="c-keyword">async def</span> <span class="c-fn">start</span>(self) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        self<span class="c-op">.</span>_running <span class="c-op">=</span> <span class="c-keyword">True</span>
+        <span class="c-keyword">while</span> self<span class="c-op">.</span>_running:
+            <span class="c-keyword">try</span>:
+                <span class="c-keyword">await</span> self<span class="c-op">.</span><span class="c-fn">_connect_and_run</span>()
+            <span class="c-keyword">except</span> (ConnectionClosedError<span class="c-op">,</span> OSError) <span class="c-keyword">as</span> e:
+                delay <span class="c-op">=</span> <span class="c-fn">min</span>(<span class="c-num">2</span> <span class="c-op">**</span> self<span class="c-op">.</span>_reconnect_count<span class="c-op">,</span> self<span class="c-op">.</span>max_reconnect_delay)
+                logger<span class="c-op">.</span><span class="c-fn">warning</span>(<span class="c-string">f"WebSocket closed ({e}). Reconnecting in {delay:.1f}s"</span>)
+                self<span class="c-op">.</span>_reconnect_count <span class="c-op">+=</span> <span class="c-num">1</span>
+                <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">sleep</span>(delay)
+            <span class="c-keyword">except</span> ConnectionClosedOK:
+                <span class="c-keyword">break</span>  <span class="c-comment"># clean shutdown</span>
+
+    <span class="c-keyword">async def</span> <span class="c-fn">_connect_and_run</span>(self) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-keyword">async with</span> websockets<span class="c-op">.</span><span class="c-fn">connect</span>(
+            self<span class="c-op">.</span>url<span class="c-op">,</span>
+            ping_interval<span class="c-op">=</span><span class="c-keyword">None</span><span class="c-op">,</span>   <span class="c-comment"># we handle pings manually</span>
+            max_size<span class="c-op">=</span><span class="c-num">2</span><span class="c-op">**</span><span class="c-num">23</span>
+        ) <span class="c-keyword">as</span> ws:
+            logger<span class="c-op">.</span><span class="c-fn">info</span>(<span class="c-string">f"Connected to {self.url}"</span>)
+            self<span class="c-op">.</span>_reconnect_count <span class="c-op">=</span> <span class="c-num">0</span>
+
+            <span class="c-comment"># Resubscribe on every connect</span>
+            <span class="c-keyword">for</span> sub <span class="c-keyword">in</span> self<span class="c-op">.</span>subscriptions:
+                <span class="c-keyword">await</span> ws<span class="c-op">.</span><span class="c-fn">send</span>(json<span class="c-op">.</span><span class="c-fn">dumps</span>(sub))
+
+            <span class="c-comment"># Run receive loop + heartbeat concurrently</span>
+            <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">gather</span>(
+                self<span class="c-op">.</span><span class="c-fn">_receive_loop</span>(ws)<span class="c-op">,</span>
+                self<span class="c-op">.</span><span class="c-fn">_heartbeat_loop</span>(ws)
+            )
+
+    <span class="c-keyword">async def</span> <span class="c-fn">_receive_loop</span>(self<span class="c-op">,</span> ws) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-keyword">async for</span> raw <span class="c-keyword">in</span> ws:
+            <span class="c-keyword">try</span>:
+                msg <span class="c-op">=</span> json<span class="c-op">.</span><span class="c-fn">loads</span>(raw)
+                <span class="c-keyword">await</span> self<span class="c-op">.</span><span class="c-fn">on_message</span>(msg)
+            <span class="c-keyword">except</span> json<span class="c-op">.</span>JSONDecodeError:
+                logger<span class="c-op">.</span><span class="c-fn">warning</span>(<span class="c-string">f"Bad JSON frame: {raw[:120]}"</span>)
+            <span class="c-keyword">except</span> Exception <span class="c-keyword">as</span> e:
+                logger<span class="c-op">.</span><span class="c-fn">error</span>(<span class="c-string">f"Handler error: {e}"</span>)
+
+    <span class="c-keyword">async def</span> <span class="c-fn">_heartbeat_loop</span>(self<span class="c-op">,</span> ws) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-keyword">while True</span>:
+            <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">sleep</span>(self<span class="c-op">.</span>ping_interval)
+            <span class="c-keyword">await</span> ws<span class="c-op">.</span><span class="c-fn">send</span>(json<span class="c-op">.</span><span class="c-fn">dumps</span>({<span class="c-string">"op"</span><span class="c-op">:</span> <span class="c-string">"ping"</span>}))
+
+    <span class="c-keyword">def</span> <span class="c-fn">stop</span>(self) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        self<span class="c-op">.</span>_running <span class="c-op">=</span> <span class="c-keyword">False</span></pre>
+    </div>
+  </div>
+
+  <div class="callout callout-yellow">
+    <span class="callout-icon">&#9888;</span>
+    <div class="callout-body">
+      <strong>Exchange-Specific Ping Formats</strong>
+      <p>Binance expects <code>{"method": "ping"}</code> or a raw WebSocket ping frame. Coinbase Advanced Trade uses <code>{"type": "heartbeat"}</code>. OKX uses <code>{"op": "ping"}</code>. Always check the exchange's WebSocket API documentation — using the wrong ping format causes silent disconnections.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 3: NORMALIZATION -->
+  <h2 id="normalization">3. Data Normalization Across Sources</h2>
+
+  <p>Every exchange has its own message schema. Binance sends <code>{"e": "trade", "p": "42150.00", "q": "0.014"}</code>. Coinbase sends <code>{"type": "match", "price": "42150.00", "size": "0.014"}</code>. Before your agent logic can run, all of these must be mapped to a unified internal format. The standard is OHLCV (Open, High, Low, Close, Volume) for candle data, and a normalized tick for real-time trade events.</p>
+
+  <h3>Unified Tick and OHLCV Formats</h3>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">data_models.py — Unified data structures</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">from</span> dataclasses <span class="c-keyword">import</span> dataclass<span class="c-op">,</span> field
+<span class="c-keyword">from</span> typing <span class="c-keyword">import</span> Literal
+
+
+<span class="c-dec">@dataclass</span>
+<span class="c-keyword">class</span> <span class="c-type">Tick</span>:
+    <span class="c-string">"""Normalized real-time trade tick from any source."""</span>
+    source<span class="c-op">:</span> str              <span class="c-comment"># "binance" | "coinbase" | "uniswap_v3" | ...</span>
+    symbol<span class="c-op">:</span> str              <span class="c-comment"># always "BTC/USDC" format</span>
+    price<span class="c-op">:</span> float
+    volume<span class="c-op">:</span> float
+    side<span class="c-op">:</span> Literal[<span class="c-string">"buy"</span><span class="c-op">,</span> <span class="c-string">"sell"</span><span class="c-op">,</span> <span class="c-string">"unknown"</span>]
+    ts<span class="c-op">:</span> int                  <span class="c-comment"># Unix milliseconds</span>
+    raw<span class="c-op">:</span> dict <span class="c-op">=</span> field(default_factory<span class="c-op">=</span>dict)  <span class="c-comment"># original message</span>
+
+
+<span class="c-dec">@dataclass</span>
+<span class="c-keyword">class</span> <span class="c-type">OHLCV</span>:
+    <span class="c-string">"""Normalized candle from any source."""</span>
+    source<span class="c-op">:</span> str
+    symbol<span class="c-op">:</span> str
+    interval<span class="c-op">:</span> str            <span class="c-comment"># "1m" | "5m" | "1h" | ...</span>
+    open<span class="c-op">:</span> float
+    high<span class="c-op">:</span> float
+    low<span class="c-op">:</span> float
+    close<span class="c-op">:</span> float
+    volume<span class="c-op">:</span> float
+    ts<span class="c-op">:</span> int                  <span class="c-comment"># candle open time, Unix ms</span>
+    is_closed<span class="c-op">:</span> bool <span class="c-op">=</span> <span class="c-keyword">False</span>  <span class="c-comment"># True when candle is final</span></pre>
+    </div>
+  </div>
+
+  <!-- SECTION 4: DataFeedManager -->
+  <h2 id="datafeedmanager">4. The DataFeedManager Class</h2>
+
+  <p>The <code>DataFeedManager</code> is the central hub of your agent's data infrastructure. It manages multiple WebSocket connections simultaneously, normalizes all incoming ticks to the unified format, and dispatches them to registered handlers. Each call to <code>subscribe()</code> adds a new data source; <code>on_tick()</code> registers a callback that fires on every normalized tick from any source.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">data_feed_manager.py — Full DataFeedManager implementation</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> asyncio
+<span class="c-keyword">import</span> time
+<span class="c-keyword">import</span> logging
+<span class="c-keyword">from</span> collections <span class="c-keyword">import</span> deque
+<span class="c-keyword">from</span> typing <span class="c-keyword">import</span> Callable<span class="c-op">,</span> Awaitable<span class="c-op">,</span> Optional
+<span class="c-keyword">from</span> data_models <span class="c-keyword">import</span> Tick<span class="c-op">,</span> OHLCV
+<span class="c-keyword">from</span> websocket_manager <span class="c-keyword">import</span> WebSocketManager
+
+logger <span class="c-op">=</span> logging<span class="c-op">.</span><span class="c-fn">getLogger</span>(<span class="c-string">"data_feed"</span>)
+TickHandler <span class="c-op">=</span> Callable[[Tick]<span class="c-op">,</span> Awaitable[<span class="c-keyword">None</span>]]
+
+
+<span class="c-keyword">class</span> <span class="c-type">DataFeedManager</span>:
+    <span class="c-string">"""
+    Manages multiple market data WebSocket connections, normalizes
+    all ticks to a unified format, and dispatches to registered handlers.
+    """</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(self<span class="c-op">,</span> cache_size<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">500</span>):
+        self<span class="c-op">.</span>_handlers<span class="c-op">:</span> list[TickHandler] <span class="c-op">=</span> []
+        self<span class="c-op">.</span>_managers<span class="c-op">:</span> list[WebSocketManager] <span class="c-op">=</span> []
+        self<span class="c-op">.</span>_tick_cache<span class="c-op">:</span> dict[str<span class="c-op">,</span> deque] <span class="c-op">=</span> {}
+        self<span class="c-op">.</span>_cache_size <span class="c-op">=</span> cache_size
+        self<span class="c-op">.</span>_last_tick<span class="c-op">:</span> dict[str<span class="c-op">,</span> Tick] <span class="c-op">=</span> {}  <span class="c-comment"># latest tick per symbol</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">on_tick</span>(self<span class="c-op">,</span> handler<span class="c-op">:</span> TickHandler) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-string">"""Register a callback to receive every normalized tick."""</span>
+        self<span class="c-op">.</span>_handlers<span class="c-op">.</span><span class="c-fn">append</span>(handler)
+
+    <span class="c-keyword">def</span> <span class="c-fn">subscribe</span>(
+        self<span class="c-op">,</span>
+        source<span class="c-op">:</span> str<span class="c-op">,</span>
+        url<span class="c-op">:</span> str<span class="c-op">,</span>
+        subscriptions<span class="c-op">:</span> list[dict]<span class="c-op">,</span>
+        normalizer<span class="c-op">:</span> Callable[[str<span class="c-op">,</span> dict]<span class="c-op">,</span> Optional[Tick]]
+    ) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-string">"""
+        Add a new data source.
+        normalizer: fn(source, raw_msg) -> Tick | None
+        """</span>
+        <span class="c-keyword">async def</span> <span class="c-fn">handle_raw</span>(msg<span class="c-op">:</span> dict) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+            tick <span class="c-op">=</span> <span class="c-fn">normalizer</span>(source<span class="c-op">,</span> msg)
+            <span class="c-keyword">if</span> tick <span class="c-keyword">is</span> <span class="c-keyword">None</span>:
+                <span class="c-keyword">return</span>  <span class="c-comment"># skip non-tick messages (pong, subscribe ack, etc)</span>
+            <span class="c-keyword">await</span> self<span class="c-op">.</span><span class="c-fn">_dispatch</span>(tick)
+
+        mgr <span class="c-op">=</span> <span class="c-fn">WebSocketManager</span>(url<span class="c-op">,</span> subscriptions<span class="c-op">,</span> handle_raw)
+        self<span class="c-op">.</span>_managers<span class="c-op">.</span><span class="c-fn">append</span>(mgr)
+
+    <span class="c-keyword">async def</span> <span class="c-fn">_dispatch</span>(self<span class="c-op">,</span> tick<span class="c-op">:</span> Tick) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-comment"># Cache tick for quality checks + history queries</span>
+        key <span class="c-op">=</span> <span class="c-string">f"{tick.source}:{tick.symbol}"</span>
+        <span class="c-keyword">if</span> key <span class="c-keyword">not in</span> self<span class="c-op">.</span>_tick_cache:
+            self<span class="c-op">.</span>_tick_cache[key] <span class="c-op">=</span> <span class="c-fn">deque</span>(maxlen<span class="c-op">=</span>self<span class="c-op">.</span>_cache_size)
+        self<span class="c-op">.</span>_tick_cache[key]<span class="c-op">.</span><span class="c-fn">append</span>(tick)
+        self<span class="c-op">.</span>_last_tick[tick<span class="c-op">.</span>symbol] <span class="c-op">=</span> tick
+
+        <span class="c-comment"># Dispatch to all handlers concurrently</span>
+        <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">gather</span>(
+            <span class="c-op">*</span>[<span class="c-fn">h</span>(tick) <span class="c-keyword">for</span> h <span class="c-keyword">in</span> self<span class="c-op">.</span>_handlers]<span class="c-op">,</span>
+            return_exceptions<span class="c-op">=</span><span class="c-keyword">True</span>
+        )
+
+    <span class="c-keyword">def</span> <span class="c-fn">latest</span>(self<span class="c-op">,</span> symbol<span class="c-op">:</span> str) <span class="c-op">-&gt;</span> Optional[Tick]:
+        <span class="c-string">"""Return the most recent tick for a symbol (any source)."""</span>
+        <span class="c-keyword">return</span> self<span class="c-op">.</span>_last_tick<span class="c-op">.</span><span class="c-fn">get</span>(symbol)
+
+    <span class="c-keyword">def</span> <span class="c-fn">history</span>(self<span class="c-op">,</span> source<span class="c-op">:</span> str<span class="c-op">,</span> symbol<span class="c-op">:</span> str) <span class="c-op">-&gt;</span> list[Tick]:
+        <span class="c-string">"""Return cached tick history for a source:symbol pair."""</span>
+        key <span class="c-op">=</span> <span class="c-string">f"{source}:{symbol}"</span>
+        <span class="c-keyword">return</span> <span class="c-fn">list</span>(self<span class="c-op">.</span>_tick_cache<span class="c-op">.</span><span class="c-fn">get</span>(key<span class="c-op">,</span> []))
+
+    <span class="c-keyword">async def</span> <span class="c-fn">run</span>(self) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-string">"""Start all registered WebSocket managers concurrently."""</span>
+        <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">gather</span>(<span class="c-op">*</span>[m<span class="c-op">.</span><span class="c-fn">start</span>() <span class="c-keyword">for</span> m <span class="c-keyword">in</span> self<span class="c-op">.</span>_managers])
+
+
+<span class="c-comment"># ── Normalizers for common exchanges ──────────────────────────────</span>
+
+<span class="c-keyword">def</span> <span class="c-fn">normalize_binance</span>(source<span class="c-op">:</span> str<span class="c-op">,</span> msg<span class="c-op">:</span> dict) <span class="c-op">-&gt;</span> Optional[Tick]:
+    <span class="c-keyword">if</span> msg<span class="c-op">.</span><span class="c-fn">get</span>(<span class="c-string">"e"</span>) <span class="c-op">!=</span> <span class="c-string">"trade"</span><span class="c-op">:</span>
+        <span class="c-keyword">return</span> <span class="c-keyword">None</span>
+    symbol <span class="c-op">=</span> msg[<span class="c-string">"s"</span>][:<span class="c-op">-</span><span class="c-num">4</span>] <span class="c-op">+</span> <span class="c-string">"/"</span> <span class="c-op">+</span> msg[<span class="c-string">"s"</span>][<span class="c-op">-</span><span class="c-num">4</span>:]  <span class="c-comment"># BTCUSDT → BTC/USDT</span>
+    <span class="c-keyword">return</span> <span class="c-fn">Tick</span>(
+        source<span class="c-op">=</span>source<span class="c-op">,</span> symbol<span class="c-op">=</span>symbol<span class="c-op">,</span>
+        price<span class="c-op">=</span><span class="c-fn">float</span>(msg[<span class="c-string">"p"</span>])<span class="c-op">,</span> volume<span class="c-op">=</span><span class="c-fn">float</span>(msg[<span class="c-string">"q"</span>])<span class="c-op">,</span>
+        side<span class="c-op">=</span><span class="c-string">"sell"</span> <span class="c-keyword">if</span> msg[<span class="c-string">"m"</span>] <span class="c-keyword">else</span> <span class="c-string">"buy"</span><span class="c-op">,</span>
+        ts<span class="c-op">=</span>msg[<span class="c-string">"T"</span>]<span class="c-op">,</span> raw<span class="c-op">=</span>msg
+    )
+
+
+<span class="c-keyword">def</span> <span class="c-fn">normalize_coinbase</span>(source<span class="c-op">:</span> str<span class="c-op">,</span> msg<span class="c-op">:</span> dict) <span class="c-op">-&gt;</span> Optional[Tick]:
+    <span class="c-keyword">if</span> msg<span class="c-op">.</span><span class="c-fn">get</span>(<span class="c-string">"type"</span>) <span class="c-op">!=</span> <span class="c-string">"match"</span><span class="c-op">:</span>
+        <span class="c-keyword">return</span> <span class="c-keyword">None</span>
+    symbol <span class="c-op">=</span> msg[<span class="c-string">"product_id"</span>]<span class="c-op">.</span><span class="c-fn">replace</span>(<span class="c-string">"-"</span><span class="c-op">,</span> <span class="c-string">"/"</span>)  <span class="c-comment"># BTC-USD → BTC/USD</span>
+    <span class="c-keyword">import</span> datetime
+    ts <span class="c-op">=</span> <span class="c-fn">int</span>(datetime<span class="c-op">.</span>datetime<span class="c-op">.</span><span class="c-fn">fromisoformat</span>(msg[<span class="c-string">"time"</span>]<span class="c-op">.</span><span class="c-fn">rstrip</span>(<span class="c-string">"Z"</span>))<span class="c-op">.</span><span class="c-fn">timestamp</span>() <span class="c-op">*</span> <span class="c-num">1000</span>)
+    <span class="c-keyword">return</span> <span class="c-fn">Tick</span>(
+        source<span class="c-op">=</span>source<span class="c-op">,</span> symbol<span class="c-op">=</span>symbol<span class="c-op">,</span>
+        price<span class="c-op">=</span><span class="c-fn">float</span>(msg[<span class="c-string">"price"</span>])<span class="c-op">,</span> volume<span class="c-op">=</span><span class="c-fn">float</span>(msg[<span class="c-string">"size"</span>])<span class="c-op">,</span>
+        side<span class="c-op">=</span>msg<span class="c-op">.</span><span class="c-fn">get</span>(<span class="c-string">"side"</span><span class="c-op">,</span> <span class="c-string">"unknown"</span>)<span class="c-op">,</span>
+        ts<span class="c-op">=</span>ts<span class="c-op">,</span> raw<span class="c-op">=</span>msg
+    )
+
+
+<span class="c-comment"># ── Example usage ─────────────────────────────────────────────────</span>
+
+<span class="c-keyword">async def</span> <span class="c-fn">my_strategy</span>(tick<span class="c-op">:</span> Tick) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+    <span class="c-fn">print</span>(<span class="c-string">f"[{tick.source}] {tick.symbol} @ {tick.price:.2f} ({tick.side})"</span>)
+
+<span class="c-keyword">async def</span> <span class="c-fn">main</span>():
+    feed <span class="c-op">=</span> <span class="c-fn">DataFeedManager</span>()
+    feed<span class="c-op">.</span><span class="c-fn">on_tick</span>(my_strategy)
+
+    feed<span class="c-op">.</span><span class="c-fn">subscribe</span>(
+        source<span class="c-op">=</span><span class="c-string">"binance"</span><span class="c-op">,</span>
+        url<span class="c-op">=</span><span class="c-string">"wss://stream.binance.com:9443/ws/btcusdt@trade"</span><span class="c-op">,</span>
+        subscriptions<span class="c-op">=</span>[]<span class="c-op">,</span>  <span class="c-comment"># stream URL already encodes subscription</span>
+        normalizer<span class="c-op">=</span>normalize_binance
+    )
+    feed<span class="c-op">.</span><span class="c-fn">subscribe</span>(
+        source<span class="c-op">=</span><span class="c-string">"coinbase"</span><span class="c-op">,</span>
+        url<span class="c-op">=</span><span class="c-string">"wss://advanced-trade-ws.coinbase.com"</span><span class="c-op">,</span>
+        subscriptions<span class="c-op">=</span>[{
+            <span class="c-string">"type"</span><span class="c-op">:</span> <span class="c-string">"subscribe"</span><span class="c-op">,</span>
+            <span class="c-string">"product_ids"</span><span class="c-op">:</span> [<span class="c-string">"BTC-USD"</span>]<span class="c-op">,</span>
+            <span class="c-string">"channel"</span><span class="c-op">:</span> <span class="c-string">"market_trades"</span>
+        }]<span class="c-op">,</span>
+        normalizer<span class="c-op">=</span>normalize_coinbase
+    )
+    <span class="c-keyword">await</span> feed<span class="c-op">.</span><span class="c-fn">run</span>()</pre>
+    </div>
+  </div>
+
+  <!-- SECTION 5: ON-CHAIN DATA -->
+  <h2 id="onchain">5. On-Chain Data: Reading AMM Prices from Smart Contracts</h2>
+
+  <p>Centralized exchange feeds reflect order book activity, but on-chain DEX pools are the source of truth for DeFi liquidity. Reading prices directly from Uniswap v3 or Curve contracts via an Ethereum JSON-RPC node gives you the actual executable price — including slippage — rather than a mid-market quote.</p>
+
+  <h3>Uniswap v3 Slot0 Price</h3>
+  <p>Uniswap v3 pools store the current price as a <code>sqrtPriceX96</code> value in the <code>slot0</code> storage slot. The formula to convert it to a human-readable price is: <code>price = (sqrtPriceX96 / 2^96)^2</code>, adjusted for token decimals.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">onchain_price.py — Read Uniswap v3 pool price via web3.py</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">from</span> web3 <span class="c-keyword">import</span> Web3
+<span class="c-keyword">import</span> time
+
+<span class="c-comment"># Connect to Ethereum node (use Alchemy/Infura/QuickNode RPC)</span>
+w3 <span class="c-op">=</span> Web3<span class="c-op">.</span><span class="c-fn">HTTPProvider</span>(<span class="c-string">"https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY"</span>)
+web3 <span class="c-op">=</span> <span class="c-fn">Web3</span>(w3)
+
+<span class="c-comment"># Uniswap v3 WBTC/USDC 0.3% pool</span>
+POOL_ADDRESS <span class="c-op">=</span> Web3<span class="c-op">.</span><span class="c-fn">to_checksum_address</span>(<span class="c-string">"0x99ac8cA7087fA4A2A1FB6357269965A2014ABc35"</span>)
+
+<span class="c-comment"># Minimal ABI: only slot0() needed for price</span>
+POOL_ABI <span class="c-op">=</span> [
+    {
+        <span class="c-string">"inputs"</span><span class="c-op">:</span> []<span class="c-op">,</span>
+        <span class="c-string">"name"</span><span class="c-op">:</span> <span class="c-string">"slot0"</span><span class="c-op">,</span>
+        <span class="c-string">"outputs"</span><span class="c-op">:</span> [
+            {<span class="c-string">"name"</span><span class="c-op">:</span> <span class="c-string">"sqrtPriceX96"</span><span class="c-op">,</span> <span class="c-string">"type"</span><span class="c-op">:</span> <span class="c-string">"uint160"</span>}<span class="c-op">,</span>
+            {<span class="c-string">"name"</span><span class="c-op">:</span> <span class="c-string">"tick"</span><span class="c-op">,</span> <span class="c-string">"type"</span><span class="c-op">:</span> <span class="c-string">"int24"</span>}
+        ]<span class="c-op">,</span>
+        <span class="c-string">"stateMutability"</span><span class="c-op">:</span> <span class="c-string">"view"</span><span class="c-op">,</span>
+        <span class="c-string">"type"</span><span class="c-op">:</span> <span class="c-string">"function"</span>
+    }
+]
+
+pool <span class="c-op">=</span> web3<span class="c-op">.</span>eth<span class="c-op">.</span><span class="c-fn">contract</span>(address<span class="c-op">=</span>POOL_ADDRESS<span class="c-op">,</span> abi<span class="c-op">=</span>POOL_ABI)
+
+WBTC_DECIMALS <span class="c-op">=</span> <span class="c-num">8</span>
+USDC_DECIMALS <span class="c-op">=</span> <span class="c-num">6</span>
+
+
+<span class="c-keyword">def</span> <span class="c-fn">get_pool_price</span>() <span class="c-op">-&gt;</span> float:
+    <span class="c-string">"""
+    Read current WBTC/USDC price from Uniswap v3 pool.
+    Returns price in USDC per WBTC.
+    """</span>
+    slot0 <span class="c-op">=</span> pool<span class="c-op">.</span>functions<span class="c-op">.</span><span class="c-fn">slot0</span>()<span class="c-op">.</span><span class="c-fn">call</span>()
+    sqrt_price_x96 <span class="c-op">=</span> slot0[<span class="c-num">0</span>]
+
+    <span class="c-comment"># Convert sqrtPriceX96 to price</span>
+    price_raw <span class="c-op">=</span> (sqrt_price_x96 <span class="c-op">/</span> (<span class="c-num">2</span> <span class="c-op">**</span> <span class="c-num">96</span>)) <span class="c-op">**</span> <span class="c-num">2</span>
+
+    <span class="c-comment"># Adjust for decimal difference: token0=WBTC(8dec), token1=USDC(6dec)</span>
+    decimal_adjustment <span class="c-op">=</span> <span class="c-num">10</span> <span class="c-op">**</span> (USDC_DECIMALS <span class="c-op">-</span> WBTC_DECIMALS)
+    price <span class="c-op">=</span> price_raw <span class="c-op">*</span> decimal_adjustment
+
+    <span class="c-keyword">return</span> price  <span class="c-comment"># USDC per WBTC</span>
+
+
+<span class="c-keyword">def</span> <span class="c-fn">get_onchain_tick</span>() <span class="c-op">-&gt;</span> dict:
+    <span class="c-string">"""Return a normalized tick-like dict from on-chain price."""</span>
+    price <span class="c-op">=</span> <span class="c-fn">get_pool_price</span>()
+    <span class="c-keyword">return</span> {
+        <span class="c-string">"source"</span><span class="c-op">:</span> <span class="c-string">"uniswap_v3"</span><span class="c-op">,</span>
+        <span class="c-string">"symbol"</span><span class="c-op">:</span> <span class="c-string">"BTC/USDC"</span><span class="c-op">,</span>
+        <span class="c-string">"price"</span><span class="c-op">:</span> price<span class="c-op">,</span>
+        <span class="c-string">"ts"</span><span class="c-op">:</span> <span class="c-fn">int</span>(time<span class="c-op">.</span><span class="c-fn">time</span>() <span class="c-op">*</span> <span class="c-num">1000</span>)
+    }
+
+<span class="c-comment"># Example: poll on-chain price every 12s (1 Ethereum block)</span>
+<span class="c-keyword">if</span> __name__ <span class="c-op">==</span> <span class="c-string">"__main__"</span>:
+    <span class="c-keyword">import</span> time
+    <span class="c-keyword">while</span> <span class="c-keyword">True</span>:
+        tick <span class="c-op">=</span> <span class="c-fn">get_onchain_tick</span>()
+        <span class="c-fn">print</span>(<span class="c-string">f"[ON-CHAIN] BTC/USDC = ${tick['price']:,.2f}"</span>)
+        time<span class="c-op">.</span><span class="c-fn">sleep</span>(<span class="c-num">12</span>)</pre>
+    </div>
+  </div>
+
+  <div class="callout callout-teal">
+    <span class="callout-icon">&#128273;</span>
+    <div class="callout-body">
+      <strong>Pyth Network for Sub-Second On-Chain Prices</strong>
+      <p>If Ethereum block time (12s) is too slow, Pyth Network provides on-chain price feeds updated every 400ms on Solana and regularly on EVM chains. The <code>pyth-sdk-py</code> package makes reading Pyth prices straightforward from Python.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 6: RATE LIMITING -->
+  <h2 id="ratelimiting">6. Rate Limiting and Caching Strategies</h2>
+
+  <p>Exchange REST APIs enforce strict rate limits — Binance allows 1,200 requests per minute per IP for most endpoints, with burst limits of 10–100 requests per second depending on the weight of each call. Hitting these limits results in 429 errors and temporary IP bans. A well-designed agent respects these limits through token bucket rate limiting and aggressive caching.</p>
+
+  <h3>Token Bucket Rate Limiter</h3>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">rate_limiter.py — Async token bucket + request cache</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> asyncio
+<span class="c-keyword">import</span> time
+<span class="c-keyword">import</span> hashlib
+<span class="c-keyword">import</span> json
+<span class="c-keyword">from</span> typing <span class="c-keyword">import</span> Any<span class="c-op">,</span> Optional
+
+
+<span class="c-keyword">class</span> <span class="c-type">TokenBucket</span>:
+    <span class="c-string">"""Async token bucket rate limiter."""</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(self<span class="c-op">,</span> rate<span class="c-op">:</span> float<span class="c-op">,</span> capacity<span class="c-op">:</span> float):
+        self<span class="c-op">.</span>rate <span class="c-op">=</span> rate        <span class="c-comment"># tokens per second</span>
+        self<span class="c-op">.</span>capacity <span class="c-op">=</span> capacity  <span class="c-comment"># max tokens</span>
+        self<span class="c-op">.</span>tokens <span class="c-op">=</span> capacity
+        self<span class="c-op">.</span>last_refill <span class="c-op">=</span> time<span class="c-op">.</span><span class="c-fn">monotonic</span>()
+        self<span class="c-op">.</span>_lock <span class="c-op">=</span> asyncio<span class="c-op">.</span><span class="c-fn">Lock</span>()
+
+    <span class="c-keyword">async def</span> <span class="c-fn">acquire</span>(self<span class="c-op">,</span> tokens<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">1.0</span>) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-keyword">async with</span> self<span class="c-op">.</span>_lock:
+            <span class="c-keyword">while True</span>:
+                self<span class="c-op">.</span><span class="c-fn">_refill</span>()
+                <span class="c-keyword">if</span> self<span class="c-op">.</span>tokens <span class="c-op">&gt;=</span> tokens:
+                    self<span class="c-op">.</span>tokens <span class="c-op">-=</span> tokens
+                    <span class="c-keyword">return</span>
+                wait <span class="c-op">=</span> (tokens <span class="c-op">-</span> self<span class="c-op">.</span>tokens) <span class="c-op">/</span> self<span class="c-op">.</span>rate
+                <span class="c-keyword">await</span> asyncio<span class="c-op">.</span><span class="c-fn">sleep</span>(wait)
+
+    <span class="c-keyword">def</span> <span class="c-fn">_refill</span>(self) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        now <span class="c-op">=</span> time<span class="c-op">.</span><span class="c-fn">monotonic</span>()
+        added <span class="c-op">=</span> (now <span class="c-op">-</span> self<span class="c-op">.</span>last_refill) <span class="c-op">*</span> self<span class="c-op">.</span>rate
+        self<span class="c-op">.</span>tokens <span class="c-op">=</span> <span class="c-fn">min</span>(self<span class="c-op">.</span>capacity<span class="c-op">,</span> self<span class="c-op">.</span>tokens <span class="c-op">+</span> added)
+        self<span class="c-op">.</span>last_refill <span class="c-op">=</span> now
+
+
+<span class="c-keyword">class</span> <span class="c-type">CachedRestClient</span>:
+    <span class="c-string">"""REST client with token bucket rate limiting and TTL caching."""</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(self<span class="c-op">,</span> rate<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">10.0</span><span class="c-op">,</span> default_ttl<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">5.0</span>):
+        self<span class="c-op">.</span>limiter <span class="c-op">=</span> <span class="c-fn">TokenBucket</span>(rate<span class="c-op">=</span>rate<span class="c-op">,</span> capacity<span class="c-op">=</span>rate <span class="c-op">*</span> <span class="c-num">2</span>)
+        self<span class="c-op">.</span>default_ttl <span class="c-op">=</span> default_ttl
+        self<span class="c-op">.</span>_cache<span class="c-op">:</span> dict[str<span class="c-op">,</span> tuple[float<span class="c-op">,</span> Any]] <span class="c-op">=</span> {}
+
+    <span class="c-keyword">async def</span> <span class="c-fn">get</span>(self<span class="c-op">,</span> url<span class="c-op">:</span> str<span class="c-op">,</span> params<span class="c-op">:</span> dict <span class="c-op">=</span> <span class="c-keyword">None</span><span class="c-op">,</span> ttl<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-keyword">None</span>) <span class="c-op">-&gt;</span> Any:
+        <span class="c-keyword">import</span> httpx
+        cache_key <span class="c-op">=</span> hashlib<span class="c-op">.</span><span class="c-fn">md5</span>(<span class="c-string">f"{url}{json.dumps(params or {}, sort_keys=True)}"</span><span class="c-op">.</span><span class="c-fn">encode</span>())<span class="c-op">.</span><span class="c-fn">hexdigest</span>()
+        ttl <span class="c-op">=</span> ttl <span class="c-keyword">if</span> ttl <span class="c-keyword">is not</span> <span class="c-keyword">None</span> <span class="c-keyword">else</span> self<span class="c-op">.</span>default_ttl
+
+        <span class="c-comment"># Return cached response if fresh</span>
+        <span class="c-keyword">if</span> cache_key <span class="c-keyword">in</span> self<span class="c-op">.</span>_cache:
+            cached_at<span class="c-op">,</span> data <span class="c-op">=</span> self<span class="c-op">.</span>_cache[cache_key]
+            <span class="c-keyword">if</span> time<span class="c-op">.</span><span class="c-fn">monotonic</span>() <span class="c-op">-</span> cached_at <span class="c-op">&lt;</span> ttl:
+                <span class="c-keyword">return</span> data
+
+        <span class="c-comment"># Rate limit before actual request</span>
+        <span class="c-keyword">await</span> self<span class="c-op">.</span>limiter<span class="c-op">.</span><span class="c-fn">acquire</span>()
+        <span class="c-keyword">async with</span> httpx<span class="c-op">.</span><span class="c-fn">AsyncClient</span>() <span class="c-keyword">as</span> client:
+            resp <span class="c-op">=</span> <span class="c-keyword">await</span> client<span class="c-op">.</span><span class="c-fn">get</span>(url<span class="c-op">,</span> params<span class="c-op">=</span>params)
+            resp<span class="c-op">.</span><span class="c-fn">raise_for_status</span>()
+            data <span class="c-op">=</span> resp<span class="c-op">.</span><span class="c-fn">json</span>()
+
+        self<span class="c-op">.</span>_cache[cache_key] <span class="c-op">=</span> (time<span class="c-op">.</span><span class="c-fn">monotonic</span>()<span class="c-op">,</span> data)
+        <span class="c-keyword">return</span> data</pre>
+    </div>
+  </div>
+
+  <h3>Caching Strategy by Data Type</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Data Type</th><th>Recommended TTL</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Live tick price</strong></td><td>0s (always fresh)</td><td>Use WebSocket, not REST polling</td></tr>
+        <tr><td><strong>Order book snapshot</strong></td><td>0.5–2s</td><td>Stale book = incorrect spread estimation</td></tr>
+        <tr><td><strong>OHLCV candles</strong></td><td>Until candle closes</td><td>Cache until <code>is_closed=True</code></td></tr>
+        <tr><td><strong>Account balance</strong></td><td>5–30s</td><td>Refresh after each trade for accuracy</td></tr>
+        <tr><td><strong>Exchange info / symbols</strong></td><td>3600s (1 hour)</td><td>Rarely changes; cache aggressively</td></tr>
+        <tr><td><strong>Funding rates</strong></td><td>300s (5 min)</td><td>Updated each funding period</td></tr>
+        <tr><td><strong>On-chain price</strong></td><td>12s (1 block)</td><td>Poll once per block; use events for real-time</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 7: DATA QUALITY -->
+  <h2 id="dataquality">7. Data Quality: Detecting Stale and Bad Data</h2>
+
+  <p>Bad data kills trading agents silently. A stale price from a disconnected WebSocket, a zero-volume tick indicating a data feed error, or a price that spikes 50% in one tick due to a malformed message — all of these will cause an agent to place irrational orders without any exception being thrown. You need explicit data quality guards before any tick reaches your strategy logic.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">data_quality.py — Stale detection, spike filter, sanity checks</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> time
+<span class="c-keyword">from</span> dataclasses <span class="c-keyword">import</span> dataclass
+<span class="c-keyword">from</span> collections <span class="c-keyword">import</span> deque
+<span class="c-keyword">from</span> data_models <span class="c-keyword">import</span> Tick
+
+
+<span class="c-dec">@dataclass</span>
+<span class="c-keyword">class</span> <span class="c-type">QualityResult</span>:
+    ok<span class="c-op">:</span> bool
+    reason<span class="c-op">:</span> str <span class="c-op">=</span> <span class="c-string">""</span>
+
+
+<span class="c-keyword">class</span> <span class="c-type">DataQualityGuard</span>:
+    <span class="c-string">"""
+    Wraps a DataFeedManager handler and rejects ticks that fail
+    staleness, price-spike, or sanity checks.
+    """</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(
+        self<span class="c-op">,</span>
+        max_staleness_ms<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">5000</span><span class="c-op">,</span>       <span class="c-comment"># reject ticks older than 5s</span>
+        max_price_change_pct<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">5.0</span><span class="c-op">,</span>  <span class="c-comment"># reject >5% single-tick moves</span>
+        min_volume<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">1e-8</span><span class="c-op">,</span>           <span class="c-comment"># reject zero-volume ticks</span>
+        window<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">20</span>                    <span class="c-comment"># rolling window for spike detection</span>
+    ):
+        self<span class="c-op">.</span>max_staleness_ms <span class="c-op">=</span> max_staleness_ms
+        self<span class="c-op">.</span>max_price_change_pct <span class="c-op">=</span> max_price_change_pct
+        self<span class="c-op">.</span>min_volume <span class="c-op">=</span> min_volume
+        self<span class="c-op">.</span>_price_history<span class="c-op">:</span> dict[str<span class="c-op">,</span> deque] <span class="c-op">=</span> {}
+        self<span class="c-op">.</span>_window <span class="c-op">=</span> window
+
+    <span class="c-keyword">def</span> <span class="c-fn">check</span>(self<span class="c-op">,</span> tick<span class="c-op">:</span> Tick) <span class="c-op">-&gt;</span> QualityResult:
+        now_ms <span class="c-op">=</span> <span class="c-fn">int</span>(time<span class="c-op">.</span><span class="c-fn">time</span>() <span class="c-op">*</span> <span class="c-num">1000</span>)
+
+        <span class="c-comment"># 1. Staleness check</span>
+        age_ms <span class="c-op">=</span> now_ms <span class="c-op">-</span> tick<span class="c-op">.</span>ts
+        <span class="c-keyword">if</span> age_ms <span class="c-op">&gt;</span> self<span class="c-op">.</span>max_staleness_ms:
+            <span class="c-keyword">return</span> <span class="c-fn">QualityResult</span>(ok<span class="c-op">=</span><span class="c-keyword">False</span><span class="c-op">,</span> reason<span class="c-op">=</span><span class="c-string">f"stale: {age_ms}ms old"</span>)
+
+        <span class="c-comment"># 2. Sanity checks</span>
+        <span class="c-keyword">if</span> tick<span class="c-op">.</span>price <span class="c-op">&lt;=</span> <span class="c-num">0</span>:
+            <span class="c-keyword">return</span> <span class="c-fn">QualityResult</span>(ok<span class="c-op">=</span><span class="c-keyword">False</span><span class="c-op">,</span> reason<span class="c-op">=</span><span class="c-string">"price <= 0"</span>)
+        <span class="c-keyword">if</span> tick<span class="c-op">.</span>volume <span class="c-op">&lt;</span> self<span class="c-op">.</span>min_volume:
+            <span class="c-keyword">return</span> <span class="c-fn">QualityResult</span>(ok<span class="c-op">=</span><span class="c-keyword">False</span><span class="c-op">,</span> reason<span class="c-op">=</span><span class="c-string">"zero or near-zero volume"</span>)
+
+        <span class="c-comment"># 3. Price spike detection using rolling median</span>
+        key <span class="c-op">=</span> <span class="c-string">f"{tick.source}:{tick.symbol}"</span>
+        <span class="c-keyword">if</span> key <span class="c-keyword">not in</span> self<span class="c-op">.</span>_price_history:
+            self<span class="c-op">.</span>_price_history[key] <span class="c-op">=</span> <span class="c-fn">deque</span>(maxlen<span class="c-op">=</span>self<span class="c-op">.</span>_window)
+
+        history <span class="c-op">=</span> self<span class="c-op">.</span>_price_history[key]
+        <span class="c-keyword">if</span> <span class="c-fn">len</span>(history) <span class="c-op">&gt;=</span> <span class="c-num">3</span>:
+            median <span class="c-op">=</span> <span class="c-fn">sorted</span>(history)[<span class="c-fn">len</span>(history) <span class="c-op">//</span> <span class="c-num">2</span>]
+            change_pct <span class="c-op">=</span> <span class="c-fn">abs</span>(tick<span class="c-op">.</span>price <span class="c-op">-</span> median) <span class="c-op">/</span> median <span class="c-op">*</span> <span class="c-num">100</span>
+            <span class="c-keyword">if</span> change_pct <span class="c-op">&gt;</span> self<span class="c-op">.</span>max_price_change_pct:
+                <span class="c-keyword">return</span> <span class="c-fn">QualityResult</span>(
+                    ok<span class="c-op">=</span><span class="c-keyword">False</span><span class="c-op">,</span>
+                    reason<span class="c-op">=</span><span class="c-string">f"spike: {change_pct:.1f}% vs median {median:.2f}"</span>
+                )
+
+        history<span class="c-op">.</span><span class="c-fn">append</span>(tick<span class="c-op">.</span>price)
+        <span class="c-keyword">return</span> <span class="c-fn">QualityResult</span>(ok<span class="c-op">=</span><span class="c-keyword">True</span>)
+
+
+<span class="c-comment"># Usage: wrap your tick handler</span>
+guard <span class="c-op">=</span> <span class="c-fn">DataQualityGuard</span>(max_staleness_ms<span class="c-op">=</span><span class="c-num">3000</span><span class="c-op">,</span> max_price_change_pct<span class="c-op">=</span><span class="c-num">3.0</span>)
+
+<span class="c-keyword">async def</span> <span class="c-fn">safe_handler</span>(tick<span class="c-op">:</span> Tick) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+    result <span class="c-op">=</span> guard<span class="c-op">.</span><span class="c-fn">check</span>(tick)
+    <span class="c-keyword">if not</span> result<span class="c-op">.</span>ok:
+        logger<span class="c-op">.</span><span class="c-fn">warning</span>(<span class="c-string">f"[QUALITY] Rejected {tick.symbol}@{tick.price}: {result.reason}"</span>)
+        <span class="c="c-keyword">return</span>
+    <span class="c-keyword">await</span> <span class="c-fn">my_strategy</span>(tick)  <span class="c-comment"># only clean ticks reach strategy logic</span></pre>
+    </div>
+  </div>
+
+  <div class="callout callout-red">
+    <span class="callout-icon">&#9888;</span>
+    <div class="callout-body">
+      <strong>Common Bad Data Patterns</strong>
+      <p>Watch for: prices quoted in wrong units (sats vs BTC), timestamps 1000x too large or small (seconds vs milliseconds confusion), zero-size trades used as heartbeat messages by some exchanges, and volume figures that include both sides of a trade (already doubled). Always test your normalizer against a week of historical message samples before deploying.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 8: PURPLE FLEA INTEGRATION -->
+  <h2 id="purpleflea">8. Integration with Purple Flea: Data-Driven Order Placement</h2>
+
+  <p>Once your data pipeline is delivering clean, normalized ticks, the final step is connecting it to Purple Flea for execution. The pattern is simple: the <code>DataFeedManager</code> fires your strategy handler on each tick; the strategy evaluates a signal; if the signal is strong enough, it calls the Purple Flea API to place a bet or initiate an escrow payment.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">full_agent.py — Complete data-driven trading agent with Purple Flea</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> asyncio
+<span class="c-keyword">import</span> os
+<span class="c-keyword">import</span> httpx
+<span class="c-keyword">from</span> collections <span class="c-keyword">import</span> deque
+<span class="c-keyword">from</span> data_feed_manager <span class="c-keyword">import</span> DataFeedManager<span class="c-op">,</span> normalize_binance
+<span class="c-keyword">from</span> data_quality <span class="c-keyword">import</span> DataQualityGuard
+<span class="c-keyword">from</span> data_models <span class="c-keyword">import</span> Tick
+
+PF_API <span class="c-op">=</span> <span class="c-string">"https://api.purpleflea.com"</span>
+AGENT_KEY <span class="c-op">=</span> os<span class="c-op">.</span>environ[<span class="c-string">"PF_AGENT_KEY"</span>]   <span class="c-comment"># pf_live_...</span>
+AGENT_ID <span class="c-op">=</span> os<span class="c-op">.</span>environ[<span class="c-string">"PF_AGENT_ID"</span>]
+
+
+<span class="c-keyword">class</span> <span class="c-type">MomentumAgent</span>:
+    <span class="c-string">"""
+    Simple momentum agent: tracks 20-tick price change.
+    If price rose >0.5% over last 20 ticks, enter a crash game.
+    If price fell >0.5%, skip or hedge.
+    """</span>
+
+    <span class="c-keyword">def</span> <span class="c-fn">__init__</span>(self<span class="c-op">,</span> window<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">20</span><span class="c-op">,</span> threshold<span class="c-op">:</span> float <span class="c-op">=</span> <span class="c-num">0.005</span>):
+        self<span class="c-op">.</span>window <span class="c-op">=</span> window
+        self<span class="c-op">.</span>threshold <span class="c-op">=</span> threshold
+        self<span class="c-op">.</span>prices<span class="c-op">:</span> deque <span class="c-op">=</span> <span class="c-fn">deque</span>(maxlen<span class="c-op">=</span>window)
+        self<span class="c-op">.</span>quality <span class="c-op">=</span> <span class="c-fn">DataQualityGuard</span>()
+        self<span class="c-op">.</span>last_trade_ts<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">0</span>
+        self<span class="c-op">.</span>cooldown_ms<span class="c-op">:</span> int <span class="c-op">=</span> <span class="c-num">30_000</span>  <span class="c-comment"># 30s between trades</span>
+
+    <span class="c-keyword">async def</span> <span class="c-fn">on_tick</span>(self<span class="c-op">,</span> tick<span class="c-op">:</span> Tick) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-comment"># 1. Quality gate</span>
+        qr <span class="c-op">=</span> self<span class="c-op">.</span>quality<span class="c-op">.</span><span class="c-fn">check</span>(tick)
+        <span class="c-keyword">if not</span> qr<span class="c-op">.</span>ok:
+            <span class="c-keyword">return</span>
+
+        self<span class="c-op">.</span>prices<span class="c-op">.</span><span class="c-fn">append</span>(tick<span class="c-op">.</span>price)
+        <span class="c-keyword">if</span> <span class="c-fn">len</span>(self<span class="c-op">.</span>prices) <span class="c-op">&lt;</span> self<span class="c-op">.</span>window:
+            <span class="c-keyword">return</span>  <span class="c-comment"># need full window</span>
+
+        <span class="c-comment"># 2. Cooldown check</span>
+        now_ms <span class="c-op">=</span> tick<span class="c-op">.</span>ts
+        <span class="c-keyword">if</span> now_ms <span class="c-op">-</span> self<span class="c-op">.</span>last_trade_ts <span class="c-op">&lt;</span> self<span class="c-op">.</span>cooldown_ms:
+            <span class="c-keyword">return</span>
+
+        <span class="c-comment"># 3. Momentum signal</span>
+        oldest <span class="c-op">=</span> self<span class="c-op">.</span>prices[<span class="c-num">0</span>]
+        change_pct <span class="c-op">=</span> (tick<span class="c-op">.</span>price <span class="c-op">-</span> oldest) <span class="c-op">/</span> oldest
+
+        <span class="c-keyword">if</span> change_pct <span class="c-op">&gt;</span> self<span class="c-op">.</span>threshold:
+            <span class="c-keyword">await</span> self<span class="c-op">.</span><span class="c-fn">execute_crash_bet</span>(change_pct)
+            self<span class="c-op">.</span>last_trade_ts <span class="c-op">=</span> now_ms
+
+    <span class="c-keyword">async def</span> <span class="c-fn">execute_crash_bet</span>(self<span class="c-op">,</span> signal<span class="c-op">:</span> float) <span class="c-op">-&gt;</span> <span class="c-keyword">None</span>:
+        <span class="c-comment"># Scale cashout target with signal strength</span>
+        cashout_at <span class="c-op">=</span> <span class="c-fn">round</span>(<span class="c-num">1.2</span> <span class="c-op">+</span> signal <span class="c-op">*</span> <span class="c-num">10</span><span class="c-op">,</span> <span class="c-num">2</span>)
+        wager <span class="c-op">=</span> <span class="c-num">1.00</span>  <span class="c-comment"># fixed $1 wager per trade</span>
+
+        <span class="c-keyword">async with</span> httpx<span class="c-op">.</span><span class="c-fn">AsyncClient</span>(timeout<span class="c-op">=</span><span class="c-num">10.0</span>) <span class="c-keyword">as</span> http:
+            <span class="c-comment"># Check balance first</span>
+            bal_resp <span class="c-op">=</span> <span class="c-keyword">await</span> http<span class="c-op">.</span><span class="c-fn">get</span>(
+                <span class="c-string">f"{PF_API}/wallet/balance"</span><span class="c-op">,</span>
+                headers<span class="c-op">=</span>{<span class="c-string">"Authorization"</span><span class="c-op">:</span> <span class="c-string">f"Bearer {AGENT_KEY}"</span>}<span class="c-op">,</span>
+                params<span class="c-op">=</span>{<span class="c-string">"agent_id"</span><span class="c-op">:</span> AGENT_ID}
+            )
+            balance <span class="c-op">=</span> bal_resp<span class="c-op">.</span><span class="c-fn">json</span>()<span class="c-op">.</span><span class="c-fn">get</span>(<span class="c-string">"balance"</span><span class="c-op">,</span> <span class="c-num">0</span>)
+            <span class="c-keyword">if</span> balance <span class="c-op">&lt;</span> wager:
+                <span class="c-fn">print</span>(<span class="c-string">f"[SKIP] Balance {balance} < wager {wager}"</span>)
+                <span class="c-keyword">return</span>
+
+            <span class="c-comment"># Place crash bet with auto-cashout</span>
+            resp <span class="c-op">=</span> <span class="c-keyword">await</span> http<span class="c-op">.</span><span class="c-fn">post</span>(
+                <span class="c-string">f"{PF_API}/casino/crash"</span><span class="c-op">,</span>
+                headers<span class="c-op">=</span>{
+                    <span class="c-string">"Authorization"</span><span class="c-op">:</span> <span class="c-string">f"Bearer {AGENT_KEY}"</span><span class="c-op">,</span>
+                    <span class="c-string">"Content-Type"</span><span class="c-op">:</span> <span class="c-string">"application/json"</span>
+                }<span class="c-op">,</span>
+                json<span class="c-op">=</span>{
+                    <span class="c-string">"agent_id"</span><span class="c-op">:</span> AGENT_ID<span class="c-op">,</span>
+                    <span class="c-string">"wager"</span><span class="c-op">:</span> wager<span class="c-op">,</span>
+                    <span class="c-string">"cashout_at"</span><span class="c-op">:</span> cashout_at
+                }
+            )
+            result <span class="c-op">=</span> resp<span class="c-op">.</span><span class="c-fn">json</span>()
+            <span class="c-fn">print</span>(
+                <span class="c-string">f"[TRADE] signal={signal:.3%} cashout={cashout_at}x "</span>
+                <span class="c-string">f"→ {result['outcome']} payout={result.get('payout', 0)}"</span>
+            )
+
+
+<span class="c-keyword">async def</span> <span class="c-fn">main</span>():
+    agent <span class="c-op">=</span> <span class="c-fn">MomentumAgent</span>()
+    feed <span class="c-op">=</span> <span class="c-fn">DataFeedManager</span>()
+
+    feed<span class="c-op">.</span><span class="c-fn">on_tick</span>(agent<span class="c-op">.</span>on_tick)
+    feed<span class="c-op">.</span><span class="c-fn">subscribe</span>(
+        source<span class="c-op">=</span><span class="c-string">"binance"</span><span class="c-op">,</span>
+        url<span class="c-op">=</span><span class="c-string">"wss://stream.binance.com:9443/ws/btcusdt@trade"</span><span class="c-op">,</span>
+        subscriptions<span class="c-op">=</span>[]<span class="c-op">,</span>
+        normalizer<span class="c-op">=</span>normalize_binance
+    )
+
+    <span class="c-fn">print</span>(<span class="c-string">"[AGENT] Momentum agent running. Watching BTC/USDT..."</span>)
+    <span class="c-keyword">await</span> feed<span class="c-op">.</span><span class="c-fn">run</span>()
+
+
+<span class="c-keyword">if</span> __name__ <span class="c-op">==</span> <span class="c-string">"__main__"</span>:
+    asyncio<span class="c-op">.</span><span class="c-fn">run</span>(<span class="c-fn">main</span>())</pre>
+    </div>
+  </div>
+
+  <h3>Getting Your First USDC to Trade With</h3>
+  <p>If your agent has no balance, it cannot place any bets. Purple Flea's faucet gives new agents free USDC to start. Claim it programmatically before your first trade:</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">Python</span>
+      <span class="code-title">Bootstrap: register agent + claim faucet</span>
+    </div>
+    <div class="code-body">
+<pre><span class="c-keyword">import</span> httpx
+
+PF_API <span class="c-op">=</span> <span class="c-string">"https://api.purpleflea.com"</span>
+
+<span class="c-keyword">async def</span> <span class="c-fn">bootstrap_agent</span>(agent_id<span class="c-op">:</span> str) <span class="c-op">-&gt;</span> str:
+    <span class="c-string">"""Register agent and claim free USDC from the faucet."""</span>
+    <span class="c-keyword">async with</span> httpx<span class="c-op">.</span><span class="c-fn">AsyncClient</span>() <span class="c-keyword">as</span> http:
+        <span class="c-comment"># Register</span>
+        reg <span class="c-op">=</span> <span class="c-keyword">await</span> http<span class="c-op">.</span><span class="c-fn">post</span>(
+            <span class="c-string">f"{PF_API}/agents/register"</span><span class="c-op">,</span>
+            json<span class="c-op">=</span>{<span class="c-string">"agent_id"</span><span class="c-op">:</span> agent_id}
+        )
+        api_key <span class="c-op">=</span> reg<span class="c-op">.</span><span class="c-fn">json</span>()[<span class="c-string">"api_key"</span>]  <span class="c-comment"># pf_live_...</span>
+
+        <span class="c-comment"># Claim faucet (free USDC for new agents)</span>
+        faucet <span class="c-op">=</span> <span class="c-keyword">await</span> http<span class="c-op">.</span><span class="c-fn">post</span>(
+            <span class="c-string">"https://faucet.purpleflea.com/claim"</span><span class="c-op">,</span>
+            headers<span class="c-op">=</span>{<span class="c-string">"Authorization"</span><span class="c-op">:</span> <span class="c-string">f"Bearer {api_key}"</span>}<span class="c-op">,</span>
+            json<span class="c-op">=</span>{<span class="c-string">"agent_id"</span><span class="c-op">:</span> agent_id}
+        )
+        balance <span class="c-op">=</span> faucet<span class="c-op">.</span><span class="c-fn">json</span>()<span class="c-op">.</span><span class="c-fn">get</span>(<span class="c-string">"balance"</span>)
+        <span class="c-fn">print</span>(<span class="c-string">f"[BOOTSTRAP] Agent {agent_id} ready. Balance: ${balance}"</span>)
+        <span class="c-keyword">return</span> api_key</pre>
+    </div>
+  </div>
+
+  <!-- SUMMARY -->
+  <h2 id="summary">Summary</h2>
+  <p>A production-grade data stack for an AI trading agent requires careful attention at every layer:</p>
+  <ul>
+    <li><strong>Source selection:</strong> Use CEX WebSockets for latency, DEX contracts for DeFi accuracy, oracles for tamper resistance. Combine all three for resilience.</li>
+    <li><strong>WebSocket lifecycle:</strong> Always implement exponential backoff reconnection, heartbeat maintenance, and automatic resubscription. Never assume a WebSocket stays connected.</li>
+    <li><strong>Normalization:</strong> Map every source to the same <code>Tick</code> and <code>OHLCV</code> structures before any strategy logic sees the data. Strategy code should never contain exchange-specific parsing.</li>
+    <li><strong>DataFeedManager:</strong> Centralise all subscriptions, caching, and handler dispatch in one class. Your strategy registers a single <code>on_tick</code> callback and receives clean, normalized data from every source.</li>
+    <li><strong>On-chain prices:</strong> Poll at block cadence (12s on Ethereum, 400ms on Solana/Pyth). Use <code>sqrtPriceX96</code> conversion for Uniswap v3; always adjust for token decimal differences.</li>
+    <li><strong>Rate limiting:</strong> Use a token bucket with a cache layer in front of all REST calls. Cache aggressively: exchange metadata for hours, candle data until close, balances for 5–30 seconds.</li>
+    <li><strong>Data quality:</strong> Reject stale ticks, zero-volume trades, negative prices, and spikes exceeding your rolling median threshold before any signal reaches strategy logic.</li>
+    <li><strong>Purple Flea execution:</strong> Check balance before each trade, use the faucet to bootstrap new agents, and always store API keys as <code>pf_live_</code> prefixed environment variables — never hardcoded in source.</li>
+  </ul>
+
+  <div class="cta-box">
+    <h3>Start Building Your Data-Driven Agent</h3>
+    <p>New agents get free USDC from the Purple Flea faucet. No prior balance required — claim yours and wire it into your DataFeedManager today.</p>
+    <div class="btn-row">
+      <a href="https://faucet.purpleflea.com" class="btn btn-primary">Claim Free USDC</a>
+      <a href="/docs" class="btn btn-outline">View API Docs</a>
+    </div>
+  </div>
+
+  <div style="margin-top:3rem; padding-top:2rem; border-top:1px solid var(--border);">
+    <p style="font-size:0.82rem; color:var(--text3);">Related reading: <a href="/blog/agent-escrow-patterns">Agent Escrow Patterns</a> &nbsp;&#183;&nbsp; <a href="/blog/building-autonomous-trading-bot-2026">Building an Autonomous Trading Bot in 2026</a> &nbsp;&#183;&nbsp; <a href="/for-supabase-realtime">Purple Flea + Supabase Realtime</a></p>
+  </div>
+
+</article>
+
+<!-- TOC SIDEBAR -->
+<aside class="toc-sidebar">
+  <div class="toc-title">Table of Contents</div>
+  <ul class="toc-list">
+    <li><a href="#taxonomy">1. Data Source Taxonomy</a></li>
+    <li><a href="#websocket">2. WebSocket Management</a></li>
+    <li class="toc-h3"><a href="#websocket">Reconnection &amp; Heartbeat</a></li>
+    <li><a href="#normalization">3. Data Normalization</a></li>
+    <li class="toc-h3"><a href="#normalization">Unified OHLCV Format</a></li>
+    <li><a href="#datafeedmanager">4. DataFeedManager Class</a></li>
+    <li class="toc-h3"><a href="#datafeedmanager">subscribe() / on_tick()</a></li>
+    <li><a href="#onchain">5. On-Chain Prices</a></li>
+    <li class="toc-h3"><a href="#onchain">Uniswap v3 slot0</a></li>
+    <li><a href="#ratelimiting">6. Rate Limiting &amp; Caching</a></li>
+    <li class="toc-h3"><a href="#ratelimiting">Token Bucket Pattern</a></li>
+    <li><a href="#dataquality">7. Data Quality Guards</a></li>
+    <li class="toc-h3"><a href="#dataquality">Stale / Spike Detection</a></li>
+    <li><a href="#purpleflea">8. Purple Flea Integration</a></li>
+    <li class="toc-h3"><a href="#purpleflea">Full Momentum Agent</a></li>
+    <li><a href="#summary">Summary</a></li>
+  </ul>
+  <div class="toc-cta">
+    <a href="https://faucet.purpleflea.com">Get Free USDC to Start</a>
+  </div>
+</aside>
+
+</div><!-- end .page-wrap -->
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/for-agents">For Agents</a>
+    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
+    <a href="/escrow">Escrow</a>
+    <a href="/faucet">Faucet</a>
+    <a href="https://smithery.ai/servers/purpleflea/faucet">Smithery</a>
+  </div>
+  <p>&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+</footer>
+
+</body>
+</html>
