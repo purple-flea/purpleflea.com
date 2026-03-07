@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purple Flea for Apache Kafka | Stream Agent Payment Events at Scale</title>
+  <meta name="description" content="Connect Apache Kafka to Purple Flea's agent financial layer. Consume escrow events, payment confirmations, and market data streams with exactly-once semantics and Schema Registry support." />
+  <meta name="keywords" content="Kafka Purple Flea, Apache Kafka AI agent, Kafka escrow events, agent payment streaming, confluent-kafka agent finance, Kafka Streams P&L, event-driven agent payments" />
+  <link rel="canonical" href="https://purpleflea.com/for-kafka" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Purple Flea for Apache Kafka — Stream Agent Payment Events at Scale" />
+  <meta property="og:description" content="Consume Purple Flea escrow, trading, and wallet events via Apache Kafka. Exactly-once semantics, Schema Registry, and Kafka Streams for real-time agent P&L." />
+  <meta property="og:url" content="https://purpleflea.com/for-kafka" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@purpleflea" />
+  <meta name="twitter:title" content="Purple Flea for Apache Kafka" />
+  <meta name="twitter:description" content="Stream Purple Flea payment events through Kafka. Escrow lifecycle, price alerts, wallet events — all as Kafka topics with Schema Registry schemas." />
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Purple Flea for Apache Kafka",
+    "description": "Integration guide for streaming Purple Flea agent payment and escrow events through Apache Kafka. Covers topic design, consumer groups, exactly-once semantics, Schema Registry, and Kafka Streams for real-time P&L aggregation.",
+    "url": "https://purpleflea.com/for-kafka",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/flea.jpg"
+      }
+    },
+    "featureList": [
+      "Kafka topics for all Purple Flea event types",
+      "Consumer groups for different agent service tiers",
+      "Exactly-once semantics for payment processing",
+      "Schema Registry for Purple Flea event schemas",
+      "Kafka Streams for real-time P&L aggregation",
+      "Python confluent-kafka consumer examples",
+      "Webhook bridge for Purple Flea events into Kafka"
+    ],
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "inLanguage": "en",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --surface2: #1C1C1F;
+      --border: #27272A;
+      --text: #FAFAFA;
+      --muted: #71717A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --accent-glow: rgba(168, 85, 247, 0.15);
+      --code-bg: #0D0D0F;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+      --red: #EF4444;
+      --orange: #F97316;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 200;
+      transition: width 0.1s linear;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-brand span { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    /* HERO */
+    .hero {
+      padding: 6rem 2rem 4rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      padding: 0.35rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 680px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+      display: inline-block;
+    }
+
+    .btn-primary:hover { background: var(--accent-dim); text-decoration: none; transform: translateY(-1px); }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s, transform 0.1s;
+      display: inline-block;
+    }
+
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; transform: translateY(-1px); }
+
+    /* STATS ROW */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 1100px;
+      margin: 0 auto 5rem;
+    }
+
+    .stat-cell {
+      background: var(--surface);
+      padding: 1.5rem 2rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* SECTION */
+    .section {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem 5rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-size: clamp(1.5rem, 3vw, 2.25rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .section-desc {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 700px;
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+
+    /* TOPIC GRID */
+    .topic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 3rem;
+    }
+
+    .topic-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+
+    .topic-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .topic-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--accent);
+      background: var(--accent-glow);
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+
+    .topic-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .topic-card p {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .topic-meta {
+      margin-top: 0.75rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .tag-green { background: rgba(34,197,94,0.1); color: var(--green); }
+    .tag-blue { background: rgba(59,130,246,0.1); color: var(--blue); }
+    .tag-yellow { background: rgba(234,179,8,0.1); color: var(--yellow); }
+    .tag-orange { background: rgba(249,115,22,0.1); color: var(--orange); }
+    .tag-purple { background: var(--accent-glow); color: var(--accent); }
+    .tag-red { background: rgba(239,68,68,0.1); color: var(--red); }
+
+    /* CODE BLOCKS */
+    .code-section {
+      margin-bottom: 3rem;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111113;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      padding: 0.6rem 1rem;
+    }
+
+    .code-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .code-lang {
+      font-size: 0.72rem;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 0 0 8px 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      color: #E4E4E7;
+      margin: 0;
+    }
+
+    pre.standalone {
+      border-radius: 8px;
+    }
+
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .str { color: #86EFAC; }
+    .cm { color: #52525B; font-style: italic; }
+    .num { color: #FCD34D; }
+    .cls { color: #FB923C; }
+    .dec { color: #F472B6; }
+
+    /* FEATURE GRID */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 3rem;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .feature-card p {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* CONSUMER GROUP TABLE */
+    .table-wrap {
+      overflow-x: auto;
+      margin-bottom: 3rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      color: var(--text);
+      vertical-align: top;
+    }
+
+    tbody tr:hover td { background: var(--surface); }
+
+    td code, th code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      background: var(--code-bg);
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      color: var(--accent);
+    }
+
+    /* FLOW DIAGRAM */
+    .flow-diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      row-gap: 1rem;
+    }
+
+    .flow-node {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      text-align: center;
+      min-width: 120px;
+    }
+
+    .flow-node-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.25rem;
+    }
+
+    .flow-node-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .flow-node.accent {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .flow-node.accent .flow-node-name { color: var(--accent); }
+
+    .flow-arrow {
+      color: var(--muted);
+      font-size: 1.2rem;
+      padding: 0 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* SCHEMA BLOCK */
+    .schema-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 3rem;
+    }
+
+    .schema-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .schema-card-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .schema-card-header h4 {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .schema-card pre {
+      border: none;
+      border-radius: 0;
+      padding: 1.25rem;
+      font-size: 0.8rem;
+    }
+
+    /* CTA BANNER */
+    .cta-banner {
+      background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.08));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      text-align: center;
+      margin-bottom: 5rem;
+    }
+
+    .cta-banner h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .cta-banner p {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 560px;
+      margin: 0 auto 2rem;
+      line-height: 1.7;
+    }
+
+    .cta-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr repeat(3, auto);
+      gap: 3rem;
+      align-items: start;
+    }
+
+    .footer-brand p {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+      line-height: 1.6;
+      max-width: 260px;
+    }
+
+    .footer-col h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .footer-col a {
+      font-size: 0.875rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-col a:hover { color: var(--text); text-decoration: none; }
+
+    .footer-bottom {
+      max-width: 1100px;
+      margin: 2rem auto 0;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-bottom p {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+      .flow-diagram { flex-direction: column; align-items: center; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <a href="/" class="nav-brand">Purple <span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/casino">Casino</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+    <li><a href="/docs/trading">Trading API</a></li>
+    <li><a href="/docs/wallet">Wallet API</a></li>
+    <li><a href="/docs">Docs</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Apache Kafka Integration</div>
+  <h1>Stream Agent Payment Events<br /><em>at Scale with Kafka</em></h1>
+  <p class="hero-sub">
+    Connect Apache Kafka to Purple Flea's financial layer. Consume escrow lifecycle events,
+    real-time price feeds, wallet notifications, and casino outcomes as Kafka topics —
+    with exactly-once semantics, Schema Registry, and Kafka Streams for P&amp;L aggregation.
+  </p>
+  <div class="hero-cta">
+    <a href="/docs" class="btn-primary">Read API Docs</a>
+    <a href="https://faucet.purpleflea.com" class="btn-outline">Get Free USDC</a>
+  </div>
+</section>
+
+<!-- STATS ROW -->
+<div class="stats-row">
+  <div class="stat-cell">
+    <div class="stat-value">12</div>
+    <div class="stat-label">Kafka Topics</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-value">&lt;5ms</div>
+    <div class="stat-label">Event Latency</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-value">EOS</div>
+    <div class="stat-label">Exactly-Once</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-value">Avro</div>
+    <div class="stat-label">Schema Format</div>
+  </div>
+  <div class="stat-cell">
+    <div class="stat-value">6</div>
+    <div class="stat-label">Services</div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE FLOW -->
+<section class="section">
+  <div class="section-label">Architecture</div>
+  <h2 class="section-title">How Kafka Fits the Purple Flea Stack</h2>
+  <p class="section-desc">
+    Purple Flea services emit webhook events that your Kafka bridge ingests and publishes to topics.
+    Consumer groups downstream handle escrow settlement, trading signals, wallet reconciliation,
+    and real-time P&amp;L — all fully decoupled.
+  </p>
+
+  <div class="flow-diagram">
+    <div class="flow-node">
+      <div class="flow-node-label">Source</div>
+      <div class="flow-node-name">Purple Flea<br />Webhooks</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node accent">
+      <div class="flow-node-label">Bridge</div>
+      <div class="flow-node-name">Kafka Producer<br />(Python)</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="flow-node-label">Broker</div>
+      <div class="flow-node-name">Apache Kafka<br />Cluster</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="flow-node-label">Registry</div>
+      <div class="flow-node-name">Schema<br />Registry</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node accent">
+      <div class="flow-node-label">Consumers</div>
+      <div class="flow-node-name">Agent<br />Handlers</div>
+    </div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">&#x26A1;</div>
+      <h3>Sub-5ms Event Delivery</h3>
+      <p>Purple Flea emits webhook events synchronously on every state transition. Your Kafka producer bridge ingests them with near-zero latency, making Kafka the single source of truth for agent financial events.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F512;</div>
+      <h3>Exactly-Once Semantics</h3>
+      <p>Configure idempotent producers and transactional consumers to guarantee each payment event is processed exactly once. Critical for escrow settlement — no double-credits, no missed releases.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F4CA;</div>
+      <h3>Kafka Streams P&amp;L</h3>
+      <p>Use Kafka Streams to join escrow.released and trading.executed events into a real-time P&amp;L stream. Window aggregations compute per-agent profit every 60 seconds without a separate database.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F4CB;</div>
+      <h3>Schema Registry</h3>
+      <p>All Purple Flea event types are published as Avro schemas in the Confluent Schema Registry. Consumers deserialize with full type safety and automatic schema evolution support.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F465;</div>
+      <h3>Consumer Group Isolation</h3>
+      <p>Separate consumer groups for your trading agent, reconciliation service, and alert system. Each group maintains its own offset — no event contention, independent scaling.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1F4E6;</div>
+      <h3>Log Compaction for Wallets</h3>
+      <p>Enable log compaction on wallet.balance topics. The latest balance per agent ID is always available for instant agent bootstrap — no need to replay full history on restart.</p>
+    </div>
+  </div>
+</section>
+
+<!-- KAFKA TOPICS -->
+<section class="section">
+  <div class="section-label">Topic Design</div>
+  <h2 class="section-title">Purple Flea Kafka Topic Catalogue</h2>
+  <p class="section-desc">
+    Twelve core topics cover the full Purple Flea event surface. Topics follow the
+    <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:0.9em">domain.event_type</code>
+    naming convention and are partitioned by agent ID for ordering guarantees per agent.
+  </p>
+
+  <div class="topic-grid">
+    <div class="topic-card">
+      <div class="topic-name">escrow.created</div>
+      <h3>Escrow Created</h3>
+      <p>Fired when two agents initiate a new escrow agreement. Contains escrow ID, payer agent, payee agent, amount in USDC, and expiry timestamp.</p>
+      <div class="topic-meta">
+        <span class="tag tag-purple">Escrow</span>
+        <span class="tag tag-blue">Partitioned by escrow_id</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">escrow.funded</div>
+      <h3>Escrow Funded</h3>
+      <p>Emitted when the payer agent transfers USDC into the escrow contract. Includes transaction hash, block number, and confirmed amount.</p>
+      <div class="topic-meta">
+        <span class="tag tag-purple">Escrow</span>
+        <span class="tag tag-green">Payment Trigger</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">escrow.released</div>
+      <h3>Escrow Released</h3>
+      <p>Published on successful release to payee. Includes gross amount, 1% platform fee deducted, 15% referral fee if applicable, and net transfer to payee.</p>
+      <div class="topic-meta">
+        <span class="tag tag-green">Settlement</span>
+        <span class="tag tag-yellow">Fee Event</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">escrow.disputed</div>
+      <h3>Escrow Disputed</h3>
+      <p>Triggered when either agent raises a dispute. Escrow enters frozen state pending arbitration. Contains dispute reason, raising agent, and evidence hash.</p>
+      <div class="topic-meta">
+        <span class="tag tag-red">Dispute</span>
+        <span class="tag tag-orange">Alert</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">escrow.refunded</div>
+      <h3>Escrow Refunded</h3>
+      <p>Emitted when an escrow is cancelled or dispute resolves in favor of payer. Full amount returned; fees not charged. Safe to use as rollback signal.</p>
+      <div class="topic-meta">
+        <span class="tag tag-red">Rollback</span>
+        <span class="tag tag-purple">Escrow</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">wallet.balance</div>
+      <h3>Wallet Balance Update</h3>
+      <p>Log-compacted topic. Every USDC balance change for every agent wallet. Latest record per agent ID gives current balance without full replay.</p>
+      <div class="topic-meta">
+        <span class="tag tag-blue">Log-Compacted</span>
+        <span class="tag tag-green">Wallet</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">wallet.deposit</div>
+      <h3>Wallet Deposit</h3>
+      <p>Fired on every confirmed USDC deposit to an agent wallet. Includes source address, amount, transaction hash, and block confirmation count.</p>
+      <div class="topic-meta">
+        <span class="tag tag-green">Inflow</span>
+        <span class="tag tag-blue">Wallet</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">trading.executed</div>
+      <h3>Trade Executed</h3>
+      <p>Published for every filled order via the Purple Flea Trading API. Contains symbol, side, fill price, quantity, fees, and realized P&amp;L for closing trades.</p>
+      <div class="topic-meta">
+        <span class="tag tag-orange">Trading</span>
+        <span class="tag tag-yellow">P&amp;L Signal</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">trading.liquidated</div>
+      <h3>Position Liquidated</h3>
+      <p>High-priority alert topic. Emitted when a leveraged position is forcibly closed below margin threshold. Partitioned by agent ID, priority consumer group.</p>
+      <div class="topic-meta">
+        <span class="tag tag-red">Alert</span>
+        <span class="tag tag-orange">Trading</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">faucet.claimed</div>
+      <h3>Faucet Claim</h3>
+      <p>Emitted when a new agent claims free USDC via the Purple Flea faucet. Includes agent ID, claimed amount, and wallet address. Useful for onboarding pipelines.</p>
+      <div class="topic-meta">
+        <span class="tag tag-green">Onboarding</span>
+        <span class="tag tag-purple">Faucet</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">casino.outcome</div>
+      <h3>Casino Round Outcome</h3>
+      <p>Published after every casino game resolves. Contains game type (crash, coin-flip, dice), agent bet, multiplier, result, and net USDC change.</p>
+      <div class="topic-meta">
+        <span class="tag tag-red">Casino</span>
+        <span class="tag tag-yellow">Outcome</span>
+      </div>
+    </div>
+    <div class="topic-card">
+      <div class="topic-name">domain.registered</div>
+      <h3>Domain Registered</h3>
+      <p>Fired on every agent domain purchase via the Purple Flea Domains API. Contains domain string, buyer agent ID, price paid, and expiry date.</p>
+      <div class="topic-meta">
+        <span class="tag tag-blue">Domains</span>
+        <span class="tag tag-purple">Registration</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONSUMER GROUPS TABLE -->
+<section class="section">
+  <div class="section-label">Consumer Groups</div>
+  <h2 class="section-title">Recommended Consumer Group Architecture</h2>
+  <p class="section-desc">
+    Each agent service should operate under its own consumer group. This ensures independent
+    offset tracking, fault isolation, and allows services to be scaled horizontally
+    without event duplication.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Consumer Group</th>
+          <th>Topics Subscribed</th>
+          <th>Purpose</th>
+          <th>Recommended Instances</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>pf-settlement-cg</code></td>
+          <td><code>escrow.released</code>, <code>escrow.refunded</code></td>
+          <td>Final settlement — write to ledger, update agent balances, trigger payouts</td>
+          <td>1 (idempotent)</td>
+        </tr>
+        <tr>
+          <td><code>pf-dispute-cg</code></td>
+          <td><code>escrow.disputed</code></td>
+          <td>Arbitration queue — alert human reviewers or automated resolution agents</td>
+          <td>2–3</td>
+        </tr>
+        <tr>
+          <td><code>pf-trading-signal-cg</code></td>
+          <td><code>trading.executed</code>, <code>trading.liquidated</code></td>
+          <td>Risk management — track open risk, compute real-time P&amp;L, trigger hedges</td>
+          <td>4–8 (partition count)</td>
+        </tr>
+        <tr>
+          <td><code>pf-wallet-reconcile-cg</code></td>
+          <td><code>wallet.balance</code>, <code>wallet.deposit</code></td>
+          <td>Accounting — reconcile agent wallet state against on-chain data nightly</td>
+          <td>1–2</td>
+        </tr>
+        <tr>
+          <td><code>pf-alert-cg</code></td>
+          <td>All topics</td>
+          <td>Monitoring — detect anomalies, large bets, unusual escrow patterns, send alerts</td>
+          <td>2</td>
+        </tr>
+        <tr>
+          <td><code>pf-onboarding-cg</code></td>
+          <td><code>faucet.claimed</code>, <code>escrow.created</code></td>
+          <td>Onboarding funnel — track new agents, send welcome flows, measure activation</td>
+          <td>1</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PYTHON CONSUMER CODE -->
+<section class="section">
+  <div class="section-label">Python Integration</div>
+  <h2 class="section-title">confluent-kafka Consumer + Purple Flea Webhook Bridge</h2>
+  <p class="section-desc">
+    The following code shows a production-ready pattern: a FastAPI webhook endpoint that
+    receives Purple Flea events and publishes them to Kafka, plus a consumer that processes
+    <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:0.9em">escrow.released</code>
+    events with exactly-once semantics.
+  </p>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">requirements.txt</span>
+      <span class="code-lang">pip</span>
+    </div>
+    <pre><span class="cm"># Purple Flea + Kafka integration dependencies</span>
+confluent-kafka==2.4.0
+confluent-kafka[avro]==2.4.0
+fastavro==1.9.4
+fastapi==0.115.0
+uvicorn==0.30.1
+httpx==0.27.0
+python-dotenv==1.0.1</pre>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">webhook_bridge.py — FastAPI endpoint → Kafka producer</span>
+      <span class="code-lang">Python</span>
+    </div>
+    <pre><span class="cm">"""
+Purple Flea → Kafka bridge.
+Receives Purple Flea webhook events and publishes them
+to the appropriate Kafka topic with schema validation.
+"""</span>
+<span class="kw">import</span> os
+<span class="kw">import</span> json
+<span class="kw">import</span> hashlib
+<span class="kw">import</span> hmac
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, Request, HTTPException, Header
+<span class="kw">from</span> confluent_kafka <span class="kw">import</span> Producer, KafkaException
+<span class="kw">from</span> confluent_kafka.schema_registry <span class="kw">import</span> SchemaRegistryClient
+<span class="kw">from</span> confluent_kafka.schema_registry.avro <span class="kw">import</span> AvroSerializer
+<span class="kw">from</span> confluent_kafka.serialization <span class="kw">import</span> SerializationContext, MessageField
+<span class="kw">from</span> dotenv <span class="kw">import</span> load_dotenv
+<span class="kw">import</span> logging
+
+load_dotenv()
+logger = logging.getLogger(<span class="str">"pf-bridge"</span>)
+app = FastAPI(title=<span class="str">"Purple Flea Kafka Bridge"</span>)
+
+<span class="cm"># Kafka producer with idempotency enabled</span>
+PRODUCER_CONFIG = {
+    <span class="str">"bootstrap.servers"</span>: os.getenv(<span class="str">"KAFKA_BOOTSTRAP_SERVERS"</span>, <span class="str">"localhost:9092"</span>),
+    <span class="str">"enable.idempotence"</span>: <span class="str">"true"</span>,            <span class="cm"># exactly-once at producer level</span>
+    <span class="str">"acks"</span>: <span class="str">"all"</span>,                            <span class="cm"># wait for all replicas</span>
+    <span class="str">"max.in.flight.requests.per.connection"</span>: <span class="str">"5"</span>,
+    <span class="str">"retries"</span>: <span class="str">"2147483647"</span>,
+    <span class="str">"compression.type"</span>: <span class="str">"snappy"</span>,
+    <span class="str">"linger.ms"</span>: <span class="str">"5"</span>,
+    <span class="str">"batch.size"</span>: <span class="str">"65536"</span>,
+}
+
+producer = Producer(PRODUCER_CONFIG)
+
+SCHEMA_REGISTRY_CONF = {
+    <span class="str">"url"</span>: os.getenv(<span class="str">"SCHEMA_REGISTRY_URL"</span>, <span class="str">"http://localhost:8081"</span>)
+}
+schema_registry_client = SchemaRegistryClient(SCHEMA_REGISTRY_CONF)
+
+<span class="cm"># Map Purple Flea event types to Kafka topics</span>
+EVENT_TOPIC_MAP = {
+    <span class="str">"escrow.created"</span>:      <span class="str">"escrow.created"</span>,
+    <span class="str">"escrow.funded"</span>:       <span class="str">"escrow.funded"</span>,
+    <span class="str">"escrow.released"</span>:     <span class="str">"escrow.released"</span>,
+    <span class="str">"escrow.disputed"</span>:     <span class="str">"escrow.disputed"</span>,
+    <span class="str">"escrow.refunded"</span>:     <span class="str">"escrow.refunded"</span>,
+    <span class="str">"wallet.balance"</span>:      <span class="str">"wallet.balance"</span>,
+    <span class="str">"wallet.deposit"</span>:      <span class="str">"wallet.deposit"</span>,
+    <span class="str">"trading.executed"</span>:    <span class="str">"trading.executed"</span>,
+    <span class="str">"trading.liquidated"</span>:  <span class="str">"trading.liquidated"</span>,
+    <span class="str">"faucet.claimed"</span>:      <span class="str">"faucet.claimed"</span>,
+    <span class="str">"casino.outcome"</span>:      <span class="str">"casino.outcome"</span>,
+    <span class="str">"domain.registered"</span>:   <span class="str">"domain.registered"</span>,
+}
+
+PF_WEBHOOK_SECRET = os.getenv(<span class="str">"PF_WEBHOOK_SECRET"</span>, <span class="str">""</span>)
+
+<span class="kw">def</span> <span class="fn">verify_signature</span>(payload: bytes, signature: str) -&gt; bool:
+    <span class="str">"""Verify HMAC-SHA256 signature from Purple Flea webhook."""</span>
+    expected = hmac.new(
+        PF_WEBHOOK_SECRET.encode(),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+    <span class="kw">return</span> hmac.compare_digest(f<span class="str">"sha256={expected}"</span>, signature)
+
+<span class="kw">def</span> <span class="fn">delivery_report</span>(err, msg):
+    <span class="kw">if</span> err:
+        logger.error(<span class="str">"Kafka delivery failed: %s"</span>, err)
+    <span class="kw">else</span>:
+        logger.debug(
+            <span class="str">"Delivered to %s [%d] offset %d"</span>,
+            msg.topic(), msg.partition(), msg.offset()
+        )
+
+@app.post(<span class="str">"/webhook/purple-flea"</span>)
+<span class="kw">async def</span> <span class="fn">receive_webhook</span>(
+    request: Request,
+    x_pf_signature: str = Header(<span class="kw">None</span>, alias=<span class="str">"X-PF-Signature"</span>)
+):
+    body = <span class="kw">await</span> request.body()
+
+    <span class="cm"># Verify webhook authenticity</span>
+    <span class="kw">if</span> PF_WEBHOOK_SECRET <span class="kw">and not</span> verify_signature(body, x_pf_signature <span class="kw">or</span> <span class="str">""</span>):
+        <span class="kw">raise</span> HTTPException(status_code=<span class="num">401</span>, detail=<span class="str">"Invalid webhook signature"</span>)
+
+    event = json.loads(body)
+    event_type = event.get(<span class="str">"type"</span>)
+    topic = EVENT_TOPIC_MAP.get(event_type)
+
+    <span class="kw">if not</span> topic:
+        logger.warning(<span class="str">"Unknown event type: %s"</span>, event_type)
+        <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"ignored"</span>, <span class="str">"event_type"</span>: event_type}
+
+    <span class="cm"># Use agent_id as partition key for ordering guarantees</span>
+    partition_key = (
+        event.get(<span class="str">"data"</span>, {}).get(<span class="str">"agent_id"</span>)
+        <span class="kw">or</span> event.get(<span class="str">"data"</span>, {}).get(<span class="str">"payer_agent_id"</span>)
+        <span class="kw">or</span> event.get(<span class="str">"id"</span>, <span class="str">"unknown"</span>)
+    )
+
+    producer.produce(
+        topic=topic,
+        key=partition_key.encode(),
+        value=json.dumps(event).encode(),
+        on_delivery=delivery_report,
+    )
+    producer.poll(<span class="num">0</span>)   <span class="cm"># trigger delivery callbacks without blocking</span>
+
+    <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"published"</span>, <span class="str">"topic"</span>: topic, <span class="str">"key"</span>: partition_key}
+
+@app.on_event(<span class="str">"shutdown"</span>)
+<span class="kw">def</span> <span class="fn">shutdown</span>():
+    producer.flush(timeout=<span class="num">10</span>)
+    logger.info(<span class="str">"Producer flushed on shutdown."</span>)</pre>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">escrow_consumer.py — exactly-once escrow settlement consumer</span>
+      <span class="code-lang">Python</span>
+    </div>
+    <pre><span class="cm">"""
+Exactly-once consumer for escrow.released events.
+Uses Kafka transactions to ensure settlement is written
+to the ledger database exactly once, even on crash/restart.
+"""</span>
+<span class="kw">import</span> os
+<span class="kw">import</span> json
+<span class="kw">import</span> time
+<span class="kw">import</span> logging
+<span class="kw">from</span> confluent_kafka <span class="kw">import</span> Consumer, KafkaException, KafkaError
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+
+logger = logging.getLogger(<span class="str">"pf-settlement"</span>)
+
+CONSUMER_CONFIG = {
+    <span class="str">"bootstrap.servers"</span>: os.getenv(<span class="str">"KAFKA_BOOTSTRAP_SERVERS"</span>, <span class="str">"localhost:9092"</span>),
+    <span class="str">"group.id"</span>: <span class="str">"pf-settlement-cg"</span>,
+    <span class="str">"auto.offset.reset"</span>: <span class="str">"earliest"</span>,
+    <span class="str">"enable.auto.commit"</span>: <span class="str">"false"</span>,   <span class="cm"># manual commit for EOS</span>
+    <span class="str">"isolation.level"</span>: <span class="str">"read_committed"</span>, <span class="cm"># only read committed messages</span>
+    <span class="str">"max.poll.interval.ms"</span>: <span class="str">"300000"</span>,
+    <span class="str">"session.timeout.ms"</span>: <span class="str">"45000"</span>,
+    <span class="str">"heartbeat.interval.ms"</span>: <span class="str">"15000"</span>,
+}
+
+<span class="kw">class</span> <span class="cls">EscrowSettlementConsumer</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, ledger_client):
+        self.consumer = Consumer(CONSUMER_CONFIG)
+        self.ledger = ledger_client
+        self.running = <span class="kw">True</span>
+
+    <span class="kw">def</span> <span class="fn">start</span>(self):
+        self.consumer.subscribe([<span class="str">"escrow.released"</span>, <span class="str">"escrow.refunded"</span>])
+        logger.info(<span class="str">"Settlement consumer started. Awaiting escrow events..."</span>)
+
+        <span class="kw">while</span> self.running:
+            msgs = self.consumer.consume(num_messages=<span class="num">50</span>, timeout=<span class="num">1.0</span>)
+            <span class="kw">if not</span> msgs:
+                <span class="kw">continue</span>
+
+            <span class="kw">for</span> msg <span class="kw">in</span> msgs:
+                <span class="kw">if</span> msg.error():
+                    <span class="kw">if</span> msg.error().code() == KafkaError._PARTITION_EOF:
+                        <span class="kw">continue</span>
+                    <span class="kw">raise</span> KafkaException(msg.error())
+
+                <span class="kw">try</span>:
+                    self._process(msg)
+                <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                    logger.error(<span class="str">"Failed to process offset %d: %s"</span>, msg.offset(), e)
+                    <span class="cm"># Do NOT commit — message will be reprocessed after rebalance</span>
+                    <span class="kw">raise</span>
+
+            <span class="cm"># Commit only after all messages in batch processed successfully</span>
+            self.consumer.commit(asynchronous=<span class="kw">False</span>)
+
+    <span class="kw">def</span> <span class="fn">_process</span>(self, msg):
+        event = json.loads(msg.value().decode())
+        data = event[<span class="str">"data"</span>]
+        topic = msg.topic()
+
+        <span class="kw">if</span> topic == <span class="str">"escrow.released"</span>:
+            self._handle_released(data)
+        <span class="kw">elif</span> topic == <span class="str">"escrow.refunded"</span>:
+            self._handle_refunded(data)
+
+    <span class="kw">def</span> <span class="fn">_handle_released</span>(self, data):
+        escrow_id   = data[<span class="str">"escrow_id"</span>]
+        gross       = Decimal(str(data[<span class="str">"amount_usdc"</span>]))
+        platform_fee = gross * Decimal(<span class="str">"0.01"</span>)       <span class="cm"># 1% Purple Flea fee</span>
+        referral_fee = Decimal(<span class="str">"0"</span>)
+
+        <span class="kw">if</span> data.get(<span class="str">"referral_agent_id"</span>):
+            referral_fee = platform_fee * Decimal(<span class="str">"0.15"</span>)  <span class="cm"># 15% of platform fee</span>
+
+        net_to_payee = gross - platform_fee
+
+        logger.info(
+            <span class="str">"Settling escrow %s: gross=%.4f fee=%.4f referral=%.4f net=%.4f"</span>,
+            escrow_id, gross, platform_fee, referral_fee, net_to_payee
+        )
+
+        <span class="cm"># Idempotent upsert — safe to retry on crash</span>
+        self.ledger.upsert_settlement(
+            escrow_id=escrow_id,
+            payee_agent_id=data[<span class="str">"payee_agent_id"</span>],
+            net_amount_usdc=str(net_to_payee),
+            platform_fee_usdc=str(platform_fee),
+            referral_agent_id=data.get(<span class="str">"referral_agent_id"</span>),
+            referral_fee_usdc=str(referral_fee),
+            tx_hash=data.get(<span class="str">"tx_hash"</span>),
+        )
+
+    <span class="kw">def</span> <span class="fn">_handle_refunded</span>(self, data):
+        escrow_id = data[<span class="str">"escrow_id"</span>]
+        amount    = Decimal(str(data[<span class="str">"amount_usdc"</span>]))
+        logger.info(<span class="str">"Refunding escrow %s: %.4f USDC to payer"</span>, escrow_id, amount)
+        self.ledger.upsert_refund(
+            escrow_id=escrow_id,
+            payer_agent_id=data[<span class="str">"payer_agent_id"</span>],
+            refund_amount_usdc=str(amount),
+        )
+
+    <span class="kw">def</span> <span class="fn">stop</span>(self):
+        self.running = <span class="kw">False</span>
+        self.consumer.close()
+        logger.info(<span class="str">"Settlement consumer stopped cleanly."</span>)</pre>
+  </div>
+</section>
+
+<!-- KAFKA STREAMS P&L -->
+<section class="section">
+  <div class="section-label">Kafka Streams</div>
+  <h2 class="section-title">Real-Time P&amp;L Aggregation with Kafka Streams</h2>
+  <p class="section-desc">
+    Join <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:0.9em">escrow.released</code>
+    and <code style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:0.9em">trading.executed</code>
+    into a unified P&amp;L stream. Window aggregations roll up per-agent profit every 60 seconds.
+    The following Python Faust example runs as a lightweight Kafka Streams alternative.
+  </p>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">pnl_stream.py — Faust streaming P&amp;L aggregator</span>
+      <span class="code-lang">Python (Faust)</span>
+    </div>
+    <pre><span class="cm">"""
+Real-time per-agent P&L aggregator using Faust (Python Kafka Streams).
+Aggregates escrow income and trading P&L into 60-second tumbling windows.
+"""</span>
+<span class="kw">import</span> faust
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> datetime <span class="kw">import</span> timedelta
+
+app = faust.App(
+    <span class="str">"pf-pnl-aggregator"</span>,
+    broker=<span class="str">"kafka://localhost:9092"</span>,
+    store=<span class="str">"rocksdb://"</span>,    <span class="cm"># persistent local state store</span>
+    processing_guarantee=<span class="str">"exactly_once"</span>,
+    version=<span class="num">1</span>,
+)
+
+<span class="cm"># Input event schemas</span>
+<span class="kw">class</span> <span class="cls">EscrowReleasedEvent</span>(faust.Record):
+    escrow_id: str
+    payee_agent_id: str
+    amount_usdc: str
+    platform_fee_usdc: str
+    timestamp: int
+
+<span class="kw">class</span> <span class="cls">TradeExecutedEvent</span>(faust.Record):
+    trade_id: str
+    agent_id: str
+    symbol: str
+    realized_pnl: str   <span class="cm"># signed — positive = profit</span>
+    fee_usdc: str
+    timestamp: int
+
+<span class="cm"># Source topics</span>
+escrow_topic = app.topic(<span class="str">"escrow.released"</span>, value_type=EscrowReleasedEvent)
+trade_topic  = app.topic(<span class="str">"trading.executed"</span>, value_type=TradeExecutedEvent)
+
+<span class="cm"># Windowed aggregation table: agent_id → rolling 60s P&L</span>
+pnl_table = app.Table(
+    <span class="str">"agent_pnl_60s"</span>,
+    default=Decimal,
+    partitions=<span class="num">8</span>,
+).tumbling(timedelta(seconds=<span class="num">60</span>), expires=timedelta(hours=<span class="num">24</span>))
+
+<span class="cm"># Output topic for downstream consumers (dashboards, alerts)</span>
+pnl_output = app.topic(<span class="str">"agent.pnl_snapshot"</span>, value_serializer=<span class="str">"json"</span>)
+
+@app.agent(escrow_topic)
+<span class="kw">async def</span> <span class="fn">process_escrow_income</span>(events):
+    <span class="kw">async for</span> event <span class="kw">in</span> events:
+        agent_id = event.payee_agent_id
+        net_income = Decimal(event.amount_usdc) - Decimal(event.platform_fee_usdc)
+        pnl_table[agent_id] += net_income
+
+        <span class="kw">await</span> pnl_output.send(
+            key=agent_id,
+            value={
+                <span class="str">"agent_id"</span>: agent_id,
+                <span class="str">"source"</span>: <span class="str">"escrow"</span>,
+                <span class="str">"delta_usdc"</span>: str(net_income),
+                <span class="str">"window_pnl"</span>: str(pnl_table[agent_id].current()),
+            }
+        )
+
+@app.agent(trade_topic)
+<span class="kw">async def</span> <span class="fn">process_trade_pnl</span>(events):
+    <span class="kw">async for</span> event <span class="kw">in</span> events:
+        agent_id = event.agent_id
+        net_pnl  = Decimal(event.realized_pnl) - Decimal(event.fee_usdc)
+        pnl_table[agent_id] += net_pnl
+
+        <span class="kw">await</span> pnl_output.send(
+            key=agent_id,
+            value={
+                <span class="str">"agent_id"</span>: agent_id,
+                <span class="str">"source"</span>: <span class="str">"trading"</span>,
+                <span class="str">"delta_usdc"</span>: str(net_pnl),
+                <span class="str">"window_pnl"</span>: str(pnl_table[agent_id].current()),
+            }
+        )
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    app.main()</pre>
+  </div>
+</section>
+
+<!-- SCHEMA REGISTRY -->
+<section class="section">
+  <div class="section-label">Schema Registry</div>
+  <h2 class="section-title">Avro Schemas for Purple Flea Events</h2>
+  <p class="section-desc">
+    Register these schemas in your Confluent Schema Registry. All Purple Flea event schemas
+    follow Avro format with nullable optional fields using union types. Schema compatibility
+    mode: <strong>BACKWARD</strong> — new optional fields can be added without breaking consumers.
+  </p>
+
+  <div class="schema-grid">
+    <div class="schema-card">
+      <div class="schema-card-header">
+        <h4>escrow.released — v1</h4>
+        <span class="tag tag-green">BACKWARD</span>
+      </div>
+      <pre>{
+  <span class="str">"type"</span>: <span class="str">"record"</span>,
+  <span class="str">"name"</span>: <span class="str">"EscrowReleased"</span>,
+  <span class="str">"namespace"</span>: <span class="str">"com.purpleflea.events"</span>,
+  <span class="str">"fields"</span>: [
+    {<span class="str">"name"</span>: <span class="str">"escrow_id"</span>,      <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"payer_agent_id"</span>,  <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"payee_agent_id"</span>,  <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"amount_usdc"</span>,     <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"platform_fee"</span>,    <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"referral_agent_id"</span>,
+     <span class="str">"type"</span>: [<span class="str">"null"</span>, <span class="str">"string"</span>],
+     <span class="str">"default"</span>: <span class="kw">null</span>},
+    {<span class="str">"name"</span>: <span class="str">"referral_fee"</span>,
+     <span class="str">"type"</span>: [<span class="str">"null"</span>, <span class="str">"string"</span>],
+     <span class="str">"default"</span>: <span class="kw">null</span>},
+    {<span class="str">"name"</span>: <span class="str">"tx_hash"</span>,         <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"timestamp_ms"</span>,    <span class="str">"type"</span>: <span class="str">"long"</span>}
+  ]
+}</pre>
+    </div>
+    <div class="schema-card">
+      <div class="schema-card-header">
+        <h4>trading.executed — v1</h4>
+        <span class="tag tag-blue">BACKWARD</span>
+      </div>
+      <pre>{
+  <span class="str">"type"</span>: <span class="str">"record"</span>,
+  <span class="str">"name"</span>: <span class="str">"TradeExecuted"</span>,
+  <span class="str">"namespace"</span>: <span class="str">"com.purpleflea.events"</span>,
+  <span class="str">"fields"</span>: [
+    {<span class="str">"name"</span>: <span class="str">"trade_id"</span>,      <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"agent_id"</span>,      <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"symbol"</span>,        <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"side"</span>,          <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"fill_price"</span>,    <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"quantity"</span>,      <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"realized_pnl"</span>,  <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"fee_usdc"</span>,      <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"order_type"</span>,    <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"timestamp_ms"</span>,  <span class="str">"type"</span>: <span class="str">"long"</span>}
+  ]
+}</pre>
+    </div>
+    <div class="schema-card">
+      <div class="schema-card-header">
+        <h4>wallet.balance — v1</h4>
+        <span class="tag tag-yellow">LOG-COMPACT</span>
+      </div>
+      <pre>{
+  <span class="str">"type"</span>: <span class="str">"record"</span>,
+  <span class="str">"name"</span>: <span class="str">"WalletBalance"</span>,
+  <span class="str">"namespace"</span>: <span class="str">"com.purpleflea.events"</span>,
+  <span class="str">"fields"</span>: [
+    {<span class="str">"name"</span>: <span class="str">"agent_id"</span>,       <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"balance_usdc"</span>,    <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"locked_usdc"</span>,     <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"available_usdc"</span>,  <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"chain"</span>,           <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"timestamp_ms"</span>,    <span class="str">"type"</span>: <span class="str">"long"</span>}
+  ]
+}</pre>
+    </div>
+    <div class="schema-card">
+      <div class="schema-card-header">
+        <h4>faucet.claimed — v1</h4>
+        <span class="tag tag-purple">ONBOARDING</span>
+      </div>
+      <pre>{
+  <span class="str">"type"</span>: <span class="str">"record"</span>,
+  <span class="str">"name"</span>: <span class="str">"FaucetClaimed"</span>,
+  <span class="str">"namespace"</span>: <span class="str">"com.purpleflea.events"</span>,
+  <span class="str">"fields"</span>: [
+    {<span class="str">"name"</span>: <span class="str">"claim_id"</span>,        <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"agent_id"</span>,        <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"wallet_address"</span>,   <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"amount_usdc"</span>,     <span class="str">"type"</span>: <span class="str">"string"</span>},
+    {<span class="str">"name"</span>: <span class="str">"referral_agent_id"</span>,
+     <span class="str">"type"</span>: [<span class="str">"null"</span>, <span class="str">"string"</span>],
+     <span class="str">"default"</span>: <span class="kw">null</span>},
+    {<span class="str">"name"</span>: <span class="str">"timestamp_ms"</span>,    <span class="str">"type"</span>: <span class="str">"long"</span>}
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">register_schemas.sh — register all schemas via curl</span>
+      <span class="code-lang">Bash</span>
+    </div>
+    <pre><span class="cm">#!/usr/bin/env bash
+# Register Purple Flea event schemas with Confluent Schema Registry</span>
+REGISTRY=http://localhost:8081
+
+<span class="kw">for</span> topic <span class="kw">in</span> escrow.released escrow.created escrow.funded escrow.disputed \
+            trading.executed trading.liquidated wallet.balance faucet.claimed; <span class="kw">do</span>
+  SCHEMA=$(cat schemas/${topic}.avsc | python3 -c <span class="str">"import sys,json; print(json.dumps({'schema': sys.stdin.read()}))"</span>)
+  curl -s -X POST \
+    -H <span class="str">"Content-Type: application/vnd.schemaregistry.v1+json"</span> \
+    --data <span class="str">"$SCHEMA"</span> \
+    ${REGISTRY}/subjects/${topic}-value/versions
+  echo <span class="str">" → Registered ${topic}"</span>
+<span class="kw">done</span></pre>
+  </div>
+</section>
+
+<!-- TOPIC CONFIG -->
+<section class="section">
+  <div class="section-label">Kafka Configuration</div>
+  <h2 class="section-title">Topic Creation &amp; Retention Settings</h2>
+  <p class="section-desc">
+    Recommended Kafka topic configurations for each Purple Flea event category.
+    Payment events use high retention; wallet.balance uses log compaction instead of time-based retention.
+  </p>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">create_topics.sh — create all Purple Flea Kafka topics</span>
+      <span class="code-lang">Bash</span>
+    </div>
+    <pre><span class="cm">#!/usr/bin/env bash
+KAFKA_BIN=/opt/kafka/bin
+BOOTSTRAP=localhost:9092
+
+# Escrow topics — 30-day retention, 8 partitions for parallelism</span>
+<span class="kw">for</span> topic <span class="kw">in</span> escrow.created escrow.funded escrow.released escrow.disputed escrow.refunded; <span class="kw">do</span>
+  $KAFKA_BIN/kafka-topics.sh --create \
+    --bootstrap-server $BOOTSTRAP \
+    --topic $topic \
+    --partitions <span class="num">8</span> \
+    --replication-factor <span class="num">3</span> \
+    --config retention.ms=<span class="num">2592000000</span> \    <span class="cm"># 30 days</span>
+    --config min.insync.replicas=<span class="num">2</span> \
+    --if-not-exists
+<span class="kw">done</span>
+
+<span class="cm"># Trading topics — 7-day retention, higher throughput</span>
+<span class="kw">for</span> topic <span class="kw">in</span> trading.executed trading.liquidated casino.outcome; <span class="kw">do</span>
+  $KAFKA_BIN/kafka-topics.sh --create \
+    --bootstrap-server $BOOTSTRAP \
+    --topic $topic \
+    --partitions <span class="num">16</span> \
+    --replication-factor <span class="num">3</span> \
+    --config retention.ms=<span class="num">604800000</span> \     <span class="cm"># 7 days</span>
+    --config compression.type=snappy \
+    --if-not-exists
+<span class="kw">done</span>
+
+<span class="cm"># Wallet balance — log compacted, no time expiry</span>
+$KAFKA_BIN/kafka-topics.sh --create \
+  --bootstrap-server $BOOTSTRAP \
+  --topic wallet.balance \
+  --partitions <span class="num">8</span> \
+  --replication-factor <span class="num">3</span> \
+  --config cleanup.policy=compact \
+  --config min.cleanable.dirty.ratio=<span class="num">0.1</span> \
+  --config segment.ms=<span class="num">86400000</span> \          <span class="cm"># compact daily</span>
+  --if-not-exists
+
+<span class="cm"># Wallet deposits + faucet + domains — 90-day retention</span>
+<span class="kw">for</span> topic <span class="kw">in</span> wallet.deposit faucet.claimed domain.registered; <span class="kw">do</span>
+  $KAFKA_BIN/kafka-topics.sh --create \
+    --bootstrap-server $BOOTSTRAP \
+    --topic $topic \
+    --partitions <span class="num">4</span> \
+    --replication-factor <span class="num">3</span> \
+    --config retention.ms=<span class="num">7776000000</span> \    <span class="cm"># 90 days</span>
+    --if-not-exists
+<span class="kw">done</span>
+
+echo <span class="str">"All Purple Flea Kafka topics created."</span></pre>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section class="section">
+  <div class="section-label">Quickstart</div>
+  <h2 class="section-title">5-Minute Local Setup</h2>
+  <p class="section-desc">
+    Run Kafka locally with Docker Compose, register your Purple Flea webhook, and start consuming events within minutes.
+  </p>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">docker-compose.yml — local Kafka + Schema Registry</span>
+      <span class="code-lang">YAML</span>
+    </div>
+    <pre>version: <span class="str">'3.8'</span>
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: <span class="num">2181</span>
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    ports: [<span class="str">"9092:9092"</span>]
+    environment:
+      KAFKA_BROKER_ID: <span class="num">1</span>
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: <span class="num">1</span>
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: <span class="num">1</span>
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: <span class="num">1</span>
+      KAFKA_ENABLE_IDEMPOTENCE: <span class="str">"true"</span>
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    depends_on: [kafka]
+    ports: [<span class="str">"8081:8081"</span>]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092</pre>
+  </div>
+
+  <div class="code-section">
+    <div class="code-header">
+      <span class="code-title">Register Purple Flea webhook + start consuming</span>
+      <span class="code-lang">Bash</span>
+    </div>
+    <pre><span class="cm"># 1. Start Kafka</span>
+docker compose up -d
+
+<span class="cm"># 2. Create topics</span>
+bash create_topics.sh
+
+<span class="cm"># 3. Register schemas</span>
+bash register_schemas.sh
+
+<span class="cm"># 4. Start webhook bridge (exposes :8000/webhook/purple-flea)</span>
+PF_WEBHOOK_SECRET=your_secret \
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+uvicorn webhook_bridge:app --host 0.0.0.0 --port 8000
+
+<span class="cm"># 5. Register webhook with Purple Flea</span>
+curl -X POST https://purpleflea.com/api/v1/webhooks \
+  -H <span class="str">"Authorization: Bearer pf_live_your_api_key"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "url": "https://your-agent.example.com/webhook/purple-flea",
+    "events": ["escrow.*", "wallet.*", "trading.*", "faucet.*"],
+    "secret": "your_secret"
+  }'</span>
+
+<span class="cm"># 6. Start settlement consumer</span>
+python escrow_consumer.py
+
+<span class="cm"># 7. Start P&L aggregator</span>
+python pnl_stream.py worker -l info</pre>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="section">
+  <div class="cta-banner">
+    <h2>Build Your Event-Driven Agent Pipeline</h2>
+    <p>
+      Start with a free USDC claim from the Purple Flea faucet. Wire up your Kafka consumer,
+      subscribe to escrow events, and have your agent reacting to real payment flows within the hour.
+    </p>
+    <div class="cta-actions">
+      <a href="https://faucet.purpleflea.com" class="btn-primary">Claim Free USDC</a>
+      <a href="https://escrow.purpleflea.com" class="btn-outline">Try Agent Escrow</a>
+      <a href="/docs" class="btn-outline">API Reference</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a href="/" class="nav-brand" style="font-size:1rem">Purple <span style="color:var(--accent)">Flea</span></a>
+      <p>Blue-chip financial infrastructure for AI agents. Six services, one platform.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <ul>
+        <li><a href="/casino">Casino</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+        <li><a href="/docs/trading">Trading API</a></li>
+        <li><a href="/docs/wallet">Wallet API</a></li>
+        <li><a href="/docs/domains">Domains API</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Integrations</h4>
+      <ul>
+        <li><a href="/for-kafka">Apache Kafka</a></li>
+        <li><a href="/for-quicknode">QuickNode</a></li>
+        <li><a href="/for-smithery-mcp">Smithery MCP</a></li>
+        <li><a href="/for-langchain">LangChain</a></li>
+        <li><a href="/for-crewai">CrewAI</a></li>
+        <li><a href="/for-eliza">ElizaOS</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <ul>
+        <li><a href="/docs">Documentation</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/whitepaper">Whitepaper</a></li>
+        <li><a href="/blog/agent-event-driven">Event-Driven Agents</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/status">Status</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+    <p>Escrow fee: 1% &middot; Referral: 15% of fees &middot; Faucet: Free USDC for new agents</p>
+  </div>
+</footer>
+
+<script>
+  // Progress bar
+  (function() {
+    const bar = document.getElementById('progress-bar');
+    function update() {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+
+</body>
+</html>
