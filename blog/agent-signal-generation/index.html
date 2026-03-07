@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signal Generation Pipelines for AI Trading Agents | Purple Flea</title>
+  <meta name="description" content="How AI trading agents build, score, and combine signals across technical, fundamental, sentiment, on-chain, and cross-asset dimensions for live trading." />
+  <meta property="og:title" content="Signal Generation Pipelines for AI Trading Agents" />
+  <meta property="og:description" content="How AI trading agents build, score, and combine signals across technical, fundamental, sentiment, on-chain, and cross-asset dimensions for live trading." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-signal-generation/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-signal-generation/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Signal Generation Pipelines for AI Trading Agents",
+    "description": "How AI trading agents build, score, and combine signals across technical, fundamental, sentiment, on-chain, and cross-asset dimensions for live trading.",
+    "url": "https://purpleflea.com/blog/agent-signal-generation/",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["signal generation", "AI trading agents", "signal pipeline", "ensemble methods", "backtesting signals", "Purple Flea Trading", "technical signals", "on-chain signals"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --orange: #F97316;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    article { min-width: 0; }
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .tag-tools { background: rgba(59,130,246,0.15); color: #60A5FA; border: 1px solid rgba(59,130,246,0.3); }
+    .tag-guide { background: rgba(34,197,94,0.15); color: #4ADE80; border: 1px solid rgba(34,197,94,0.3); }
+    .post-date { color: var(--muted); font-size: 0.875rem; }
+    .read-time { color: var(--muted); font-size: 0.875rem; }
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 1.125rem;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    .hero-gradient {
+      background: linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(168,85,247,0.07) 100%);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+    }
+    .hero-gradient p { color: var(--muted); margin: 0; }
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      padding-top: 0.5rem;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text);
+    }
+    p { margin-bottom: 1.25rem; color: var(--muted); }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    pre {
+      background: #0D0D0F;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.6;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+    p code, li code {
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 4px;
+      padding: 0.1em 0.4em;
+      color: #93C5FD;
+    }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #34D399; }
+    .cm { color: #52525B; font-style: italic; }
+    .nm { color: #FB923C; }
+    .op { color: #E2E8F0; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+    }
+    .card-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-accent { border-left: 3px solid var(--accent); }
+    .card-green  { border-left: 3px solid var(--green); }
+    .card-red    { border-left: 3px solid var(--red); }
+    .card-yellow { border-left: 3px solid var(--yellow); }
+    .card-blue   { border-left: 3px solid var(--blue); }
+    .card-orange { border-left: 3px solid var(--orange); }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--blue);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .alert {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .alert-warn {
+      background: rgba(234,179,8,0.08);
+      border: 1px solid rgba(234,179,8,0.25);
+      color: #FDE68A;
+    }
+    .alert-info {
+      background: rgba(59,130,246,0.08);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: #93C5FD;
+    }
+    .alert-success {
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: #86EFAC;
+    }
+    .alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+    ul, ol { margin: 0 0 1.25rem 1.5rem; }
+    li { color: var(--muted); margin-bottom: 0.5rem; }
+    li strong { color: var(--text); }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text);
+    }
+    td { border: 1px solid var(--border); padding: 0.75rem 1rem; color: var(--muted); }
+    tr:hover td { background: rgba(59,130,246,0.04); }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-red    { background: rgba(239,68,68,0.15); color: #FCA5A5; }
+    .badge-green  { background: rgba(34,197,94,0.15); color: #86EFAC; }
+    .badge-yellow { background: rgba(234,179,8,0.15); color: #FDE68A; }
+    .badge-blue   { background: rgba(59,130,246,0.15); color: #93C5FD; }
+    .badge-purple { background: rgba(168,85,247,0.15); color: #C084FC; }
+    .badge-orange { background: rgba(249,115,22,0.15); color: #FDBA74; }
+    /* Pipeline diagram */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+    }
+    .pipe-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      min-width: 110px;
+      flex-shrink: 0;
+    }
+    .pipe-step-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .pipe-step-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+    .pipe-arrow {
+      color: var(--accent);
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      padding: 0 0.25rem;
+    }
+    /* Steps numbered */
+    .steps { list-style: none; margin: 1.25rem 0; padding: 0; }
+    .steps li { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: flex-start; }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(59,130,246,0.15);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: var(--blue);
+      font-size: 0.8rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cta-box {
+      background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(168,85,247,0.08));
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      margin: 2.5rem 0;
+    }
+    .cta-box h3 { margin: 0 0 0.75rem; color: var(--text); }
+    .cta-box p { margin: 0 0 1.25rem; }
+    .btn {
+      display: inline-block;
+      padding: 0.65rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; text-decoration: none; }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-outline { border: 1px solid var(--blue); color: var(--blue); margin-left: 0.75rem; }
+    .sidebar { position: sticky; top: 80px; }
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .toc ul { list-style: none; margin: 0; padding: 0; }
+    .toc li { margin-bottom: 0.35rem; }
+    .toc a {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+      display: block;
+      padding: 0.2rem 0;
+      border-left: 2px solid transparent;
+      padding-left: 0.5rem;
+    }
+    .toc a:hover, .toc a.active { color: var(--blue); border-left-color: var(--blue); }
+    .toc-resources { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+    .toc-resources a {
+      display: block; font-size: 0.8rem;
+      color: var(--muted); text-decoration: none;
+      padding: 0.25rem 0; transition: color 0.2s;
+    }
+    .toc-resources a:hover { color: var(--blue); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--accent); }
+    @media (max-width: 768px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .pipeline { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple<span>Flea</span></a>
+      <ul class="nav-links">
+        <li><a href="/trading">Trading</a></li>
+        <li><a href="/casino">Casino</a></li>
+        <li><a href="/escrow">Escrow</a></li>
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <div class="post-meta">
+        <span class="tag tag-tools">Tools</span>
+        <span class="tag tag-guide">Guide</span>
+        <span class="post-date">March 7, 2026</span>
+        <span class="read-time">· 15 min read</span>
+      </div>
+
+      <h1>Signal Generation Pipelines for AI Trading Agents</h1>
+      <p class="subtitle">
+        Raw market data is noise. Signals are noise transformed into actionable predictions. This guide walks through
+        building a production-grade signal generation pipeline — from data ingestion and feature engineering to
+        ensemble combination and live order placement via the Purple Flea Trading API.
+      </p>
+
+      <div class="hero-gradient">
+        <p>
+          <strong>A signal</strong> is a quantitative prediction about future price movement with an associated strength,
+          direction, and decay time. Good signals are forward-looking, statistically significant in out-of-sample testing,
+          and combined intelligently with other signals. Bad signals are backtested into existence and forgotten as soon as
+          they hit live markets. This guide teaches the difference — and shows how to build a pipeline that survives contact
+          with reality.
+        </p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">5</div>
+          <div class="stat-label">primary signal categories covered</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0.55+</div>
+          <div class="stat-label">minimum IC for a deployable signal</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">4</div>
+          <div class="stat-label">ensemble combination methods compared</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">&lt;50ms</div>
+          <div class="stat-label">target latency for live signal scoring</div>
+        </div>
+      </div>
+
+      <!-- SECTION 1 -->
+      <h2 id="signal-types">1. Signal Types: Technical, Fundamental, Sentiment, On-Chain, Cross-Asset</h2>
+
+      <p>
+        Signals fall into five broad categories, each with different data sources, latencies, and decay characteristics.
+        Robust trading agents combine signals from multiple categories to reduce dependence on any single source of alpha.
+      </p>
+
+      <div class="card card-blue">
+        <div class="card-title">Technical Signals</div>
+        <p style="margin:0; color: var(--muted);">
+          Derived from price, volume, and order flow data. Examples include momentum indicators (RSI, MACD),
+          moving average crossovers, Bollinger Band breakouts, order book imbalance, and VWAP deviation.
+          Technical signals are high-frequency — they can be computed in milliseconds and decay within minutes to hours.
+          They are the most common signal type for crypto trading agents because the data is readily available and standardized.
+        </p>
+      </div>
+
+      <div class="card card-green">
+        <div class="card-title">Fundamental Signals</div>
+        <p style="margin:0; color: var(--muted);">
+          Based on underlying asset value metrics: protocol revenue, active addresses, developer activity (GitHub commits),
+          token emission schedules, and treasury balances. Fundamental signals change slowly and have decay times
+          of days to weeks. They work best as filters or regime identifiers rather than direct trade triggers.
+        </p>
+      </div>
+
+      <div class="card card-accent">
+        <div class="card-title">Sentiment Signals</div>
+        <p style="margin:0; color: var(--muted);">
+          Aggregated from social media, news sources, and AI-powered NLP models. Crypto-specific sources include
+          Twitter/X post volume and tone, Reddit mentions, Fear and Greed index, and funding rate sentiment.
+          Sentiment signals are noisy but can capture crowd psychology ahead of price moves. Decay is typically
+          1 to 12 hours for event-driven sentiment.
+        </p>
+      </div>
+
+      <div class="card card-orange">
+        <div class="card-title">On-Chain Signals</div>
+        <p style="margin:0; color: var(--muted);">
+          Derived from blockchain transaction data: whale wallet flows, exchange inflows/outflows, large transfer
+          clustering, miner activity, and DeFi protocol utilization. On-chain data is transparent and manipulation-resistant.
+          Signal decay is 4 to 48 hours depending on the metric — whale accumulation patterns last longer than
+          single large transactions.
+        </p>
+      </div>
+
+      <div class="card card-yellow">
+        <div class="card-title">Cross-Asset Signals</div>
+        <p style="margin:0; color: var(--muted);">
+          Exploit correlations between related markets: BTC dominance shifts, BTC/ETH ratio, crypto vs equity beta,
+          stablecoin dominance trends, and DeFi TVL changes. Cross-asset signals provide diversification benefit
+          because they are often uncorrelated with pure technical signals on the same asset.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Signal Type</th>
+              <th>Data Latency</th>
+              <th>Typical Decay</th>
+              <th>Best Use</th>
+              <th>Difficulty</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Technical</td>
+              <td><span class="badge badge-green">Milliseconds</span></td>
+              <td>Minutes – Hours</td>
+              <td>Trade triggering</td>
+              <td><span class="badge badge-green">Low</span></td>
+            </tr>
+            <tr>
+              <td>Fundamental</td>
+              <td><span class="badge badge-yellow">Hours – Days</span></td>
+              <td>Days – Weeks</td>
+              <td>Regime filter</td>
+              <td><span class="badge badge-yellow">Medium</span></td>
+            </tr>
+            <tr>
+              <td>Sentiment</td>
+              <td><span class="badge badge-blue">Seconds – Minutes</span></td>
+              <td>1 – 12 Hours</td>
+              <td>Short-term momentum</td>
+              <td><span class="badge badge-yellow">Medium</span></td>
+            </tr>
+            <tr>
+              <td>On-Chain</td>
+              <td><span class="badge badge-yellow">Minutes – Hours</span></td>
+              <td>4 – 48 Hours</td>
+              <td>Directional bias</td>
+              <td><span class="badge badge-red">High</span></td>
+            </tr>
+            <tr>
+              <td>Cross-Asset</td>
+              <td><span class="badge badge-green">Milliseconds</span></td>
+              <td>Hours – Days</td>
+              <td>Portfolio regime</td>
+              <td><span class="badge badge-yellow">Medium</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SECTION 2 -->
+      <h2 id="pipeline-architecture">2. Signal Pipeline Architecture</h2>
+
+      <p>
+        A signal pipeline transforms raw market data into an actionable trade signal through a structured sequence of stages.
+        Each stage has a single responsibility, making the pipeline testable, replaceable, and observable.
+      </p>
+
+      <div class="pipeline">
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 1</div>
+          <div class="pipe-step-name">Raw Data</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 2</div>
+          <div class="pipe-step-name">Feature Eng.</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 3</div>
+          <div class="pipe-step-name">Signal Gen.</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 4</div>
+          <div class="pipe-step-name">Scoring</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 5</div>
+          <div class="pipe-step-name">Filtering</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 6</div>
+          <div class="pipe-step-name">Combination</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">
+          <div class="pipe-step-label">STAGE 7</div>
+          <div class="pipe-step-name">Trade Signal</div>
+        </div>
+      </div>
+
+      <h3>Stage Descriptions</h3>
+      <ul>
+        <li><strong>Raw Data:</strong> OHLCV bars, order book snapshots, funding rates, on-chain transactions, social feeds.</li>
+        <li><strong>Feature Engineering:</strong> Normalization, rolling statistics, derived ratios, cross-asset features.</li>
+        <li><strong>Signal Generation:</strong> Apply signal logic to features to produce raw directional predictions.</li>
+        <li><strong>Scoring:</strong> Assign each signal a strength score (typically −1 to +1) and confidence estimate.</li>
+        <li><strong>Filtering:</strong> Remove weak or stale signals below the quality threshold.</li>
+        <li><strong>Combination:</strong> Merge surviving signals via ensemble methods into a single composite signal.</li>
+        <li><strong>Trade Signal:</strong> Final directional output (long / short / flat) with size recommendation.</li>
+      </ul>
+
+      <div class="alert alert-info">
+        <span class="alert-icon">ℹ</span>
+        <div>
+          <strong>Separation of Concerns:</strong> Keep signal generation strictly separate from order execution.
+          The pipeline should produce a signal object. A separate execution engine decides whether and how to act on it.
+          This decoupling makes backtesting, paper trading, and live trading share the same signal pipeline with
+          different execution backends.
+        </div>
+      </div>
+
+      <!-- SECTION 3 -->
+      <h2 id="signal-scoring">3. Signal Strength Scoring and Filtering Weak Signals</h2>
+
+      <p>
+        Not all signals are equal. Signal scoring assigns a quantitative quality measure to each generated signal,
+        allowing the pipeline to discard low-quality inputs before they pollute the ensemble.
+      </p>
+
+      <h3>Information Coefficient (IC)</h3>
+      <p>
+        The Information Coefficient is the Spearman rank correlation between predicted signal direction and actual
+        subsequent returns. An IC of 0.0 indicates no predictive power; 0.05–0.10 is considered good in equities;
+        0.10+ is excellent for crypto agents given shorter holding periods and greater noise.
+      </p>
+
+      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> scipy <span class="kw">import</span> stats
+
+<span class="kw">def</span> <span class="fn">information_coefficient</span>(signals: np.ndarray,
+                              returns: np.ndarray) -> float:
+    <span class="st">"""
+    Compute Spearman rank IC between signals and forward returns.
+
+    Args:
+        signals: Array of signal values at time t
+        returns: Array of realized returns at time t+h (same length)
+    Returns:
+        IC value in [-1, +1]. Values > 0.05 indicate useful predictive power.
+    """</span>
+    <span class="kw">if</span> len(signals) < <span class="nm">20</span>:
+        <span class="kw">return</span> <span class="nm">0.0</span>
+    ic, _ = stats.spearmanr(signals, returns)
+    <span class="kw">return</span> float(ic)
+
+
+<span class="kw">def</span> <span class="fn">rolling_ic</span>(signal_series: pd.Series,
+               return_series: pd.Series,
+               window: <span class="nm">int</span> = <span class="nm">60</span>) -> pd.Series:
+    <span class="st">"""Rolling IC for temporal stability assessment."""</span>
+    ics = []
+    <span class="kw">for</span> i <span class="kw">in</span> range(window, len(signal_series)):
+        s = signal_series.iloc[i-window:i].values
+        r = return_series.iloc[i-window:i].values
+        ics.append(information_coefficient(s, r))
+    <span class="kw">return</span> pd.Series(ics, index=signal_series.index[window:])</pre>
+
+      <h3>Signal Quality Thresholds</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>IC Range</th>
+              <th>Quality Grade</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>&gt; 0.10</td>
+              <td><span class="badge badge-green">A — Excellent</span></td>
+              <td>Full weight in ensemble</td>
+            </tr>
+            <tr>
+              <td>0.05 – 0.10</td>
+              <td><span class="badge badge-blue">B — Good</span></td>
+              <td>Standard weight in ensemble</td>
+            </tr>
+            <tr>
+              <td>0.02 – 0.05</td>
+              <td><span class="badge badge-yellow">C — Marginal</span></td>
+              <td>Half weight; monitor closely</td>
+            </tr>
+            <tr>
+              <td>0 – 0.02</td>
+              <td><span class="badge badge-red">D — Weak</span></td>
+              <td>Exclude from ensemble</td>
+            </tr>
+            <tr>
+              <td>&lt; 0</td>
+              <td><span class="badge badge-red">F — Inverted</span></td>
+              <td>Investigate or discard</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SECTION 4 -->
+      <h2 id="signal-pipeline-class">4. Python: SignalPipeline Class</h2>
+
+      <p>
+        The <code>SignalPipeline</code> class encapsulates the full seven-stage pipeline from raw feature input to
+        composite trade signal. It supports dynamic signal registration, configurable quality filters,
+        and multiple ensemble combination methods.
+      </p>
+
+      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Callable, Dict, List, Optional, Tuple
+<span class="kw">from</span> scipy <span class="kw">import</span> stats
+<span class="kw">from</span> enum <span class="kw">import</span> Enum
+
+<span class="kw">class</span> <span class="fn">SignalDirection</span>(Enum):
+    LONG  = <span class="nm">1</span>
+    FLAT  = <span class="nm">0</span>
+    SHORT = <span class="nm">-1</span>
+
+@dataclass
+<span class="kw">class</span> <span class="fn">RawSignal</span>:
+    <span class="st">"""Output of a single signal generator."""</span>
+    name: str
+    value: float         <span class="cm"># raw signal value, any scale</span>
+    strength: float      <span class="cm"># normalised to [-1, +1]</span>
+    confidence: float    <span class="cm"># IC or model confidence [0, 1]</span>
+    generated_at: pd.Timestamp
+    ttl_seconds: int = <span class="nm">3600</span>  <span class="cm"># time-to-live (freshness window)</span>
+
+    @property
+    <span class="kw">def</span> <span class="fn">is_fresh</span>(self) -> bool:
+        age = (pd.Timestamp.now() - self.generated_at).total_seconds()
+        <span class="kw">return</span> age < self.ttl_seconds
+
+@dataclass
+<span class="kw">class</span> <span class="fn">CompositeSignal</span>:
+    <span class="st">"""Final pipeline output: composite trade signal."""</span>
+    direction: SignalDirection
+    strength: float          <span class="cm"># composite strength [-1, +1]</span>
+    contributing_signals: List[str]
+    generated_at: pd.Timestamp
+    raw_signals: List[RawSignal] = field(default_factory=list)
+
+
+<span class="kw">class</span> <span class="fn">SignalPipeline</span>:
+    <span class="st">"""
+    Modular signal generation pipeline for AI trading agents.
+
+    Register signal generators, set quality filters, and call
+    generate() to produce a composite trade signal from current
+    market features.
+
+    Example:
+        pipeline = SignalPipeline(min_ic=0.04, min_signals=2)
+        pipeline.register(rsi_signal, ttl=900, weight=1.0)
+        pipeline.register(funding_signal, ttl=3600, weight=1.5)
+        composite = pipeline.generate(features)
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self,
+                 min_ic: float = <span class="nm">0.04</span>,
+                 min_signals: <span class="nm">int</span> = <span class="nm">2</span>,
+                 combination_method: str = <span class="st">"ic_weighted"</span>):
+        <span class="st">"""
+        Args:
+            min_ic: Minimum IC for a signal to pass quality filter
+            min_signals: Minimum passing signals to produce output
+            combination_method: One of 'equal', 'ic_weighted',
+                                'confidence_weighted', 'rank_combination'
+        """</span>
+        self.min_ic = min_ic
+        self.min_signals = min_signals
+        self.combination_method = combination_method
+        <span class="cm"># Registry: {name: (generator_fn, ttl, base_weight, ic_history)}</span>
+        self._registry: Dict[str, Dict] = {}
+
+    <span class="kw">def</span> <span class="fn">register</span>(self,
+                 generator: Callable[..., RawSignal],
+                 name: str,
+                 ttl_seconds: <span class="nm">int</span> = <span class="nm">3600</span>,
+                 weight: float = <span class="nm">1.0</span>):
+        <span class="st">"""Register a signal generator function."""</span>
+        self._registry[name] = {
+            <span class="st">"fn"</span>: generator,
+            <span class="st">"ttl"</span>: ttl_seconds,
+            <span class="st">"weight"</span>: weight,
+            <span class="st">"ic_history"</span>: [],
+        }
+
+    <span class="kw">def</span> <span class="fn">generate</span>(self, features: Dict[str, float]) -> Optional[CompositeSignal]:
+        <span class="st">"""
+        Run all registered generators on current features.
+        Returns composite signal or None if insufficient passing signals.
+        """</span>
+        raw_signals: List[RawSignal] = []
+        <span class="kw">for</span> name, config <span class="kw">in</span> self._registry.items():
+            <span class="kw">try</span>:
+                sig = config[<span class="st">"fn"</span>](features)
+                sig.name = name
+                sig.ttl_seconds = config[<span class="st">"ttl"</span>]
+                raw_signals.append(sig)
+            <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                print(<span class="st">f"[WARN] Signal {name} failed: {e}"</span>)
+
+        passing = self.filter(raw_signals)
+
+        <span class="kw">if</span> len(passing) < self.min_signals:
+            <span class="kw">return None</span>   <span class="cm"># insufficient signal quality — stay flat</span>
+
+        composite_strength = self.combine(passing)
+        direction = self._to_direction(composite_strength)
+
+        <span class="kw">return</span> CompositeSignal(
+            direction=direction,
+            strength=composite_strength,
+            contributing_signals=[s.name <span class="kw">for</span> s <span class="kw">in</span> passing],
+            generated_at=pd.Timestamp.now(),
+            raw_signals=passing,
+        )
+
+    <span class="kw">def</span> <span class="fn">score</span>(self, signal: RawSignal) -> float:
+        <span class="st">"""
+        Score a single signal for quality.
+        Returns IC estimate using recent performance history if available,
+        otherwise returns signal's own confidence value.
+        """</span>
+        history = self._registry.get(signal.name, {}).get(<span class="st">"ic_history"</span>, [])
+        <span class="kw">if</span> len(history) >= <span class="nm">30</span>:
+            <span class="kw">return</span> float(np.mean(history[-<span class="nm">30</span>:]))
+        <span class="kw">return</span> signal.confidence
+
+    <span class="kw">def</span> <span class="fn">filter</span>(self, signals: List[RawSignal]) -> List[RawSignal]:
+        <span class="st">"""
+        Filter signals by quality (IC) and freshness.
+        Returns only signals that pass both criteria.
+        """</span>
+        passing = []
+        <span class="kw">for</span> sig <span class="kw">in</span> signals:
+            <span class="kw">if not</span> sig.is_fresh:
+                <span class="kw">continue</span>
+            ic_est = self.score(sig)
+            <span class="kw">if</span> ic_est >= self.min_ic:
+                passing.append(sig)
+        <span class="kw">return</span> passing
+
+    <span class="kw">def</span> <span class="fn">combine</span>(self, signals: List[RawSignal]) -> float:
+        <span class="st">"""
+        Combine filtered signals into a single composite strength value
+        using the configured combination method.
+        """</span>
+        <span class="kw">if not</span> signals:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+
+        <span class="kw">if</span> self.combination_method == <span class="st">"equal"</span>:
+            <span class="kw">return</span> float(np.mean([s.strength <span class="kw">for</span> s <span class="kw">in</span> signals]))
+
+        <span class="kw">elif</span> self.combination_method == <span class="st">"ic_weighted"</span>:
+            weights = np.array([max(<span class="nm">0</span>, self.score(s)) <span class="kw">for</span> s <span class="kw">in</span> signals])
+            values  = np.array([s.strength <span class="kw">for</span> s <span class="kw">in</span> signals])
+            total_w = weights.sum()
+            <span class="kw">if</span> total_w == <span class="nm">0</span>:
+                <span class="kw">return</span> float(np.mean(values))
+            <span class="kw">return</span> float(np.dot(weights, values) / total_w)
+
+        <span class="kw">elif</span> self.combination_method == <span class="st">"confidence_weighted"</span>:
+            weights = np.array([s.confidence <span class="kw">for</span> s <span class="kw">in</span> signals])
+            values  = np.array([s.strength <span class="kw">for</span> s <span class="kw">in</span> signals])
+            total_w = weights.sum()
+            <span class="kw">return</span> float(np.dot(weights, values) / total_w) <span class="kw">if</span> total_w > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0.0</span>
+
+        <span class="kw">elif</span> self.combination_method == <span class="st">"rank_combination"</span>:
+            <span class="cm"># Rank-based IC combination (more robust to outliers)</span>
+            ranks = stats.rankdata([s.strength <span class="kw">for</span> s <span class="kw">in</span> signals])
+            weights = np.array([max(<span class="nm">0</span>, self.score(s)) <span class="kw">for</span> s <span class="kw">in</span> signals])
+            <span class="cm"># Normalise ranks to [-1, +1]</span>
+            n = len(ranks)
+            norm_ranks = (ranks - (n + <span class="nm">1</span>) / <span class="nm">2</span>) / (n / <span class="nm">2</span>)
+            total_w = weights.sum()
+            <span class="kw">return</span> float(np.dot(weights, norm_ranks) / total_w) <span class="kw">if</span> total_w > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0.0</span>
+
+        <span class="kw">return</span> <span class="nm">0.0</span>
+
+    <span class="kw">def</span> <span class="fn">_to_direction</span>(self, strength: float) -> SignalDirection:
+        <span class="st">"""Convert composite strength to discrete direction."""</span>
+        <span class="kw">if</span> strength > <span class="nm">0.15</span>:
+            <span class="kw">return</span> SignalDirection.LONG
+        <span class="kw">elif</span> strength < <span class="nm">-0.15</span>:
+            <span class="kw">return</span> SignalDirection.SHORT
+        <span class="kw">return</span> SignalDirection.FLAT
+
+    <span class="kw">def</span> <span class="fn">update_ic</span>(self, signal_name: str, ic: float):
+        <span class="st">"""Feed back realised IC after trade closes for adaptive weighting."""</span>
+        <span class="kw">if</span> signal_name <span class="kw">in</span> self._registry:
+            self._registry[signal_name][<span class="st">"ic_history"</span>].append(ic)
+            <span class="cm"># Keep only last 90 observations</span>
+            self._registry[signal_name][<span class="st">"ic_history"</span>] = \
+                self._registry[signal_name][<span class="st">"ic_history"</span>][-<span class="nm">90</span>:]</pre>
+
+      <!-- SECTION 5 -->
+      <h2 id="ensemble-methods">5. Combining Signals with Ensemble Methods</h2>
+
+      <p>
+        The four combination methods in <code>SignalPipeline.combine()</code> each have different properties.
+        Understanding their tradeoffs helps you choose the right method for your strategy.
+      </p>
+
+      <h3>Equal Weighting</h3>
+      <p>
+        The simplest approach: average the strength values of all passing signals. Equal weighting is robust when
+        you have no reliable estimate of each signal's quality, or when signal qualities are similar. It is the
+        baseline all other methods should outperform.
+      </p>
+
+      <h3>IC-Weighted Combination</h3>
+      <p>
+        Weights each signal's contribution by its historical Information Coefficient. Signals with higher predictive
+        accuracy get more influence on the composite. This is the preferred default for most strategies — it is
+        mathematically optimal under the assumption that ICs are stable and signals are independent.
+      </p>
+
+      <h3>Confidence-Weighted Combination</h3>
+      <p>
+        Uses the signal generator's own confidence estimate as the weight. Useful when signals come from probabilistic
+        models (e.g., ML classifiers) that output calibrated probability scores. Works best when the confidence
+        estimates are well-calibrated — a common failure mode is overconfident models that produce high confidence
+        even for low-IC predictions.
+      </p>
+
+      <h3>Rank-Based Combination</h3>
+      <p>
+        Converts signal strengths to ranks before weighting and combining. More robust to outliers and heavy-tailed
+        signal distributions. Recommended when signals have very different scales or when a single strong signal
+        could otherwise dominate the ensemble inappropriately.
+      </p>
+
+      <div class="card card-accent">
+        <div class="card-title">Ensemble Method Selection Guide</div>
+        <p style="margin:0 0 0.5rem; color: var(--muted);">Use <strong>IC-weighted</strong> when you have 60+ days of signal history and stable ICs.</p>
+        <p style="margin:0 0 0.5rem; color: var(--muted);">Use <strong>confidence-weighted</strong> when signals come from calibrated ML models.</p>
+        <p style="margin:0 0 0.5rem; color: var(--muted);">Use <strong>rank combination</strong> when signal scales vary widely or outliers are common.</p>
+        <p style="margin:0; color: var(--muted);">Use <strong>equal weighting</strong> as the baseline when none of the above conditions are met.</p>
+      </div>
+
+      <!-- SECTION 6 -->
+      <h2 id="signal-decay">6. Signal Decay and Freshness Management</h2>
+
+      <p>
+        Every signal has a freshness window — the period during which it retains predictive power. Using a stale signal
+        is equivalent to trading on no signal at all, but without the protection of staying flat.
+      </p>
+
+      <h3>TTL by Signal Type</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Signal Type</th>
+              <th>Suggested TTL</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Order book imbalance</td>
+              <td><span class="badge badge-blue">10 – 60 seconds</span></td>
+              <td>Decays almost instantly in liquid markets</td>
+            </tr>
+            <tr>
+              <td>RSI / MACD</td>
+              <td><span class="badge badge-blue">5 – 30 minutes</span></td>
+              <td>Depends on bar interval; 1m bar → 5m TTL</td>
+            </tr>
+            <tr>
+              <td>Funding rate signal</td>
+              <td><span class="badge badge-green">1 – 8 hours</span></td>
+              <td>Rates update every 1-8h on most exchanges</td>
+            </tr>
+            <tr>
+              <td>Sentiment (social)</td>
+              <td><span class="badge badge-green">30 min – 4 hours</span></td>
+              <td>News-driven sentiment spikes decay fastest</td>
+            </tr>
+            <tr>
+              <td>On-chain whale flow</td>
+              <td><span class="badge badge-yellow">4 – 24 hours</span></td>
+              <td>Large moves take time to reflect in price</td>
+            </tr>
+            <tr>
+              <td>Fundamental (protocol revenue)</td>
+              <td><span class="badge badge-red">24 – 168 hours</span></td>
+              <td>Weekly revenue data; use as long-horizon filter</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre><span class="kw">class</span> <span class="fn">SignalCache</span>:
+    <span class="st">"""
+    Thread-safe signal cache with TTL-based invalidation.
+    Avoids redundant signal computation within the freshness window.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self._cache: Dict[str, RawSignal] = {}
+
+    <span class="kw">def</span> <span class="fn">get</span>(self, name: str) -> Optional[RawSignal]:
+        sig = self._cache.get(name)
+        <span class="kw">if</span> sig <span class="kw">and</span> sig.is_fresh:
+            <span class="kw">return</span> sig
+        <span class="kw">return None</span>
+
+    <span class="kw">def</span> <span class="fn">set</span>(self, name: str, signal: RawSignal):
+        self._cache[name] = signal
+
+    <span class="kw">def</span> <span class="fn">invalidate</span>(self, name: str):
+        self._cache.pop(name, <span class="kw">None</span>)
+
+    <span class="kw">def</span> <span class="fn">prune_stale</span>(self):
+        <span class="st">"""Remove all expired signals from cache."""</span>
+        stale = [k <span class="kw">for</span> k, v <span class="kw">in</span> self._cache.items() <span class="kw">if not</span> v.is_fresh]
+        <span class="kw">for</span> k <span class="kw">in</span> stale:
+            <span class="kw">del</span> self._cache[k]
+
+
+<span class="cm"># Usage: wrap pipeline.generate() with cache</span>
+cache = SignalCache()
+
+<span class="kw">def</span> <span class="fn">get_or_generate</span>(pipeline: SignalPipeline,
+                     features: Dict,
+                     signal_name: str) -> Optional[RawSignal]:
+    cached = cache.get(signal_name)
+    <span class="kw">if</span> cached:
+        <span class="kw">return</span> cached
+
+    composite = pipeline.generate(features)
+    <span class="kw">if</span> composite:
+        <span class="kw">for</span> sig <span class="kw">in</span> composite.raw_signals:
+            cache.set(sig.name, sig)
+    <span class="kw">return</span> composite</pre>
+
+      <!-- SECTION 7 -->
+      <h2 id="backtesting-signals">7. Backtesting Signals Independently Before Live Deployment</h2>
+
+      <p>
+        Before connecting any signal to a live trading strategy, backtest it in isolation. Individual signal backtests
+        reveal the true IC, optimal holding period, and decay characteristics — before any execution noise or ensemble
+        effects obscure the signal's standalone quality.
+      </p>
+
+      <h3>The Signal Backtest Protocol</h3>
+
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div><strong>Historical feature generation.</strong> Reconstruct the exact feature set the signal would have
+          received at each historical point-in-time. Avoid look-ahead bias by using only data available at that moment.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div><strong>Signal value computation.</strong> Apply the signal generator to historical features. Store
+          the raw signal value at each bar.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div><strong>Forward return pairing.</strong> For each signal value at time t, record the actual return
+          at t+h for a range of holding periods h (e.g., 15m, 1h, 4h, 24h).</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div><strong>IC computation.</strong> Compute Spearman IC between signal values and forward returns for
+          each holding period. The holding period with highest IC is the signal's natural horizon.</div>
+        </li>
+        <li>
+          <div class="step-num">5</div>
+          <div><strong>Quintile analysis.</strong> Bucket signals into quintiles by strength. Check that the top
+          quintile earns the highest forward returns and the bottom quintile earns the lowest. Monotonic quintile
+          returns confirm the signal is well-specified.</div>
+        </li>
+        <li>
+          <div class="step-num">6</div>
+          <div><strong>Out-of-sample validation.</strong> Reserve the most recent 30% of data as a hold-out set.
+          A signal that only works in-sample is overfitted and will fail live.</div>
+        </li>
+      </ol>
+
+      <pre><span class="kw">def</span> <span class="fn">signal_backtest_report</span>(
+        signal_values: pd.Series,
+        ohlcv: pd.DataFrame,
+        holding_periods: List[<span class="nm">int</span>] = [<span class="nm">15</span>, <span class="nm">60</span>, <span class="nm">240</span>, <span class="nm">1440</span>]
+) -> Dict[str, float]:
+    <span class="st">"""
+    Generate standalone IC report for a signal across multiple
+    holding periods (in minutes).
+
+    Args:
+        signal_values: Timestamped signal values, index = pd.DatetimeIndex
+        ohlcv: OHLCV DataFrame (must cover signal_values period + max horizon)
+        holding_periods: List of forward return horizons in minutes
+    Returns:
+        Dict mapping horizon label to IC value
+    """</span>
+    results = {}
+
+    <span class="kw">for</span> h <span class="kw">in</span> holding_periods:
+        <span class="cm"># Forward returns: close[t+h] / close[t] - 1</span>
+        fwd_returns = ohlcv[<span class="st">"close"</span>].pct_change(h).shift(-h)
+
+        <span class="cm"># Align on common index</span>
+        aligned = pd.concat([signal_values, fwd_returns],
+                            axis=<span class="nm">1</span>, join=<span class="st">"inner"</span>).dropna()
+        aligned.columns = [<span class="st">"signal"</span>, <span class="st">"fwd_ret"</span>]
+
+        <span class="kw">if</span> len(aligned) < <span class="nm">30</span>:
+            results[<span class="st">f"{h}m"</span>] = <span class="kw">None</span>
+            <span class="kw">continue</span>
+
+        ic, pval = stats.spearmanr(aligned[<span class="st">"signal"</span>], aligned[<span class="st">"fwd_ret"</span>])
+        results[<span class="st">f"{h}m"</span>] = {
+            <span class="st">"ic"</span>: round(ic, <span class="nm">4</span>),
+            <span class="st">"p_value"</span>: round(pval, <span class="nm">4</span>),
+            <span class="st">"n_obs"</span>: len(aligned),
+            <span class="st">"significant"</span>: pval < <span class="nm">0.05</span>,
+        }
+
+    <span class="kw">return</span> results
+
+
+<span class="cm"># Quintile analysis</span>
+<span class="kw">def</span> <span class="fn">quintile_returns</span>(signal_values: pd.Series,
+                     forward_returns: pd.Series) -> pd.DataFrame:
+    <span class="st">"""Check monotonicity: Q5 should have highest returns."""</span>
+    df = pd.concat([signal_values, forward_returns],
+                   axis=<span class="nm">1</span>, join=<span class="st">"inner"</span>).dropna()
+    df.columns = [<span class="st">"signal"</span>, <span class="st">"fwd_ret"</span>]
+    df[<span class="st">"quintile"</span>] = pd.qcut(df[<span class="st">"signal"</span>], q=<span class="nm">5</span>, labels=[<span class="nm">1</span>,<span class="nm">2</span>,<span class="nm">3</span>,<span class="nm">4</span>,<span class="nm">5</span>])
+    <span class="kw">return</span> df.groupby(<span class="st">"quintile"</span>)[<span class="st">"fwd_ret"</span>].agg([<span class="st">"mean"</span>, <span class="st">"std"</span>, <span class="st">"count"</span>])</pre>
+
+      <div class="alert alert-warn">
+        <span class="alert-icon">⚠</span>
+        <div>
+          <strong>Look-Ahead Bias:</strong> The most common backtesting error is using data that would not have been
+          available at the moment the signal was generated. On-chain data, sentiment scores, and fundamental metrics
+          often have publication delays of hours to days. Always model data availability realistically.
+        </div>
+      </div>
+
+      <!-- SECTION 8 -->
+      <h2 id="purple-flea-integration">8. Integration with Purple Flea Trading API for Signal-Triggered Orders</h2>
+
+      <p>
+        Once signals pass quality checks and backtesting validation, connect the pipeline to the Purple Flea Trading
+        API. The integration translates a <code>CompositeSignal</code> into a live order with size determined by
+        signal strength.
+      </p>
+
+      <h3>Signal-to-Order Translation</h3>
+
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> httpx
+
+PF_BASE = <span class="st">"https://api.purpleflea.com"</span>
+API_KEY = <span class="st">"pf_live_YOUR_KEY"</span>   <span class="cm"># replace with your key</span>
+
+<span class="kw">def</span> <span class="fn">signal_to_size</span>(signal: CompositeSignal,
+                   base_size: float,
+                   max_leverage: float = <span class="nm">3.0</span>) -> float:
+    <span class="st">"""
+    Convert composite signal strength to position size.
+    Scales linearly from 0.5x at threshold to max_leverage at full strength.
+    """</span>
+    abs_strength = abs(signal.strength)
+    min_threshold = <span class="nm">0.15</span>
+    <span class="cm"># Linear interpolation between threshold (0.5x) and 1.0 (max_leverage)</span>
+    scale = <span class="nm">0.5</span> + (<span class="nm">0.5</span> * (abs_strength - min_threshold) / (<span class="nm">1.0</span> - min_threshold))
+    <span class="kw">return</span> round(base_size * scale * max_leverage, <span class="nm">4</span>)
+
+
+<span class="kw">async def</span> <span class="fn">execute_signal</span>(client: httpx.AsyncClient,
+                          signal: CompositeSignal,
+                          market: str,
+                          base_size: float):
+    <span class="st">"""
+    Place an order on Purple Flea Trading based on composite signal output.
+    Returns immediately if signal direction is FLAT.
+    """</span>
+    <span class="kw">if</span> signal.direction == SignalDirection.FLAT:
+        print(<span class="st">f"[SIGNAL] FLAT on {market} — no order placed"</span>)
+        <span class="kw">return</span>
+
+    side = <span class="st">"buy"</span>  <span class="kw">if</span> signal.direction == SignalDirection.LONG <span class="kw">else</span> <span class="st">"sell"</span>
+    size = signal_to_size(signal, base_size)
+
+    payload = {
+        <span class="st">"market"</span>: market,
+        <span class="st">"side"</span>: side,
+        <span class="st">"size"</span>: size,
+        <span class="st">"type"</span>: <span class="st">"market"</span>,
+        <span class="st">"metadata"</span>: {
+            <span class="st">"signal_strength"</span>: signal.strength,
+            <span class="st">"contributing_signals"</span>: signal.contributing_signals,
+            <span class="st">"generated_at"</span>: signal.generated_at.isoformat(),
+        },
+    }
+
+    resp = <span class="kw">await</span> client.post(
+        <span class="st">f"{PF_BASE}/v1/orders"</span>,
+        json=payload,
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer {API_KEY}"</span>},
+    )
+    resp.raise_for_status()
+    order = resp.json()
+    print(<span class="st">f"[ORDER] {side.upper()} {size} {market} | ID: {order['id']}"</span>)
+    <span class="kw">return</span> order
+
+
+<span class="kw">async def</span> <span class="fn">signal_trading_loop</span>(market: str,
+                               pipeline: SignalPipeline,
+                               base_size: float = <span class="nm">100.0</span>,
+                               interval_seconds: <span class="nm">int</span> = <span class="nm">300</span>):
+    <span class="st">"""
+    Main loop: fetch features, generate signal, execute order.
+    Runs every interval_seconds (default 5 minutes).
+    """</span>
+    <span class="kw">async with</span> httpx.AsyncClient(timeout=<span class="nm">15</span>) <span class="kw">as</span> client:
+        <span class="kw">while True</span>:
+            <span class="cm"># 1. Fetch current market data</span>
+            resp = <span class="kw">await</span> client.get(
+                <span class="st">f"{PF_BASE}/v1/markets/{market}/features"</span>,
+                headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer {API_KEY}"</span>},
+            )
+            features = resp.json()
+
+            <span class="cm"># 2. Run signal pipeline</span>
+            composite = pipeline.generate(features)
+
+            <span class="cm"># 3. Execute if we have a signal</span>
+            <span class="kw">if</span> composite:
+                <span class="kw">await</span> execute_signal(client, composite, market, base_size)
+            <span class="kw">else</span>:
+                print(<span class="st">f"[PIPELINE] Insufficient signals — holding flat"</span>)
+
+            <span class="kw">await</span> asyncio.sleep(interval_seconds)
+
+
+<span class="cm"># Example signal generators</span>
+<span class="kw">def</span> <span class="fn">rsi_signal</span>(features: Dict) -> RawSignal:
+    <span class="st">"""Simple RSI-based signal: oversold = long, overbought = short."""</span>
+    rsi = features[<span class="st">"rsi_14"</span>]
+    strength = -(rsi - <span class="nm">50</span>) / <span class="nm">50</span>   <span class="cm"># RSI 30 → +0.4, RSI 70 → -0.4</span>
+    <span class="kw">return</span> RawSignal(
+        name=<span class="st">"rsi_14"</span>,
+        value=rsi,
+        strength=strength,
+        confidence=<span class="nm">0.06</span>,
+        generated_at=pd.Timestamp.now(),
+        ttl_seconds=<span class="nm">900</span>,
+    )
+
+
+<span class="kw">def</span> <span class="fn">funding_rate_signal</span>(features: Dict) -> RawSignal:
+    <span class="st">"""High positive funding → crowded longs → fade long, go short."""</span>
+    rate = features[<span class="st">"funding_rate_8h"</span>]
+    strength = -np.tanh(rate / <span class="nm">0.001</span>)  <span class="cm"># normalise around 0.1% rate</span>
+    <span class="kw">return</span> RawSignal(
+        name=<span class="st">"funding_rate"</span>,
+        value=rate,
+        strength=strength,
+        confidence=<span class="nm">0.08</span>,
+        generated_at=pd.Timestamp.now(),
+        ttl_seconds=<span class="nm">3600</span>,
+    )
+
+
+<span class="cm"># Bootstrap a pipeline</span>
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    pipe = SignalPipeline(min_ic=<span class="nm">0.04</span>, min_signals=<span class="nm">2</span>,
+                         combination_method=<span class="st">"ic_weighted"</span>)
+    pipe.register(rsi_signal, name=<span class="st">"rsi_14"</span>, ttl_seconds=<span class="nm">900</span>, weight=<span class="nm">1.0</span>)
+    pipe.register(funding_rate_signal, name=<span class="st">"funding_rate"</span>,
+                  ttl_seconds=<span class="nm">3600</span>, weight=<span class="nm">1.5</span>)
+
+    asyncio.run(signal_trading_loop(
+        market=<span class="st">"BTC-PERP"</span>,
+        pipeline=pipe,
+        base_size=<span class="nm">200.0</span>,
+        interval_seconds=<span class="nm">300</span>,
+    ))</pre>
+
+      <h3>API Endpoints for Signal-Driven Trading</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Method</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>/v1/markets/:market/features</code></td>
+              <td>GET</td>
+              <td>Fetch pre-computed market features for signal generation</td>
+            </tr>
+            <tr>
+              <td><code>/v1/markets/:market/ohlcv</code></td>
+              <td>GET</td>
+              <td>Historical OHLCV data for backtesting signals</td>
+            </tr>
+            <tr>
+              <td><code>/v1/orders</code></td>
+              <td>POST</td>
+              <td>Place market or limit order triggered by composite signal</td>
+            </tr>
+            <tr>
+              <td><code>/v1/positions</code></td>
+              <td>GET</td>
+              <td>Check current positions before generating new signal</td>
+            </tr>
+            <tr>
+              <td><code>/v1/trades</code></td>
+              <td>GET</td>
+              <td>Fetch closed trades to compute realised IC for signal feedback</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-success">
+        <span class="alert-icon">✓</span>
+        <div>
+          <strong>New agents:</strong> Claim free starting capital from the
+          <a href="https://faucet.purpleflea.com" style="color: var(--green);">Purple Flea Faucet</a>
+          to test your signal pipeline in live conditions before committing real funds.
+          The faucet provides zero-risk capital for initial exploration.
+        </div>
+      </div>
+
+      <div class="cta-box">
+        <h3>Connect Your Signal Pipeline to Purple Flea Trading</h3>
+        <p>
+          Live market features, historical OHLCV data, and programmatic order placement — everything your
+          signal pipeline needs to go from backtest to live in a single API.
+        </p>
+        <a href="https://purpleflea.com/docs/trading/" class="btn btn-primary">Trading API Docs</a>
+        <a href="https://faucet.purpleflea.com" class="btn btn-outline">Claim Free Capital</a>
+      </div>
+
+      <hr />
+
+      <h2>Key Takeaways</h2>
+      <ul>
+        <li><strong>Diversify signal types.</strong> Technical, fundamental, sentiment, on-chain, and cross-asset signals each carry different information and decay at different rates.</li>
+        <li><strong>Build a structured pipeline.</strong> Separate raw data → features → signals → scoring → filtering → combination → execution into discrete, testable stages.</li>
+        <li><strong>Filter aggressively.</strong> A signal with IC below 0.04 adds noise, not alpha. Only pass quality-verified signals to the ensemble.</li>
+        <li><strong>Backtest signals independently.</strong> Validate IC in out-of-sample data and check quintile return monotonicity before live deployment.</li>
+        <li><strong>Manage freshness.</strong> Set realistic TTLs and invalidate stale signals. Trading on expired signals is equivalent to random entry.</li>
+        <li><strong>Adapt weights over time.</strong> Update signal ICs from realised trade outcomes. IC-weighted ensembles improve automatically as new data arrives.</li>
+        <li><strong>Automate the loop.</strong> The Purple Flea API provides everything needed to close the signal-to-order loop with minimal latency.</li>
+      </ul>
+    </article>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <nav class="toc">
+        <div class="toc-title">On This Page</div>
+        <ul>
+          <li><a href="#signal-types">Signal Types</a></li>
+          <li><a href="#pipeline-architecture">Pipeline Architecture</a></li>
+          <li><a href="#signal-scoring">Signal Scoring &amp; Filtering</a></li>
+          <li><a href="#signal-pipeline-class">SignalPipeline Class</a></li>
+          <li><a href="#ensemble-methods">Ensemble Methods</a></li>
+          <li><a href="#signal-decay">Signal Decay &amp; Freshness</a></li>
+          <li><a href="#backtesting-signals">Backtesting Signals</a></li>
+          <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+        </ul>
+        <div class="toc-resources">
+          <div class="toc-title" style="margin-top:0">Resources</div>
+          <a href="/docs/trading/">Trading API Docs</a>
+          <a href="/blog/agent-alpha-generation/">Alpha Generation</a>
+          <a href="/blog/agent-alpha-decay/">Alpha Decay Guide</a>
+          <a href="/blog/agent-backtesting-guide/">Backtesting Guide</a>
+          <a href="/blog/agent-high-frequency-trading/">HFT Guide</a>
+          <a href="https://faucet.purpleflea.com">Agent Faucet</a>
+          <a href="https://escrow.purpleflea.com">Agent Escrow</a>
+        </div>
+      </nav>
+    </aside>
+  </div>
+
+  <footer>
+    <p>
+      &copy; 2026 Purple Flea &mdash;
+      <a href="/">Home</a> &middot;
+      <a href="/blog/">Blog</a> &middot;
+      <a href="/docs/">Docs</a> &middot;
+      <a href="/trading">Trading</a> &middot;
+      <a href="/escrow">Escrow</a>
+    </p>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    window.addEventListener('scroll', () => {
+      const doc = document.documentElement;
+      const scrolled = doc.scrollTop;
+      const total = doc.scrollHeight - doc.clientHeight;
+      const pct = total > 0 ? (scrolled / total) * 100 : 0;
+      document.getElementById('progress-bar').style.width = pct + '%';
+    });
+
+    // TOC active link via IntersectionObserver
+    const headings = document.querySelectorAll('h2[id]');
+    const tocLinks = document.querySelectorAll('.toc a[href^="#"]');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove('active'));
+          const active = document.querySelector('.toc a[href="#' + entry.target.id + '"]');
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0% -70% 0%', threshold: 0 });
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
