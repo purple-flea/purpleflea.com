@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FastAPI + Purple Flea — Payment Middleware for AI Agent APIs</title>
+<meta name="description" content="Add per-request billing to any FastAPI endpoint in 5 lines. Escrow middleware, dependency injection billing, async payment settlement, WebSocket streaming payments, and rate limiting via deposit.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/for-fastapi">
+<meta property="og:title" content="FastAPI + Purple Flea — Payment Middleware for AI Agent APIs">
+<meta property="og:description" content="Add per-request billing to any FastAPI endpoint in 5 lines. Middleware, dependency injection, async settlement, WebSocket streaming payments, and escrow-based rate limiting.">
+<meta property="og:url" content="https://purpleflea.com/for-fastapi">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Purple Flea",
+  "url": "https://purpleflea.com",
+  "logo": "https://purpleflea.com/flea.jpg",
+  "description": "Blue chip financial infrastructure for AI agents — casino, trading, wallet, escrow, domains, and faucet.",
+  "sameAs": ["https://github.com/purple-flea"],
+  "offers": [
+    {
+      "@type": "Offer",
+      "name": "Purple Flea Escrow",
+      "description": "Trustless agent-to-agent payment escrow with 1% fee and 15% referral program",
+      "url": "https://escrow.purpleflea.com"
+    },
+    {
+      "@type": "Offer",
+      "name": "Purple Flea Faucet",
+      "description": "Free USDC for new AI agents to get started",
+      "url": "https://faucet.purpleflea.com"
+    }
+  ]
+}
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7; --purple-dim: #7C3AED; --bg: #09090B;
+  --bg-card: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.06);
+  --border-purple: rgba(168,85,247,0.3); --text: #FAFAFA;
+  --text-secondary: #A1A1AA; --text-muted: #71717A;
+  --green: #22C55E; --blue: #60A5FA; --yellow: #FBBF24; --red: #F87171;
+  --radius: 12px; --mono: 'JetBrains Mono', monospace;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.2); border-radius: 3px; }
+
+/* Nav */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: rgba(9,9,11,0.92); backdrop-filter: blur(18px); border-bottom: 1px solid var(--border); padding: 14px 0; }
+.nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+.nav-logo { font-size: 1.1rem; font-weight: 800; color: var(--text); text-decoration: none; letter-spacing: -0.02em; }
+.nav-logo span { color: var(--purple); }
+.nav-links { list-style: none; display: flex; align-items: center; gap: 20px; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: color 0.2s; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { background: var(--purple); color: white !important; padding: 7px 16px; border-radius: 8px; font-weight: 600 !important; }
+.nav-cta:hover { background: #9333EA !important; }
+@media(max-width: 900px) { .nav-links { gap: 12px; } .nav-links li:nth-child(n+5):not(:last-child) { display: none; } }
+@media(max-width: 600px) { .nav-links { gap: 10px; } .nav-links li:nth-child(n+3) { display: none; } .nav-links li:last-child { display: flex; } }
+
+/* Hero */
+.hero { padding: 130px 24px 80px; text-align: center; max-width: 900px; margin: 0 auto; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(168,85,247,0.1); border: 1px solid var(--border-purple); border-radius: 99px; padding: 5px 14px; font-size: 0.78rem; font-weight: 600; color: var(--purple); margin-bottom: 28px; }
+.hero-badge-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
+h1.hero-title { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1.15; margin-bottom: 22px; }
+h1.hero-title em { font-style: normal; color: var(--purple); }
+.hero-subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 620px; margin: 0 auto 36px; line-height: 1.75; }
+.hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn-hero-primary { display: inline-flex; align-items: center; gap: 8px; background: var(--purple); color: white; padding: 13px 28px; border-radius: 10px; font-weight: 700; font-size: 0.95rem; text-decoration: none; transition: all 0.2s; }
+.btn-hero-primary:hover { background: #9333EA; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(168,85,247,0.35); }
+.btn-hero-secondary { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); color: var(--text-secondary); padding: 13px 28px; border-radius: 10px; font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: all 0.2s; }
+.btn-hero-secondary:hover { border-color: var(--purple); color: var(--purple); }
+
+/* 5-line teaser */
+.teaser { max-width: 760px; margin: 60px auto 0; }
+.teaser-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; margin-bottom: 16px; }
+
+/* Sections */
+section { padding: 80px 24px; }
+section.alt { background: rgba(255,255,255,0.015); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.section-inner { max-width: 1100px; margin: 0 auto; }
+.section-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--purple); margin-bottom: 12px; }
+h2.section-title { font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+.section-desc { font-size: 1rem; color: var(--text-secondary); max-width: 580px; line-height: 1.75; margin-bottom: 40px; }
+
+/* Two column */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.two-col.reverse { }
+@media(max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+.col-text h2 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; }
+.col-text p { color: var(--text-secondary); margin-bottom: 14px; font-size: 0.95rem; }
+.col-text ul { padding-left: 20px; margin-bottom: 14px; }
+.col-text li { color: var(--text-secondary); margin-bottom: 8px; font-size: 0.95rem; }
+strong { color: var(--text); }
+a { color: var(--purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Code blocks */
+.code-block { position: relative; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.code-block-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+.code-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
+.copy-btn { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 10px; cursor: pointer; transition: all 0.2s; }
+.copy-btn:hover { color: var(--purple); border-color: var(--border-purple); }
+pre { overflow-x: auto; padding: 20px; margin: 0; }
+pre code { background: none; color: #CBD5E1; padding: 0; font-size: 0.78rem; line-height: 1.65; font-family: var(--mono); }
+.kw { color: #C084FC; } .fn { color: #60A5FA; } .st { color: #86EFAC; }
+.cm { color: #64748B; font-style: italic; } .nm { color: #FCD34D; } .op { color: #94A3B8; }
+.cls { color: #F472B6; } .dc { color: #94A3B8; }
+
+/* Feature grid */
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media(max-width: 900px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width: 560px) { .feature-grid { grid-template-columns: 1fr; } }
+.feature-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.feature-card:hover { border-color: var(--border-purple); }
+.feature-icon { font-size: 1.4rem; margin-bottom: 14px; }
+.feature-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+.feature-card p { font-size: 0.83rem; color: var(--text-muted); margin: 0; line-height: 1.6; }
+
+/* Callouts */
+.callout { border-radius: var(--radius); padding: 18px 22px; margin: 28px 0; border-left: 3px solid; }
+.callout-purple { background: rgba(168,85,247,0.06); border-color: var(--purple); }
+.callout-green { background: rgba(34,197,94,0.06); border-color: var(--green); }
+.callout-blue { background: rgba(96,165,250,0.06); border-color: var(--blue); }
+.callout strong { display: block; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.callout-purple strong { color: var(--purple); }
+.callout-green strong { color: var(--green); }
+.callout-blue strong { color: var(--blue); }
+.callout p { margin: 0; font-size: 0.9rem; color: var(--text-secondary); }
+
+/* Step list */
+.steps { counter-reset: step; list-style: none; padding: 0; }
+.steps li { counter-increment: step; display: flex; gap: 16px; margin-bottom: 20px; }
+.steps li::before { content: counter(step); flex-shrink: 0; width: 28px; height: 28px; background: rgba(168,85,247,0.12); border: 1px solid var(--border-purple); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: var(--purple); font-family: var(--mono); }
+.step-text strong { display: block; font-size: 0.9rem; margin-bottom: 4px; }
+.step-text p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+/* Stats row */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 40px 0; }
+@media(max-width: 600px) { .stats-row { grid-template-columns: repeat(2,1fr); } }
+.stat-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; text-align: center; }
+.stat-num { font-size: 1.6rem; font-weight: 800; color: var(--purple); display: block; }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; }
+
+/* MCP config */
+.mcp-card { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: var(--radius); padding: 28px; max-width: 560px; }
+.mcp-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 16px; }
+
+/* CTA section */
+.cta-section { padding: 100px 24px; text-align: center; }
+.cta-inner { max-width: 600px; margin: 0 auto; }
+.cta-inner h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+.cta-inner p { font-size: 1rem; color: var(--text-secondary); margin-bottom: 32px; line-height: 1.75; }
+.cta-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; text-decoration: none; transition: all 0.2s; }
+.btn-primary { background: var(--purple); color: white; }
+.btn-primary:hover { background: #9333EA; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(168,85,247,0.3); }
+.btn-secondary { border: 1px solid var(--border); color: var(--text-secondary); }
+.btn-secondary:hover { border-color: var(--purple); color: var(--purple); }
+.cta-note { font-size: 0.8rem; color: var(--text-muted); margin-top: 18px; }
+
+/* Footer */
+footer { border-top: 1px solid var(--border); padding: 48px 24px 32px; }
+.footer-inner { max-width: 1200px; margin: 0 auto; }
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+@media(max-width: 800px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+@media(max-width: 480px) { .footer-grid { grid-template-columns: 1fr; } }
+.footer-brand-name { font-size: 1.2rem; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; }
+.footer-brand-name span { color: var(--purple); }
+.footer-brand p { font-size: 0.83rem; color: var(--text-muted); line-height: 1.6; }
+.footer-col-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px; }
+.footer-links { list-style: none; padding: 0; }
+.footer-links li { margin-bottom: 8px; }
+.footer-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.83rem; transition: color 0.2s; }
+.footer-links a:hover { color: var(--purple); }
+.footer-bottom { padding-top: 24px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.footer-bottom span { font-size: 0.78rem; color: var(--text-muted); }
+.footer-bottom a { color: var(--text-muted); }
+.footer-bottom a:hover { color: var(--purple); }
+
+code { font-family: var(--mono); font-size: 0.83em; background: rgba(168,85,247,0.1); color: #C084FC; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+    <ul class="nav-links">
+      <li><a href="https://purpleflea.com/casino">Casino</a></li>
+      <li><a href="https://purpleflea.com/trading">Trading</a></li>
+      <li><a href="https://purpleflea.com/wallet">Wallet</a></li>
+      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><a href="https://purpleflea.com/domains">Domains</a></li>
+      <li><a href="https://purpleflea.com/blog">Blog</a></li>
+      <li><a href="https://purpleflea.com/docs">Docs</a></li>
+      <li><a href="https://faucet.purpleflea.com" class="nav-cta">Free USDC</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" style="padding-bottom:40px;">
+  <div class="hero-badge"><span class="hero-badge-dot"></span>FastAPI Integration</div>
+  <h1 class="hero-title">FastAPI + Purple Flea<br><em>Payment Middleware for AI Agent APIs</em></h1>
+  <p class="hero-subtitle">Add per-request billing to any FastAPI endpoint in 5 lines. Escrow-backed payments, async settlement, WebSocket streaming billing, and abuse prevention — without blocking a single response.</p>
+  <div class="hero-actions">
+    <a href="https://escrow.purpleflea.com" class="btn-hero-primary">Open Escrow Docs</a>
+    <a href="https://faucet.purpleflea.com" class="btn-hero-secondary">Claim Free USDC</a>
+  </div>
+
+  <div class="teaser">
+    <div class="teaser-label">5 lines of middleware — that's it</div>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-label">main.py</span>
+        <button class="copy-btn" onclick="copyCode('code-5lines', this)">Copy</button>
+      </div>
+      <pre><code id="code-5lines"><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+<span class="kw">from</span> purpleflea.fastapi <span class="kw">import</span> PurpleFleatMiddleware
+
+app = <span class="cls">FastAPI</span>()
+app.<span class="fn">add_middleware</span>(<span class="cls">PurpleFleatMiddleware</span>, api_key=<span class="st">"pf_live_your_key"</span>, per_request_usdc=<span class="nm">0.001</span>)
+
+<span class="cm"># Every request to any endpoint is now billed automatically</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- WHY SECTION -->
+<section class="alt">
+  <div class="section-inner">
+    <div class="section-tag">The Problem</div>
+    <h2 class="section-title">Your FastAPI is expensive to run. Agents should pay per call.</h2>
+    <p class="section-desc">AI agents call APIs thousands of times per hour. Flat-rate access means heavy users subsidize themselves at your expense. Purple Flea Escrow lets you charge per request, per token, per compute-second — with zero friction for callers.</p>
+    <div class="stats-row">
+      <div class="stat-box">
+        <span class="stat-num">1%</span>
+        <div class="stat-label">Escrow fee on all payments</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">15%</span>
+        <div class="stat-label">Referral on agent fees</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">&lt;5ms</span>
+        <div class="stat-label">Middleware overhead</div>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num">USDC</span>
+        <div class="stat-label">Settlement currency</div>
+      </div>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Non-blocking settlement</h3>
+        <p>Payments settle as FastAPI background tasks. Your endpoint returns instantly; escrow resolves asynchronously.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Escrow-backed</h3>
+        <p>Funds are locked before the request is processed. No chargebacks, no credit risk, no disputes with other agents.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎛</div>
+        <h3>Dependency injection</h3>
+        <p>Use <code>Depends(purple_flea_billing)</code> per-route. Different endpoints can charge different rates.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📡</div>
+        <h3>Streaming payments</h3>
+        <p>Charge per SSE chunk or WebSocket message. Per-token billing for LLM streaming endpoints is built in.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🛡</div>
+        <h3>Deposit-based rate limiting</h3>
+        <p>Require a small escrow deposit to prevent abuse. No deposit, no access — automatic DDoS protection.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Per-agent analytics</h3>
+        <p>Track revenue by caller agent ID. Know exactly which agents generate value and which drain resources.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MIDDLEWARE SECTION -->
+<section>
+  <div class="section-inner">
+    <div class="two-col">
+      <div class="col-text">
+        <div class="section-tag">Pattern 1</div>
+        <h2>Middleware: Bill Every Request Automatically</h2>
+        <p>The simplest integration: add <code>PurpleFleatMiddleware</code> to your FastAPI app and every request — regardless of route — is automatically billed. The middleware intercepts incoming requests, locks a USDC escrow, forwards the request to your handler, then releases the escrow on success or cancels it on error.</p>
+        <p>The caller must include their Purple Flea agent ID in the <code>X-Agent-ID</code> header and maintain a sufficient USDC balance. Insufficient balance returns a <code>402 Payment Required</code> before your handler is ever invoked.</p>
+        <ul>
+          <li>Zero changes to your existing route handlers</li>
+          <li>Configurable per-request rate (<code>per_request_usdc</code>)</li>
+          <li>Optional route exclusions (health checks, docs)</li>
+          <li>Automatic 402 on insufficient balance</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-label">middleware_setup.py</span>
+          <button class="copy-btn" onclick="copyCode('code-middleware', this)">Copy</button>
+        </div>
+        <pre><code id="code-middleware"><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, Request, Response
+<span class="kw">from</span> starlette.middleware.base <span class="kw">import</span> BaseHTTPMiddleware
+<span class="kw">import</span> httpx
+
+<span class="nm">ESCROW_BASE</span> = <span class="st">"https://escrow.purpleflea.com/api"</span>
+
+<span class="kw">class</span> <span class="cls">PurpleFleatMiddleware</span>(<span class="cls">BaseHTTPMiddleware</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, app, api_key: str, per_request_usdc: float = <span class="nm">0.001</span>,
+                 exclude_paths: list[str] = None):
+        <span class="fn">super()</span>.__init__(app)
+        self.api_key = api_key
+        self.rate = per_request_usdc
+        self.exclude = exclude_paths <span class="kw">or</span> [<span class="st">"/health"</span>, <span class="st">"/docs"</span>, <span class="st">"/openapi.json"</span>]
+        self._http = httpx.AsyncClient(
+            base_url=ESCROW_BASE,
+            headers={<span class="st">"Authorization"</span>: <span class="kw">f</span><span class="st">"Bearer {api_key}"</span>},
+        )
+
+    <span class="kw">async def</span> <span class="fn">dispatch</span>(self, request: <span class="cls">Request</span>, call_next) -> <span class="cls">Response</span>:
+        <span class="kw">if</span> request.url.path <span class="kw">in</span> self.exclude:
+            <span class="kw">return await</span> call_next(request)
+
+        agent_id = request.headers.get(<span class="st">"X-Agent-ID"</span>)
+        <span class="kw">if not</span> agent_id:
+            <span class="kw">return</span> <span class="cls">Response</span>(<span class="st">'{"error":"X-Agent-ID header required"}'</span>,
+                           status_code=<span class="nm">401</span>, media_type=<span class="st">"application/json"</span>)
+
+        <span class="cm"># Lock escrow before processing</span>
+        <span class="kw">try</span>:
+            r = <span class="kw">await</span> self._http.post(<span class="st">"/escrow"</span>, json={
+                <span class="st">"payer_agent_id"</span>: agent_id,
+                <span class="st">"payee_agent_id"</span>: <span class="st">"api_service_agent"</span>,
+                <span class="st">"amount_usdc"</span>: self.rate,
+                <span class="st">"metadata"</span>: {<span class="st">"path"</span>: request.url.path, <span class="st">"method"</span>: request.method},
+            })
+            <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+                <span class="kw">return</span> <span class="cls">Response</span>(<span class="st">'{"error":"Insufficient USDC balance"}'</span>,
+                               status_code=<span class="nm">402</span>, media_type=<span class="st">"application/json"</span>)
+            r.raise_for_status()
+            escrow_id = r.json()[<span class="st">"escrow_id"</span>]
+        <span class="kw">except</span> Exception:
+            <span class="kw">return</span> <span class="cls">Response</span>(<span class="st">'{"error":"Payment service unavailable"}'</span>,
+                           status_code=<span class="nm">503</span>, media_type=<span class="st">"application/json"</span>)
+
+        <span class="cm"># Process the request</span>
+        <span class="kw">try</span>:
+            response = <span class="kw">await</span> call_next(request)
+            <span class="cm"># Release escrow on success (2xx)</span>
+            <span class="kw">if</span> response.status_code < <span class="nm">400</span>:
+                <span class="kw">await</span> self._http.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>)
+            <span class="kw">else</span>:
+                <span class="kw">await</span> self._http.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/cancel"</span>,
+                                      json={<span class="st">"reason"</span>: <span class="kw">f</span><span class="st">"HTTP {response.status_code}"</span>})
+            <span class="kw">return</span> response
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">await</span> self._http.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/cancel"</span>,
+                                  json={<span class="st">"reason"</span>: str(e)})
+            <span class="kw">raise</span>
+
+<span class="cm"># Usage:</span>
+app = <span class="cls">FastAPI</span>()
+app.<span class="fn">add_middleware</span>(<span class="cls">PurpleFleatMiddleware</span>,
+    api_key=<span class="st">"pf_live_your_key_here"</span>,
+    per_request_usdc=<span class="nm">0.002</span>,
+    exclude_paths=[<span class="st">"/health"</span>, <span class="st">"/docs"</span>, <span class="st">"/openapi.json"</span>],
+)</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEPENDENCY INJECTION SECTION -->
+<section class="alt">
+  <div class="section-inner">
+    <div class="two-col">
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-label">billing_dependency.py</span>
+          <button class="copy-btn" onclick="copyCode('code-depends', this)">Copy</button>
+        </div>
+        <pre><code id="code-depends"><span class="kw">from</span> fastapi <span class="kw">import</span> Depends, Header, HTTPException
+<span class="kw">from</span> functools <span class="kw">import</span> partial
+<span class="kw">import</span> httpx
+
+<span class="nm">_client</span> = httpx.AsyncClient(
+    base_url=<span class="st">"https://escrow.purpleflea.com/api"</span>,
+    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>},
+)
+
+<span class="kw">async def</span> <span class="fn">purple_flea_billing</span>(
+    rate_usdc: float,
+    x_agent_id: str = <span class="cls">Header</span>(...),
+    x_service_agent: str = <span class="st">"api_service_agent"</span>,
+) -> str:
+    <span class="st">"""Dependency that locks a USDC escrow for this request.
+    Returns the escrow_id; caller is responsible for releasing it.
+    """</span>
+    r = <span class="kw">await</span> _client.post(<span class="st">"/escrow"</span>, json={
+        <span class="st">"payer_agent_id"</span>: x_agent_id,
+        <span class="st">"payee_agent_id"</span>: x_service_agent,
+        <span class="st">"amount_usdc"</span>: rate_usdc,
+    })
+    <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+        <span class="kw">raise</span> <span class="cls">HTTPException</span>(status_code=<span class="nm">402</span>, detail=<span class="st">"Insufficient USDC balance"</span>)
+    r.raise_for_status()
+    <span class="kw">return</span> r.json()[<span class="st">"escrow_id"</span>]
+
+<span class="cm"># Per-route billing with different rates</span>
+cheap_op  = partial(purple_flea_billing, rate_usdc=<span class="nm">0.001</span>)
+expensive = partial(purple_flea_billing, rate_usdc=<span class="nm">0.05</span>)
+
+<span class="cm"># ─── Route examples ────────────────────────────────────────────</span>
+
+@app.<span class="fn">get</span>(<span class="st">"/search"</span>)
+<span class="kw">async def</span> <span class="fn">search</span>(q: str, escrow_id: str = <span class="cls">Depends</span>(cheap_op)):
+    <span class="cm"># $0.001 USDC billed before this runs</span>
+    result = <span class="kw">await</span> do_search(q)
+    <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>)  <span class="cm"># settle</span>
+    <span class="kw">return</span> result
+
+@app.<span class="fn">post</span>(<span class="st">"/generate"</span>)
+<span class="kw">async def</span> <span class="fn">generate</span>(prompt: str, escrow_id: str = <span class="cls">Depends</span>(expensive)):
+    <span class="cm"># $0.05 USDC billed before this runs</span>
+    result = <span class="kw">await</span> run_llm(prompt)
+    <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>)
+    <span class="kw">return</span> result</code></pre>
+      </div>
+      <div class="col-text">
+        <div class="section-tag">Pattern 2</div>
+        <h2>Dependency Injection: Per-Route Billing Rates</h2>
+        <p>The middleware bills every route at a flat rate. For granular control, use FastAPI's dependency injection system instead. Wrap <code>purple_flea_billing</code> with <code>functools.partial</code> to create rate-specific dependencies and inject them with <code>Depends()</code>.</p>
+        <p>This pattern gives you full control at the route level:</p>
+        <ul>
+          <li>Cheap operations (lookups, reads) bill at low rates</li>
+          <li>Expensive operations (LLM calls, compute jobs) bill at higher rates</li>
+          <li>Unauthenticated or internal routes can skip billing entirely</li>
+          <li>Different API tiers can use different rate constants</li>
+        </ul>
+        <div class="callout callout-purple">
+          <strong>Rate Calculation Tip</strong>
+          <p>Set your per-request rate to cover your marginal compute cost plus a margin. For LLM endpoints, charge by token count rather than flat-per-request — the background task pattern below shows how to calculate final cost after the fact and adjust the escrow release amount accordingly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BACKGROUND TASKS SECTION -->
+<section>
+  <div class="section-inner">
+    <div class="two-col">
+      <div class="col-text">
+        <div class="section-tag">Pattern 3</div>
+        <h2>Background Tasks: Async Payment Settlement</h2>
+        <p>For time-sensitive endpoints, you want to return a response immediately without waiting for escrow settlement. FastAPI's <code>BackgroundTasks</code> system lets you settle payments after the response is sent — your handler adds a settlement task before returning, and FastAPI runs it post-response.</p>
+        <p>This is especially useful for endpoints where the final charge depends on output size — e.g., billing per token for an LLM response. The handler can compute the exact token count from the response, then settle the precise USDC amount as a background task.</p>
+        <ul>
+          <li>Zero latency impact on endpoint response time</li>
+          <li>Final charge calculated from actual output (tokens, bytes, items)</li>
+          <li>Failed settlement retried with exponential backoff</li>
+          <li>Audit log of all settlements for reconciliation</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-label">background_settle.py</span>
+          <button class="copy-btn" onclick="copyCode('code-bg', this)">Copy</button>
+        </div>
+        <pre><code id="code-bg"><span class="kw">from</span> fastapi <span class="kw">import</span> BackgroundTasks, Header
+<span class="kw">import</span> httpx, asyncio, math
+
+<span class="nm">_client</span> = httpx.AsyncClient(
+    base_url=<span class="st">"https://escrow.purpleflea.com/api"</span>,
+    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>},
+)
+<span class="nm">USDC_PER_1K_TOKENS</span> = <span class="nm">0.002</span>
+
+<span class="kw">async def</span> <span class="fn">settle_by_tokens</span>(escrow_id: str, token_count: int, retries: int = <span class="nm">3</span>):
+    <span class="st">"""Background task: release escrow for exact token-based charge."""</span>
+    final_usdc = math.ceil(token_count / <span class="nm">1000</span> * <span class="nm">USDC_PER_1K_TOKENS</span> * <span class="nm">1e6</span>) / <span class="nm">1e6</span>
+    <span class="kw">for</span> attempt <span class="kw">in</span> range(retries):
+        <span class="kw">try</span>:
+            <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>,
+                               json={<span class="st">"final_amount_usdc"</span>: final_usdc})
+            <span class="kw">return</span>
+        <span class="kw">except</span> Exception:
+            <span class="kw">if</span> attempt < retries - <span class="nm">1</span>:
+                <span class="kw">await</span> asyncio.sleep(<span class="nm">2</span> ** attempt)
+
+@app.<span class="fn">post</span>(<span class="st">"/llm"</span>)
+<span class="kw">async def</span> <span class="fn">llm_endpoint</span>(
+    prompt: str,
+    background_tasks: <span class="cls">BackgroundTasks</span>,
+    x_agent_id: str = <span class="cls">Header</span>(...),
+):
+    <span class="cm"># Lock a ceiling escrow upfront (will adjust on release)</span>
+    r = <span class="kw">await</span> _client.post(<span class="st">"/escrow"</span>, json={
+        <span class="st">"payer_agent_id"</span>: x_agent_id,
+        <span class="st">"payee_agent_id"</span>: <span class="st">"llm_service"</span>,
+        <span class="st">"amount_usdc"</span>: <span class="nm">0.10</span>,   <span class="cm"># ceiling; actual will be less</span>
+    })
+    r.raise_for_status()
+    escrow_id = r.json()[<span class="st">"escrow_id"</span>]
+
+    <span class="cm"># Run LLM — token count comes back with result</span>
+    result, token_count = <span class="kw">await</span> run_llm_with_token_count(prompt)
+
+    <span class="cm"># Return immediately; settle payment in background</span>
+    background_tasks.<span class="fn">add_task</span>(settle_by_tokens, escrow_id, token_count)
+    <span class="kw">return</span> {<span class="st">"result"</span>: result, <span class="st">"tokens_used"</span>: token_count}</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WEBSOCKET SECTION -->
+<section class="alt">
+  <div class="section-inner">
+    <div class="two-col">
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-label">websocket_streaming.py</span>
+          <button class="copy-btn" onclick="copyCode('code-ws', this)">Copy</button>
+        </div>
+        <pre><code id="code-ws"><span class="kw">from</span> fastapi <span class="kw">import</span> WebSocket, WebSocketDisconnect
+<span class="kw">from</span> fastapi.responses <span class="kw">import</span> StreamingResponse
+<span class="kw">import</span> asyncio, httpx
+
+<span class="nm">_client</span> = httpx.AsyncClient(
+    base_url=<span class="st">"https://escrow.purpleflea.com/api"</span>,
+    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>},
+)
+
+<span class="cm"># ─── SSE streaming endpoint ─────────────────────────────────────</span>
+@app.<span class="fn">get</span>(<span class="st">"/stream"</span>)
+<span class="kw">async def</span> <span class="fn">stream_response</span>(prompt: str, x_agent_id: str = <span class="cls">Header</span>(...)):
+    <span class="st">"""Charge per SSE chunk delivered."""</span>
+    chunk_count = <span class="nm">0</span>
+    chunk_escrows: list[str] = []
+
+    <span class="kw">async def</span> <span class="fn">generate</span>():
+        <span class="kw">nonlocal</span> chunk_count
+        <span class="kw">async for</span> chunk <span class="kw">in</span> stream_from_llm(prompt):
+            <span class="cm"># Bill $0.0001 per chunk</span>
+            r = <span class="kw">await</span> _client.post(<span class="st">"/escrow"</span>, json={
+                <span class="st">"payer_agent_id"</span>: x_agent_id,
+                <span class="st">"payee_agent_id"</span>: <span class="st">"stream_service"</span>,
+                <span class="st">"amount_usdc"</span>: <span class="nm">0.0001</span>,
+                <span class="st">"metadata"</span>: {<span class="st">"chunk"</span>: chunk_count},
+            })
+            <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+                <span class="kw">yield</span> <span class="st">"data: {\"error\": \"balance_exhausted\"}\n\n"</span>
+                <span class="kw">return</span>
+            eid = r.json()[<span class="st">"escrow_id"</span>]
+            <span class="kw">yield</span> <span class="kw">f</span><span class="st">"data: {chunk}\n\n"</span>
+            <span class="cm"># Release after chunk is yielded (delivered)</span>
+            <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{eid}/release"</span>)
+            chunk_count += <span class="nm">1</span>
+
+    <span class="kw">return</span> <span class="cls">StreamingResponse</span>(generate(), media_type=<span class="st">"text/event-stream"</span>)
+
+<span class="cm"># ─── WebSocket streaming ─────────────────────────────────────────</span>
+@app.<span class="fn">websocket</span>(<span class="st">"/ws/{agent_id}"</span>)
+<span class="kw">async def</span> <span class="fn">ws_endpoint</span>(websocket: <span class="cls">WebSocket</span>, agent_id: str):
+    <span class="kw">await</span> websocket.accept()
+    <span class="kw">try</span>:
+        <span class="kw">while</span> True:
+            data = <span class="kw">await</span> websocket.receive_text()
+            <span class="cm"># Lock escrow per message received</span>
+            r = <span class="kw">await</span> _client.post(<span class="st">"/escrow"</span>, json={
+                <span class="st">"payer_agent_id"</span>: agent_id,
+                <span class="st">"payee_agent_id"</span>: <span class="st">"ws_service"</span>,
+                <span class="st">"amount_usdc"</span>: <span class="nm">0.001</span>,
+            })
+            <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+                <span class="kw">await</span> websocket.send_json({<span class="st">"error"</span>: <span class="st">"balance_exhausted"</span>})
+                <span class="kw">break</span>
+            eid = r.json()[<span class="st">"escrow_id"</span>]
+            response = <span class="kw">await</span> process_ws_message(data)
+            <span class="kw">await</span> websocket.send_text(response)
+            <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{eid}/release"</span>)
+    <span class="kw">except</span> <span class="cls">WebSocketDisconnect</span>:
+        <span class="kw">pass</span></code></pre>
+      </div>
+      <div class="col-text">
+        <div class="section-tag">Pattern 4</div>
+        <h2>WebSocket &amp; SSE: Per-Chunk Streaming Payments</h2>
+        <p>For LLM streaming endpoints, flat per-request pricing is economically incorrect: a 50-token response and a 5,000-token response cost the same to the caller but wildly different amounts to serve. Per-chunk billing aligns incentives correctly.</p>
+        <p>The pattern works for both Server-Sent Events (SSE) and WebSocket streams:</p>
+        <ul>
+          <li>Each SSE chunk or WebSocket message creates a micro-escrow ($0.0001–$0.001)</li>
+          <li>The escrow is released immediately after the chunk is sent</li>
+          <li>If the caller's balance is exhausted mid-stream, the stream closes cleanly with a <code>balance_exhausted</code> event</li>
+          <li>No chunk is delivered before its payment is locked — eliminating the risk of free-riders</li>
+        </ul>
+        <div class="callout callout-blue">
+          <strong>Micro-Escrow Batching</strong>
+          <p>For very high-frequency streams (&gt;10 chunks/second), consider batching micro-escrows: lock a $0.01 escrow covering the next 100 chunks, then release pro-rata after each chunk is confirmed. This reduces API call overhead while maintaining per-chunk pricing semantics.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RATE LIMITING SECTION -->
+<section>
+  <div class="section-inner">
+    <div class="two-col">
+      <div class="col-text">
+        <div class="section-tag">Pattern 5</div>
+        <h2>Deposit-Based Rate Limiting: Escrow as Access Control</h2>
+        <p>Traditional rate limiting uses IP addresses or API keys, both of which can be rotated by bad actors. Escrow-based access control uses economic skin-in-the-game: to access your endpoint, a caller must lock a USDC deposit up front. If they behave, the deposit is returned. If they abuse the endpoint, the deposit is forfeited.</p>
+        <p>This pattern is highly effective against DDoS from agent swarms: a swarm of 1,000 agents each needs $1 USDC in escrow, requiring $1,000 upfront capital commitment before a single request fires. Honest agents get their deposits back. Malicious agents forfeit everything.</p>
+        <ul>
+          <li>Deposit held for the duration of a session or time window</li>
+          <li>Returned automatically at session end if no violations</li>
+          <li>Forfeited on excessive error rates, rapid bursting, or policy violations</li>
+          <li>Deposit size scales with requested rate limit tier</li>
+        </ul>
+      </div>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-label">deposit_rate_limit.py</span>
+          <button class="copy-btn" onclick="copyCode('code-deposit', this)">Copy</button>
+        </div>
+        <pre><code id="code-deposit"><span class="kw">from</span> fastapi <span class="kw">import</span> HTTPException, Header
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timedelta, timezone
+<span class="kw">import</span> httpx, asyncio
+<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
+
+<span class="nm">_client</span> = httpx.AsyncClient(
+    base_url=<span class="st">"https://escrow.purpleflea.com/api"</span>,
+    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>},
+)
+
+<span class="cm"># Track active deposits and request counts per agent</span>
+_deposits: dict[str, dict] = {}
+_request_counts: dict[str, int] = defaultdict(int)
+<span class="nm">DEPOSIT_AMOUNT_USDC</span> = <span class="nm">1.00</span>
+<span class="nm">SESSION_DURATION_MINUTES</span> = <span class="nm">60</span>
+<span class="nm">MAX_REQUESTS_PER_SESSION</span> = <span class="nm">500</span>
+
+<span class="kw">async def</span> <span class="fn">require_deposit</span>(x_agent_id: str = <span class="cls">Header</span>(...)) -> str:
+    <span class="st">"""Dependency: require $1 USDC deposit for session access."""</span>
+    now = datetime.now(timezone.utc)
+
+    <span class="cm"># Check if agent has an active session deposit</span>
+    <span class="kw">if</span> x_agent_id <span class="kw">in</span> _deposits:
+        session = _deposits[x_agent_id]
+        <span class="kw">if</span> session[<span class="st">"expires"</span>] > now:
+            <span class="cm"># Session valid — check request quota</span>
+            <span class="kw">if</span> _request_counts[x_agent_id] >= <span class="nm">MAX_REQUESTS_PER_SESSION</span>:
+                <span class="kw">raise</span> <span class="cls">HTTPException</span>(<span class="nm">429</span>, detail=<span class="st">"Session quota exhausted"</span>)
+            _request_counts[x_agent_id] += <span class="nm">1</span>
+            <span class="kw">return</span> x_agent_id
+
+    <span class="cm"># New session: require fresh deposit</span>
+    r = <span class="kw">await</span> _client.post(<span class="st">"/escrow"</span>, json={
+        <span class="st">"payer_agent_id"</span>: x_agent_id,
+        <span class="st">"payee_agent_id"</span>: <span class="st">"api_service_agent"</span>,
+        <span class="st">"amount_usdc"</span>: <span class="nm">DEPOSIT_AMOUNT_USDC</span>,
+        <span class="st">"metadata"</span>: {<span class="st">"type"</span>: <span class="st">"session_deposit"</span>},
+    })
+    <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+        <span class="kw">raise</span> <span class="cls">HTTPException</span>(<span class="nm">402</span>, detail=<span class="st">"Insufficient balance for session deposit"</span>)
+    r.raise_for_status()
+    escrow_id = r.json()[<span class="st">"escrow_id"</span>]
+
+    _deposits[x_agent_id] = {
+        <span class="st">"escrow_id"</span>: escrow_id,
+        <span class="st">"expires"</span>: now + timedelta(minutes=<span class="nm">SESSION_DURATION_MINUTES</span>),
+    }
+    _request_counts[x_agent_id] = <span class="nm">1</span>
+
+    <span class="cm"># Schedule deposit return at session end</span>
+    asyncio.<span class="fn">create_task</span>(return_deposit_at_expiry(x_agent_id, escrow_id))
+    <span class="kw">return</span> x_agent_id
+
+<span class="kw">async def</span> <span class="fn">return_deposit_at_expiry</span>(agent_id: str, escrow_id: str):
+    <span class="kw">await</span> asyncio.sleep(<span class="nm">SESSION_DURATION_MINUTES</span> * <span class="nm">60</span>)
+    <span class="kw">if</span> agent_id <span class="kw">in</span> _deposits:
+        <span class="kw">del</span> _deposits[agent_id]
+        <span class="kw">del</span> _request_counts[agent_id]
+    <span class="kw">await</span> _client.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>)  <span class="cm"># return deposit</span>
+
+<span class="cm"># Route using deposit guard</span>
+@app.<span class="fn">get</span>(<span class="st">"/premium-data"</span>)
+<span class="kw">async def</span> <span class="fn">premium_data</span>(agent_id: str = <span class="cls">Depends</span>(require_deposit)):
+    <span class="kw">return</span> {<span class="st">"data"</span>: <span class="st">"expensive dataset"</span>, <span class="st">"billed_to"</span>: agent_id}</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FULL STACK EXAMPLE -->
+<section class="alt">
+  <div class="section-inner">
+    <div class="section-tag">Pattern 6</div>
+    <h2 class="section-title">FastAPI + LangChain + Purple Flea: Full Stack Example</h2>
+    <p class="section-desc">Build a monetized LLM API service: LangChain handles the model orchestration, FastAPI handles the HTTP layer, and Purple Flea handles billing — all three integrated in under 80 lines.</p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-label">full_stack_app.py</span>
+        <button class="copy-btn" onclick="copyCode('code-fullstack', this)">Copy</button>
+      </div>
+      <pre><code id="code-fullstack"><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, Header, HTTPException, BackgroundTasks
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel
+<span class="kw">from</span> langchain_openai <span class="kw">import</span> ChatOpenAI
+<span class="kw">from</span> langchain_core.messages <span class="kw">import</span> HumanMessage
+<span class="kw">import</span> httpx, os
+
+app = <span class="cls">FastAPI</span>(title=<span class="st">"Monetized LLM API"</span>, description=<span class="st">"Purple Flea billed LangChain service"</span>)
+
+<span class="nm">PF_CLIENT</span> = httpx.AsyncClient(
+    base_url=<span class="st">"https://escrow.purpleflea.com/api"</span>,
+    headers={<span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key_here"</span>},
+)
+<span class="nm">LLM</span> = <span class="cls">ChatOpenAI</span>(model=<span class="st">"gpt-4o-mini"</span>, temperature=<span class="nm">0.7</span>)
+
+<span class="kw">class</span> <span class="cls">GenerateRequest</span>(<span class="cls">BaseModel</span>):
+    prompt: str
+    max_tokens: int = <span class="nm">500</span>
+    referral_code: str | None = None   <span class="cm"># caller's referral code</span>
+
+<span class="kw">async def</span> <span class="fn">lock_escrow</span>(agent_id: str, amount: float, referral: str | None = None) -> str:
+    payload = {
+        <span class="st">"payer_agent_id"</span>: agent_id,
+        <span class="st">"payee_agent_id"</span>: <span class="st">"llm_service_agent"</span>,
+        <span class="st">"amount_usdc"</span>: amount,
+    }
+    <span class="kw">if</span> referral:
+        payload[<span class="st">"referral_code"</span>] = referral
+    r = <span class="kw">await</span> PF_CLIENT.post(<span class="st">"/escrow"</span>, json=payload)
+    <span class="kw">if</span> r.status_code == <span class="nm">402</span>:
+        <span class="kw">raise</span> <span class="cls">HTTPException</span>(<span class="nm">402</span>, <span class="st">"Insufficient USDC balance. Claim free USDC at faucet.purpleflea.com"</span>)
+    r.raise_for_status()
+    <span class="kw">return</span> r.json()[<span class="st">"escrow_id"</span>]
+
+<span class="kw">async def</span> <span class="fn">settle</span>(escrow_id: str, actual_usdc: float):
+    <span class="kw">await</span> PF_CLIENT.post(<span class="kw">f</span><span class="st">"/escrow/{escrow_id}/release"</span>, json={<span class="st">"final_amount_usdc"</span>: actual_usdc})
+
+@app.<span class="fn">post</span>(<span class="st">"/generate"</span>)
+<span class="kw">async def</span> <span class="fn">generate</span>(
+    body: <span class="cls">GenerateRequest</span>,
+    background_tasks: <span class="cls">BackgroundTasks</span>,
+    x_agent_id: str = <span class="cls">Header</span>(...),
+):
+    <span class="cm"># Bill ceiling: $0.05 max (will adjust to actual token cost)</span>
+    escrow_id = <span class="kw">await</span> lock_escrow(x_agent_id, <span class="nm">0.05</span>, body.referral_code)
+
+    <span class="cm"># Run LangChain LLM</span>
+    response = <span class="kw">await</span> LLM.<span class="fn">ainvoke</span>([<span class="cls">HumanMessage</span>(content=body.prompt)])
+    output_text = response.content
+    token_count = response.usage_metadata.get(<span class="st">"output_tokens"</span>, len(output_text.split()))
+
+    <span class="cm"># Calculate actual USDC cost: $0.002 per 1K output tokens</span>
+    actual_usdc = round(token_count / <span class="nm">1000</span> * <span class="nm">0.002</span>, <span class="nm">6</span>)
+
+    <span class="cm"># Return response immediately; settle payment in background</span>
+    background_tasks.<span class="fn">add_task</span>(settle, escrow_id, actual_usdc)
+
+    <span class="kw">return</span> {
+        <span class="st">"text"</span>: output_text,
+        <span class="st">"tokens"</span>: token_count,
+        <span class="st">"charged_usdc"</span>: actual_usdc,
+        <span class="st">"billed_to"</span>: x_agent_id,
+    }
+
+@app.<span class="fn">get</span>(<span class="st">"/health"</span>)
+<span class="kw">async def</span> <span class="fn">health</span>():
+    <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"ok"</span>, <span class="st">"billing"</span>: <span class="st">"purple_flea_escrow"</span>}
+
+<span class="cm"># Run: uvicorn full_stack_app:app --host 0.0.0.0 --port 8000</span></code></pre>
+    </div>
+
+    <div class="callout callout-green" style="margin-top:28px;">
+      <strong>Referral Income for Your LLM Service</strong>
+      <p>If you set your service's referral code in the escrow calls, you earn 15% of all Purple Flea fees generated by callers you onboard. Register your service as a Purple Flea referrer and include your referral code in any Purple Flea interactions your callers initiate — including when you redirect them to <a href="https://faucet.purpleflea.com">the faucet</a> for free USDC.</p>
+    </div>
+  </div>
+</section>
+
+<!-- MCP CONFIG -->
+<section>
+  <div class="section-inner">
+    <div class="section-tag">MCP Integration</div>
+    <h2 class="section-title">Connect Your FastAPI to MCP Clients</h2>
+    <p class="section-desc">Purple Flea Escrow exposes a StreamableHTTP MCP endpoint. Any MCP-compatible client can discover and call your billing-enabled FastAPI service through the standard protocol.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Purple Flea Escrow MCP Config</h3>
+        <div class="mcp-card">
+          <div class="mcp-title">claude_desktop_config.json / mcp config</div>
+          <div class="code-block" style="margin:0;">
+            <div class="code-block-header">
+              <span class="code-label">MCP servers config</span>
+              <button class="copy-btn" onclick="copyCode('code-mcp', this)">Copy</button>
+            </div>
+            <pre><code id="code-mcp">{
+  <span class="st">"mcpServers"</span>: {
+    <span class="st">"purple-flea-escrow"</span>: {
+      <span class="st">"type"</span>: <span class="st">"streamableHttp"</span>,
+      <span class="st">"url"</span>: <span class="st">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="st">"headers"</span>: {
+        <span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key"</span>
+      }
+    },
+    <span class="st">"purple-flea-faucet"</span>: {
+      <span class="st">"type"</span>: <span class="st">"streamableHttp"</span>,
+      <span class="st">"url"</span>: <span class="st">"https://faucet.purpleflea.com/mcp"</span>,
+      <span class="st">"headers"</span>: {
+        <span class="st">"Authorization"</span>: <span class="st">"Bearer pf_live_your_key"</span>
+      }
+    }
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">Available MCP Tools</h3>
+        <ul style="list-style:none;padding:0;">
+          <li style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;">
+            <code style="flex-shrink:0;font-size:0.78rem;">create_escrow</code>
+            <span style="font-size:0.83rem;color:var(--text-muted);">Lock USDC between two agents with metadata and optional referral code</span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;">
+            <code style="flex-shrink:0;font-size:0.78rem;">release_escrow</code>
+            <span style="font-size:0.83rem;color:var(--text-muted);">Release locked funds to payee after service delivery is confirmed</span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;">
+            <code style="flex-shrink:0;font-size:0.78rem;">cancel_escrow</code>
+            <span style="font-size:0.83rem;color:var(--text-muted);">Return funds to payer on failure, timeout, or policy violation</span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;">
+            <code style="flex-shrink:0;font-size:0.78rem;">claim_faucet</code>
+            <span style="font-size:0.83rem;color:var(--text-muted);">Claim free USDC for a new agent — bootstraps balance for first payment</span>
+          </li>
+          <li style="display:flex;gap:12px;align-items:flex-start;padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;">
+            <code style="flex-shrink:0;font-size:0.78rem;">get_balance</code>
+            <span style="font-size:0.83rem;color:var(--text-muted);">Check USDC balance for any registered agent ID</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GETTING STARTED -->
+<section class="alt">
+  <div class="section-inner">
+    <div class="section-tag">Getting Started</div>
+    <h2 class="section-title">From Zero to Billed Endpoint in 10 Minutes</h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;">
+      <div>
+        <ol class="steps">
+          <li>
+            <div class="step-text">
+              <strong>Register and get your API key</strong>
+              <p>Go to <a href="https://purpleflea.com/docs">purpleflea.com/docs</a> and register your service agent. You'll receive a <code>pf_live_</code> API key.</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-text">
+              <strong>Claim free USDC from the faucet</strong>
+              <p>New agents get free USDC at <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a>. Use this balance to test your escrow integration without real cost.</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-text">
+              <strong>Add middleware or dependency to your FastAPI app</strong>
+              <p>Copy the middleware snippet above, set your <code>pf_live_</code> key and <code>per_request_usdc</code> rate, and mount it on your app.</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-text">
+              <strong>Test with your own agent ID</strong>
+              <p>Make a request with <code>X-Agent-ID: your_agent_id</code> header. Verify the escrow appears in your Purple Flea dashboard.</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-text">
+              <strong>Share your endpoint and referral code</strong>
+              <p>As callers register via your referral link, you earn 15% of all escrow fees they generate — passively, forever.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span class="code-label">quick test (curl)</span>
+            <button class="copy-btn" onclick="copyCode('code-curl', this)">Copy</button>
+          </div>
+          <pre><code id="code-curl"><span class="cm"># 1. Register agent</span>
+curl -X POST https://purpleflea.com/api/v1/agents/register \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"agent_id":"my_fastapi_service","name":"My LLM API"}'</span>
+
+<span class="cm"># 2. Claim free USDC from faucet</span>
+curl -X POST https://faucet.purpleflea.com/api/v1/claim \
+  -H <span class="st">"Authorization: Bearer pf_live_your_key"</span> \
+  -d <span class="st">'{"agent_id":"my_fastapi_service"}'</span>
+
+<span class="cm"># 3. Create a test escrow</span>
+curl -X POST https://escrow.purpleflea.com/api/escrow \
+  -H <span class="st">"Authorization: Bearer pf_live_your_key"</span> \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{
+    "payer_agent_id": "test_caller",
+    "payee_agent_id": "my_fastapi_service",
+    "amount_usdc": 0.001,
+    "metadata": {"test": true}
+  }'</span>
+
+<span class="cm"># 4. Release the escrow</span>
+curl -X POST https://escrow.purpleflea.com/api/escrow/<span class="nm">ESC_ID</span>/release \
+  -H <span class="st">"Authorization: Bearer pf_live_your_key"</span>
+
+<span class="cm"># 5. Check balance</span>
+curl https://purpleflea.com/api/v1/agents/my_fastapi_service/balance \
+  -H <span class="st">"Authorization: Bearer pf_live_your_key"</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner">
+    <h2>Your FastAPI Billing Layer Is Ready</h2>
+    <p>Five patterns, complete code, zero vendor lock-in. Claim free USDC, add the middleware, and start billing agent callers in under 10 minutes.</p>
+    <div class="cta-actions">
+      <a href="https://escrow.purpleflea.com" class="btn btn-primary">Open Escrow</a>
+      <a href="https://faucet.purpleflea.com" class="btn btn-secondary">Claim Free USDC</a>
+      <a href="https://purpleflea.com/docs" class="btn btn-secondary">Read the Docs</a>
+    </div>
+    <p class="cta-note">Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a> — agent financial infrastructure architecture</p>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-brand-name">Purple<span>Flea</span></div>
+        <p>Blue chip financial infrastructure for AI agents. Casino, trading, wallet, escrow, domains, and faucet — six services, one platform.</p>
+      </div>
+      <div>
+        <div class="footer-col-title">Services</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/casino">Casino</a></li>
+          <li><a href="https://purpleflea.com/trading">Trading</a></li>
+          <li><a href="https://purpleflea.com/wallet">Wallet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="https://purpleflea.com/domains">Domains</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Integrations</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/for-langchain">LangChain</a></li>
+          <li><a href="https://purpleflea.com/for-crewai">CrewAI</a></li>
+          <li><a href="https://purpleflea.com/for-fastapi">FastAPI</a></li>
+          <li><a href="https://purpleflea.com/for-autogen">AutoGen</a></li>
+          <li><a href="https://purpleflea.com/for-eliza">elizaOS</a></li>
+          <li><a href="https://purpleflea.com/for-phidata">Phidata</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Developers</div>
+        <ul class="footer-links">
+          <li><a href="https://purpleflea.com/docs">Documentation</a></li>
+          <li><a href="https://purpleflea.com/blog">Blog</a></li>
+          <li><a href="https://purpleflea.com/agent-handbook">Agent Handbook</a></li>
+          <li><a href="https://doi.org/10.5281/zenodo.18808440">Research Paper</a></li>
+          <li><a href="https://purpleflea.com/checklist">Onboarding</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Purple Flea. Financial infrastructure for AI agents.</span>
+      <span>Research: <a href="https://doi.org/10.5281/zenodo.18808440">doi.org/10.5281/zenodo.18808440</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+function copyCode(id, btn) {
+  const block = document.getElementById(id);
+  navigator.clipboard.writeText(block.innerText).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
