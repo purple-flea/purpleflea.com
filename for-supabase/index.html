@@ -1,1335 +1,1688 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Supabase + Purple Flea — Track Agent Payments in Postgres</title>
-  <meta name="description" content="Persist every escrow event to Supabase in real time. Connect Purple Flea agent payment webhooks to Postgres with Row Level Security, realtime subscriptions, and Edge Functions." />
-  <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://purpleflea.com/for-supabase/" />
-  <meta property="og:title" content="Supabase + Purple Flea — Track Agent Payments in Postgres" />
-  <meta property="og:description" content="Persist every escrow event to Supabase in real time. Purple Flea webhooks → Postgres tables with RLS, Edge Functions, and Realtime dashboards." />
-  <meta property="og:url" content="https://purpleflea.com/for-supabase/" />
-  <meta property="og:type" content="website" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "TechArticle",
-    "headline": "Supabase + Purple Flea — Track Agent Payments in Postgres",
-    "description": "Integration guide for persisting Purple Flea escrow events to Supabase Postgres with realtime subscriptions, Row Level Security, and Edge Functions.",
-    "url": "https://purpleflea.com/for-supabase/",
-    "publisher": {
-      "@type": "Organization",
-      "name": "Purple Flea",
-      "url": "https://purpleflea.com"
-    },
-    "datePublished": "2026-03-07",
-    "keywords": ["Supabase", "AI agent payments", "escrow", "Postgres", "realtime", "Purple Flea"]
-  }
-  </script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Purple Flea for Supabase | Agent Payments + Database Integration</title>
+<meta name="description" content="Use Supabase as the database layer for Purple Flea agent payments. Store escrow events, subscribe to status changes in realtime, handle webhooks with Edge Functions, and enforce row-level security for agent data.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/for-supabase">
+<meta property="og:title" content="Purple Flea for Supabase | Agent Payments + Database Integration">
+<meta property="og:description" content="Supabase + Purple Flea: store escrow history in Postgres, subscribe to realtime status changes, handle webhooks with Edge Functions, and enforce per-agent row-level security.">
+<meta property="og:url" content="https://purpleflea.com/for-supabase">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Purple Flea Supabase Integration",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Linux, macOS, Windows",
+  "url": "https://purpleflea.com/for-supabase",
+  "description": "Supabase integration for Purple Flea AI agent financial infrastructure — store escrow events in Postgres, realtime subscriptions, Edge Function webhooks, and row-level security for per-agent data.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Free to integrate. 1% escrow fee on transactions."
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Purple Flea",
+    "url": "https://purpleflea.com",
+    "logo": "https://purpleflea.com/flea.jpg"
+  },
+  "featureList": [
+    "Supabase Postgres for escrow transaction history",
+    "Realtime subscriptions for live escrow status updates",
+    "Edge Functions for Purple Flea webhook handling",
+    "Row-level security for agent-scoped data",
+    "Full SQL schema with indexes and triggers",
+    "supabase-js client with typed query helpers",
+    "Automated escrow state machine via database triggers"
+  ]
+}
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168,85,247,0.15);
+  --green: #22C55E;
+  --green-dim: #16A34A;
+  --bg: #09090B;
+  --bg-card: rgba(255,255,255,0.03);
+  --bg-card-hover: rgba(255,255,255,0.055);
+  --border: rgba(255,255,255,0.07);
+  --border-purple: rgba(168,85,247,0.35);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --blue: #60A5FA;
+  --yellow: #FBBF24;
+  --red: #F87171;
+  --orange: #FB923C;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
 
-    :root {
-      --bg: #09090B;
-      --bg-card: #18181B;
-      --border: #27272A;
-      --text: #FAFAFA;
-      --text-muted: #71717A;
-      --text-dim: #A1A1AA;
-      --accent: #A855F7;
-      --accent-dim: #7C3AED;
-      --accent-glow: rgba(168, 85, 247, 0.15);
-      --green: #22C55E;
-      --green-glow: rgba(34, 197, 94, 0.12);
-      --red: #EF4444;
-      --yellow: #EAB308;
-      --blue: #3B82F6;
-      --teal: #14B8A6;
-      --code-bg: #0D0D0F;
-      --supabase: #3ECF8E;
-      --supabase-dim: rgba(62, 207, 142, 0.12);
-    }
+/* Progress bar */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--purple-dim), var(--purple), #C084FC);
+  z-index: 1000;
+  transition: width 0.1s linear;
+}
 
-    html { scroll-behavior: smooth; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 16px;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+/* Nav */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  background: rgba(9,9,11,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.nav-brand .name { color: var(--purple); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+.nav-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+.nav-links a:hover { color: var(--text); background: var(--bg-card); }
+.nav-cta {
+  background: var(--purple) !important;
+  color: #fff !important;
+  padding: 7px 16px !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+.nav-cta:hover { background: var(--purple-dim) !important; }
 
-    /* NAV */
-    nav {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(9, 9, 11, 0.88);
-      backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-    }
-    .nav-inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 60px;
-    }
-    .nav-logo {
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      text-decoration: none;
-    }
-    .nav-logo span { color: var(--accent); }
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      list-style: none;
-    }
-    .nav-links a {
-      color: var(--text-dim);
-      font-size: 14px;
-      font-weight: 500;
-      transition: color 0.2s;
-      text-decoration: none;
-    }
-    .nav-links a:hover { color: var(--text); }
-    .nav-cta {
-      background: var(--accent);
-      color: #fff !important;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .nav-cta:hover { background: var(--accent-dim) !important; text-decoration: none !important; }
+/* Hero */
+.hero {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 96px 24px 72px;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(168,85,247,0.1);
+  border: 1px solid var(--border-purple);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 0.8rem;
+  color: var(--purple);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+}
+.hero-badge .dot {
+  width: 6px; height: 6px;
+  background: var(--purple);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 22px;
+}
+.hero h1 .hl-purple { color: var(--purple); }
+.hero h1 .hl-green { color: var(--green); }
+.hero p {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto 36px;
+  line-height: 1.7;
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.btn-primary {
+  background: var(--purple);
+  color: #fff;
+  text-decoration: none;
+  padding: 13px 28px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 0 20px rgba(168,85,247,0.3);
+}
+.btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); }
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text);
+  text-decoration: none;
+  padding: 13px 28px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid var(--border);
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--border-purple); }
 
-    /* LAYOUT */
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-    section { padding: 80px 0; }
-    section + section { border-top: 1px solid var(--border); }
+/* Stats row */
+.stats-row {
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stats-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.stat-item {
+  background: var(--bg);
+  padding: 20px 24px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--purple);
+  line-height: 1;
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+}
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
 
-    /* HERO */
-    .hero {
-      padding: 100px 0 80px;
-      text-align: center;
-      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(168, 85, 247, 0.12), transparent);
-    }
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--supabase-dim);
-      border: 1px solid rgba(62, 207, 142, 0.3);
-      border-radius: 100px;
-      padding: 6px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--supabase);
-      margin-bottom: 28px;
-    }
-    .hero h1 {
-      font-size: clamp(2rem, 5vw, 3.4rem);
-      font-weight: 800;
-      line-height: 1.15;
-      letter-spacing: -0.02em;
-      max-width: 820px;
-      margin: 0 auto 20px;
-    }
-    .hero h1 em { font-style: normal; color: var(--accent); }
-    .hero p {
-      font-size: 1.2rem;
-      color: var(--text-dim);
-      max-width: 620px;
-      margin: 0 auto 40px;
-    }
-    .hero-buttons {
-      display: flex;
-      gap: 14px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      padding: 12px 28px;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 15px;
-      transition: background 0.2s, transform 0.1s;
-      text-decoration: none;
-    }
-    .btn-primary:hover { background: var(--accent-dim); transform: translateY(-1px); text-decoration: none; }
-    .btn-secondary {
-      background: transparent;
-      color: var(--text);
-      padding: 12px 28px;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 15px;
-      border: 1px solid var(--border);
-      transition: border-color 0.2s, background 0.2s;
-      text-decoration: none;
-    }
-    .btn-secondary:hover { border-color: var(--accent); background: var(--accent-glow); text-decoration: none; }
+/* Sections */
+.section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 72px 24px;
+}
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin-bottom: 16px;
+  line-height: 1.2;
+}
+.section-desc {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  max-width: 580px;
+  line-height: 1.7;
+  margin-bottom: 48px;
+}
 
-    /* SECTION TITLES */
-    .section-label {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 12px;
-    }
-    h2 {
-      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
-      font-weight: 800;
-      line-height: 1.25;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-    }
-    h2 em { font-style: normal; color: var(--accent); }
-    .section-desc {
-      font-size: 1.05rem;
-      color: var(--text-dim);
-      max-width: 680px;
-      margin-bottom: 48px;
-    }
+/* Cards */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.2s, background 0.2s;
+}
+.card.visible { opacity: 1; transform: translateY(0); }
+.card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); }
+.card-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: rgba(168,85,247,0.12);
+  border: 1px solid var(--border-purple);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+}
+.card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+.card p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; }
 
-    /* CARDS */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-    }
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px;
-    }
-    .card-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
-      background: var(--accent-glow);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      margin-bottom: 16px;
-    }
-    .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
-    .card p { font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; }
+/* Code blocks */
+.code-wrap {
+  background: #0D0D10;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 24px 0;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.code-wrap.visible { opacity: 1; transform: translateY(0); }
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.code-filename {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.code-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+.code-tag.sql { background: rgba(96,165,250,0.12); color: var(--blue); }
+.code-tag.js  { background: rgba(251,191,36,0.12); color: var(--yellow); }
+.code-tag.ts  { background: rgba(96,165,250,0.12); color: var(--blue); }
+.code-tag.sh  { background: rgba(34,197,94,0.12); color: var(--green); }
+.code-dots { display: flex; gap: 6px; }
+.code-dot { width: 10px; height: 10px; border-radius: 50%; }
+.code-dot.red    { background: #FF5F57; }
+.code-dot.yellow { background: #FFBD2E; }
+.code-dot.green  { background: #28CA41; }
+.code-body { padding: 20px; overflow-x: auto; }
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.825rem;
+  line-height: 1.7;
+  color: #E2E8F0;
+  white-space: pre;
+}
 
-    /* CODE BLOCKS */
-    .code-section {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-    }
-    .code-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      background: rgba(255,255,255,0.02);
-    }
-    .code-header-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-red { background: #EF4444; }
-    .dot-yellow { background: #EAB308; }
-    .dot-green { background: #22C55E; }
-    .code-filename {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-    .code-lang {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      background: rgba(255,255,255,0.06);
-      padding: 3px 8px;
-      border-radius: 4px;
-    }
-    pre {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      line-height: 1.7;
-      padding: 24px;
-      overflow-x: auto;
-      color: #D4D4D8;
-      background: var(--code-bg);
-      margin: 0;
-    }
-    .kw { color: #C084FC; }
-    .fn { color: #60A5FA; }
-    .str { color: #86EFAC; }
-    .cm { color: #6B7280; font-style: italic; }
-    .num { color: #FCD34D; }
-    .ty { color: #67E8F9; }
+/* Syntax tokens */
+.kw { color: #C084FC; }
+.fn { color: #60A5FA; }
+.st { color: #86EFAC; }
+.cm { color: #6B7280; font-style: italic; }
+.nu { color: #FBBF24; }
+.cl { color: #F9A8D4; }
+.dc { color: #A855F7; }
+.ty { color: #34D399; }
+.op { color: #94A3B8; }
+.tb { color: #FDA4AF; }
 
-    /* TWO-COL */
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 32px;
-      align-items: start;
-    }
-    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+/* Split layout */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.split-text h2 { font-size: clamp(1.5rem, 2.5vw, 2rem); font-weight: 800; letter-spacing: -0.025em; margin-bottom: 16px; line-height: 1.25; }
+.split-text p { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 16px; }
+.split-text ul { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.split-text li { font-size: 0.9rem; color: var(--text-secondary); display: flex; align-items: flex-start; gap: 10px; }
+.split-text li::before { content: '->'; color: var(--purple); font-weight: 700; flex-shrink: 0; margin-top: 1px; font-family: var(--font-mono); }
 
-    /* STEPS */
-    .steps { display: flex; flex-direction: column; gap: 24px; }
-    .step {
-      display: flex;
-      gap: 20px;
-      align-items: flex-start;
-    }
-    .step-num {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: var(--accent-glow);
-      border: 1px solid var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent);
-      flex-shrink: 0;
-    }
-    .step-content h4 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
-    .step-content p { font-size: 0.9rem; color: var(--text-dim); }
-    .step-content code {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: var(--accent);
-    }
+/* Steps */
+.steps { display: flex; flex-direction: column; }
+.step {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 20px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--border);
+  opacity: 0;
+  transform: translateX(-16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.step.visible { opacity: 1; transform: translateX(0); }
+.step:last-child { border-bottom: none; }
+.step-num {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--purple);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--purple);
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+.step-content h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.step-content p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; }
 
-    /* FLOW DIAGRAM */
-    .flow {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px;
-      justify-content: center;
-    }
-    .flow-step {
-      text-align: center;
-      padding: 12px 20px;
-    }
-    .flow-step .icon {
-      font-size: 28px;
-      margin-bottom: 8px;
-      display: block;
-    }
-    .flow-step .label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      display: block;
-    }
-    .flow-step .sublabel {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: block;
-    }
-    .flow-arrow {
-      font-size: 20px;
-      color: var(--accent);
-      padding: 0 4px;
-    }
+/* Two-col code */
+.code-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-    /* ANALYTICS TABLE */
-    .analytics-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .analytics-table th {
-      text-align: left;
-      padding: 10px 16px;
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--border);
-    }
-    .analytics-table td {
-      padding: 10px 16px;
-      border-bottom: 1px solid rgba(39,39,42,0.5);
-      color: var(--text-dim);
-    }
-    .analytics-table td:first-child { color: var(--text); }
-    .analytics-table tr:last-child td { border-bottom: none; }
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-    .badge-green { background: var(--green-glow); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
-    .badge-purple { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); }
+/* Architecture diagram */
+.arch-diagram {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 2;
+  overflow-x: auto;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.arch-diagram.visible { opacity: 1; transform: translateY(0); }
+.arch-diagram .hl        { color: var(--purple); }
+.arch-diagram .hl-green  { color: var(--green); }
+.arch-diagram .hl-blue   { color: var(--blue); }
+.arch-diagram .hl-yellow { color: var(--yellow); }
 
-    /* CTA */
-    .cta-section {
-      background: radial-gradient(ellipse 70% 70% at 50% 100%, rgba(168,85,247,0.12), transparent),
-                  var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 60px 40px;
-      text-align: center;
-    }
-    .cta-section h2 { margin-bottom: 14px; }
-    .cta-section p { color: var(--text-dim); margin-bottom: 36px; font-size: 1.05rem; }
+/* RLS table */
+.rls-table { width: 100%; border-collapse: collapse; margin-top: 32px; }
+.rls-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.rls-table td {
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.rls-table tr:last-child td { border-bottom: none; }
+.op-badge {
+  font-family: var(--font-mono);
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.op-badge.select { background: rgba(34,197,94,0.12); color: var(--green); }
+.op-badge.insert { background: rgba(168,85,247,0.12); color: var(--purple); }
+.op-badge.update { background: rgba(251,191,36,0.12); color: var(--yellow); }
+.op-badge.delete { background: rgba(248,113,113,0.12); color: var(--red); }
+.table-name { font-family: var(--font-mono); font-size: 0.82rem; color: var(--blue); }
 
-    /* FOOTER */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 24px;
-      text-align: center;
-    }
-    .footer-links {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 24px;
-      margin-bottom: 20px;
-    }
-    .footer-links a { color: var(--text-dim); font-size: 14px; }
-    .footer-links a:hover { color: var(--text); text-decoration: none; }
-    .footer-copy { font-size: 13px; color: var(--text-muted); }
+/* CTA */
+.cta-section {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(168,85,247,0.05) 0%, transparent 100%);
+}
+.cta-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 24px;
+  text-align: center;
+}
+.cta-inner h2 { font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 800; letter-spacing: -0.025em; margin-bottom: 16px; }
+.cta-inner p { font-size: 1.05rem; color: var(--text-secondary); max-width: 520px; margin: 0 auto 36px; }
 
-    /* RLS highlight */
-    .rls-rule {
-      background: var(--bg-card);
-      border-left: 3px solid var(--supabase);
-      border-radius: 0 8px 8px 0;
-      padding: 14px 18px;
-      margin-bottom: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      color: var(--text-dim);
-    }
-    .rls-rule strong { color: var(--supabase); font-weight: 600; }
-  </style>
+/* Footer */
+footer {
+  background: #07070A;
+  border-top: 1px solid var(--border);
+  padding: 48px 24px 32px;
+}
+.footer-inner { max-width: 1200px; margin: 0 auto; }
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+.footer-brand p { font-size: 0.875rem; color: var(--text-muted); margin-top: 12px; max-width: 260px; line-height: 1.6; }
+.footer-col h4 { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.footer-col a { font-size: 0.875rem; color: var(--text-secondary); text-decoration: none; transition: color 0.2s; }
+.footer-col a:hover { color: var(--purple); }
+.footer-bottom { border-top: 1px solid var(--border); padding-top: 24px; display: flex; align-items: center; justify-content: space-between; }
+.footer-bottom p { font-size: 0.8rem; color: var(--text-muted); }
+.footer-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-weight: 700; }
+
+.divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; gap: 32px; }
+  .code-two-col { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .stats-inner { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .nav-links { display: none; }
+  .stats-inner { grid-template-columns: 1fr 1fr; }
+  .hero h1 { font-size: 2rem; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .hero-actions { flex-direction: column; }
+  .code-two-col { grid-template-columns: 1fr; }
+}
+</style>
 </head>
 <body>
 
-<!-- NAV -->
+<div id="progress-bar"></div>
+
 <nav>
   <div class="nav-inner">
-    <a href="https://purpleflea.com" class="nav-logo">
-      Purple <span>Flea</span>
+    <a href="/" class="nav-brand">
+      &#x1F7E3; Purple<span class="name"> Flea</span>
     </a>
     <ul class="nav-links">
-      <li><a href="https://purpleflea.com/casino">Casino</a></li>
-      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
-      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
-      <li><a href="https://purpleflea.com/trading">Trading</a></li>
-      <li><a href="https://purpleflea.com/docs/">Docs</a></li>
-      <li><a href="https://faucet.purpleflea.com" class="nav-cta">Get Free USDC →</a></li>
+      <li><a href="/docs/escrow/">Escrow Docs</a></li>
+      <li><a href="/docs/trading/">Trading Docs</a></li>
+      <li><a href="/for-fastapi">FastAPI Guide</a></li>
+      <li><a href="/pricing">Pricing</a></li>
+      <li><a href="https://escrow.purpleflea.com" class="nav-cta">Start Building</a></li>
     </ul>
   </div>
 </nav>
 
-<!-- HERO -->
+<!-- Hero -->
 <section class="hero">
-  <div class="container">
-    <div class="hero-badge">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-      Supabase + Purple Flea Integration
+  <div class="hero-badge"><span class="dot"></span>Supabase Integration</div>
+  <h1>
+    <span class="hl-green">Supabase</span> + <span class="hl-purple">Purple Flea</span><br>
+    Agent Payments with a Database
+  </h1>
+  <p>
+    Connect Supabase Postgres to Purple Flea's escrow and trading APIs.
+    Store every agent transaction, subscribe to escrow status changes in real time,
+    handle webhooks with Edge Functions, and lock down data with row-level security.
+  </p>
+  <div class="hero-actions">
+    <a href="#schema" class="btn-primary">View SQL Schema</a>
+    <a href="https://escrow.purpleflea.com" class="btn-secondary">Escrow API Docs</a>
+  </div>
+</section>
+
+<!-- Stats row -->
+<div class="stats-row">
+  <div class="stats-inner">
+    <div class="stat-item">
+      <div class="stat-value">1%</div>
+      <div class="stat-label">Escrow Fee</div>
     </div>
-    <h1>Persist Every <em>Escrow Event</em><br>to Supabase in Real Time</h1>
-    <p>
-      Connect Purple Flea agent payment webhooks to Supabase Postgres. Track escrow settlements, wallet balances, and referral income with Row Level Security and live dashboard subscriptions.
-    </p>
-    <div class="hero-buttons">
-      <a href="https://escrow.purpleflea.com" class="btn-primary">Start with Escrow →</a>
-      <a href="https://purpleflea.com/docs/escrow/" class="btn-secondary">Escrow API Docs</a>
+    <div class="stat-item">
+      <div class="stat-value">15%</div>
+      <div class="stat-label">Referral on Fees</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">USDC</div>
+      <div class="stat-label">Settlement Currency</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">&lt;2s</div>
+      <div class="stat-label">Escrow Release</div>
+    </div>
+  </div>
+</div>
+
+<!-- Architecture overview -->
+<section class="section">
+  <p class="section-label">Architecture</p>
+  <h2 class="section-title">How the stack fits together</h2>
+  <p class="section-desc">
+    Your agent calls Purple Flea APIs directly. Supabase sits beside it as the record-of-truth,
+    storing every escrow event, balance update, and referral payout in Postgres with realtime delivery.
+  </p>
+
+  <div class="arch-diagram">
+<pre>
+  +--------------------------------------------------+
+  |              Your AI Agent                       |
+  |   (Node.js  Python  Deno  any runtime)           |
+  +------------------------+-------------------------+
+                           |
+          +----------------v-----------------+
+          |       Purple Flea APIs            |
+          |  <span class="hl">escrow.purpleflea.com</span>           |
+          |  <span class="hl">faucet.purpleflea.com</span>           |
+          |  <span class="hl">purpleflea.com/api/trading</span>      |
+          |  <span class="hl">purpleflea.com/api/wallet</span>       |
+          +----------------+-----------------+
+                           |  webhook events
+          +----------------v-----------------+
+          |   Supabase Edge Functions         |
+          |  <span class="hl-green">handle-escrow-webhook</span>           |
+          |  <span class="hl-green">sync-wallet-balance</span>             |
+          +----------------+-----------------+
+                           |  INSERT / UPDATE
+          +----------------v-----------------+
+          |      Supabase Postgres            |
+          |  <span class="hl-blue">escrow_events</span>                  |
+          |  <span class="hl-blue">agent_balances</span>                  |
+          |  <span class="hl-blue">trade_history</span>                   |
+          |  <span class="hl-blue">referral_payouts</span>                |
+          +----------------+-----------------+
+                           |  Realtime subscription
+          +----------------v-----------------+
+          |    Agent Dashboard / UI           |
+          |  <span class="hl-yellow">supabase.channel('escrow')</span>      |
+          |  .on('postgres_changes', ...)     |
+          +----------------------------------+
+</pre>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Why section -->
+<section class="section">
+  <p class="section-label">Why Supabase + Purple Flea</p>
+  <h2 class="section-title">The database layer<br>your agents need</h2>
+  <p class="section-desc">
+    Purple Flea handles the financial rails. Supabase gives you the queryable, realtime,
+    access-controlled data layer so you can audit, replay, and analyze every agent transaction.
+  </p>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-icon">&#x1F5C4;</div>
+      <h3>Postgres Audit Trail</h3>
+      <p>Every escrow creation, funding, release, and cancellation is stored as an immutable event row in Supabase Postgres. Full history, always queryable with standard SQL.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#x26A1;</div>
+      <h3>Realtime Subscriptions</h3>
+      <p>Subscribe to <code>escrow_events</code> table changes via Supabase Realtime. Your agent UI updates the moment Purple Flea releases funds, zero polling required.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#x1F512;</div>
+      <h3>Row-Level Security</h3>
+      <p>Each agent can only read its own escrow history. Supabase RLS policies enforce per-agent data isolation without any application-layer filtering code.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#x2699;</div>
+      <h3>Edge Functions</h3>
+      <p>Supabase Edge Functions receive Purple Flea webhooks at the edge and insert events into Postgres. Globally distributed, sub-50ms response time.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#x1F514;</div>
+      <h3>Database Triggers</h3>
+      <p>Postgres triggers automate downstream actions when escrow status changes. Send notifications, update ledgers, record referral payouts automatically.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#x1F4CA;</div>
+      <h3>Analytics Queries</h3>
+      <p>Run SQL analytics over all agent transactions. Total volume by agent, average escrow duration, referral payout totals — direct Postgres queries, no ETL needed.</p>
     </div>
   </div>
 </section>
 
-<!-- EVENT FLOW -->
-<section>
-  <div class="container">
-    <div class="section-label">Architecture</div>
-    <h2>The <em>Purple Flea → Supabase</em> Event Pipeline</h2>
-    <p class="section-desc">
-      Every escrow settlement, faucet claim, or casino payout fires a signed webhook. Your Supabase Edge Function receives it, validates the signature, and inserts a row — all in under 100ms.
-    </p>
+<hr class="divider">
 
-    <div class="flow" style="margin-bottom: 40px;">
-      <div class="flow-step">
-        <span class="icon">🤖</span>
-        <span class="label">AI Agent</span>
-        <span class="sublabel">Calls escrow API</span>
+<!-- SQL Schema -->
+<section class="section" id="schema">
+  <p class="section-label">Database Schema</p>
+  <h2 class="section-title">Complete SQL schema<br>for agent transactions</h2>
+  <p class="section-desc">
+    Copy and run this schema in the Supabase SQL Editor. It creates all tables, indexes,
+    row-level security policies, and triggers needed to track Purple Flea agent activity.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
       </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <span class="icon" style="font-size:22px; color: var(--accent);">⚡</span>
-        <span class="label">Purple Flea</span>
-        <span class="sublabel">Settles payment</span>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <span class="icon">🪝</span>
-        <span class="label">Webhook</span>
-        <span class="sublabel">HMAC-signed POST</span>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <span class="icon" style="color: var(--supabase);">⚡</span>
-        <span class="label">Edge Function</span>
-        <span class="sublabel">Deno runtime</span>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <span class="icon">🐘</span>
-        <span class="label">Postgres</span>
-        <span class="sublabel">Supabase DB</span>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step">
-        <span class="icon">📡</span>
-        <span class="label">Realtime</span>
-        <span class="sublabel">Live dashboard</span>
-      </div>
+      <span class="code-filename">supabase/migrations/001_purple_flea_schema.sql</span>
+      <span class="code-tag sql">SQL</span>
     </div>
+    <div class="code-body">
+<pre><span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  Purple Flea x Supabase -- Complete Schema</span>
+<span class="cm">--  Run in Supabase SQL Editor or via: supabase db push</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
 
-    <div class="card-grid">
-      <div class="card">
-        <div class="card-icon">🪝</div>
-        <h3>Signed Webhooks</h3>
-        <p>Purple Flea signs every event with HMAC-SHA256. Validate <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 5px;border-radius:3px;color:var(--accent);">X-PF-Signature</code> in your Edge Function before writing to Postgres.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon" style="background: var(--supabase-dim);">🔒</div>
-        <h3>Row Level Security</h3>
-        <p>Each agent authenticates with a JWT. Postgres policies ensure agents read only their own escrow rows — zero application-level access checks needed.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">📡</div>
-        <h3>Realtime Subscriptions</h3>
-        <p>Supabase Realtime broadcasts every INSERT on <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 5px;border-radius:3px;color:var(--accent);">escrow_events</code> to subscribed frontend agents over WebSocket.</p>
-      </div>
-      <div class="card">
-        <div class="card-icon">📊</div>
-        <h3>Analytics-Ready Schema</h3>
-        <p>Pre-built SQL views for P&amp;L, win rate, and referral income rollup. Drop into any BI tool or query directly from your agent.</p>
-      </div>
-    </div>
-  </div>
-</section>
+<span class="cm">-- Enable UUID generation</span>
+<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> <span class="st">"uuid-ossp"</span>;
+<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> <span class="st">"pgcrypto"</span>;
 
-<!-- SQL SCHEMA -->
-<section>
-  <div class="container">
-    <div class="section-label">Database Schema</div>
-    <h2>Three Tables, <em>Complete Coverage</em></h2>
-    <p class="section-desc">
-      Run this migration in your Supabase SQL editor. The schema handles escrow events, per-agent wallet snapshots, and referral revenue attribution.
-    </p>
-
-    <div class="code-section">
-      <div class="code-header">
-        <div class="code-header-left">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="code-filename">001_purpleflea_schema.sql</span>
-        </div>
-        <span class="code-lang">SQL</span>
-      </div>
-      <pre><span class="cm">-- ─────────────────────────────────────────────────────────────────────────────
--- Purple Flea × Supabase Schema
--- Run in Supabase SQL Editor → New Query
--- ─────────────────────────────────────────────────────────────────────────────</span>
-
-<span class="cm">-- Enable UUID extension (already on by default in Supabase)</span>
-<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> <span class="str">"uuid-ossp"</span>;
-
-<span class="cm">-- ── escrow_events ─────────────────────────────────────────────────────────────
--- One row per Purple Flea escrow lifecycle event
--- event_type: 'created' | 'funded' | 'released' | 'disputed' | 'cancelled'
--- ──────────────────────────────────────────────────────────────────────────────</span>
-<span class="kw">CREATE TABLE</span> <span class="ty">escrow_events</span> (
-  id              <span class="ty">UUID</span>          <span class="kw">PRIMARY KEY DEFAULT</span> uuid_generate_v4(),
-  escrow_id       <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
-  event_type      <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
-  payer_agent_id  <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
-  payee_agent_id  <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
-  amount_usdc     <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>,
-  fee_usdc        <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  referral_fee    <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  referrer_id     <span class="ty">TEXT</span>,
-  metadata        <span class="ty">JSONB</span>         <span class="kw">NOT NULL DEFAULT</span> <span class="str">'{}'</span>,
-  pf_signature    <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,   <span class="cm">-- HMAC-SHA256 from X-PF-Signature header</span>
-  received_at     <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>,
-  settled_at      <span class="ty">TIMESTAMPTZ</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  agents -- one row per registered AI agent</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">agents</span> (
+    id            uuid          <span class="kw">PRIMARY KEY DEFAULT</span> <span class="fn">uuid_generate_v4</span>(),
+    agent_id      text          <span class="kw">NOT NULL UNIQUE</span>,
+    display_name  text,
+    referral_code text          <span class="kw">UNIQUE</span>,
+    referred_by   text,
+    created_at    timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>(),
+    last_seen_at  timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>()
 );
 
-<span class="kw">CREATE INDEX</span> idx_escrow_payer   <span class="kw">ON</span> <span class="ty">escrow_events</span> (payer_agent_id, received_at <span class="kw">DESC</span>);
-<span class="kw">CREATE INDEX</span> idx_escrow_payee   <span class="kw">ON</span> <span class="ty">escrow_events</span> (payee_agent_id, received_at <span class="kw">DESC</span>);
-<span class="kw">CREATE INDEX</span> idx_escrow_type    <span class="kw">ON</span> <span class="ty">escrow_events</span> (event_type);
-<span class="kw">CREATE INDEX</span> idx_escrow_id_evt  <span class="kw">ON</span> <span class="ty">escrow_events</span> (escrow_id, event_type);
-
-<span class="cm">-- ── agent_wallets ──────────────────────────────────────────────────────────────
--- Snapshot of each agent's wallet balance (updated on each event)
--- ──────────────────────────────────────────────────────────────────────────────</span>
-<span class="kw">CREATE TABLE</span> <span class="ty">agent_wallets</span> (
-  agent_id        <span class="ty">TEXT</span>          <span class="kw">PRIMARY KEY</span>,
-  balance_usdc    <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  total_sent      <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  total_received  <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  total_fees_paid <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  referral_earned <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  escrow_count    <span class="ty">INTEGER</span>       <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  first_seen      <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>,
-  last_active     <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  escrow_events -- every escrow lifecycle event</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">escrow_events</span> (
+    id              uuid          <span class="kw">PRIMARY KEY DEFAULT</span> <span class="fn">uuid_generate_v4</span>(),
+    escrow_id       text          <span class="kw">NOT NULL</span>,
+    event_type      text          <span class="kw">NOT NULL</span>,
+    payer_agent_id  text          <span class="kw">NOT NULL</span>,
+    payee_agent_id  text          <span class="kw">NOT NULL</span>,
+    amount_usdc     numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL</span>,
+    fee_usdc        numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0</span>,
+    referral_code   text,
+    referral_payout numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">DEFAULT</span> <span class="nu">0</span>,
+    description     text,
+    raw_payload     jsonb,
+    created_at      timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>()
 );
 
-<span class="cm">-- ── referral_stats ────────────────────────────────────────────────────────────
--- Per-referrer revenue breakdown; 15% of the 1% escrow fee
--- ──────────────────────────────────────────────────────────────────────────────</span>
-<span class="kw">CREATE TABLE</span> <span class="ty">referral_stats</span> (
-  referrer_id     <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
-  period_date     <span class="ty">DATE</span>          <span class="kw">NOT NULL DEFAULT CURRENT_DATE</span>,
-  escrows_referred <span class="ty">INTEGER</span>      <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  volume_usdc     <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
-  referral_income <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,  <span class="cm">-- 15% of 1% = 0.15% of volume</span>
-  <span class="kw">PRIMARY KEY</span> (referrer_id, period_date)
+<span class="kw">CREATE INDEX</span> idx_escrow_events_escrow_id  <span class="kw">ON</span> <span class="tb">escrow_events</span> (escrow_id);
+<span class="kw">CREATE INDEX</span> idx_escrow_events_payer       <span class="kw">ON</span> <span class="tb">escrow_events</span> (payer_agent_id);
+<span class="kw">CREATE INDEX</span> idx_escrow_events_payee       <span class="kw">ON</span> <span class="tb">escrow_events</span> (payee_agent_id);
+<span class="kw">CREATE INDEX</span> idx_escrow_events_created     <span class="kw">ON</span> <span class="tb">escrow_events</span> (created_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_escrow_events_type        <span class="kw">ON</span> <span class="tb">escrow_events</span> (event_type);
+
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  agent_balances -- latest known USDC balance per agent</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">agent_balances</span> (
+    agent_id      text          <span class="kw">PRIMARY KEY</span>,
+    balance_usdc  numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0</span>,
+    locked_usdc   numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0</span>,
+    updated_at    timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>()
 );
 
-<span class="kw">CREATE INDEX</span> idx_referral_date <span class="kw">ON</span> <span class="ty">referral_stats</span> (period_date <span class="kw">DESC</span>);</pre>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  trade_history -- perpetual futures orders</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">trade_history</span> (
+    id            uuid          <span class="kw">PRIMARY KEY DEFAULT</span> <span class="fn">uuid_generate_v4</span>(),
+    order_id      text          <span class="kw">NOT NULL UNIQUE</span>,
+    agent_id      text          <span class="kw">NOT NULL</span>,
+    market        text          <span class="kw">NOT NULL</span>,
+    side          text          <span class="kw">NOT NULL</span>,
+    status        text          <span class="kw">NOT NULL DEFAULT</span> <span class="st">'open'</span>,
+    amount_usdc   numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL</span>,
+    leverage      int           <span class="kw">NOT NULL DEFAULT</span> <span class="nu">1</span>,
+    entry_price   numeric(<span class="nu">18</span>,<span class="nu">6</span>),
+    exit_price    numeric(<span class="nu">18</span>,<span class="nu">6</span>),
+    pnl_usdc      numeric(<span class="nu">18</span>,<span class="nu">6</span>),
+    opened_at     timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>(),
+    closed_at     timestamptz
+);
+
+<span class="kw">CREATE INDEX</span> idx_trades_agent_id  <span class="kw">ON</span> <span class="tb">trade_history</span> (agent_id);
+<span class="kw">CREATE INDEX</span> idx_trades_opened_at <span class="kw">ON</span> <span class="tb">trade_history</span> (opened_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_trades_market    <span class="kw">ON</span> <span class="tb">trade_history</span> (market);
+
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  referral_payouts -- 15% of escrow fees to referrers</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">referral_payouts</span> (
+    id              uuid          <span class="kw">PRIMARY KEY DEFAULT</span> <span class="fn">uuid_generate_v4</span>(),
+    referrer_code   text          <span class="kw">NOT NULL</span>,
+    escrow_id       text          <span class="kw">NOT NULL</span>,
+    fee_usdc        numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL</span>,
+    payout_usdc     numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL</span>,
+    paid_at         timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>()
+);
+
+<span class="kw">CREATE INDEX</span> idx_referrals_referrer <span class="kw">ON</span> <span class="tb">referral_payouts</span> (referrer_code);
+
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="cm">--  faucet_claims -- track free USDC claims per agent</span>
+<span class="cm">-- ─────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE</span> <span class="tb">faucet_claims</span> (
+    agent_id      text          <span class="kw">PRIMARY KEY</span>,
+    amount_usdc   numeric(<span class="nu">18</span>,<span class="nu">6</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0</span>,
+    claimed_at    timestamptz   <span class="kw">NOT NULL DEFAULT</span> <span class="fn">now</span>()
+);</pre>
     </div>
   </div>
 </section>
 
-<!-- PYTHON CLASS -->
-<section>
-  <div class="container">
-    <div class="section-label">Python SDK</div>
-    <h2>The <em>SupabaseEscrowTracker</em> Class</h2>
-    <p class="section-desc">
-      Drop this class into your agent. It validates incoming Purple Flea webhooks and writes normalized rows to Supabase using the <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">supabase-py</code> client.
-    </p>
+<hr class="divider">
 
-    <div class="code-section">
-      <div class="code-header">
-        <div class="code-header-left">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="code-filename">escrow_tracker.py</span>
-        </div>
-        <span class="code-lang">Python</span>
+<!-- RLS Policies -->
+<section class="section">
+  <p class="section-label">Row-Level Security</p>
+  <h2 class="section-title">Per-agent data isolation<br>with RLS policies</h2>
+  <p class="section-desc">
+    Enable RLS on all tables and each agent can only read its own escrow history,
+    balance, and trade records. Enforcement happens at the Postgres level, not in application code.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
       </div>
-      <pre><span class="kw">import</span> hmac, hashlib, json, os
-<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
-<span class="kw">from</span> supabase <span class="kw">import</span> create_client, Client
-<span class="kw">from</span> typing <span class="kw">import</span> Optional
+      <span class="code-filename">supabase/migrations/002_rls_policies.sql</span>
+      <span class="code-tag sql">SQL</span>
+    </div>
+    <div class="code-body">
+<pre><span class="cm">-- Enable RLS on all Purple Flea tables</span>
+<span class="kw">ALTER TABLE</span> <span class="tb">agents</span>           <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> <span class="tb">escrow_events</span>    <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> <span class="tb">agent_balances</span>   <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> <span class="tb">trade_history</span>    <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> <span class="tb">referral_payouts</span> <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> <span class="tb">faucet_claims</span>    <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
 
-<span class="kw">class</span> <span class="ty">SupabaseEscrowTracker</span>:
-    <span class="str">"""
-    Connects Purple Flea escrow webhooks to Supabase Postgres.
+<span class="cm">-- agents: each user sees only their own agent row</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"agents_select_own"</span>
+  <span class="kw">ON</span> <span class="tb">agents</span> <span class="kw">FOR SELECT</span>
+  <span class="kw">USING</span> (agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>);
 
-    Usage:
-        tracker = SupabaseEscrowTracker(
-            supabase_url=os.environ["SUPABASE_URL"],
-            supabase_key=os.environ["SUPABASE_SERVICE_KEY"],
-            pf_webhook_secret=os.environ["PF_WEBHOOK_SECRET"],
-        )
-        # In your webhook handler:
-        result = tracker.handle_webhook(request_body, signature_header)
-    """</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"agents_insert_own"</span>
+  <span class="kw">ON</span> <span class="tb">agents</span> <span class="kw">FOR INSERT</span>
+  <span class="kw">WITH CHECK</span> (agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>);
 
-    <span class="kw">def</span> <span class="fn">__init__</span>(
-        self,
-        supabase_url: <span class="ty">str</span>,
-        supabase_key: <span class="ty">str</span>,
-        pf_webhook_secret: <span class="ty">str</span>,
-        api_key: <span class="ty">str</span> = <span class="str">""</span>,
-    ):
-        self.supabase: <span class="ty">Client</span> = create_client(supabase_url, supabase_key)
-        self._secret = pf_webhook_secret.encode()
-        self.api_key = api_key  <span class="cm"># e.g. pf_live_your_key_here</span>
+<span class="cm">-- escrow_events: see rows where you are payer OR payee</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"escrow_select_participant"</span>
+  <span class="kw">ON</span> <span class="tb">escrow_events</span> <span class="kw">FOR SELECT</span>
+  <span class="kw">USING</span> (
+    payer_agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>
+    <span class="kw">OR</span> payee_agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>
+  );
 
-    <span class="cm"># ── Signature Validation ───────────────────────────────────────────────────</span>
-    <span class="kw">def</span> <span class="fn">verify_signature</span>(self, body: <span class="ty">bytes</span>, signature: <span class="ty">str</span>) -> <span class="ty">bool</span>:
-        <span class="str">"""Constant-time HMAC-SHA256 verification of X-PF-Signature header."""</span>
-        expected = hmac.new(self._secret, body, hashlib.sha256).hexdigest()
-        <span class="kw">return</span> hmac.compare_digest(expected, signature.removeprefix(<span class="str">"sha256="</span>))
+<span class="cm">-- Edge Functions use service_role key -- bypasses RLS</span>
+<span class="cm">-- Agent clients use anon key -- RLS applies</span>
 
-    <span class="cm"># ── Main Webhook Handler ───────────────────────────────────────────────────</span>
-    <span class="kw">def</span> <span class="fn">handle_webhook</span>(
-        self,
-        raw_body: <span class="ty">bytes</span>,
-        signature: <span class="ty">str</span>,
-    ) -> <span class="ty">dict</span>:
-        <span class="kw">if not</span> self.verify_signature(raw_body, signature):
-            <span class="kw">raise</span> <span class="ty">ValueError</span>(<span class="str">"Invalid Purple Flea webhook signature"</span>)
+<span class="cm">-- agent_balances: each agent sees only its own balance</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"balances_select_own"</span>
+  <span class="kw">ON</span> <span class="tb">agent_balances</span> <span class="kw">FOR SELECT</span>
+  <span class="kw">USING</span> (agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>);
 
-        event = json.loads(raw_body)
-        event_type = event.get(<span class="str">"type"</span>)
+<span class="cm">-- trade_history: each agent sees only its own trades</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"trades_select_own"</span>
+  <span class="kw">ON</span> <span class="tb">trade_history</span> <span class="kw">FOR SELECT</span>
+  <span class="kw">USING</span> (agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>);
 
-        handlers = {
-            <span class="str">"escrow.created"</span>:  self._on_created,
-            <span class="str">"escrow.funded"</span>:   self._on_funded,
-            <span class="str">"escrow.released"</span>: self._on_released,
-            <span class="str">"escrow.disputed"</span>: self._on_disputed,
-        }
-        handler = handlers.get(event_type, self._on_generic)
-        <span class="kw">return</span> handler(event, signature)
+<span class="cm">-- referral_payouts: referrer sees their own payouts</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"referrals_select_own"</span>
+  <span class="kw">ON</span> <span class="tb">referral_payouts</span> <span class="kw">FOR SELECT</span>
+  <span class="kw">USING</span> (
+    referrer_code <span class="kw">IN</span> (
+      <span class="kw">SELECT</span> referral_code <span class="kw">FROM</span> <span class="tb">agents</span>
+      <span class="kw">WHERE</span> agent_id <span class="op">=</span> <span class="fn">auth.uid</span>()::<span class="ty">text</span>
+    )
+  );
 
-    <span class="cm"># ── Event Handlers ─────────────────────────────────────────────────────────</span>
-    <span class="kw">def</span> <span class="fn">_on_created</span>(self, event: <span class="ty">dict</span>, sig: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        data = event[<span class="str">"data"</span>]
-        row = {
-            <span class="str">"escrow_id"</span>:      data[<span class="str">"escrow_id"</span>],
-            <span class="str">"event_type"</span>:     <span class="str">"created"</span>,
-            <span class="str">"payer_agent_id"</span>: data[<span class="str">"payer"</span>],
-            <span class="str">"payee_agent_id"</span>: data[<span class="str">"payee"</span>],
-            <span class="str">"amount_usdc"</span>:    data[<span class="str">"amount"</span>],
-            <span class="str">"fee_usdc"</span>:       data[<span class="str">"amount"</span>] * <span class="num">0.01</span>,  <span class="cm"># 1% fee</span>
-            <span class="str">"referral_fee"</span>:   data[<span class="str">"amount"</span>] * <span class="num">0.0015</span>, <span class="cm"># 15% of 1%</span>
-            <span class="str">"referrer_id"</span>:    data.get(<span class="str">"referrer"</span>),
-            <span class="str">"metadata"</span>:       data.get(<span class="str">"metadata"</span>, {}),
-            <span class="str">"pf_signature"</span>:   sig,
-        }
-        result = self.supabase.table(<span class="str">"escrow_events"</span>).insert(row).execute()
-        self._upsert_wallet(data[<span class="str">"payer"</span>], sent=data[<span class="str">"amount"</span>])
-        self._upsert_wallet(data[<span class="str">"payee"</span>], received=<span class="num">0</span>)  <span class="cm"># funds not yet released</span>
-        <span class="kw">return</span> {<span class="str">"inserted"</span>: len(result.data)}
+<span class="cm">-- Service role bypass for Edge Functions (webhook inserts)</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"service_role_all_escrow"</span>
+  <span class="kw">ON</span> <span class="tb">escrow_events</span> <span class="kw">FOR ALL</span>
+  <span class="kw">USING</span> (<span class="fn">auth.role</span>() <span class="op">=</span> <span class="st">'service_role'</span>);
 
-    <span class="kw">def</span> <span class="fn">_on_released</span>(self, event: <span class="ty">dict</span>, sig: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        data = event[<span class="str">"data"</span>]
-        net = data[<span class="str">"amount"</span>] * <span class="num">0.99</span>  <span class="cm"># after 1% fee</span>
-        row = {
-            <span class="str">"escrow_id"</span>:      data[<span class="str">"escrow_id"</span>],
-            <span class="str">"event_type"</span>:     <span class="str">"released"</span>,
-            <span class="str">"payer_agent_id"</span>: data[<span class="str">"payer"</span>],
-            <span class="str">"payee_agent_id"</span>: data[<span class="str">"payee"</span>],
-            <span class="str">"amount_usdc"</span>:    data[<span class="str">"amount"</span>],
-            <span class="str">"fee_usdc"</span>:       data[<span class="str">"amount"</span>] * <span class="num">0.01</span>,
-            <span class="str">"referral_fee"</span>:   data[<span class="str">"amount"</span>] * <span class="num">0.0015</span>,
-            <span class="str">"referrer_id"</span>:    data.get(<span class="str">"referrer"</span>),
-            <span class="str">"metadata"</span>:       data.get(<span class="str">"metadata"</span>, {}),
-            <span class="str">"pf_signature"</span>:   sig,
-            <span class="str">"settled_at"</span>:     datetime.now(timezone.utc).isoformat(),
-        }
-        result = self.supabase.table(<span class="str">"escrow_events"</span>).insert(row).execute()
-        self._upsert_wallet(data[<span class="str">"payee"</span>], received=net)
-        <span class="kw">if</span> data.get(<span class="str">"referrer"</span>):
-            self._upsert_referral(data[<span class="str">"referrer"</span>], data[<span class="str">"amount"</span>])
-        <span class="kw">return</span> {<span class="str">"inserted"</span>: len(result.data), <span class="str">"net_released"</span>: net}
+<span class="kw">CREATE POLICY</span> <span class="st">"service_role_all_balances"</span>
+  <span class="kw">ON</span> <span class="tb">agent_balances</span> <span class="kw">FOR ALL</span>
+  <span class="kw">USING</span> (<span class="fn">auth.role</span>() <span class="op">=</span> <span class="st">'service_role'</span>);
 
-    <span class="kw">def</span> <span class="fn">_on_funded</span>(self, event: <span class="ty">dict</span>, sig: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        <span class="kw">return</span> self._on_generic(event, sig)
-
-    <span class="kw">def</span> <span class="fn">_on_disputed</span>(self, event: <span class="ty">dict</span>, sig: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        data = event[<span class="str">"data"</span>]
-        self.supabase.table(<span class="str">"escrow_events"</span>).update(
-            {<span class="str">"event_type"</span>: <span class="str">"disputed"</span>, <span class="str">"metadata"</span>: data.get(<span class="str">"metadata"</span>, {})}
-        ).eq(<span class="str">"escrow_id"</span>, data[<span class="str">"escrow_id"</span>]).execute()
-        <span class="kw">return</span> {<span class="str">"updated"</span>: <span class="num">1</span>}
-
-    <span class="kw">def</span> <span class="fn">_on_generic</span>(self, event: <span class="ty">dict</span>, sig: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        data = event.get(<span class="str">"data"</span>, {})
-        row = {
-            <span class="str">"escrow_id"</span>:      data.get(<span class="str">"escrow_id"</span>, <span class="str">"unknown"</span>),
-            <span class="str">"event_type"</span>:     event.get(<span class="str">"type"</span>, <span class="str">"unknown"</span>),
-            <span class="str">"payer_agent_id"</span>: data.get(<span class="str">"payer"</span>, <span class="str">""</span>),
-            <span class="str">"payee_agent_id"</span>: data.get(<span class="str">"payee"</span>, <span class="str">""</span>),
-            <span class="str">"amount_usdc"</span>:    data.get(<span class="str">"amount"</span>, <span class="num">0</span>),
-            <span class="str">"metadata"</span>:       data,
-            <span class="str">"pf_signature"</span>:   sig,
-        }
-        result = self.supabase.table(<span class="str">"escrow_events"</span>).insert(row).execute()
-        <span class="kw">return</span> {<span class="str">"inserted"</span>: len(result.data)}
-
-    <span class="cm"># ── Wallet Upsert ──────────────────────────────────────────────────────────</span>
-    <span class="kw">def</span> <span class="fn">_upsert_wallet</span>(
-        self,
-        agent_id: <span class="ty">str</span>,
-        sent: <span class="ty">float</span> = <span class="num">0</span>,
-        received: <span class="ty">float</span> = <span class="num">0</span>,
-        fee: <span class="ty">float</span> = <span class="num">0</span>,
-    ):
-        <span class="cm"># Use Postgres upsert with increment via RPC</span>
-        self.supabase.rpc(<span class="str">"increment_wallet"</span>, {
-            <span class="str">"p_agent_id"</span>: agent_id,
-            <span class="str">"p_sent"</span>:     sent,
-            <span class="str">"p_received"</span>: received,
-            <span class="str">"p_fee"</span>:      fee,
-        }).execute()
-
-    <span class="kw">def</span> <span class="fn">_upsert_referral</span>(self, referrer_id: <span class="ty">str</span>, volume: <span class="ty">float</span>):
-        income = round(volume * <span class="num">0.0015</span>, <span class="num">6</span>)
-        self.supabase.rpc(<span class="str">"increment_referral"</span>, {
-            <span class="str">"p_referrer_id"</span>: referrer_id,
-            <span class="str">"p_volume"</span>:      volume,
-            <span class="str">"p_income"</span>:      income,
-        }).execute()
-
-    <span class="cm"># ── Query Helpers ──────────────────────────────────────────────────────────</span>
-    <span class="kw">def</span> <span class="fn">get_agent_summary</span>(self, agent_id: <span class="ty">str</span>) -> <span class="ty">dict</span>:
-        row = (
-            self.supabase.table(<span class="str">"agent_wallets"</span>)
-            .select(<span class="str">"*"</span>)
-            .eq(<span class="str">"agent_id"</span>, agent_id)
-            .single()
-            .execute()
-        )
-        <span class="kw">return</span> row.data <span class="kw">or</span> {}
-
-    <span class="kw">def</span> <span class="fn">get_recent_escrows</span>(self, agent_id: <span class="ty">str</span>, limit: <span class="ty">int</span> = <span class="num">20</span>) -> <span class="ty">list</span>:
-        result = (
-            self.supabase.table(<span class="str">"escrow_events"</span>)
-            .select(<span class="str">"*"</span>)
-            .or_(f<span class="str">"payer_agent_id.eq.{agent_id},payee_agent_id.eq.{agent_id}"</span>)
-            .order(<span class="str">"received_at"</span>, desc=<span class="kw">True</span>)
-            .limit(limit)
-            .execute()
-        )
-        <span class="kw">return</span> result.data</pre>
+<span class="kw">CREATE POLICY</span> <span class="st">"service_role_all_trades"</span>
+  <span class="kw">ON</span> <span class="tb">trade_history</span> <span class="kw">FOR ALL</span>
+  <span class="kw">USING</span> (<span class="fn">auth.role</span>() <span class="op">=</span> <span class="st">'service_role'</span>);</pre>
     </div>
   </div>
+
+  <table class="rls-table">
+    <thead>
+      <tr>
+        <th>Table</th>
+        <th>Operation</th>
+        <th>Policy</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="table-name">agents</td>
+        <td><span class="op-badge select">SELECT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">agent_id = current user UID</td>
+      </tr>
+      <tr>
+        <td class="table-name">escrow_events</td>
+        <td><span class="op-badge select">SELECT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">payer_agent_id OR payee_agent_id matches UID</td>
+      </tr>
+      <tr>
+        <td class="table-name">escrow_events</td>
+        <td><span class="op-badge insert">INSERT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">service_role only (Edge Functions)</td>
+      </tr>
+      <tr>
+        <td class="table-name">agent_balances</td>
+        <td><span class="op-badge select">SELECT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">agent_id = current user UID</td>
+      </tr>
+      <tr>
+        <td class="table-name">trade_history</td>
+        <td><span class="op-badge select">SELECT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">agent_id = current user UID</td>
+      </tr>
+      <tr>
+        <td class="table-name">referral_payouts</td>
+        <td><span class="op-badge select">SELECT</span></td>
+        <td style="color:var(--text-secondary);font-size:0.875rem">referrer_code matches agent referral_code</td>
+      </tr>
+    </tbody>
+  </table>
 </section>
 
-<!-- EDGE FUNCTION -->
-<section>
-  <div class="container">
-    <div class="section-label">Edge Function</div>
-    <h2>Supabase Edge Function <em>(Deno)</em></h2>
-    <p class="section-desc">
-      Deploy this to Supabase Edge Functions. It receives the Purple Flea webhook, validates the signature, and writes to Postgres — serverlessly, at the edge.
-    </p>
+<hr class="divider">
 
-    <div class="code-section">
-      <div class="code-header">
-        <div class="code-header-left">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="code-filename">supabase/functions/pf-webhook/index.ts</span>
-        </div>
-        <span class="code-lang">TypeScript / Deno</span>
+<!-- JavaScript client code -->
+<section class="section">
+  <p class="section-label">JavaScript Client</p>
+  <h2 class="section-title">supabase-js + Purple Flea<br>in a single module</h2>
+  <p class="section-desc">
+    Create escrows via Purple Flea, then log every event to Supabase Postgres in the same call.
+    All query helpers use typed supabase-js methods with clean error handling.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
       </div>
-      <pre><span class="kw">import</span> { serve } <span class="kw">from</span> <span class="str">"https://deno.land/std@0.168.0/http/server.ts"</span>
-<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">"https://esm.sh/@supabase/supabase-js@2"</span>
+      <span class="code-filename">lib/purple-flea-supabase.js</span>
+      <span class="code-tag js">JS</span>
+    </div>
+    <div class="code-body">
+<pre><span class="cm">/**
+ * Purple Flea x Supabase -- JavaScript integration
+ * Uses supabase-js for DB ops, native fetch for PF APIs.
+ */</span>
 
-<span class="kw">const</span> SUPABASE_URL  = Deno.env.get(<span class="str">"SUPABASE_URL"</span>)!
-<span class="kw">const</span> SERVICE_KEY   = Deno.env.get(<span class="str">"SUPABASE_SERVICE_ROLE_KEY"</span>)!
-<span class="kw">const</span> WEBHOOK_SECRET = Deno.env.get(<span class="str">"PF_WEBHOOK_SECRET"</span>)!  <span class="cm">// set in Supabase dashboard</span>
+<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="st">'@supabase/supabase-js'</span>
 
-<span class="kw">const</span> supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+<span class="cm">// -- Clients ──────────────────────────────────────────────</span>
 
-<span class="cm">/** Verify HMAC-SHA256 signature from X-PF-Signature header */</span>
-<span class="kw">async function</span> <span class="fn">verifySignature</span>(body: <span class="ty">string</span>, signature: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">boolean</span>&gt; {
-  <span class="kw">const</span> key = <span class="kw">await</span> crypto.subtle.importKey(
-    <span class="str">"raw"</span>,
-    <span class="kw">new</span> TextEncoder().encode(WEBHOOK_SECRET),
-    { name: <span class="str">"HMAC"</span>, hash: <span class="str">"SHA-256"</span> },
-    <span class="kw">false</span>,
-    [<span class="str">"sign"</span>]
-  )
-  <span class="kw">const</span> mac = <span class="kw">await</span> crypto.subtle.sign(<span class="str">"HMAC"</span>, key, <span class="kw">new</span> TextEncoder().encode(body))
-  <span class="kw">const</span> hex = [...<span class="kw">new</span> Uint8Array(mac)]
-    .map(b => b.toString(<span class="num">16</span>).padStart(<span class="num">2</span>, <span class="str">"0"</span>))
-    .join(<span class="str">""</span>)
-  <span class="kw">return</span> `sha256=${hex}` === signature
-}
+<span class="kw">const</span> supabase = <span class="fn">createClient</span>(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+)
 
-serve(<span class="kw">async</span> (req: Request) => {
-  <span class="kw">if</span> (req.method !== <span class="str">"POST"</span>) {
-    <span class="kw">return new</span> Response(<span class="str">"Method Not Allowed"</span>, { status: <span class="num">405</span> })
-  }
+<span class="kw">const</span> PF_ESCROW_BASE = <span class="st">'https://escrow.purpleflea.com'</span>
+<span class="kw">const</span> PF_API_KEY     = process.env.PURPLE_FLEA_API_KEY
 
-  <span class="kw">const</span> body = <span class="kw">await</span> req.text()
-  <span class="kw">const</span> sig  = req.headers.get(<span class="str">"x-pf-signature"</span>) ?? <span class="str">""</span>
+<span class="cm">// -- Purple Flea fetch helpers ─────────────────────────────</span>
 
-  <span class="kw">if</span> (!(<span class="kw">await</span> verifySignature(body, sig))) {
-    <span class="kw">return new</span> Response(<span class="str">"Unauthorized: invalid signature"</span>, { status: <span class="num">401</span> })
-  }
-
-  <span class="kw">const</span> event = JSON.parse(body)
-  <span class="kw">const</span> data  = event.data ?? {}
-
-  <span class="cm">// Build row for escrow_events table</span>
-  <span class="kw">const</span> row = {
-    escrow_id:      data.escrow_id,
-    event_type:     event.type?.replace(<span class="str">"escrow."</span>, <span class="str">""</span>) ?? <span class="str">"unknown"</span>,
-    payer_agent_id: data.payer,
-    payee_agent_id: data.payee,
-    amount_usdc:    data.amount ?? <span class="num">0</span>,
-    fee_usdc:       (data.amount ?? <span class="num">0</span>) * <span class="num">0.01</span>,
-    referral_fee:   (data.amount ?? <span class="num">0</span>) * <span class="num">0.0015</span>,
-    referrer_id:    data.referrer ?? <span class="kw">null</span>,
-    metadata:       data.metadata ?? {},
-    pf_signature:   sig,
-    settled_at:     event.type === <span class="str">"escrow.released"</span>
-                      ? <span class="kw">new</span> Date().toISOString()
-                      : <span class="kw">null</span>,
-  }
-
-  <span class="kw">const</span> { error } = <span class="kw">await</span> supabase
-    .from(<span class="str">"escrow_events"</span>)
-    .insert(row)
-
-  <span class="kw">if</span> (error) {
-    console.error(<span class="str">"Supabase insert error:"</span>, error)
-    <span class="kw">return new</span> Response(JSON.stringify({ error: error.message }), {
-      status: <span class="num">500</span>,
-      headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> }
-    })
-  }
-
-  <span class="cm">// Trigger wallet snapshot update via RPC</span>
-  <span class="kw">if</span> (event.type === <span class="str">"escrow.released"</span>) {
-    <span class="kw">await</span> supabase.rpc(<span class="str">"increment_wallet"</span>, {
-      p_agent_id: data.payee,
-      p_received: data.amount * <span class="num">0.99</span>,
-    })
-    <span class="kw">if</span> (data.referrer) {
-      <span class="kw">await</span> supabase.rpc(<span class="str">"increment_referral"</span>, {
-        p_referrer_id: data.referrer,
-        p_volume:      data.amount,
-        p_income:      data.amount * <span class="num">0.0015</span>,
-      })
-    }
-  }
-
-  <span class="kw">return new</span> Response(JSON.stringify({ ok: <span class="kw">true</span> }), {
-    status: <span class="num">200</span>,
-    headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> }
+<span class="kw">async function</span> <span class="fn">pfPost</span>(path, body) {
+  <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(`${PF_ESCROW_BASE}${path}`, {
+    method: <span class="st">'POST'</span>,
+    headers: {
+      <span class="st">'Authorization'</span>: `Bearer ${PF_API_KEY}`,
+      <span class="st">'Content-Type'</span>: <span class="st">'application/json'</span>,
+      <span class="st">'User-Agent'</span>: <span class="st">'PurpleFlea-Supabase/1.0'</span>,
+    },
+    body: <span class="fn">JSON.stringify</span>(body),
   })
-})
-
-<span class="cm">/* Deploy: supabase functions deploy pf-webhook --no-verify-jwt */</span></pre>
-    </div>
-
-    <div style="margin-top: 20px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--supabase); border-radius: 8px; font-size: 14px; color: var(--text-dim);">
-      <strong style="color: var(--text);">Deploy in 30 seconds:</strong>
-      <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--supabase);margin-left: 8px;">supabase functions deploy pf-webhook --no-verify-jwt</code>
-      — then set <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">PF_WEBHOOK_SECRET</code> in your Supabase project's Edge Function secrets.
-    </div>
-  </div>
-</section>
-
-<!-- ROW LEVEL SECURITY -->
-<section>
-  <div class="container">
-    <div class="section-label">Security</div>
-    <h2><em>Row Level Security</em> — Agents See Only Their Own Rows</h2>
-    <p class="section-desc">
-      Enable RLS on <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">escrow_events</code> and <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">agent_wallets</code>. Agents authenticate with a JWT containing their <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">agent_id</code> claim. Postgres enforces isolation — no application code needed.
-    </p>
-
-    <div class="two-col">
-      <div>
-        <div class="code-section">
-          <div class="code-header">
-            <div class="code-header-left">
-              <div class="dot dot-red"></div>
-              <div class="dot dot-yellow"></div>
-              <div class="dot dot-green"></div>
-              <span class="code-filename">002_rls_policies.sql</span>
-            </div>
-            <span class="code-lang">SQL</span>
-          </div>
-          <pre><span class="cm">-- Enable RLS on both tables</span>
-<span class="kw">ALTER TABLE</span> <span class="ty">escrow_events</span>  <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
-<span class="kw">ALTER TABLE</span> <span class="ty">agent_wallets</span>  <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
-<span class="kw">ALTER TABLE</span> <span class="ty">referral_stats</span> <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
-
-<span class="cm">-- Agents can read escrow rows where they are payer OR payee</span>
-<span class="kw">CREATE POLICY</span> <span class="str">"agents_read_own_escrows"</span>
-  <span class="kw">ON</span> <span class="ty">escrow_events</span>
-  <span class="kw">FOR SELECT USING</span> (
-    auth.jwt() ->> <span class="str">'agent_id'</span> = payer_agent_id
-    <span class="kw">OR</span>
-    auth.jwt() ->> <span class="str">'agent_id'</span> = payee_agent_id
-  );
-
-<span class="cm">-- Agents read only their own wallet row</span>
-<span class="kw">CREATE POLICY</span> <span class="str">"agents_read_own_wallet"</span>
-  <span class="kw">ON</span> <span class="ty">agent_wallets</span>
-  <span class="kw">FOR SELECT USING</span> (
-    auth.jwt() ->> <span class="str">'agent_id'</span> = agent_id
-  );
-
-<span class="cm">-- Referrers see only their own stats</span>
-<span class="kw">CREATE POLICY</span> <span class="str">"referrers_read_own_stats"</span>
-  <span class="kw">ON</span> <span class="ty">referral_stats</span>
-  <span class="kw">FOR SELECT USING</span> (
-    auth.jwt() ->> <span class="str">'agent_id'</span> = referrer_id
-  );
-
-<span class="cm">-- Service role bypasses all policies (used by Edge Function)</span>
-<span class="cm">-- No additional policy needed; service role is exempt by default</span></pre>
-        </div>
-      </div>
-      <div>
-        <p style="color: var(--text-dim); font-size: 0.95rem; margin-bottom: 24px;">
-          Your Purple Flea API key (<code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">pf_live_...</code>) maps to your <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">agent_id</code>. Issue a Supabase JWT with the same <code style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">agent_id</code> claim for your agent's frontend dashboard.
-        </p>
-        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; color: var(--text);">What each policy enforces:</h4>
-        <div class="rls-rule">
-          <strong>escrow_events SELECT</strong><br>
-          agent_id must match payer_agent_id OR payee_agent_id
-        </div>
-        <div class="rls-rule">
-          <strong>agent_wallets SELECT</strong><br>
-          agent_id must match the wallet's agent_id column
-        </div>
-        <div class="rls-rule">
-          <strong>referral_stats SELECT</strong><br>
-          agent_id must match referrer_id column
-        </div>
-        <div class="rls-rule">
-          <strong>All INSERTs / UPDATEs</strong><br>
-          Only service role key (Edge Function) — agents cannot write directly
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- REALTIME -->
-<section>
-  <div class="container">
-    <div class="section-label">Realtime Dashboard</div>
-    <h2>Subscribe to <em>Live Escrow Events</em> in Your Frontend</h2>
-    <p class="section-desc">
-      Supabase Realtime broadcasts database changes over WebSocket. Your agent dashboard subscribes to its own rows and renders payments as they settle — no polling.
-    </p>
-
-    <div class="code-section">
-      <div class="code-header">
-        <div class="code-header-left">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="code-filename">dashboard.ts</span>
-        </div>
-        <span class="code-lang">TypeScript</span>
-      </div>
-      <pre><span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="str">"@supabase/supabase-js"</span>
-
-<span class="kw">const</span> supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
-<span class="cm">// Authenticate as the agent (JWT must contain agent_id claim)</span>
-<span class="kw">await</span> supabase.auth.signInWithPassword({
-  email: agentEmail,
-  password: agentPassword,
-})
-
-<span class="kw">const</span> MY_AGENT_ID = <span class="str">"agent_abc123"</span>
-
-<span class="cm">// Subscribe to all escrow events where this agent is payer OR payee</span>
-<span class="kw">const</span> channel = supabase
-  .channel(<span class="str">"escrow-live"</span>)
-  .on(
-    <span class="str">"postgres_changes"</span>,
-    {
-      event:  <span class="str">"INSERT"</span>,
-      schema: <span class="str">"public"</span>,
-      table:  <span class="str">"escrow_events"</span>,
-      filter: `payee_agent_id=eq.${MY_AGENT_ID}`,
-    },
-    (payload) => {
-      <span class="kw">const</span> ev = payload.new
-      console.log(<span class="str">`[REALTIME] Escrow ${ev.escrow_id} — ${ev.event_type}`</span>)
-      console.log(<span class="str">`  Amount : $${ev.amount_usdc} USDC`</span>)
-      console.log(<span class="str">`  Net    : $${(ev.amount_usdc * 0.99).toFixed(6)} USDC (after 1% fee)`</span>)
-      renderPaymentRow(ev)          <span class="cm">// update your UI</span>
-      updateBalanceDisplay(ev)      <span class="cm">// refresh running total</span>
-    }
-  )
-  .on(
-    <span class="str">"postgres_changes"</span>,
-    {
-      event:  <span class="str">"INSERT"</span>,
-      schema: <span class="str">"public"</span>,
-      table:  <span class="str">"escrow_events"</span>,
-      filter: `payer_agent_id=eq.${MY_AGENT_ID}`,
-    },
-    (payload) => {
-      <span class="kw">const</span> ev = payload.new
-      console.log(<span class="str">`[REALTIME] Sent escrow ${ev.escrow_id} — $${ev.amount_usdc} USDC`</span>)
-      renderSentRow(ev)
-    }
-  )
-  .subscribe()
-
-<span class="kw">function</span> <span class="fn">renderPaymentRow</span>(ev: <span class="ty">any</span>) {
-  <span class="kw">const</span> row = document.createElement(<span class="str">"tr"</span>)
-  row.innerHTML = `
-    &lt;td&gt;${ev.event_type}&lt;/td&gt;
-    &lt;td&gt;$${ev.amount_usdc}&lt;/td&gt;
-    &lt;td style="color:#A855F7"&gt;$${(ev.amount_usdc * 0.99).toFixed(4)}&lt;/td&gt;
-    &lt;td&gt;${<span class="kw">new</span> Date(ev.received_at).toLocaleTimeString()}&lt;/td&gt;
-  `
-  document.getElementById(<span class="str">"events-table"</span>)?.prepend(row)
+  <span class="kw">if</span> (!res.ok) {
+    <span class="kw">const</span> text = <span class="kw">await</span> res.<span class="fn">text</span>()
+    <span class="kw">throw new</span> <span class="cl">Error</span>(`PF error ${res.status}: ${text}`)
+  }
+  <span class="kw">return</span> res.<span class="fn">json</span>()
 }
 
-<span class="kw">function</span> <span class="fn">updateBalanceDisplay</span>(ev: <span class="ty">any</span>) {
-  <span class="kw">const</span> el = document.getElementById(<span class="str">"balance"</span>)
-  <span class="kw">if</span> (el) el.textContent = `$${(parseFloat(el.textContent!) + ev.amount_usdc * <span class="num">0.99</span>).toFixed(4)}`
+<span class="cm">// -- Escrow with Supabase logging ──────────────────────────</span>
+
+<span class="kw">export async function</span> <span class="fn">createEscrow</span>({
+  payerAgentId,
+  payeeAgentId,
+  amountUsdc,
+  description,
+  referralCode,
+}) {
+  <span class="cm">// 1. Create escrow via Purple Flea API</span>
+  <span class="kw">const</span> pfData = <span class="kw">await</span> <span class="fn">pfPost</span>(<span class="st">'/api/escrow/create'</span>, {
+    payer:         payerAgentId,
+    payee:         payeeAgentId,
+    amount:        amountUsdc,
+    currency:      <span class="st">'USDC'</span>,
+    description,
+    referral_code: referralCode,
+  })
+
+  <span class="cm">// 2. Log creation event to Supabase</span>
+  <span class="kw">const</span> feeUsdc = amountUsdc * <span class="nu">0.01</span>
+  <span class="kw">const</span> { error } = <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'escrow_events'</span>)
+    .<span class="fn">insert</span>({
+      escrow_id:       pfData.escrow_id,
+      event_type:      <span class="st">'created'</span>,
+      payer_agent_id:  payerAgentId,
+      payee_agent_id:  payeeAgentId,
+      amount_usdc:     amountUsdc,
+      fee_usdc:        feeUsdc,
+      referral_code:   referralCode ?? null,
+      referral_payout: referralCode ? feeUsdc * <span class="nu">0.15</span> : <span class="nu">0</span>,
+      description,
+      raw_payload:     pfData,
+    })
+
+  <span class="kw">if</span> (error) console.<span class="fn">error</span>(<span class="st">'Supabase insert error:'</span>, error)
+  <span class="kw">return</span> pfData
+}
+
+<span class="kw">export async function</span> <span class="fn">releaseEscrow</span>(escrowId) {
+  <span class="cm">// 1. Release via Purple Flea (< 2s settlement)</span>
+  <span class="kw">const</span> pfData = <span class="kw">await</span> <span class="fn">pfPost</span>(`/api/escrow/${escrowId}/release`, {})
+
+  <span class="cm">// 2. Record release event in Supabase</span>
+  <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'escrow_events'</span>)
+    .<span class="fn">insert</span>({
+      escrow_id:      escrowId,
+      event_type:     <span class="st">'released'</span>,
+      payer_agent_id: pfData.payer,
+      payee_agent_id: pfData.payee,
+      amount_usdc:    pfData.amount_usdc,
+      fee_usdc:       pfData.fee_usdc,
+      raw_payload:    pfData,
+    })
+
+  <span class="kw">return</span> pfData
+}
+
+<span class="kw">export async function</span> <span class="fn">cancelEscrow</span>(escrowId) {
+  <span class="kw">const</span> pfData = <span class="kw">await</span> <span class="fn">pfPost</span>(`/api/escrow/${escrowId}/cancel`, {})
+  <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'escrow_events'</span>)
+    .<span class="fn">insert</span>({
+      escrow_id:  escrowId,
+      event_type: <span class="st">'cancelled'</span>,
+      raw_payload: pfData,
+    })
+  <span class="kw">return</span> pfData
+}
+
+<span class="cm">// -- Query helpers ─────────────────────────────────────────</span>
+
+<span class="kw">export async function</span> <span class="fn">getAgentEscrowHistory</span>(agentId, limit = <span class="nu">50</span>) {
+  <span class="kw">const</span> { data, error } = <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'escrow_events'</span>)
+    .<span class="fn">select</span>(<span class="st">'*'</span>)
+    .<span class="fn">or</span>(`payer_agent_id.eq.${agentId},payee_agent_id.eq.${agentId}`)
+    .<span class="fn">order</span>(<span class="st">'created_at'</span>, { ascending: <span class="kw">false</span> })
+    .<span class="fn">limit</span>(limit)
+  <span class="kw">if</span> (error) <span class="kw">throw</span> error
+  <span class="kw">return</span> data
+}
+
+<span class="kw">export async function</span> <span class="fn">getReferralEarnings</span>(referralCode) {
+  <span class="kw">const</span> { data, error } = <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'referral_payouts'</span>)
+    .<span class="fn">select</span>(<span class="st">'payout_usdc'</span>)
+    .<span class="fn">eq</span>(<span class="st">'referrer_code'</span>, referralCode)
+  <span class="kw">if</span> (error) <span class="kw">throw</span> error
+  <span class="kw">const</span> total = data.<span class="fn">reduce</span>((s, r) => s + Number(r.payout_usdc), <span class="nu">0</span>)
+  <span class="kw">return</span> { referralCode, totalEarnings: total, count: data.length }
+}
+
+<span class="kw">export async function</span> <span class="fn">getAgentBalance</span>(agentId) {
+  <span class="kw">const</span> { data, error } = <span class="kw">await</span> supabase
+    .<span class="fn">from</span>(<span class="st">'agent_balances'</span>)
+    .<span class="fn">select</span>(<span class="st">'*'</span>)
+    .<span class="fn">eq</span>(<span class="st">'agent_id'</span>, agentId)
+    .<span class="fn">single</span>()
+  <span class="kw">if</span> (error) <span class="kw">throw</span> error
+  <span class="kw">return</span> data
 }</pre>
     </div>
   </div>
 </section>
 
-<!-- ANALYTICS -->
-<section>
-  <div class="container">
-    <div class="section-label">Analytics Queries</div>
-    <h2>Four SQL Queries That <em>Answer Everything</em></h2>
-    <p class="section-desc">
-      Run these in Supabase's SQL editor or call them from your agent. They cover total earned, win rate, referral income, and daily volume.
-    </p>
+<hr class="divider">
 
-    <div style="display: grid; gap: 24px;">
-      <div class="code-section">
-        <div class="code-header">
-          <div class="code-header-left">
-            <div class="dot dot-red"></div>
-            <div class="dot dot-yellow"></div>
-            <div class="dot dot-green"></div>
-            <span class="code-filename">analytics/total_earned.sql</span>
-          </div>
-          <span class="code-lang">SQL</span>
+<!-- Realtime subscriptions -->
+<section class="section">
+  <p class="section-label">Realtime</p>
+  <div class="split">
+    <div class="split-text">
+      <h2>Live escrow status<br>without polling</h2>
+      <p>
+        Supabase Realtime delivers Postgres change events over WebSockets.
+        Subscribe to <code>escrow_events</code> inserts and your agent knows the moment
+        funds are released without a single polling loop.
+      </p>
+      <p>
+        Combine with the 15% referral payout model: subscribe to <code>referral_payouts</code>
+        and your referrer dashboard updates instantly when a referred escrow completes.
+      </p>
+      <ul>
+        <li>WebSocket-based, persistent connection, zero polling overhead</li>
+        <li>Filter by escrow_id or agent_id at the channel level</li>
+        <li>Works in browser, Node.js, and Deno runtimes</li>
+        <li>Automatic reconnect with exponential backoff built in</li>
+        <li>Combine with RLS for agent-scoped subscription security</li>
+        <li>One subscription, multiple event types per channel</li>
+      </ul>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header">
+        <div class="code-dots">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
         </div>
-        <pre><span class="cm">-- Total USDC earned (as payee) after fees, broken down by month</span>
-<span class="kw">SELECT</span>
-  DATE_TRUNC(<span class="str">'month'</span>, settled_at)           <span class="kw">AS</span> month,
-  COUNT(*)                                    <span class="kw">AS</span> escrows_settled,
-  SUM(amount_usdc)                            <span class="kw">AS</span> gross_received,
-  SUM(amount_usdc * <span class="num">0.99</span>)                   <span class="kw">AS</span> net_received,
-  SUM(fee_usdc)                               <span class="kw">AS</span> fees_paid,
-  ROUND(AVG(amount_usdc), <span class="num">4</span>)                 <span class="kw">AS</span> avg_escrow_size
-<span class="kw">FROM</span>  <span class="ty">escrow_events</span>
-<span class="kw">WHERE</span> payee_agent_id = <span class="str">'agent_abc123'</span>
-  <span class="kw">AND</span>   event_type    = <span class="str">'released'</span>
-<span class="kw">GROUP BY</span> <span class="num">1</span>
-<span class="kw">ORDER BY</span> <span class="num">1</span> <span class="kw">DESC</span>;</pre>
+        <span class="code-filename">lib/realtime-escrow.js</span>
+        <span class="code-tag js">JS</span>
       </div>
+      <div class="code-body">
+<pre><span class="kw">import</span> { supabase } <span class="kw">from</span> <span class="st">'./supabase-client.js'</span>
 
-      <div class="code-section">
-        <div class="code-header">
-          <div class="code-header-left">
-            <div class="dot dot-red"></div>
-            <div class="dot dot-yellow"></div>
-            <div class="dot dot-green"></div>
-            <span class="code-filename">analytics/referral_income.sql</span>
-          </div>
-          <span class="code-lang">SQL</span>
-        </div>
-        <pre><span class="cm">-- Rolling 30-day referral income for this agent as referrer</span>
-<span class="kw">SELECT</span>
-  period_date,
-  escrows_referred,
-  ROUND(volume_usdc, <span class="num">2</span>)     <span class="kw">AS</span> referred_volume,
-  ROUND(referral_income, <span class="num">4</span>) <span class="kw">AS</span> income_usdc,   <span class="cm">-- 15% of 1% fee</span>
-  SUM(referral_income) <span class="kw">OVER</span> (
-    <span class="kw">ORDER BY</span> period_date
-    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
-  )                          <span class="kw">AS</span> cumulative_income
-<span class="kw">FROM</span>  <span class="ty">referral_stats</span>
-<span class="kw">WHERE</span> referrer_id = <span class="str">'agent_abc123'</span>
-  <span class="kw">AND</span>   period_date >= CURRENT_DATE - <span class="num">30</span>
-<span class="kw">ORDER BY</span> period_date <span class="kw">DESC</span>;</pre>
-      </div>
+<span class="cm">/**
+ * Subscribe to all escrow events for a given agent.
+ * onEvent is called whenever an escrow is created,
+ * funded, released, or cancelled.
+ */</span>
+<span class="kw">export function</span> <span class="fn">subscribeToAgentEscrows</span>(agentId, onEvent) {
+  <span class="kw">const</span> ch = supabase
+    .<span class="fn">channel</span>(`escrow:${agentId}`)
+    .<span class="fn">on</span>(
+      <span class="st">'postgres_changes'</span>,
+      {
+        event:  <span class="st">'INSERT'</span>,
+        schema: <span class="st">'public'</span>,
+        table:  <span class="st">'escrow_events'</span>,
+        filter: `payer_agent_id=eq.${agentId}`,
+      },
+      (p) => <span class="fn">onEvent</span>(<span class="st">'payer'</span>, p.new)
+    )
+    .<span class="fn">on</span>(
+      <span class="st">'postgres_changes'</span>,
+      {
+        event:  <span class="st">'INSERT'</span>,
+        schema: <span class="st">'public'</span>,
+        table:  <span class="st">'escrow_events'</span>,
+        filter: `payee_agent_id=eq.${agentId}`,
+      },
+      (p) => <span class="fn">onEvent</span>(<span class="st">'payee'</span>, p.new)
+    )
+    .<span class="fn">subscribe</span>((status) =>
+      console.<span class="fn">log</span>(<span class="st">`RT[${agentId}]: ${status}`</span>)
+    )
 
-      <div class="code-section">
-        <div class="code-header">
-          <div class="code-header-left">
-            <div class="dot dot-red"></div>
-            <div class="dot dot-yellow"></div>
-            <div class="dot dot-green"></div>
-            <span class="code-filename">analytics/counterparty_stats.sql</span>
-          </div>
-          <span class="code-lang">SQL</span>
-        </div>
-        <pre><span class="cm">-- Counterparty breakdown: who is this agent paying and receiving from?</span>
-<span class="kw">SELECT</span>
-  <span class="kw">CASE WHEN</span> payer_agent_id = <span class="str">'agent_abc123'</span>
-       <span class="kw">THEN</span> payee_agent_id
-       <span class="kw">ELSE</span> payer_agent_id
-  <span class="kw">END AS</span>                          counterparty,
-  COUNT(*)                      <span class="kw">AS</span> txn_count,
-  SUM(amount_usdc)              <span class="kw">AS</span> total_volume,
-  MIN(received_at)              <span class="kw">AS</span> first_interaction,
-  MAX(received_at)              <span class="kw">AS</span> last_interaction
-<span class="kw">FROM</span>  <span class="ty">escrow_events</span>
-<span class="kw">WHERE</span> (payer_agent_id = <span class="str">'agent_abc123'</span>
-   <span class="kw">OR</span>  payee_agent_id = <span class="str">'agent_abc123'</span>)
-  <span class="kw">AND</span>   event_type = <span class="str">'released'</span>
-<span class="kw">GROUP BY</span> <span class="num">1</span>
-<span class="kw">ORDER BY</span> total_volume <span class="kw">DESC</span>
-<span class="kw">LIMIT</span> <span class="num">25</span>;</pre>
-      </div>
+  <span class="cm">// Return unsubscribe function</span>
+  <span class="kw">return</span> () => supabase.<span class="fn">removeChannel</span>(ch)
+}
 
-      <div class="code-section">
-        <div class="code-header">
-          <div class="code-header-left">
-            <div class="dot dot-red"></div>
-            <div class="dot dot-yellow"></div>
-            <div class="dot dot-green"></div>
-            <span class="code-filename">analytics/daily_pnl.sql</span>
-          </div>
-          <span class="code-lang">SQL</span>
-        </div>
-        <pre><span class="cm">-- Daily P&L view: net received minus net sent (gross flow accounting)</span>
-<span class="kw">WITH</span> <span class="ty">received</span> <span class="kw">AS</span> (
-  <span class="kw">SELECT</span>
-    DATE(settled_at) <span class="kw">AS</span> day,
-    SUM(amount_usdc * <span class="num">0.99</span>) <span class="kw">AS</span> total_in
-  <span class="kw">FROM</span>  <span class="ty">escrow_events</span>
-  <span class="kw">WHERE</span> payee_agent_id = <span class="str">'agent_abc123'</span>
-    <span class="kw">AND</span>   event_type    = <span class="str">'released'</span>
-  <span class="kw">GROUP BY</span> <span class="num">1</span>
-),
-<span class="ty">sent</span> <span class="kw">AS</span> (
-  <span class="kw">SELECT</span>
-    DATE(received_at) <span class="kw">AS</span> day,
-    SUM(amount_usdc)  <span class="kw">AS</span> total_out
-  <span class="kw">FROM</span>  <span class="ty">escrow_events</span>
-  <span class="kw">WHERE</span> payer_agent_id = <span class="str">'agent_abc123'</span>
-    <span class="kw">AND</span>   event_type    = <span class="str">'created'</span>
-  <span class="kw">GROUP BY</span> <span class="num">1</span>
+<span class="cm">// Usage:</span>
+<span class="kw">const</span> unsub = <span class="fn">subscribeToAgentEscrows</span>(
+  <span class="st">'agent_abc123'</span>,
+  (role, ev) => {
+    console.<span class="fn">log</span>(`[${role}] ${ev.event_type}:`,
+      `${ev.amount_usdc} USDC escrow ${ev.escrow_id}`)
+    <span class="kw">if</span> (ev.event_type === <span class="st">'released'</span>) {
+      console.<span class="fn">log</span>(<span class="st">'Funds received! Net:'</span>,
+        ev.amount_usdc - ev.fee_usdc, <span class="st">'USDC'</span>)
+    }
+  }
 )
+<span class="cm">// Later: unsub() to unsubscribe cleanly</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Edge Functions -->
+<section class="section">
+  <p class="section-label">Edge Functions</p>
+  <h2 class="section-title">Handle Purple Flea webhooks<br>with Supabase Edge Functions</h2>
+  <p class="section-desc">
+    Deploy a Supabase Edge Function to receive Purple Flea webhook events at the edge.
+    The function validates the payload, inserts an event row, and triggers Realtime in under 50ms.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+      </div>
+      <span class="code-filename">supabase/functions/handle-escrow-webhook/index.ts</span>
+      <span class="code-tag ts">TS</span>
+    </div>
+    <div class="code-body">
+<pre><span class="cm">/**
+ * Supabase Edge Function -- Purple Flea Escrow Webhook Handler
+ * Deploy: supabase functions deploy handle-escrow-webhook
+ * Webhook URL: https://your-project.supabase.co/functions/v1/handle-escrow-webhook
+ */</span>
+
+<span class="kw">import</span> { createClient } <span class="kw">from</span> <span class="st">'jsr:@supabase/supabase-js@2'</span>
+
+<span class="kw">const</span> WEBHOOK_SECRET = Deno.env.<span class="fn">get</span>(<span class="st">'PF_WEBHOOK_SECRET'</span>) ?? <span class="st">''</span>
+
+<span class="kw">interface</span> <span class="cl">EscrowWebhookPayload</span> {
+  escrow_id:      string
+  event_type:     <span class="st">'created'</span> | <span class="st">'funded'</span> | <span class="st">'released'</span> | <span class="st">'cancelled'</span>
+  payer:          string
+  payee:          string
+  amount_usdc:    number
+  fee_usdc:       number
+  referral_code?: string
+  description?:   string
+  timestamp:      string
+}
+
+Deno.<span class="fn">serve</span>(<span class="kw">async</span> (req: Request) => {
+  <span class="kw">if</span> (req.method !== <span class="st">'POST'</span>)
+    <span class="kw">return new</span> <span class="cl">Response</span>(<span class="st">'Method not allowed'</span>, { status: <span class="nu">405</span> })
+
+  <span class="kw">const</span> sig = req.headers.<span class="fn">get</span>(<span class="st">'x-purple-flea-signature'</span>)
+  <span class="kw">if</span> (sig !== WEBHOOK_SECRET)
+    <span class="kw">return new</span> <span class="cl">Response</span>(<span class="st">'Unauthorized'</span>, { status: <span class="nu">401</span> })
+
+  <span class="kw">let</span> payload: EscrowWebhookPayload
+  <span class="kw">try</span> { payload = <span class="kw">await</span> req.<span class="fn">json</span>() }
+  <span class="kw">catch</span> { <span class="kw">return new</span> <span class="cl">Response</span>(<span class="st">'Bad JSON'</span>, { status: <span class="nu">400</span> }) }
+
+  <span class="cm">// service_role key bypasses RLS for webhook inserts</span>
+  <span class="kw">const</span> sb = <span class="fn">createClient</span>(
+    Deno.env.<span class="fn">get</span>(<span class="st">'SUPABASE_URL'</span>)!,
+    Deno.env.<span class="fn">get</span>(<span class="st">'SUPABASE_SERVICE_ROLE_KEY'</span>)!,
+  )
+
+  <span class="kw">const</span> feeUsdc = payload.fee_usdc
+  <span class="kw">const</span> { error } = <span class="kw">await</span> sb
+    .<span class="fn">from</span>(<span class="st">'escrow_events'</span>)
+    .<span class="fn">insert</span>({
+      escrow_id:       payload.escrow_id,
+      event_type:      payload.event_type,
+      payer_agent_id:  payload.payer,
+      payee_agent_id:  payload.payee,
+      amount_usdc:     payload.amount_usdc,
+      fee_usdc:        feeUsdc,
+      referral_code:   payload.referral_code ?? null,
+      referral_payout: payload.referral_code ? feeUsdc * <span class="nu">0.15</span> : <span class="nu">0</span>,
+      description:     payload.description ?? null,
+      raw_payload:     payload,
+    })
+
+  <span class="kw">if</span> (error) {
+    console.<span class="fn">error</span>(<span class="st">'Insert error:'</span>, error)
+    <span class="kw">return new</span> <span class="cl">Response</span>(<span class="st">'DB error'</span>, { status: <span class="nu">500</span> })
+  }
+
+  <span class="cm">// Record referral payout on release</span>
+  <span class="kw">if</span> (payload.referral_code && payload.event_type === <span class="st">'released'</span>) {
+    <span class="kw">await</span> sb.<span class="fn">from</span>(<span class="st">'referral_payouts'</span>).<span class="fn">insert</span>({
+      referrer_code: payload.referral_code,
+      escrow_id:     payload.escrow_id,
+      fee_usdc:      feeUsdc,
+      payout_usdc:   feeUsdc * <span class="nu">0.15</span>,
+    })
+  }
+
+  console.<span class="fn">log</span>(`OK: ${payload.event_type} escrow ${payload.escrow_id}`)
+  <span class="kw">return new</span> <span class="cl">Response</span>(<span class="st">'OK'</span>, { status: <span class="nu">200</span> })
+})</pre>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+      </div>
+      <span class="code-filename">terminal -- deploy edge function</span>
+      <span class="code-tag sh">SH</span>
+    </div>
+    <div class="code-body">
+<pre><span class="cm"># Install Supabase CLI</span>
+npm install -g supabase
+
+<span class="cm"># Login and link your project</span>
+supabase login
+supabase link --project-ref your-project-ref
+
+<span class="cm"># Set secrets (never put API keys in code)</span>
+supabase secrets set PF_WEBHOOK_SECRET=your_webhook_secret
+supabase secrets set PURPLE_FLEA_API_KEY=pf_live_your_key
+
+<span class="cm"># Deploy the Edge Function</span>
+supabase functions deploy handle-escrow-webhook
+
+<span class="cm"># Your webhook URL (set in Purple Flea dashboard):</span>
+<span class="cm"># https://&lt;project-ref&gt;.supabase.co/functions/v1/handle-escrow-webhook</span>
+
+<span class="cm"># Push database migrations</span>
+supabase db push</pre>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Postgres triggers -->
+<section class="section">
+  <p class="section-label">Database Triggers</p>
+  <div class="split">
+    <div class="split-text">
+      <h2>Automate downstream logic<br>with Postgres triggers</h2>
+      <p>
+        When an escrow event is inserted, a Postgres trigger can automatically fire
+        downstream logic: updating ledgers, recording referral payouts, sending
+        notifications — without any application-layer code changes.
+      </p>
+      <p>
+        The trigger runs inside the same database transaction as the insert, so
+        balance credits and referral payouts are always atomic. No partial updates.
+      </p>
+      <ul>
+        <li>Auto-credit payee balance on escrow release</li>
+        <li>Auto-record 15% referral payout to referrer</li>
+        <li>pg_notify for external process integration</li>
+        <li>Same transaction as the insert: fully atomic</li>
+        <li>Zero application-layer coordination needed</li>
+        <li>Works with Realtime: trigger fires, Realtime broadcasts</li>
+      </ul>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header">
+        <div class="code-dots">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+        </div>
+        <span class="code-filename">supabase/migrations/003_triggers.sql</span>
+        <span class="code-tag sql">SQL</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cm">-- Auto-update balance and referral on escrow events</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> <span class="fn">handle_escrow_event</span>()
+  <span class="kw">RETURNS TRIGGER</span>
+  <span class="kw">LANGUAGE plpgsql</span>
+  <span class="kw">SECURITY DEFINER</span>
+<span class="kw">AS</span> $$
+<span class="kw">BEGIN</span>
+  <span class="kw">IF</span> NEW.event_type <span class="op">=</span> <span class="st">'released'</span> <span class="kw">THEN</span>
+
+    <span class="cm">-- Credit payee balance (net of 1% fee)</span>
+    <span class="kw">INSERT INTO</span> <span class="tb">agent_balances</span>
+      (agent_id, balance_usdc, updated_at)
+    <span class="kw">VALUES</span> (
+      NEW.payee_agent_id,
+      NEW.amount_usdc <span class="op">-</span> NEW.fee_usdc,
+      <span class="fn">now</span>()
+    )
+    <span class="kw">ON CONFLICT</span> (agent_id)
+    <span class="kw">DO UPDATE SET</span>
+      balance_usdc <span class="op">=</span> <span class="tb">agent_balances</span>.balance_usdc
+                   <span class="op">+</span> (NEW.amount_usdc <span class="op">-</span> NEW.fee_usdc),
+      updated_at   <span class="op">=</span> <span class="fn">now</span>();
+
+    <span class="cm">-- Record 15% referral payout if applicable</span>
+    <span class="kw">IF</span> NEW.referral_code <span class="kw">IS NOT NULL</span> <span class="kw">THEN</span>
+      <span class="kw">INSERT INTO</span> <span class="tb">referral_payouts</span>
+        (referrer_code, escrow_id, fee_usdc, payout_usdc)
+      <span class="kw">VALUES</span> (
+        NEW.referral_code,
+        NEW.escrow_id,
+        NEW.fee_usdc,
+        NEW.fee_usdc <span class="op">*</span> <span class="nu">0.15</span>
+      );
+    <span class="kw">END IF</span>;
+
+    <span class="cm">-- Notify external listeners via LISTEN/NOTIFY</span>
+    <span class="fn">PERFORM</span> <span class="fn">pg_notify</span>(
+      <span class="st">'escrow_released'</span>,
+      <span class="fn">json_build_object</span>(
+        <span class="st">'escrow_id'</span>, NEW.escrow_id,
+        <span class="st">'payee'</span>,    NEW.payee_agent_id,
+        <span class="st">'net_usdc'</span>, NEW.amount_usdc <span class="op">-</span> NEW.fee_usdc
+      )::text
+    );
+
+  <span class="kw">END IF</span>;
+  <span class="kw">RETURN</span> NEW;
+<span class="kw">END</span>;
+$$;
+
+<span class="kw">CREATE TRIGGER</span> on_escrow_event
+  <span class="kw">AFTER INSERT ON</span> <span class="tb">escrow_events</span>
+  <span class="kw">FOR EACH ROW</span>
+  <span class="kw">EXECUTE FUNCTION</span> <span class="fn">handle_escrow_event</span>();</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Analytics SQL -->
+<section class="section">
+  <p class="section-label">Analytics</p>
+  <h2 class="section-title">SQL analytics over<br>all agent transactions</h2>
+  <p class="section-desc">
+    All Purple Flea events stored in Postgres means full SQL analytics. Query volume by agent,
+    referral earnings, escrow funnel conversion rates, and more.
+  </p>
+
+  <div class="code-two-col">
+    <div class="code-wrap">
+      <div class="code-header">
+        <div class="code-dots">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+        </div>
+        <span class="code-filename">analytics/top_agents.sql</span>
+        <span class="code-tag sql">SQL</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cm">-- Top 10 agents by volume (last 30 days)</span>
 <span class="kw">SELECT</span>
-  COALESCE(r.day, s.day)              <span class="kw">AS</span> day,
-  COALESCE(r.total_in,  <span class="num">0</span>)           <span class="kw">AS</span> received_usdc,
-  COALESCE(s.total_out, <span class="num">0</span>)           <span class="kw">AS</span> sent_usdc,
-  COALESCE(r.total_in, <span class="num">0</span>)
-    - COALESCE(s.total_out, <span class="num">0</span>)       <span class="kw">AS</span> net_pnl
-<span class="kw">FROM</span> received r
-<span class="kw">FULL OUTER JOIN</span> sent s <span class="kw">USING</span> (day)
-<span class="kw">ORDER BY</span> day <span class="kw">DESC</span>
-<span class="kw">LIMIT</span> <span class="num">30</span>;</pre>
+  payer_agent_id      <span class="kw">AS</span> agent_id,
+  <span class="fn">COUNT</span>(*)            <span class="kw">AS</span> total_escrows,
+  <span class="fn">SUM</span>(amount_usdc)    <span class="kw">AS</span> total_volume,
+  <span class="fn">SUM</span>(fee_usdc)       <span class="kw">AS</span> total_fees,
+  <span class="fn">AVG</span>(amount_usdc)    <span class="kw">AS</span> avg_size
+<span class="kw">FROM</span> <span class="tb">escrow_events</span>
+<span class="kw">WHERE</span>
+  event_type <span class="op">=</span> <span class="st">'released'</span>
+  <span class="kw">AND</span> created_at <span class="op">&gt;=</span>
+      <span class="fn">now</span>() <span class="op">-</span> <span class="st">'30 days'</span>::interval
+<span class="kw">GROUP BY</span> payer_agent_id
+<span class="kw">ORDER BY</span> total_volume <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="nu">10</span>;</pre>
+      </div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-header">
+        <div class="code-dots">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+        </div>
+        <span class="code-filename">analytics/referral_leaderboard.sql</span>
+        <span class="code-tag sql">SQL</span>
+      </div>
+      <div class="code-body">
+<pre><span class="cm">-- Referral earnings leaderboard</span>
+<span class="cm">-- 15% of 1% Purple Flea fee per escrow</span>
+<span class="kw">SELECT</span>
+  referrer_code,
+  <span class="fn">COUNT</span>(*)          <span class="kw">AS</span> referrals,
+  <span class="fn">SUM</span>(payout_usdc)  <span class="kw">AS</span> total_earned,
+  <span class="fn">AVG</span>(payout_usdc)  <span class="kw">AS</span> avg_payout,
+  <span class="fn">MAX</span>(paid_at)      <span class="kw">AS</span> last_payout
+<span class="kw">FROM</span> <span class="tb">referral_payouts</span>
+<span class="kw">GROUP BY</span> referrer_code
+<span class="kw">ORDER BY</span> total_earned <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="nu">20</span>;
+
+<span class="cm">-- Referrers share escrow.purpleflea.com?ref=CODE</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap" style="margin-top:0">
+    <div class="code-header">
+      <div class="code-dots">
+        <div class="code-dot red"></div>
+        <div class="code-dot yellow"></div>
+        <div class="code-dot green"></div>
+      </div>
+      <span class="code-filename">analytics/escrow_funnel.sql</span>
+      <span class="code-tag sql">SQL</span>
+    </div>
+    <div class="code-body">
+<pre><span class="cm">-- Escrow funnel: created -> released vs cancelled (last 7 days)</span>
+<span class="kw">SELECT</span>
+  <span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'created'</span>)   <span class="kw">AS</span> created,
+  <span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'funded'</span>)    <span class="kw">AS</span> funded,
+  <span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'released'</span>)  <span class="kw">AS</span> released,
+  <span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'cancelled'</span>) <span class="kw">AS</span> cancelled,
+  <span class="fn">ROUND</span>(
+    <span class="nu">100.0</span>
+    <span class="op">*</span> <span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'released'</span>)
+    <span class="op">/</span> <span class="fn">NULLIF</span>(<span class="fn">COUNT</span>(*) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'created'</span>), <span class="nu">0</span>),
+    <span class="nu">1</span>
+  ) <span class="kw">AS</span> release_rate_pct,
+  <span class="fn">SUM</span>(amount_usdc) <span class="kw">FILTER</span> (<span class="kw">WHERE</span> event_type = <span class="st">'released'</span>)
+    <span class="kw">AS</span> total_settled_usdc
+<span class="kw">FROM</span> <span class="tb">escrow_events</span>
+<span class="kw">WHERE</span> created_at <span class="op">&gt;=</span> <span class="fn">now</span>() <span class="op">-</span> <span class="st">'7 days'</span>::interval;</pre>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Setup steps -->
+<section class="section">
+  <p class="section-label">Setup Guide</p>
+  <h2 class="section-title">From Supabase project<br>to live escrow logging</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-content">
+        <h3>Create a Supabase project</h3>
+        <p>Go to <a href="https://supabase.com" style="color:var(--purple)">supabase.com</a>, create a new project, and copy your Project URL and anon key from Settings > API. Keep the service_role key safe for Edge Functions only.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-content">
+        <h3>Run the SQL migrations</h3>
+        <p>Open the Supabase SQL Editor and run the three migration files from this guide in order: the schema, the RLS policies, and the trigger function. All tables and indexes are created automatically.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-content">
+        <h3>Get your Purple Flea API key</h3>
+        <p>Register at <a href="https://purpleflea.com" style="color:var(--purple)">purpleflea.com</a> and retrieve your API key. New agents can claim free USDC at <a href="https://faucet.purpleflea.com" style="color:var(--purple)">faucet.purpleflea.com</a> to fund their first escrow.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-content">
+        <h3>Deploy the Edge Function</h3>
+        <p>Run <code>supabase functions deploy handle-escrow-webhook</code>. Set the resulting function URL as your webhook endpoint in the Purple Flea dashboard. All escrow events will flow into Postgres automatically from that point.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">05</div>
+      <div class="step-content">
+        <h3>Add supabase-js to your agent</h3>
+        <p>Run <code>npm install @supabase/supabase-js</code> and copy the integration module from this guide. The <code>createEscrow</code>, <code>releaseEscrow</code>, and <code>cancelEscrow</code> functions handle both the Purple Flea API call and the Supabase log in one step.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">06</div>
+      <div class="step-content">
+        <h3>Subscribe to realtime updates</h3>
+        <p>Use <code>subscribeToAgentEscrows</code> to open a WebSocket subscription on <code>escrow_events</code>. Your agent receives live status changes from Purple Flea via Supabase Realtime with no polling required.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- GETTING STARTED -->
-<section>
-  <div class="container">
-    <div class="section-label">Getting Started</div>
-    <h2>Up and Running in <em>Four Steps</em></h2>
-    <p class="section-desc">From zero to live escrow tracking in under 15 minutes.</p>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <h4>Get your Purple Flea API key</h4>
-          <p>
-            Register your agent at <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a>. Claim $1 free USDC from the <a href="https://faucet.purpleflea.com">faucet</a> to fund your first escrow. Your API key will look like <code>pf_live_xxxxxxxxxxxx</code>.
-          </p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <h4>Run the Supabase migration</h4>
-          <p>
-            Open your Supabase project's SQL editor. Paste and run <code>001_purpleflea_schema.sql</code> then <code>002_rls_policies.sql</code> from above. All three tables and indexes will be created in under 2 seconds.
-          </p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <h4>Deploy the Edge Function</h4>
-          <p>
-            Copy the Edge Function code to <code>supabase/functions/pf-webhook/index.ts</code>. Run <code>supabase functions deploy pf-webhook --no-verify-jwt</code>. Set <code>PF_WEBHOOK_SECRET</code> in the Supabase dashboard under Project Settings → Edge Functions → Secrets.
-          </p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <h4>Register the webhook URL with Purple Flea</h4>
-          <p>
-            In your Purple Flea dashboard, add the webhook endpoint: <code>https://&lt;project-ref&gt;.functions.supabase.co/pf-webhook</code>. Enable events: <code>escrow.created</code>, <code>escrow.funded</code>, <code>escrow.released</code>, <code>escrow.disputed</code>. Every subsequent escrow event is now persisted to Postgres in real time.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+<hr class="divider">
 
 <!-- CTA -->
-<section style="border-top: none; padding-top: 0;">
-  <div class="container">
-    <div class="cta-section">
-      <h2>Ready to track every agent payment in Postgres?</h2>
-      <p>Register your agent, claim $1 free USDC, and wire up the webhook in under 15 minutes.</p>
-      <div class="hero-buttons">
-        <a href="https://escrow.purpleflea.com" class="btn-primary">Start with Escrow →</a>
-        <a href="https://faucet.purpleflea.com" class="btn-secondary">Claim Free $1 USDC</a>
-      </div>
+<div class="cta-section">
+  <div class="cta-inner">
+    <h2>Start storing agent<br>transactions today</h2>
+    <p>Supabase gives you the database. Purple Flea gives you the financial rails. Together they give you the complete agent payment stack.</p>
+    <div class="hero-actions" style="justify-content:center">
+      <a href="https://faucet.purpleflea.com" class="btn-primary">Claim Free USDC</a>
+      <a href="/docs/escrow/" class="btn-secondary">Escrow Docs</a>
+      <a href="/for-fastapi" class="btn-secondary">FastAPI Guide</a>
     </div>
   </div>
-</section>
+</div>
 
-<!-- FOOTER -->
+<!-- Footer -->
 <footer>
-  <div class="container">
-    <div class="footer-links">
-      <a href="https://purpleflea.com/casino">Casino</a>
-      <a href="https://faucet.purpleflea.com">Faucet</a>
-      <a href="https://escrow.purpleflea.com">Escrow</a>
-      <a href="https://purpleflea.com/trading">Trading</a>
-      <a href="https://purpleflea.com/wallet">Wallet</a>
-      <a href="https://purpleflea.com/domains">Domains</a>
-      <a href="https://purpleflea.com/docs/">Docs</a>
-      <a href="https://purpleflea.com/for-agents">For Agents</a>
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="/" class="footer-logo">&#x1F7E3; Purple Flea</a>
+        <p>Blue chip financial infrastructure for AI agents. Casino, trading, wallet, escrow, domains, and faucet — all in one platform.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino">Casino</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><a href="/docs/trading/">Trading API</a></li>
+          <li><a href="/docs/wallet/">Wallet API</a></li>
+          <li><a href="/docs/domains/">Domains API</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Docs</h4>
+        <ul>
+          <li><a href="/docs/escrow/">Escrow Docs</a></li>
+          <li><a href="/docs/trading/">Trading Docs</a></li>
+          <li><a href="/docs/wallet/">Wallet Docs</a></li>
+          <li><a href="/docs/faucet/">Faucet Docs</a></li>
+          <li><a href="/docs/casino/">Casino Docs</a></li>
+          <li><a href="/pricing">Pricing</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Integrations</h4>
+        <ul>
+          <li><a href="/for-fastapi">FastAPI</a></li>
+          <li><a href="/for-supabase">Supabase</a></li>
+          <li><a href="/for-smithery-mcp">Smithery MCP</a></li>
+          <li><a href="/for-langchain">LangChain</a></li>
+          <li><a href="/for-crewai">CrewAI</a></li>
+          <li><a href="/for-openrouter">OpenRouter</a></li>
+        </ul>
+      </div>
     </div>
-    <p class="footer-copy">© 2026 Purple Flea. AI-first financial infrastructure for autonomous agents.</p>
+    <div class="footer-bottom">
+      <p>2026 Purple Flea. Blue chip financial infrastructure for AI agents.</p>
+      <p style="color:var(--text-muted);font-size:0.8rem">1% escrow fee &middot; 15% referral &middot; USDC settlement</p>
+    </div>
   </div>
 </footer>
 
+<script>
+// Progress bar
+(function() {
+  var bar = document.getElementById('progress-bar');
+  function update() {
+    var st = window.scrollY || document.documentElement.scrollTop;
+    var dh = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (dh > 0 ? (st / dh) * 100 : 0) + '%';
+  }
+  window.addEventListener('scroll', update, { passive: true });
+})();
+
+// Inline scroll-reveal — no CDN needed
+(function() {
+  var seen = new Set();
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting && !seen.has(e.target)) {
+        seen.add(e.target);
+        e.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+  function observe(sel, stagger) {
+    document.querySelectorAll(sel).forEach(function(el, i) {
+      if (stagger) el.style.transitionDelay = (i * 80) + 'ms';
+      io.observe(el);
+    });
+  }
+
+  observe('.card', true);
+  observe('.code-wrap', false);
+  observe('.step', true);
+  observe('.arch-diagram', false);
+
+  // Immediately reveal elements already visible in viewport
+  setTimeout(function() {
+    document.querySelectorAll('.card,.code-wrap,.step,.arch-diagram').forEach(function(el) {
+      if (el.getBoundingClientRect().top < window.innerHeight) {
+        el.classList.add('visible');
+      }
+    });
+  }, 100);
+})();
+</script>
 </body>
 </html>
