@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statistical Arbitrage for AI Agents: Pair Trading with Purple Flea | Purple Flea</title>
+  <meta name="description" content="A complete guide to statistical arbitrage for AI agents — cointegration testing, spread computation, signal generation, and live execution via the Purple Flea Trading API with capital ring-fenced in Escrow." />
+  <meta property="og:title" content="Statistical Arbitrage for AI Agents: Pair Trading with Purple Flea" />
+  <meta property="og:description" content="A complete guide to statistical arbitrage for AI agents — cointegration testing, spread computation, signal generation, and live execution via the Purple Flea Trading API with capital ring-fenced in Escrow." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-statistical-arbitrage/" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-statistical-arbitrage/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Statistical Arbitrage for AI Agents: Pair Trading with Purple Flea",
+    "description": "A complete guide to statistical arbitrage for AI agents — cointegration testing, spread computation, signal generation, and live execution via the Purple Flea Trading API with capital ring-fenced in Escrow.",
+    "url": "https://purpleflea.com/blog/agent-statistical-arbitrage/",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/favicon.ico"
+      }
+    },
+    "keywords": ["statistical arbitrage", "pair trading", "cointegration", "AI agents", "mean reversion", "Purple Flea Trading", "spread trading", "Sharpe ratio", "backtesting"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --red: #EF4444;
+      --yellow: #EAB308;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand { font-size: 1rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .page-wrapper {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 1100px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+    article { min-width: 0; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+    .post-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .tag { background: rgba(168,85,247,0.15); color: var(--accent); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 500; }
+    .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .tag.yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+    h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .post-meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+    .post-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+    .content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; color: var(--text); }
+    .content h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
+    .content p { color: #D4D4D8; margin-bottom: 1.25rem; }
+    .content ul, .content ol { color: #D4D4D8; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .content li { margin-bottom: 0.5rem; }
+    .content a { color: var(--accent); text-decoration: none; }
+    .content a:hover { text-decoration: underline; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content pre {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+    .content pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .content code:not(pre code) {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      background: #18181B;
+      padding: 0.15em 0.45em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: rgba(168,85,247,0.07);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+    }
+    .callout.green { border-color: var(--green); background: rgba(34,197,94,0.07); }
+    .callout.blue { border-color: var(--blue); background: rgba(59,130,246,0.07); }
+    .callout.red { border-color: var(--red); background: rgba(239,68,68,0.07); }
+    .callout.yellow { border-color: var(--yellow); background: rgba(234,179,8,0.07); }
+    .callout-title { font-weight: 600; font-size: 0.875rem; margin-bottom: 0.4rem; color: var(--accent); }
+    .callout.green .callout-title { color: var(--green); }
+    .callout.blue .callout-title { color: var(--blue); }
+    .callout.red .callout-title { color: var(--red); }
+    .callout.yellow .callout-title { color: var(--yellow); }
+    .callout p { margin-bottom: 0; color: #D4D4D8; font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #18181B; color: var(--muted); font-weight: 500; padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
+    tr:last-child td { border-bottom: none; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+    .toc-sidebar { position: sticky; top: 72px; }
+    .toc-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc-box h4 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc-box ol { list-style: none; padding: 0; }
+    .toc-box li { margin-bottom: 0.4rem; }
+    .toc-box a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.4; transition: color 0.2s; display: block; padding: 0.15rem 0; }
+    .toc-box a:hover, .toc-box a.active { color: var(--accent); }
+    .toc-box a.active { font-weight: 500; }
+    footer { border-top: 1px solid var(--border); padding: 2.5rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .footer-links { display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(124,58,237,0.08)); border: 1px solid rgba(168,85,247,0.3); border-radius: 12px; padding: 2rem; text-align: center; margin: 2.5rem 0; }
+    .cta-box h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .cta-box p { color: var(--muted); margin-bottom: 1.25rem; font-size: 0.95rem; }
+    .btn { display: inline-block; background: var(--accent); color: white; padding: 0.65rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); margin-left: 0.75rem; }
+    .tok-comment { color: #71717A; }
+    .tok-string { color: #86EFAC; }
+    .tok-keyword { color: #C084FC; }
+    .tok-number { color: #67E8F9; }
+    .tok-func { color: #FDE68A; }
+    .tok-class { color: #A5F3FC; }
+    .tok-decorator { color: #F9A8D4; }
+    .tok-op { color: #94A3B8; }
+    .formula-block {
+      background: #0D0D10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: #67E8F9;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">&#x1F7E3; Purple Flea</a>
+      <ul class="nav-links">
+        <li><a href="/docs">Docs</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/for-agents">For Agents</a></li>
+        <li><a href="/mcp-config-generator">MCP</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+    <article>
+      <a href="/blog" class="back-link">&larr; Back to Blog</a>
+
+      <div class="post-tags">
+        <span class="tag">Strategy</span>
+        <span class="tag blue">Trading</span>
+      </div>
+
+      <h1>Statistical Arbitrage for AI Agents: Pair Trading with Purple Flea</h1>
+
+      <div class="post-meta">
+        <span>&#x1F4C5; March 7, 2026</span>
+        <span>&#x23F1; 18 min read</span>
+        <span>&#x270D;&#xFE0F; Purple Flea Research</span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="content">
+
+        <p>Statistical arbitrage — stat arb — is one of the most durable strategies in quantitative finance. It does not predict which way markets will move. Instead it exploits the predictable tendency of correlated asset pairs to revert toward a long-run equilibrium. For an AI agent running 24 hours a day with millisecond execution, stat arb is a natural fit: the logic is entirely algorithmic, the signals are mathematical rather than interpretive, and the market-neutral framing means portfolio returns are largely uncorrelated with broad market direction.</p>
+
+        <p>This guide walks through the complete pipeline: finding cointegrated pairs, computing spreads, generating z-score signals, executing via the <a href="/trading">Purple Flea Trading API</a>, ring-fencing risk capital through <a href="https://escrow.purpleflea.com">Escrow</a>, and tracking performance through the Purple Flea Wallet. Every section includes production-ready Python that an agent can deploy today.</p>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">275+</div>
+            <div class="stat-label">Perpetual pairs available</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">&lt;50ms</div>
+            <div class="stat-label">API round-trip latency</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">0.05%</div>
+            <div class="stat-label">Trading fee per leg</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">15%</div>
+            <div class="stat-label">Escrow referral rate</div>
+          </div>
+        </div>
+
+        <h2 id="what-is-stat-arb">What Is Statistical Arbitrage?</h2>
+
+        <p>Statistical arbitrage is the practice of trading a portfolio of positions whose collective P&amp;L is driven not by directional market exposure but by mean-reversion in price relationships. The classic implementation is pair trading: identify two assets whose prices share a long-run equilibrium, monitor the spread between them, and open trades when the spread deviates abnormally far from that equilibrium.</p>
+
+        <p>The core insight is <strong>cointegration</strong> — a concept stronger than ordinary correlation. Two price series P<sub>A</sub> and P<sub>B</sub> are cointegrated if there exists a coefficient &beta; such that the residual series P<sub>A</sub> &minus; &beta; P<sub>B</sub> is stationary. Stationarity means the residual has a stable mean and variance over time, making it forecastable in a way that pure random walks are not. Correlation tells you how assets move in the same direction. Cointegration tells you that their price relationship cannot wander infinitely far — it will be pulled back to equilibrium.</p>
+
+        <div class="callout">
+          <div class="callout-title">Correlation vs. Cointegration</div>
+          <p>BTC and ETH have 0.9+ daily-return correlation but may not be cointegrated — their price ratio has drifted from 10:1 to 20:1 to 70:1 over different market regimes, with no reliable reversion. By contrast, two liquid staking tokens tracking the same underlying (e.g., stETH and rETH) or two exchange tokens with similar economic models may form genuinely cointegrated pairs. Always test statistically before trading.</p>
+        </div>
+
+        <p>For an agent, the practical payoff is a strategy that generates returns regardless of whether crypto markets are in a bull or bear phase. When BTC drops 30%, a well-constructed stat arb book may be flat or slightly positive, because both legs of each pair move in the same direction and the spread is preserved. The agent profits on convergence, not on market direction.</p>
+
+        <h2 id="why-agents-outperform">Why AI Agents Outperform Humans</h2>
+
+        <p>Statistical arbitrage at scale requires capabilities that humans physically cannot sustain and agents inherently possess.</p>
+
+        <ul>
+          <li><strong>24/7 monitoring:</strong> Spread opportunities open and close at any hour. A human trader sleeping misses the opportunity; an agent never sleeps. The best stat arb signals often appear during low-liquidity windows like the early UTC morning when spreads widen further before reverting.</li>
+          <li><strong>Latency:</strong> When a spread crosses a signal threshold, execution needs to be nearly simultaneous on both legs. A human placing two orders sequentially risks leg-in risk — the first order fills and the second misses, creating an unhedged directional position. An agent can fire both orders within a single event loop tick.</li>
+          <li><strong>Emotion-free discipline:</strong> Stat arb requires holding losing positions through temporary spread widening — the strategy only works if you stay in the trade while it looks worst. Humans close losing trades too early under psychological pressure. Agents execute the rule exactly as written.</li>
+          <li><strong>Universe scanning:</strong> A human can monitor perhaps 5 pairs actively. An agent can scan 500 pairs simultaneously, running cointegration tests on each with fresh data every hour, and dynamically rotating into the best opportunities as old pairs decay.</li>
+          <li><strong>Record-keeping:</strong> An agent can log every trade, compute real-time Sharpe ratios, track spread half-lives, and report to a parent orchestrator — all without any human administrative overhead.</li>
+        </ul>
+
+        <div class="callout green">
+          <div class="callout-title">New to Purple Flea?</div>
+          <p>New agents can claim free USDC from the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to fund their first stat arb positions with no upfront capital. After claiming, use the Trading API to open your first pair.</p>
+        </div>
+
+        <h2 id="cointegration-testing">Cointegration Testing in Python</h2>
+
+        <p>Before trading any pair, you must establish statistical evidence of cointegration. The Engle-Granger two-step procedure is the standard approach for two-asset pairs. First, regress one price series on the other using ordinary least squares. Second, apply the Augmented Dickey-Fuller test to the regression residuals. If the residuals are stationary (p-value &lt; 0.05), the pair is cointegrated at the 95% confidence level.</p>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+<span class="tok-keyword">import</span> pandas <span class="tok-keyword">as</span> pd
+<span class="tok-keyword">from</span> statsmodels.tsa.stattools <span class="tok-keyword">import</span> coint, adfuller
+<span class="tok-keyword">from</span> statsmodels.regression.linear_model <span class="tok-keyword">import</span> OLS
+<span class="tok-keyword">from</span> statsmodels.tools <span class="tok-keyword">import</span> add_constant
+<span class="tok-keyword">import</span> requests
+<span class="tok-keyword">import</span> logging
+
+logger = logging.<span class="tok-func">getLogger</span>(<span class="tok-string">"stat_arb"</span>)
+
+<span class="tok-comment"># Purple Flea Trading API base</span>
+API_BASE = <span class="tok-string">"https://api.purpleflea.com/trading"</span>
+API_KEY  = <span class="tok-string">"pf_live_your_key_here"</span>
+
+<span class="tok-keyword">def</span> <span class="tok-func">fetch_closes</span>(market: str, limit: int = <span class="tok-number">500</span>) -> pd.Series:
+    <span class="tok-string">"""Fetch hourly closing prices from Purple Flea Trading API."""</span>
+    r = requests.<span class="tok-func">get</span>(
+        <span class="tok-string">f"{API_BASE}/candles"</span>,
+        params={<span class="tok-string">"market"</span>: market, <span class="tok-string">"interval"</span>: <span class="tok-string">"1h"</span>, <span class="tok-string">"limit"</span>: limit},
+        headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {API_KEY}"</span>},
+        timeout=<span class="tok-number">10</span>,
+    )
+    r.<span class="tok-func">raise_for_status</span>()
+    candles = r.<span class="tok-func">json</span>()[<span class="tok-string">"candles"</span>]
+    closes = pd.<span class="tok-func">Series</span>(
+        [<span class="tok-func">float</span>(c[<span class="tok-string">"close"</span>]) <span class="tok-keyword">for</span> c <span class="tok-keyword">in</span> candles],
+        index=pd.<span class="tok-func">to_datetime</span>([c[<span class="tok-string">"time"</span>] <span class="tok-keyword">for</span> c <span class="tok-keyword">in</span> candles], unit=<span class="tok-string">"ms"</span>),
+        name=market,
+    )
+    <span class="tok-keyword">return</span> closes
+
+<span class="tok-keyword">def</span> <span class="tok-func">test_cointegration</span>(s1: pd.Series, s2: pd.Series) -> dict:
+    <span class="tok-string">"""
+    Run Engle-Granger cointegration test and return hedge ratio + p-value.
+    Returns dict with keys: pvalue, hedge_ratio, cointegrated.
+    """</span>
+    <span class="tok-comment"># Align on common index</span>
+    df = pd.<span class="tok-func">concat</span>([s1, s2], axis=<span class="tok-number">1</span>).<span class="tok-func">dropna</span>()
+    y = df.iloc[:, <span class="tok-number">0</span>]
+    x = df.iloc[:, <span class="tok-number">1</span>]
+
+    <span class="tok-comment"># OLS regression to find hedge ratio</span>
+    ols = <span class="tok-func">OLS</span>(y, <span class="tok-func">add_constant</span>(x)).<span class="tok-func">fit</span>()
+    hedge_ratio = ols.params[<span class="tok-number">1</span>]
+    intercept   = ols.params[<span class="tok-number">0</span>]
+    residuals   = y - (hedge_ratio * x + intercept)
+
+    <span class="tok-comment"># ADF test on residuals</span>
+    adf_stat, pvalue, *_ = <span class="tok-func">adfuller</span>(residuals, autolag=<span class="tok-string">"AIC"</span>)
+
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"pvalue"</span>: <span class="tok-func">round</span>(pvalue, <span class="tok-number">4</span>),
+        <span class="tok-string">"hedge_ratio"</span>: <span class="tok-func">round</span>(hedge_ratio, <span class="tok-number">6</span>),
+        <span class="tok-string">"intercept"</span>: <span class="tok-func">round</span>(intercept, <span class="tok-number">6</span>),
+        <span class="tok-string">"cointegrated"</span>: pvalue < <span class="tok-number">0.05</span>,
+        <span class="tok-string">"adf_stat"</span>: <span class="tok-func">round</span>(adf_stat, <span class="tok-number">4</span>),
+    }
+</code></pre>
+
+        <p>The Engle-Granger test is directional — regressing A on B gives a different hedge ratio than regressing B on A. Best practice is to run both directions and take the pair with the lower p-value, or to use the Johansen test for symmetric cointegration with multiple assets.</p>
+
+        <h2 id="purple-flea-integration">Purple Flea Integration</h2>
+
+        <p>Purple Flea provides two services that together form a complete stat arb infrastructure for agents. The <a href="/trading">Trading API</a> handles order placement, fills, and position management across 275+ perpetual markets. The <a href="https://escrow.purpleflea.com">Escrow service</a> handles capital ring-fencing — you lock your risk budget into a trustless escrow contract at the start of a trading session, and automatically release profits to your wallet when positions close profitably.</p>
+
+        <p>This separation of concerns is important for agent risk management. An agent that conflates its trading capital with its general wallet balance may over-allocate to a single strategy. Escrow forces the agent to commit a defined risk budget upfront, and the 15% referral fee on the escrow contract can be structured to reward a supervising orchestrator agent that monitors the stat arb agent's risk compliance.</p>
+
+        <div class="callout blue">
+          <div class="callout-title">Escrow as Risk Ring-Fence</div>
+          <p>Create one escrow contract per trading pair with a fixed USDC budget. The stat arb agent can only draw from that contract — it cannot accidentally use capital allocated to another strategy. When the escrow runs out, the agent stops trading and reports back to the orchestrator for re-allocation review.</p>
+        </div>
+
+        <h2 id="stat-arb-agent-class">StatArbAgent: Complete Implementation</h2>
+
+        <p>The following class implements a full stat arb agent. It scans a universe of markets to find cointegrated pairs, computes real-time spread z-scores, generates entry and exit signals, and routes execution through the Purple Flea Trading API. Every trade's risk capital is pulled from a pre-funded escrow contract.</p>
+
+        <pre><code><span class="tok-keyword">import</span> asyncio
+<span class="tok-keyword">import</span> time
+<span class="tok-keyword">from</span> dataclasses <span class="tok-keyword">import</span> dataclass, field
+<span class="tok-keyword">from</span> typing <span class="tok-keyword">import</span> Optional
+<span class="tok-keyword">import</span> httpx
+
+<span class="tok-decorator">@dataclass</span>
+<span class="tok-keyword">class</span> <span class="tok-class">Pair</span>:
+    market_a:     str
+    market_b:     str
+    hedge_ratio:  float
+    intercept:    float
+    spread_mean:  float = <span class="tok-number">0.0</span>
+    spread_std:   float = <span class="tok-number">1.0</span>
+    position:     str   = <span class="tok-string">"flat"</span>  <span class="tok-comment"># "long_a", "short_a", "flat"</span>
+    entry_z:      float = <span class="tok-number">0.0</span>
+    pnl_usd:      float = <span class="tok-number">0.0</span>
+
+<span class="tok-keyword">class</span> <span class="tok-class">StatArbAgent</span>:
+    <span class="tok-string">"""
+    Full-cycle statistical arbitrage agent for Purple Flea perpetuals.
+    Uses cointegration-based signals and Escrow for risk capital management.
+    """</span>
+
+    UNIVERSE = [
+        <span class="tok-string">"BTC-USDC"</span>, <span class="tok-string">"ETH-USDC"</span>, <span class="tok-string">"SOL-USDC"</span>, <span class="tok-string">"AVAX-USDC"</span>,
+        <span class="tok-string">"LINK-USDC"</span>, <span class="tok-string">"MATIC-USDC"</span>, <span class="tok-string">"ARB-USDC"</span>, <span class="tok-string">"OP-USDC"</span>,
+        <span class="tok-string">"INJ-USDC"</span>, <span class="tok-string">"TIA-USDC"</span>, <span class="tok-string">"SEI-USDC"</span>, <span class="tok-string">"SUI-USDC"</span>,
+    ]
+
+    <span class="tok-keyword">def</span> <span class="tok-func">__init__</span>(
+        self,
+        api_key:       str,
+        escrow_id:     str,
+        wallet_id:     str,
+        entry_z:       float = <span class="tok-number">2.0</span>,
+        exit_z:        float = <span class="tok-number">0.5</span>,
+        stop_z:        float = <span class="tok-number">3.5</span>,
+        max_pairs:     int   = <span class="tok-number">5</span>,
+        notional_usd:  float = <span class="tok-number">50.0</span>,
+    ):
+        self.api_key      = api_key
+        self.escrow_id    = escrow_id
+        self.wallet_id    = wallet_id
+        self.entry_z      = entry_z
+        self.exit_z       = exit_z
+        self.stop_z       = stop_z
+        self.max_pairs    = max_pairs
+        self.notional_usd = notional_usd
+        self.pairs: list[Pair] = []
+        self.client = httpx.<span class="tok-func">AsyncClient</span>(
+            headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {api_key}"</span>},
+            timeout=<span class="tok-number">15</span>,
+        )
+
+    <span class="tok-comment"># ─── Pair Discovery ────────────────────────────────────────────────────────</span>
+
+    <span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">find_pairs</span>(self) -> list[Pair]:
+        <span class="tok-string">"""
+        Scan universe for cointegrated pairs.
+        Returns up to max_pairs sorted by cointegration p-value.
+        """</span>
+        closes: dict[str, pd.Series] = {}
+        <span class="tok-keyword">for</span> market <span class="tok-keyword">in</span> self.UNIVERSE:
+            <span class="tok-keyword">try</span>:
+                closes[market] = <span class="tok-func">fetch_closes</span>(market, limit=<span class="tok-number">300</span>)
+            <span class="tok-keyword">except</span> Exception <span class="tok-keyword">as</span> e:
+                logger.<span class="tok-func">warning</span>(<span class="tok-string">f"Failed to fetch {market}: {e}"</span>)
+
+        markets = <span class="tok-func">list</span>(closes.keys())
+        candidates = []
+
+        <span class="tok-keyword">for</span> i <span class="tok-keyword">in</span> <span class="tok-func">range</span>(<span class="tok-func">len</span>(markets)):
+            <span class="tok-keyword">for</span> j <span class="tok-keyword">in</span> <span class="tok-func">range</span>(i + <span class="tok-number">1</span>, <span class="tok-func">len</span>(markets)):
+                ma, mb = markets[i], markets[j]
+                result = <span class="tok-func">test_cointegration</span>(closes[ma], closes[mb])
+                <span class="tok-keyword">if</span> result[<span class="tok-string">"cointegrated"</span>]:
+                    <span class="tok-comment"># Compute historical spread stats</span>
+                    s1 = closes[ma]
+                    s2 = closes[mb]
+                    df = pd.<span class="tok-func">concat</span>([s1, s2], axis=<span class="tok-number">1</span>).<span class="tok-func">dropna</span>()
+                    spread = df.iloc[:, <span class="tok-number">0</span>] - result[<span class="tok-string">"hedge_ratio"</span>] * df.iloc[:, <span class="tok-number">1</span>] - result[<span class="tok-string">"intercept"</span>]
+                    candidates.<span class="tok-func">append</span>({
+                        <span class="tok-string">"pair"</span>: <span class="tok-func">Pair</span>(
+                            market_a=ma,
+                            market_b=mb,
+                            hedge_ratio=result[<span class="tok-string">"hedge_ratio"</span>],
+                            intercept=result[<span class="tok-string">"intercept"</span>],
+                            spread_mean=<span class="tok-func">float</span>(spread.<span class="tok-func">mean</span>()),
+                            spread_std=<span class="tok-func">float</span>(spread.<span class="tok-func">std</span>()),
+                        ),
+                        <span class="tok-string">"pvalue"</span>: result[<span class="tok-string">"pvalue"</span>],
+                    })
+
+        candidates.<span class="tok-func">sort</span>(key=<span class="tok-keyword">lambda</span> x: x[<span class="tok-string">"pvalue"</span>])
+        self.pairs = [c[<span class="tok-string">"pair"</span>] <span class="tok-keyword">for</span> c <span class="tok-keyword">in</span> candidates[:self.max_pairs]]
+        logger.<span class="tok-func">info</span>(<span class="tok-string">f"Found {len(self.pairs)} cointegrated pairs"</span>)
+        <span class="tok-keyword">return</span> self.pairs
+
+    <span class="tok-comment"># ─── Spread & Signal ───────────────────────────────────────────────────────</span>
+
+    <span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">compute_spread</span>(self, pair: Pair) -> float:
+        <span class="tok-string">"""Fetch latest mark prices and compute current spread z-score."""</span>
+        r = <span class="tok-keyword">await</span> self.client.<span class="tok-func">get</span>(
+            <span class="tok-string">f"https://api.purpleflea.com/trading/tickers"</span>,
+            params={<span class="tok-string">"markets"</span>: <span class="tok-string">f"{pair.market_a},{pair.market_b}"</span>},
+        )
+        r.<span class="tok-func">raise_for_status</span>()
+        tickers = {t[<span class="tok-string">"market"</span>]: <span class="tok-func">float</span>(t[<span class="tok-string">"mark_price"</span>]) <span class="tok-keyword">for</span> t <span class="tok-keyword">in</span> r.<span class="tok-func">json</span>()[<span class="tok-string">"tickers"</span>]}
+        pa = tickers[pair.market_a]
+        pb = tickers[pair.market_b]
+        spread = pa - pair.hedge_ratio * pb - pair.intercept
+        z_score = (spread - pair.spread_mean) / (pair.spread_std + <span class="tok-number">1e-9</span>)
+        <span class="tok-keyword">return</span> z_score
+
+    <span class="tok-keyword">def</span> <span class="tok-func">generate_signal</span>(self, pair: Pair, z: float) -> str:
+        <span class="tok-string">"""
+        Generate trading signal from current z-score and pair state.
+        Returns: "buy_spread", "sell_spread", "exit", "stop", "hold"
+        """</span>
+        <span class="tok-keyword">if</span> pair.position == <span class="tok-string">"flat"</span>:
+            <span class="tok-keyword">if</span> z > self.entry_z:
+                <span class="tok-keyword">return</span> <span class="tok-string">"sell_spread"</span>   <span class="tok-comment"># spread too high → expect reversion down</span>
+            <span class="tok-keyword">if</span> z < -self.entry_z:
+                <span class="tok-keyword">return</span> <span class="tok-string">"buy_spread"</span>    <span class="tok-comment"># spread too low → expect reversion up</span>
+            <span class="tok-keyword">return</span> <span class="tok-string">"hold"</span>
+        <span class="tok-comment"># Position already open — check exit or stop conditions</span>
+        <span class="tok-keyword">if</span> <span class="tok-func">abs</span>(z) < self.exit_z:
+            <span class="tok-keyword">return</span> <span class="tok-string">"exit"</span>
+        <span class="tok-keyword">if</span> <span class="tok-func">abs</span>(z) > self.stop_z:
+            <span class="tok-keyword">return</span> <span class="tok-string">"stop"</span>         <span class="tok-comment"># stop-loss: correlation breakdown</span>
+        <span class="tok-keyword">return</span> <span class="tok-string">"hold"</span>
+
+    <span class="tok-comment"># ─── Execution ─────────────────────────────────────────────────────────────</span>
+
+    <span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">execute_trade</span>(self, pair: Pair, signal: str) -> dict:
+        <span class="tok-string">"""
+        Execute both legs of a spread trade via Purple Flea Trading API.
+        Draws margin from escrow contract.
+        """</span>
+        <span class="tok-keyword">if</span> signal == <span class="tok-string">"buy_spread"</span>:
+            <span class="tok-comment"># Long market_a, short market_b (scaled by hedge_ratio)</span>
+            leg_a = {<span class="tok-string">"market"</span>: pair.market_a, <span class="tok-string">"side"</span>: <span class="tok-string">"buy"</span>,  <span class="tok-string">"notional"</span>: self.notional_usd}
+            leg_b = {<span class="tok-string">"market"</span>: pair.market_b, <span class="tok-string">"side"</span>: <span class="tok-string">"sell"</span>, <span class="tok-string">"notional"</span>: self.notional_usd * pair.hedge_ratio}
+        <span class="tok-keyword">elif</span> signal <span class="tok-keyword">in</span> (<span class="tok-string">"sell_spread"</span>,):
+            leg_a = {<span class="tok-string">"market"</span>: pair.market_a, <span class="tok-string">"side"</span>: <span class="tok-string">"sell"</span>, <span class="tok-string">"notional"</span>: self.notional_usd}
+            leg_b = {<span class="tok-string">"market"</span>: pair.market_b, <span class="tok-string">"side"</span>: <span class="tok-string">"buy"</span>,  <span class="tok-string">"notional"</span>: self.notional_usd * pair.hedge_ratio}
+        <span class="tok-keyword">else</span>:
+            <span class="tok-comment"># exit / stop — close both positions</span>
+            leg_a = {<span class="tok-string">"market"</span>: pair.market_a, <span class="tok-string">"side"</span>: <span class="tok-string">"close"</span>, <span class="tok-string">"notional"</span>: <span class="tok-number">0</span>}
+            leg_b = {<span class="tok-string">"market"</span>: pair.market_b, <span class="tok-string">"side"</span>: <span class="tok-string">"close"</span>, <span class="tok-string">"notional"</span>: <span class="tok-number">0</span>}
+
+        payload = {
+            <span class="tok-string">"legs"</span>: [leg_a, leg_b],
+            <span class="tok-string">"escrow_id"</span>: self.escrow_id,
+            <span class="tok-string">"order_type"</span>: <span class="tok-string">"market"</span>,
+            <span class="tok-string">"reduce_only"</span>: signal <span class="tok-keyword">in</span> (<span class="tok-string">"exit"</span>, <span class="tok-string">"stop"</span>),
+        }
+
+        r = <span class="tok-keyword">await</span> self.client.<span class="tok-func">post</span>(
+            <span class="tok-string">"https://api.purpleflea.com/trading/orders/multi"</span>,
+            json=payload,
+        )
+        r.<span class="tok-func">raise_for_status</span>()
+        result = r.<span class="tok-func">json</span>()
+        logger.<span class="tok-func">info</span>(<span class="tok-string">f"Executed {signal} on {pair.market_a}/{pair.market_b}: {result}"</span>)
+
+        <span class="tok-comment"># Update pair state</span>
+        <span class="tok-keyword">if</span> signal == <span class="tok-string">"buy_spread"</span>:
+            pair.position = <span class="tok-string">"long_a"</span>
+        <span class="tok-keyword">elif</span> signal == <span class="tok-string">"sell_spread"</span>:
+            pair.position = <span class="tok-string">"short_a"</span>
+        <span class="tok-keyword">else</span>:
+            pair.position = <span class="tok-string">"flat"</span>
+
+        <span class="tok-keyword">return</span> result
+
+    <span class="tok-comment"># ─── Main Loop ─────────────────────────────────────────────────────────────</span>
+
+    <span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">run</span>(self, interval_seconds: int = <span class="tok-number">300</span>):
+        <span class="tok-string">"""
+        Main trading loop. Re-scans for pairs every 24 hours,
+        evaluates signals every interval_seconds.
+        """</span>
+        logger.<span class="tok-func">info</span>(<span class="tok-string">"StatArbAgent starting — scanning for pairs..."</span>)
+        <span class="tok-keyword">await</span> self.<span class="tok-func">find_pairs</span>()
+        last_scan = time.<span class="tok-func">time</span>()
+
+        <span class="tok-keyword">while</span> <span class="tok-keyword">True</span>:
+            <span class="tok-comment"># Re-scan universe every 24 hours</span>
+            <span class="tok-keyword">if</span> time.<span class="tok-func">time</span>() - last_scan > <span class="tok-number">86400</span>:
+                <span class="tok-keyword">await</span> self.<span class="tok-func">find_pairs</span>()
+                last_scan = time.<span class="tok-func">time</span>()
+
+            <span class="tok-keyword">for</span> pair <span class="tok-keyword">in</span> self.pairs:
+                <span class="tok-keyword">try</span>:
+                    z = <span class="tok-keyword">await</span> self.<span class="tok-func">compute_spread</span>(pair)
+                    signal = self.<span class="tok-func">generate_signal</span>(pair, z)
+                    <span class="tok-keyword">if</span> signal != <span class="tok-string">"hold"</span>:
+                        <span class="tok-keyword">await</span> self.<span class="tok-func">execute_trade</span>(pair, signal)
+                <span class="tok-keyword">except</span> Exception <span class="tok-keyword">as</span> e:
+                    logger.<span class="tok-func">error</span>(<span class="tok-string">f"Error on pair {pair.market_a}/{pair.market_b}: {e}"</span>)
+
+            <span class="tok-keyword">await</span> asyncio.<span class="tok-func">sleep</span>(interval_seconds)
+</code></pre>
+
+        <h2 id="capital-management">Capital Management with Escrow</h2>
+
+        <p>Capital management is where most retail stat arb implementations fail. Without explicit allocation controls, an agent can pyramid into losing positions, allocate the same capital to multiple strategies simultaneously, or fail to take profits when a trade closes successfully. Purple Flea Escrow solves all three problems.</p>
+
+        <p>The recommended pattern is to create one escrow contract per pair at session start. The contract holds the maximum risk capital for that pair — for example, 100 USDC for a pair that might lose 20% at a 3.5 z-score stop. When a trade closes profitably, the profit is released to the agent's main wallet automatically via the escrow settlement. When a stop-loss fires, only the escrowed capital is at risk — the agent's broader wallet is protected.</p>
+
+        <pre><code><span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">setup_escrow_contracts</span>(pairs: list[Pair], risk_per_pair_usdc: float, api_key: str) -> dict[str, str]:
+    <span class="tok-string">"""
+    Create one escrow contract per trading pair.
+    Returns dict mapping pair identifier to escrow_id.
+    """</span>
+    escrow_map = {}
+    async with httpx.<span class="tok-func">AsyncClient</span>(headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {api_key}"</span>}) <span class="tok-keyword">as</span> client:
+        <span class="tok-keyword">for</span> pair <span class="tok-keyword">in</span> pairs:
+            pair_id = <span class="tok-string">f"{pair.market_a}_{pair.market_b}"</span>
+            r = <span class="tok-keyword">await</span> client.<span class="tok-func">post</span>(
+                <span class="tok-string">"https://escrow.purpleflea.com/api/create"</span>,
+                json={
+                    <span class="tok-string">"amount_usdc"</span>: risk_per_pair_usdc,
+                    <span class="tok-string">"purpose"</span>: <span class="tok-string">f"stat_arb_{pair_id}"</span>,
+                    <span class="tok-string">"auto_release"</span>: <span class="tok-keyword">True</span>,   <span class="tok-comment"># release profit to wallet on settlement</span>
+                    <span class="tok-string">"referral_bps"</span>: <span class="tok-number">1500</span>,      <span class="tok-comment"># 15% referral to orchestrator</span>
+                },
+            )
+            r.<span class="tok-func">raise_for_status</span>()
+            escrow_id = r.<span class="tok-func">json</span>()[<span class="tok-string">"escrow_id"</span>]
+            escrow_map[pair_id] = escrow_id
+            logger.<span class="tok-func">info</span>(<span class="tok-string">f"Created escrow {escrow_id} for {pair_id} ({risk_per_pair_usdc} USDC)"</span>)
+    <span class="tok-keyword">return</span> escrow_map
+</code></pre>
+
+        <h2 id="backtesting">Backtesting Framework</h2>
+
+        <p>Before deploying any stat arb strategy with real capital, rigorous backtesting is mandatory. The spread half-life — how long it takes the spread to decay by half toward its mean — determines how frequently you can expect profitable trades and what holding period to budget for. A spread with a 12-hour half-life is very different from one with a 7-day half-life.</p>
+
+        <pre><code><span class="tok-keyword">import</span> numpy <span class="tok-keyword">as</span> np
+<span class="tok-keyword">import</span> pandas <span class="tok-keyword">as</span> pd
+
+<span class="tok-keyword">def</span> <span class="tok-func">compute_half_life</span>(spread: pd.Series) -> float:
+    <span class="tok-string">"""
+    Estimate half-life of mean reversion via OLS of spread on its lag.
+    half_life = -log(2) / log(1 + phi) where phi is the AR(1) coefficient.
+    """</span>
+    spread_lag = spread.<span class="tok-func">shift</span>(<span class="tok-number">1</span>)
+    delta = spread - spread_lag
+    df = pd.<span class="tok-func">DataFrame</span>({<span class="tok-string">"delta"</span>: delta, <span class="tok-string">"lag"</span>: spread_lag}).<span class="tok-func">dropna</span>()
+    phi = np.linalg.<span class="tok-func">lstsq</span>(df[[<span class="tok-string">"lag"</span>]], df[<span class="tok-string">"delta"</span>], rcond=<span class="tok-keyword">None</span>)[<span class="tok-number">0</span>][<span class="tok-number">0</span>]
+    half_life = -np.<span class="tok-func">log</span>(<span class="tok-number">2</span>) / np.<span class="tok-func">log</span>(<span class="tok-number">1</span> + phi) <span class="tok-keyword">if</span> phi < <span class="tok-number">0</span> <span class="tok-keyword">else</span> np.inf
+    <span class="tok-keyword">return</span> half_life
+
+<span class="tok-keyword">def</span> <span class="tok-func">backtest_pair</span>(
+    prices_a: pd.Series,
+    prices_b: pd.Series,
+    hedge_ratio: float,
+    intercept: float,
+    entry_z: float = <span class="tok-number">2.0</span>,
+    exit_z:  float = <span class="tok-number">0.5</span>,
+    stop_z:  float = <span class="tok-number">3.5</span>,
+    notional: float = <span class="tok-number">1000.0</span>,
+    fee_bps: float = <span class="tok-number">5</span>,      <span class="tok-comment"># 0.05% per leg</span>
+) -> dict:
+    <span class="tok-string">"""
+    Event-driven backtest of a single spread strategy.
+    Returns performance metrics dict.
+    """</span>
+    df = pd.<span class="tok-func">concat</span>([prices_a, prices_b], axis=<span class="tok-number">1</span>).<span class="tok-func">dropna</span>()
+    df.columns = [<span class="tok-string">"A"</span>, <span class="tok-string">"B"</span>]
+    spread = df[<span class="tok-string">"A"</span>] - hedge_ratio * df[<span class="tok-string">"B"</span>] - intercept
+    z = (spread - spread.<span class="tok-func">mean</span>()) / (spread.<span class="tok-func">std</span>() + <span class="tok-number">1e-9</span>)
+
+    position = <span class="tok-number">0</span>   <span class="tok-comment"># +1 = long spread, -1 = short spread</span>
+    trades, equity_curve = [], [<span class="tok-number">0.0</span>]
+    entry_z_score = <span class="tok-number">0.0</span>
+
+    <span class="tok-keyword">for</span> i <span class="tok-keyword">in</span> <span class="tok-func">range</span>(<span class="tok-number">1</span>, <span class="tok-func">len</span>(z)):
+        zi = z.iloc[i]
+        fee_cost = <span class="tok-number">2</span> * notional * fee_bps / <span class="tok-number">10000</span>   <span class="tok-comment"># two legs</span>
+
+        <span class="tok-keyword">if</span> position == <span class="tok-number">0</span>:
+            <span class="tok-keyword">if</span> zi > entry_z:
+                position, entry_z_score = -<span class="tok-number">1</span>, zi
+            <span class="tok-keyword">elif</span> zi < -entry_z:
+                position, entry_z_score = <span class="tok-number">1</span>, zi
+        <span class="tok-keyword">elif</span> (<span class="tok-func">abs</span>(zi) < exit_z) <span class="tok-keyword">or</span> (<span class="tok-func">abs</span>(zi) > stop_z):
+            pnl = position * (spread.iloc[i] - spread.iloc[i - <span class="tok-number">1</span>]) * notional / spread.iloc[i - <span class="tok-number">1</span>]
+            trades.<span class="tok-func">append</span>(pnl - fee_cost)
+            equity_curve.<span class="tok-func">append</span>(equity_curve[-<span class="tok-number">1</span>] + pnl - fee_cost)
+            position = <span class="tok-number">0</span>
+        <span class="tok-keyword">else</span>:
+            <span class="tok-comment"># Mark-to-market P&L</span>
+            pnl = position * (spread.iloc[i] - spread.iloc[i - <span class="tok-number">1</span>]) * notional / spread.iloc[i - <span class="tok-number">1</span>]
+            equity_curve.<span class="tok-func">append</span>(equity_curve[-<span class="tok-number">1</span>] + pnl)
+
+    equity = pd.<span class="tok-func">Series</span>(equity_curve)
+    returns = equity.<span class="tok-func">diff</span>().<span class="tok-func">dropna</span>()
+    sharpe = returns.<span class="tok-func">mean</span>() / (returns.<span class="tok-func">std</span>() + <span class="tok-number">1e-9</span>) * np.<span class="tok-func">sqrt</span>(<span class="tok-number">8760</span>)  <span class="tok-comment"># annualized hourly</span>
+    max_dd = (equity - equity.<span class="tok-func">cummax</span>()).<span class="tok-func">min</span>()
+
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"total_pnl_usd"</span>: <span class="tok-func">round</span>(equity.iloc[-<span class="tok-number">1</span>], <span class="tok-number">2</span>),
+        <span class="tok-string">"n_trades"</span>: <span class="tok-func">len</span>(trades),
+        <span class="tok-string">"sharpe"</span>: <span class="tok-func">round</span>(sharpe, <span class="tok-number">2</span>),
+        <span class="tok-string">"max_drawdown_usd"</span>: <span class="tok-func">round</span>(max_dd, <span class="tok-number">2</span>),
+        <span class="tok-string">"win_rate"</span>: <span class="tok-func">round</span>(<span class="tok-func">sum</span>(t > <span class="tok-number">0</span> <span class="tok-keyword">for</span> t <span class="tok-keyword">in</span> trades) / (<span class="tok-func">len</span>(trades) + <span class="tok-number">1</span>), <span class="tok-number">3</span>),
+        <span class="tok-string">"half_life_hours"</span>: <span class="tok-func">round</span>(<span class="tok-func">compute_half_life</span>(spread), <span class="tok-number">1</span>),
+    }
+</code></pre>
+
+        <h2 id="risk-controls">Risk Controls</h2>
+
+        <p>Every stat arb system needs multiple layers of risk control. The primary risk is not that the strategy loses money on individual trades — it is that the cointegration relationship breaks down permanently and the spread never reverts. This is called a <strong>correlation breakdown</strong> or regime change, and it can happen when the fundamentals of one asset change (exchange hack, protocol fork, regulatory action).</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Risk</th>
+                <th>Trigger</th>
+                <th>Control</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Spread divergence</td>
+                <td>z-score exceeds stop_z (3.5)</td>
+                <td>Immediate close both legs</td>
+              </tr>
+              <tr>
+                <td>Cointegration decay</td>
+                <td>Rolling p-value rises above 0.10</td>
+                <td>Pause pair, remove from universe</td>
+              </tr>
+              <tr>
+                <td>Correlation flip</td>
+                <td>60-day correlation drops below 0.6</td>
+                <td>Halt new entries, close open positions</td>
+              </tr>
+              <tr>
+                <td>Max open positions</td>
+                <td>More than 5 pairs open simultaneously</td>
+                <td>Block new entries until a position closes</td>
+              </tr>
+              <tr>
+                <td>Escrow exhausted</td>
+                <td>Escrow balance below minimum margin</td>
+                <td>Stop trading, notify orchestrator</td>
+              </tr>
+              <tr>
+                <td>API errors</td>
+                <td>3 consecutive HTTP failures</td>
+                <td>Circuit breaker — close all, wait 10 min</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre><code><span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">check_correlation_health</span>(pair: Pair, window: int = <span class="tok-number">60</span>) -> bool:
+    <span class="tok-string">"""
+    Rolling cointegration check — returns False if pair should be retired.
+    """</span>
+    s1 = <span class="tok-func">fetch_closes</span>(pair.market_a, limit=window)
+    s2 = <span class="tok-func">fetch_closes</span>(pair.market_b, limit=window)
+    result = <span class="tok-func">test_cointegration</span>(s1, s2)
+
+    <span class="tok-comment"># Check rolling 60-period correlation</span>
+    df = pd.<span class="tok-func">concat</span>([s1, s2], axis=<span class="tok-number">1</span>).<span class="tok-func">dropna</span>()
+    rolling_corr = df.iloc[:, <span class="tok-number">0</span>].<span class="tok-func">corr</span>(df.iloc[:, <span class="tok-number">1</span>])
+
+    healthy = result[<span class="tok-string">"pvalue"</span>] < <span class="tok-number">0.10</span> <span class="tok-keyword">and</span> rolling_corr > <span class="tok-number">0.60</span>
+    <span class="tok-keyword">if</span> <span class="tok-keyword">not</span> healthy:
+        logger.<span class="tok-func">warning</span>(
+            <span class="tok-string">f"Pair {pair.market_a}/{pair.market_b} failing health check: "</span>
+            <span class="tok-string">f"p={result['pvalue']:.3f}, corr={rolling_corr:.3f}"</span>
+        )
+    <span class="tok-keyword">return</span> healthy
+</code></pre>
+
+        <div class="callout red">
+          <div class="callout-title">Stop-Loss Discipline</div>
+          <p>The most dangerous pattern in stat arb is averaging into a losing spread hoping for reversion that never comes. Program hard stop-losses at z = 3.5 and enforce them unconditionally. A 3.5-sigma move in a stationary spread is a statistical rarity — when it happens, it often means the spread has permanently shifted. Cut the loss and re-test the pair.</p>
+        </div>
+
+        <h2 id="live-tracking">Live P&L Tracking via Purple Flea Wallet</h2>
+
+        <p>Purple Flea Wallet provides a real-time ledger for every agent account. After each trade closes, the stat arb agent should record the closed P&amp;L against the relevant escrow contract. The wallet API supports custom metadata tagging — tag each entry with the pair identifier, z-score at entry, and hold time so you can aggregate statistics by pair over time.</p>
+
+        <pre><code><span class="tok-keyword">async</span> <span class="tok-keyword">def</span> <span class="tok-func">record_pnl</span>(
+    wallet_id: str,
+    pair: Pair,
+    pnl_usd: float,
+    hold_hours: float,
+    entry_z: float,
+    exit_z: float,
+    api_key: str,
+):
+    <span class="tok-string">"""Record closed trade P&L to Purple Flea Wallet with metadata."""</span>
+    async with httpx.<span class="tok-func">AsyncClient</span>() <span class="tok-keyword">as</span> client:
+        r = <span class="tok-keyword">await</span> client.<span class="tok-func">post</span>(
+            <span class="tok-string">f"https://purpleflea.com/api/wallet/{wallet_id}/ledger"</span>,
+            headers={<span class="tok-string">"Authorization"</span>: <span class="tok-string">f"Bearer {api_key}"</span>},
+            json={
+                <span class="tok-string">"amount_usd"</span>: pnl_usd,
+                <span class="tok-string">"type"</span>: <span class="tok-string">"trade_pnl"</span>,
+                <span class="tok-string">"metadata"</span>: {
+                    <span class="tok-string">"strategy"</span>: <span class="tok-string">"stat_arb"</span>,
+                    <span class="tok-string">"pair"</span>: <span class="tok-string">f"{pair.market_a}/{pair.market_b}"</span>,
+                    <span class="tok-string">"entry_z"</span>: entry_z,
+                    <span class="tok-string">"exit_z"</span>: exit_z,
+                    <span class="tok-string">"hold_hours"</span>: hold_hours,
+                    <span class="tok-string">"hedge_ratio"</span>: pair.hedge_ratio,
+                },
+            },
+        )
+        r.<span class="tok-func">raise_for_status</span>()
+</code></pre>
+
+        <p>With consistent tagging, you can run weekly reports across all stat arb positions: which pairs are performing, which have decaying cointegration, what the average hold time is, and whether the realized Sharpe is tracking the backtest estimate. This feedback loop is what separates a disciplined stat arb program from speculative spread betting.</p>
+
+        <h2 id="performance-metrics">Performance Metrics</h2>
+
+        <p>Evaluating a stat arb agent requires metrics that reflect the market-neutral nature of the strategy. Simple absolute returns are insufficient — you need risk-adjusted measures that account for the fact that a good stat arb strategy should have low correlation to market beta.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Target</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Annualized Sharpe</td>
+                <td>&gt; 1.5</td>
+                <td>Return per unit of volatility, annualized from hourly data</td>
+              </tr>
+              <tr>
+                <td>Max Drawdown</td>
+                <td>&lt; 15% of capital</td>
+                <td>Peak-to-trough equity decline</td>
+              </tr>
+              <tr>
+                <td>Calmar Ratio</td>
+                <td>&gt; 0.5</td>
+                <td>Annualized return divided by max drawdown</td>
+              </tr>
+              <tr>
+                <td>Win Rate</td>
+                <td>&gt; 55%</td>
+                <td>Fraction of closed trades with positive P&L</td>
+              </tr>
+              <tr>
+                <td>Average Hold Time</td>
+                <td>2–48 hours</td>
+                <td>Spread half-life dependent; shorter = higher Sharpe</td>
+              </tr>
+              <tr>
+                <td>Market Beta</td>
+                <td>&lt; 0.1</td>
+                <td>Correlation to BTC market returns — should be near zero</td>
+              </tr>
+              <tr>
+                <td>Pair Correlation</td>
+                <td>&gt; 0.7</td>
+                <td>Rolling 60-period price correlation for active pairs</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre><code><span class="tok-keyword">def</span> <span class="tok-func">compute_performance_metrics</span>(trades: list[float], equity_curve: list[float], btc_returns: pd.Series) -> dict:
+    <span class="tok-string">"""Compute full performance metric suite for a stat arb book."""</span>
+    equity = pd.<span class="tok-func">Series</span>(equity_curve)
+    returns = equity.<span class="tok-func">diff</span>().<span class="tok-func">dropna</span>()
+
+    <span class="tok-comment"># Sharpe (annualized hourly)</span>
+    sharpe = returns.<span class="tok-func">mean</span>() / (returns.<span class="tok-func">std</span>() + <span class="tok-number">1e-9</span>) * np.<span class="tok-func">sqrt</span>(<span class="tok-number">8760</span>)
+
+    <span class="tok-comment"># Max drawdown</span>
+    running_max = equity.<span class="tok-func">cummax</span>()
+    drawdowns = (equity - running_max) / (running_max + <span class="tok-number">1e-9</span>)
+    max_dd = drawdowns.<span class="tok-func">min</span>()
+
+    <span class="tok-comment"># Calmar</span>
+    ann_return = returns.<span class="tok-func">sum</span>() * (<span class="tok-number">8760</span> / <span class="tok-func">len</span>(returns))
+    calmar = ann_return / (<span class="tok-func">abs</span>(max_dd) + <span class="tok-number">1e-9</span>)
+
+    <span class="tok-comment"># Market beta — align returns with btc_returns by length</span>
+    min_len = <span class="tok-func">min</span>(<span class="tok-func">len</span>(returns), <span class="tok-func">len</span>(btc_returns))
+    r_aligned = returns.iloc[-min_len:]
+    btc_aligned = btc_returns.iloc[-min_len:]
+    cov = np.<span class="tok-func">cov</span>(r_aligned, btc_aligned)
+    beta = cov[<span class="tok-number">0</span>, <span class="tok-number">1</span>] / (cov[<span class="tok-number">1</span>, <span class="tok-number">1</span>] + <span class="tok-number">1e-9</span>)
+
+    <span class="tok-keyword">return</span> {
+        <span class="tok-string">"sharpe"</span>: <span class="tok-func">round</span>(sharpe, <span class="tok-number">2</span>),
+        <span class="tok-string">"max_drawdown_pct"</span>: <span class="tok-func">round</span>(max_dd * <span class="tok-number">100</span>, <span class="tok-number">2</span>),
+        <span class="tok-string">"calmar"</span>: <span class="tok-func">round</span>(calmar, <span class="tok-number">2</span>),
+        <span class="tok-string">"win_rate"</span>: <span class="tok-func">round</span>(<span class="tok-func">sum</span>(t > <span class="tok-number">0</span> <span class="tok-keyword">for</span> t <span class="tok-keyword">in</span> trades) / (<span class="tok-func">len</span>(trades) + <span class="tok-number">1</span>), <span class="tok-number">3</span>),
+        <span class="tok-string">"market_beta"</span>: <span class="tok-func">round</span>(beta, <span class="tok-number">4</span>),
+        <span class="tok-string">"ann_return_pct"</span>: <span class="tok-func">round</span>(ann_return * <span class="tok-number">100</span>, <span class="tok-number">2</span>),
+        <span class="tok-string">"n_trades"</span>: <span class="tok-func">len</span>(trades),
+    }
+</code></pre>
+
+        <div class="callout green">
+          <div class="callout-title">Getting Started</div>
+          <p>New agents can get free USDC from the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a>, then open an account on <a href="/trading">Purple Flea Trading</a> and <a href="https://escrow.purpleflea.com">Escrow</a> to deploy this strategy. The MCP server makes both APIs accessible to any LLM-orchestrated agent — see the <a href="/mcp-config-generator">MCP Config Generator</a> for setup.</p>
+        </div>
+
+        <h2 id="next-steps">Next Steps</h2>
+
+        <p>Statistical arbitrage is a deep field with many extensions beyond simple two-asset pair trading. Once the basic pipeline is working, consider these enhancements:</p>
+
+        <ul>
+          <li><strong>Johansen test:</strong> For trading baskets of three or more assets with multiple cointegrating relationships — useful for sector-neutral strategies across DeFi tokens.</li>
+          <li><strong>Dynamic hedge ratio:</strong> Instead of a static OLS hedge ratio, use a Kalman filter to track the evolving relationship between two assets in real time. This is more robust to regime shifts.</li>
+          <li><strong>Half-life filtering:</strong> Only trade pairs where the estimated half-life is between 2 and 48 hours. Too-short half-lives produce excessive fees; too-long half-lives tie up capital for too long.</li>
+          <li><strong>Multi-strategy netting:</strong> Use a single escrow contract across all pairs with automatic rebalancing — pairs that close profitably fund new opportunities without requiring external capital top-ups.</li>
+        </ul>
+
+        <p>Purple Flea provides the complete execution infrastructure for all of these patterns. The <a href="/trading">Trading API</a>, <a href="https://escrow.purpleflea.com">Escrow</a>, and <a href="/wallet">Wallet</a> together form a production-grade foundation that any agent can build a stat arb program on top of today.</p>
+
+        <div class="cta-box">
+          <h3>Start Stat Arb on Purple Flea</h3>
+          <p>Claim free USDC from the faucet, fund your escrow, and deploy your first pair trade in under 10 minutes.</p>
+          <a href="https://faucet.purpleflea.com" class="btn">Claim Free USDC</a>
+          <a href="/trading" class="btn btn-outline">Open Trading Account</a>
+        </div>
+
+      </div>
+    </article>
+
+    <aside class="toc-sidebar">
+      <div class="toc-box">
+        <h4>On This Page</h4>
+        <ol>
+          <li><a href="#what-is-stat-arb">What Is Statistical Arbitrage?</a></li>
+          <li><a href="#why-agents-outperform">Why Agents Outperform Humans</a></li>
+          <li><a href="#cointegration-testing">Cointegration Testing in Python</a></li>
+          <li><a href="#purple-flea-integration">Purple Flea Integration</a></li>
+          <li><a href="#stat-arb-agent-class">StatArbAgent Implementation</a></li>
+          <li><a href="#capital-management">Capital Management with Escrow</a></li>
+          <li><a href="#backtesting">Backtesting Framework</a></li>
+          <li><a href="#risk-controls">Risk Controls</a></li>
+          <li><a href="#live-tracking">Live P&L Tracking</a></li>
+          <li><a href="#performance-metrics">Performance Metrics</a></li>
+          <li><a href="#next-steps">Next Steps</a></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents.</p>
+    <div class="footer-links">
+      <a href="/casino">Casino</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="/trading">Trading</a>
+      <a href="/wallet">Wallet</a>
+      <a href="/domains">Domains</a>
+      <a href="/blog">Blog</a>
+      <a href="/docs">Docs</a>
+    </div>
+  </footer>
+
+  <script>
+    // Reading progress bar
+    const bar = document.getElementById('progress-bar');
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = docHeight > 0 ? (scrollTop / docHeight * 100) + '%' : '0%';
+    });
+
+    // TOC active highlighting via IntersectionObserver
+    const headings = document.querySelectorAll('.content h2[id], .content h3[id]');
+    const tocLinks = document.querySelectorAll('.toc-box a');
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            tocLinks.forEach(a => a.classList.remove('active'));
+            const active = document.querySelector(`.toc-box a[href="#${entry.target.id}"]`);
+            if (active) active.classList.add('active');
+          }
+        });
+      },
+      { rootMargin: '-20% 0px -70% 0px' }
+    );
+
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
