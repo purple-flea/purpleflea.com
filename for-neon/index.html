@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon + Purple Flea — Serverless Postgres for Agent Payment Ledgers</title>
+  <meta name="description" content="Serverless Postgres for AI agent payment ledgers. Scale to zero between escrow events, burst to handle 100s of settlements per minute. Neon branching for isolated strategy testing." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://purpleflea.com/for-neon/" />
+  <meta property="og:title" content="Neon + Purple Flea — Serverless Postgres for Agent Payment Ledgers" />
+  <meta property="og:description" content="Scale-to-zero Postgres meets Purple Flea agent payments. Neon branching for per-agent ledgers, PgBouncer for HFT agents, and serverless connection pooling." />
+  <meta property="og:url" content="https://purpleflea.com/for-neon/" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Neon + Purple Flea — Serverless Postgres for Agent Payment Ledgers",
+    "description": "Integration guide for using Neon serverless Postgres as a payment ledger for Purple Flea AI agents, including branching strategies, PgBouncer pooling, and A/B trading strategy isolation.",
+    "url": "https://purpleflea.com/for-neon/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "datePublished": "2026-03-07",
+    "keywords": ["Neon", "serverless Postgres", "AI agent ledger", "escrow", "payment database", "Purple Flea"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --bg-card: #18181B;
+      --border: #27272A;
+      --text: #FAFAFA;
+      --text-muted: #71717A;
+      --text-dim: #A1A1AA;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --accent-glow: rgba(168, 85, 247, 0.15);
+      --green: #22C55E;
+      --green-glow: rgba(34, 197, 94, 0.12);
+      --red: #EF4444;
+      --yellow: #EAB308;
+      --blue: #3B82F6;
+      --code-bg: #0D0D0F;
+      --neon-green: #00E5A0;
+      --neon-glow: rgba(0, 229, 160, 0.12);
+      --neon-border: rgba(0, 229, 160, 0.3);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9, 9, 11, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-dim);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+      text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .nav-cta:hover { background: var(--accent-dim) !important; text-decoration: none !important; }
+
+    /* LAYOUT */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 80px 0; }
+    section + section { border-top: 1px solid var(--border); }
+
+    /* HERO */
+    .hero {
+      padding: 100px 0 80px;
+      text-align: center;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0, 229, 160, 0.08), transparent),
+                  radial-gradient(ellipse 60% 40% at 80% 20%, rgba(168, 85, 247, 0.08), transparent);
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--neon-glow);
+      border: 1px solid var(--neon-border);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--neon-green);
+      margin-bottom: 28px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      max-width: 860px;
+      margin: 0 auto 20px;
+    }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p {
+      font-size: 1.2rem;
+      color: var(--text-dim);
+      max-width: 660px;
+      margin: 0 auto 40px;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      transition: background 0.2s, transform 0.1s;
+      text-decoration: none;
+    }
+    .btn-primary:hover { background: var(--accent-dim); transform: translateY(-1px); text-decoration: none; }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, background 0.2s;
+      text-decoration: none;
+    }
+    .btn-secondary:hover { border-color: var(--accent); background: var(--accent-glow); text-decoration: none; }
+
+    /* SECTION TITLES */
+    .section-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    h2 em { font-style: normal; color: var(--accent); }
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--text-dim);
+      max-width: 680px;
+      margin-bottom: 48px;
+    }
+
+    /* CARDS */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+    .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+    .card p { font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; }
+
+    /* CODE BLOCKS */
+    .code-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+    .code-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #EF4444; }
+    .dot-yellow { background: #EAB308; }
+    .dot-green { background: #22C55E; }
+    .code-filename {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .code-lang {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.06);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 24px;
+      overflow-x: auto;
+      color: #D4D4D8;
+      background: var(--code-bg);
+      margin: 0;
+    }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .str { color: #86EFAC; }
+    .cm { color: #6B7280; font-style: italic; }
+    .num { color: #FCD34D; }
+    .ty { color: #67E8F9; }
+    .ng { color: var(--neon-green); }
+
+    /* BRANCHING DIAGRAM */
+    .branch-tree {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 32px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+    .branch-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .branch-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      flex-shrink: 0;
+    }
+    .branch-dot-agent {
+      background: var(--accent);
+    }
+    .branch-line {
+      width: 2px;
+      background: var(--border);
+      margin-left: 6px;
+    }
+    .branch-child {
+      padding-left: 32px;
+      position: relative;
+      margin-bottom: 6px;
+    }
+    .branch-child::before {
+      content: '';
+      position: absolute;
+      left: 7px;
+      top: -12px;
+      width: 18px;
+      height: 20px;
+      border-left: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+      border-radius: 0 0 0 6px;
+    }
+    .branch-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tag-main { background: var(--neon-glow); color: var(--neon-green); border: 1px solid var(--neon-border); }
+    .tag-agent { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); }
+    .tag-ab { background: rgba(234,179,8,0.1); color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
+
+    /* STEPS */
+    .steps { display: flex; flex-direction: column; gap: 24px; }
+    .step { display: flex; gap: 20px; align-items: flex-start; }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .step-content h4 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .step-content p { font-size: 0.9rem; color: var(--text-dim); }
+    .step-content code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    /* STAT ROW */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--neon-green);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label { font-size: 13px; color: var(--text-muted); }
+
+    /* TWO-COL */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* INFO BOX */
+    .info-box {
+      background: var(--neon-glow);
+      border: 1px solid var(--neon-border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-top: 20px;
+    }
+    .info-box strong { color: var(--neon-green); }
+
+    /* CTA */
+    .cta-section {
+      background: radial-gradient(ellipse 70% 70% at 50% 100%, rgba(168,85,247,0.12), transparent),
+                  var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    .cta-section h2 { margin-bottom: 14px; }
+    .cta-section p { color: var(--text-dim); margin-bottom: 36px; font-size: 1.05rem; }
+
+    /* FOOTER */
+    footer { border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; }
+    .footer-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 24px; margin-bottom: 20px; }
+    .footer-links a { color: var(--text-dim); font-size: 14px; }
+    .footer-links a:hover { color: var(--text); text-decoration: none; }
+    .footer-copy { font-size: 13px; color: var(--text-muted); }
+
+    .conn-string {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--neon-green);
+      word-break: break-all;
+      display: block;
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="https://purpleflea.com" class="nav-logo">
+      Purple <span>Flea</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="https://purpleflea.com/casino">Casino</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+      <li><a href="https://purpleflea.com/trading">Trading</a></li>
+      <li><a href="https://purpleflea.com/docs/">Docs</a></li>
+      <li><a href="https://faucet.purpleflea.com" class="nav-cta">Get Free USDC →</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      Neon + Purple Flea Integration
+    </div>
+    <h1><em>Serverless Agent Payment Database</em><br>Scale to Zero, Burst on Demand</h1>
+    <p>
+      Use Neon's serverless Postgres as your agent payment ledger. Pay nothing when your agent sleeps, burst to handle hundreds of escrow events per minute when it's active.
+    </p>
+    <div class="hero-buttons">
+      <a href="https://escrow.purpleflea.com" class="btn-primary">Start with Escrow →</a>
+      <a href="https://purpleflea.com/docs/escrow/" class="btn-secondary">Escrow API Docs</a>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section>
+  <div class="container">
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-value">&lt;5ms</div>
+        <div class="stat-label">Neon cold start</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$0</div>
+        <div class="stat-label">Cost while idle</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">1%</div>
+        <div class="stat-label">Purple Flea escrow fee</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">15%</div>
+        <div class="stat-label">Referral share of fee</div>
+      </div>
+    </div>
+
+    <div class="section-label">Why Neon + Purple Flea</div>
+    <h2>A Payment Ledger That <em>Costs Nothing</em> Between Trades</h2>
+    <p class="section-desc">
+      Most agents are idle most of the time. Neon suspends your compute automatically and wakes it in milliseconds when an escrow event arrives. Your ledger is always consistent — whether your agent fires once a day or a thousand times a minute.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Scale to Zero</h3>
+        <p>Neon suspends compute when your agent is idle. No idle charges. When the next Purple Flea webhook fires, Postgres is ready in under 5ms — faster than any REST round-trip.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon" style="background: var(--neon-glow);">🌿</div>
+        <h3>Branching per Agent</h3>
+        <p>Create a database branch for each agent or trading strategy. Merge to main after reconciliation. Full data isolation with no additional infra cost.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏊</div>
+        <h3>PgBouncer Pooling</h3>
+        <p>HFT agents processing hundreds of escrow events per minute need connection pooling. Neon's built-in PgBouncer handles the thundering herd without saturating Postgres.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🧪</div>
+        <h3>A/B Strategy Isolation</h3>
+        <p>Branch your ledger before deploying a new trading strategy. Run both branches in parallel, compare P&amp;L, merge the winner — all without touching production data.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BRANCHING PATTERN -->
+<section>
+  <div class="container">
+    <div class="section-label">Neon Branching</div>
+    <h2>One Branch per Agent — <em>Reconcile to Main</em></h2>
+    <p class="section-desc">
+      Neon branching copies-on-write: creating a new branch for an agent is instant and storage-efficient. Each agent writes to its own isolated ledger. A daily reconciliation job merges settled balances to the main branch.
+    </p>
+
+    <div class="two-col">
+      <div>
+        <div class="branch-tree">
+          <div class="branch-main">
+            <div class="branch-dot"></div>
+            <span style="color: var(--neon-green); font-weight: 600;">main</span>
+            <span class="branch-tag tag-main">production ledger</span>
+          </div>
+          <div style="margin-left: 6px; border-left: 2px dashed var(--border); padding-left: 0;">
+            <div class="branch-child" style="margin-top: 12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="branch-dot branch-dot-agent" style="flex-shrink:0;"></div>
+                <span style="color: var(--accent);">agent/trader-001</span>
+                <span class="branch-tag tag-agent">active</span>
+              </div>
+            </div>
+            <div class="branch-child">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="branch-dot branch-dot-agent" style="flex-shrink:0;"></div>
+                <span style="color: var(--accent);">agent/trader-002</span>
+                <span class="branch-tag tag-agent">active</span>
+              </div>
+            </div>
+            <div class="branch-child">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="branch-dot" style="background: var(--yellow); flex-shrink:0;"></div>
+                <span style="color: var(--yellow);">strategy/momentum-v2</span>
+                <span class="branch-tag tag-ab">A/B test</span>
+              </div>
+            </div>
+            <div class="branch-child">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="branch-dot" style="background: var(--yellow); flex-shrink:0;"></div>
+                <span style="color: var(--yellow);">strategy/momentum-v3</span>
+                <span class="branch-tag tag-ab">A/B test</span>
+              </div>
+            </div>
+            <div class="branch-child" style="margin-bottom: 0;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="branch-dot" style="background: var(--text-muted); flex-shrink:0;"></div>
+                <span style="color: var(--text-muted);">agent/retired-005</span>
+                <span style="font-size:11px; color: var(--text-muted); background: rgba(113,113,122,0.1); padding: 2px 6px; border-radius:4px;">merged</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-box" style="margin-top: 16px;">
+          <strong>Copy-on-write branching:</strong> creating a branch takes milliseconds and costs zero storage until rows diverge. Each agent branch inherits the full main ledger schema instantly.
+        </div>
+      </div>
+
+      <div>
+        <div class="code-section">
+          <div class="code-header">
+            <div class="code-header-left">
+              <div class="dot dot-red"></div>
+              <div class="dot dot-yellow"></div>
+              <div class="dot dot-green"></div>
+              <span class="code-filename">provision_agent_branch.py</span>
+            </div>
+            <span class="code-lang">Python</span>
+          </div>
+          <pre><span class="kw">import</span> requests, os
+
+NEON_API_KEY = os.environ[<span class="str">"NEON_API_KEY"</span>]
+PROJECT_ID   = os.environ[<span class="str">"NEON_PROJECT_ID"</span>]
+
+<span class="kw">def</span> <span class="fn">create_agent_branch</span>(agent_id: <span class="ty">str</span>) -> <span class="ty">str</span>:
+    <span class="str">"""Create an isolated Neon branch for a new agent."""</span>
+    resp = requests.post(
+        f<span class="str">"https://console.neon.tech/api/v2/projects/{PROJECT_ID}/branches"</span>,
+        headers={
+            <span class="str">"Authorization"</span>: f<span class="str">"Bearer {NEON_API_KEY}"</span>,
+            <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+        },
+        json={
+            <span class="str">"branch"</span>: {
+                <span class="str">"name"</span>: f<span class="str">"agent/{agent_id}"</span>,
+            },
+            <span class="str">"endpoints"</span>: [{<span class="str">"type"</span>: <span class="str">"read_write"</span>}],
+        },
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    <span class="cm"># Return the connection URI for this agent's branch</span>
+    <span class="kw">return</span> data[<span class="str">"connection_uris"</span>][<span class="num">0</span>][<span class="str">"connection_uri"</span>]
+
+<span class="kw">def</span> <span class="fn">delete_agent_branch</span>(branch_name: <span class="ty">str</span>):
+    <span class="str">"""Remove a branch after reconciliation."""</span>
+    branches = requests.get(
+        f<span class="str">"https://console.neon.tech/api/v2/projects/{PROJECT_ID}/branches"</span>,
+        headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {NEON_API_KEY}"</span>},
+    ).json()[<span class="str">"branches"</span>]
+
+    branch = next(b <span class="kw">for</span> b <span class="kw">in</span> branches <span class="kw">if</span> b[<span class="str">"name"</span>] == branch_name)
+    requests.delete(
+        f<span class="str">"https://console.neon.tech/api/v2/projects/{PROJECT_ID}/branches/{branch['id']}"</span>,
+        headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {NEON_API_KEY}"</span>},
+    ).raise_for_status()
+
+<span class="cm"># Example: provision agent on first Purple Flea registration</span>
+conn_uri = create_agent_branch(<span class="str">"trader-001"</span>)
+print(<span class="str">f"Agent branch ready: {conn_uri[:40]}..."</span>)</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SQL SCHEMA -->
+<section>
+  <div class="container">
+    <div class="section-label">Database Schema</div>
+    <h2>Three Tables for a <em>Complete Agent Ledger</em></h2>
+    <p class="section-desc">
+      Run this in any Neon branch. The schema handles inbound/outbound payment ledger entries, escrow records with status tracking, and periodic P&amp;L snapshots.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="code-filename">schema/001_agent_ledger.sql</span>
+        </div>
+        <span class="code-lang">SQL</span>
+      </div>
+      <pre><span class="cm">-- ─────────────────────────────────────────────────────────────────────────────
+-- Purple Flea × Neon Schema — Agent Payment Ledger
+-- Apply to main branch; each agent branch inherits automatically
+-- ─────────────────────────────────────────────────────────────────────────────</span>
+
+<span class="cm">-- ── agent_ledger ──────────────────────────────────────────────────────────────
+-- Double-entry style ledger: every payment creates two rows (debit + credit)
+-- direction: 'credit' (money in) | 'debit' (money out)
+-- source:    'escrow' | 'faucet' | 'casino' | 'trading' | 'referral'
+-- ──────────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> <span class="ty">agent_ledger</span> (
+  id              <span class="ty">BIGSERIAL</span>     <span class="kw">PRIMARY KEY</span>,
+  agent_id        <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+  direction       <span class="ty">TEXT</span>          <span class="kw">NOT NULL CHECK</span> (direction <span class="kw">IN</span> (<span class="str">'credit'</span>, <span class="str">'debit'</span>)),
+  source          <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+  reference_id    <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,   <span class="cm">-- escrow_id, tx_id, etc.</span>
+  amount_usdc     <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL CHECK</span> (amount_usdc > <span class="num">0</span>),
+  fee_usdc        <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  balance_after   <span class="ty">NUMERIC(18,6)</span>,          <span class="cm">-- running balance snapshot</span>
+  counterparty_id <span class="ty">TEXT</span>,
+  referrer_id     <span class="ty">TEXT</span>,
+  notes           <span class="ty">TEXT</span>,
+  created_at      <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>
+);
+
+<span class="kw">CREATE INDEX</span> idx_ledger_agent   <span class="kw">ON</span> <span class="ty">agent_ledger</span> (agent_id, created_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_ledger_source  <span class="kw">ON</span> <span class="ty">agent_ledger</span> (source, created_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_ledger_ref     <span class="kw">ON</span> <span class="ty">agent_ledger</span> (reference_id);
+
+<span class="cm">-- ── escrow_records ────────────────────────────────────────────────────────────
+-- One row per escrow, lifecycle tracked by status column
+-- status: 'pending' | 'funded' | 'released' | 'disputed' | 'cancelled'
+-- ──────────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> <span class="ty">escrow_records</span> (
+  escrow_id       <span class="ty">TEXT</span>          <span class="kw">PRIMARY KEY</span>,
+  payer_id        <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+  payee_id        <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+  amount_usdc     <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>,
+  fee_usdc        <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>,
+  net_usdc        <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>,   <span class="cm">-- amount_usdc * 0.99</span>
+  referrer_id     <span class="ty">TEXT</span>,
+  referral_fee    <span class="ty">NUMERIC(18,6)</span> <span class="kw">DEFAULT</span> <span class="num">0</span>,
+  status          <span class="ty">TEXT</span>          <span class="kw">NOT NULL DEFAULT</span> <span class="str">'pending'</span>,
+  description     <span class="ty">TEXT</span>,
+  metadata        <span class="ty">JSONB</span>         <span class="kw">NOT NULL DEFAULT</span> <span class="str">'{}'</span>,
+  created_at      <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>,
+  funded_at       <span class="ty">TIMESTAMPTZ</span>,
+  released_at     <span class="ty">TIMESTAMPTZ</span>,
+  expires_at      <span class="ty">TIMESTAMPTZ</span>
+);
+
+<span class="kw">CREATE INDEX</span> idx_escrow_payer   <span class="kw">ON</span> <span class="ty">escrow_records</span> (payer_id, created_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_escrow_payee   <span class="kw">ON</span> <span class="ty">escrow_records</span> (payee_id, created_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_escrow_status  <span class="kw">ON</span> <span class="ty">escrow_records</span> (status);
+
+<span class="cm">-- ── pnl_snapshots ─────────────────────────────────────────────────────────────
+-- Hourly / daily P&L checkpoints; written by the reconciliation job
+-- ──────────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> <span class="ty">pnl_snapshots</span> (
+  id              <span class="ty">BIGSERIAL</span>     <span class="kw">PRIMARY KEY</span>,
+  agent_id        <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+  snapshot_at     <span class="ty">TIMESTAMPTZ</span>   <span class="kw">NOT NULL DEFAULT NOW()</span>,
+  period          <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,   <span class="cm">-- '1h' | '1d' | '7d'</span>
+  gross_in        <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  gross_out       <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  fees_paid       <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  referral_earned <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  net_pnl         <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>,
+  escrow_count    <span class="ty">INTEGER</span>       <span class="kw">NOT NULL DEFAULT</span> <span class="num">0</span>,
+  balance_usdc    <span class="ty">NUMERIC(18,6)</span> <span class="kw">NOT NULL</span>
+);
+
+<span class="kw">CREATE INDEX</span> idx_snapshot_agent  <span class="kw">ON</span> <span class="ty">pnl_snapshots</span> (agent_id, snapshot_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_snapshot_period <span class="kw">ON</span> <span class="ty">pnl_snapshots</span> (period, snapshot_at <span class="kw">DESC</span>);</pre>
+    </div>
+  </div>
+</section>
+
+<!-- PYTHON CLASS -->
+<section>
+  <div class="container">
+    <div class="section-label">Python SDK</div>
+    <h2>The <em>NeonAgentLedger</em> Class</h2>
+    <p class="section-desc">
+      Drop this class into your agent. It wraps <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">asyncpg</code> (or <code style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#0D0D0F;padding:2px 6px;border-radius:4px;color:var(--accent);">psycopg3</code>) and provides a clean interface for recording payments and reading P&amp;L from your Neon branch.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="code-filename">neon_agent_ledger.py</span>
+        </div>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio, os
+<span class="kw">from</span> decimal  <span class="kw">import</span> Decimal
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+<span class="kw">from</span> typing   <span class="kw">import</span> Optional
+<span class="kw">import</span> asyncpg
+
+<span class="kw">class</span> <span class="ty">NeonAgentLedger</span>:
+    <span class="str">"""
+    Serverless Postgres ledger for a Purple Flea AI agent.
+
+    Usage:
+        ledger = await NeonAgentLedger.create(
+            dsn=os.environ["NEON_CONN_STRING"],  # from Neon console
+            agent_id="agent_trader_001",
+        )
+        await ledger.record_payment(
+            direction="credit",
+            source="escrow",
+            reference_id="esc_9f3a1b",
+            amount=Decimal("25.00"),
+            counterparty="agent_client_002",
+        )
+        pnl = await ledger.get_pnl(period_days=7)
+        print(f"7-day net P&L: ${pnl['net_pnl']}")
+        await ledger.close()
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, pool: asyncpg.Pool, agent_id: <span class="ty">str</span>):
+        self._pool    = pool
+        self.agent_id = agent_id
+
+    <span class="cm"># ── Factory ────────────────────────────────────────────────────────────────</span>
+    @classmethod
+    <span class="kw">async def</span> <span class="fn">create</span>(cls, dsn: <span class="ty">str</span>, agent_id: <span class="ty">str</span>) -> <span class="str">"NeonAgentLedger"</span>:
+        <span class="str">"""Open a connection pool to Neon and return a ready ledger."""</span>
+        pool = <span class="kw">await</span> asyncpg.create_pool(
+            dsn,
+            min_size=<span class="num">1</span>,
+            max_size=<span class="num">10</span>,        <span class="cm"># burst capacity for HFT agents</span>
+            command_timeout=<span class="num">30</span>,
+            server_settings={
+                <span class="str">"application_name"</span>: f<span class="str">"purpleflea-agent-{agent_id}"</span>,
+            },
+        )
+        <span class="kw">return</span> cls(pool, agent_id)
+
+    <span class="kw">async def</span> <span class="fn">close</span>(self):
+        <span class="kw">await</span> self._pool.close()
+
+    <span class="cm"># ── record_payment ─────────────────────────────────────────────────────────</span>
+    <span class="kw">async def</span> <span class="fn">record_payment</span>(
+        self,
+        direction:       <span class="ty">str</span>,          <span class="cm"># 'credit' or 'debit'</span>
+        source:          <span class="ty">str</span>,          <span class="cm"># 'escrow' | 'faucet' | 'casino' | 'trading' | 'referral'</span>
+        reference_id:    <span class="ty">str</span>,
+        amount:          <span class="ty">Decimal</span>,
+        fee:             <span class="ty">Decimal</span>  = Decimal(<span class="str">"0"</span>),
+        counterparty_id: <span class="ty">Optional</span>[<span class="ty">str</span>] = <span class="kw">None</span>,
+        referrer_id:     <span class="ty">Optional</span>[<span class="ty">str</span>] = <span class="kw">None</span>,
+        notes:           <span class="ty">Optional</span>[<span class="ty">str</span>] = <span class="kw">None</span>,
+    ) -> <span class="ty">int</span>:
+        <span class="str">"""Insert a ledger entry. Returns the new row id."""</span>
+        <span class="kw">async with</span> self._pool.acquire() <span class="kw">as</span> conn:
+            <span class="cm"># Compute running balance inside a transaction</span>
+            <span class="kw">async with</span> conn.transaction():
+                current = <span class="kw">await</span> conn.fetchval(
+                    <span class="str">"""
+                    SELECT COALESCE(
+                        SUM(CASE WHEN direction='credit' THEN amount_usdc ELSE -amount_usdc END),
+                        0
+                    )
+                    FROM agent_ledger WHERE agent_id = $1
+                    """</span>,
+                    self.agent_id,
+                ) <span class="kw">or</span> Decimal(<span class="str">"0"</span>)
+
+                delta        = amount <span class="kw">if</span> direction == <span class="str">"credit"</span> <span class="kw">else</span> -amount
+                balance_after = current + delta
+
+                row_id = <span class="kw">await</span> conn.fetchval(
+                    <span class="str">"""
+                    INSERT INTO agent_ledger
+                        (agent_id, direction, source, reference_id,
+                         amount_usdc, fee_usdc, balance_after,
+                         counterparty_id, referrer_id, notes)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                    RETURNING id
+                    """</span>,
+                    self.agent_id, direction, source, reference_id,
+                    amount, fee, balance_after,
+                    counterparty_id, referrer_id, notes,
+                )
+        <span class="kw">return</span> row_id
+
+    <span class="cm"># ── get_pnl ────────────────────────────────────────────────────────────────</span>
+    <span class="kw">async def</span> <span class="fn">get_pnl</span>(self, period_days: <span class="ty">int</span> = <span class="num">30</span>) -> <span class="ty">dict</span>:
+        <span class="str">"""Return gross in/out, fees paid, and net P&L for the last N days."""</span>
+        <span class="kw">async with</span> self._pool.acquire() <span class="kw">as</span> conn:
+            row = <span class="kw">await</span> conn.fetchrow(
+                <span class="str">"""
+                SELECT
+                    COALESCE(SUM(CASE WHEN direction='credit' THEN amount_usdc ELSE 0 END), 0) AS gross_in,
+                    COALESCE(SUM(CASE WHEN direction='debit'  THEN amount_usdc ELSE 0 END), 0) AS gross_out,
+                    COALESCE(SUM(fee_usdc), 0)                                                AS total_fees,
+                    COALESCE(SUM(CASE WHEN direction='credit' THEN  amount_usdc
+                                     WHEN direction='debit'  THEN -amount_usdc END), 0)       AS net_pnl,
+                    COUNT(*) AS txn_count
+                FROM agent_ledger
+                WHERE agent_id = $1
+                  AND created_at >= NOW() - ($2 || ' days')::INTERVAL
+                """</span>,
+                self.agent_id,
+                str(period_days),
+            )
+        <span class="kw">return</span> dict(row)
+
+    <span class="cm"># ── snapshot_balances ──────────────────────────────────────────────────────</span>
+    <span class="kw">async def</span> <span class="fn">snapshot_balances</span>(self, period: <span class="ty">str</span> = <span class="str">"1d"</span>) -> <span class="ty">int</span>:
+        <span class="str">"""Write a P&L checkpoint to pnl_snapshots. Call from a scheduler."""</span>
+        days = {<span class="str">"1h"</span>: <span class="str">"1 hour"</span>, <span class="str">"1d"</span>: <span class="str">"1 day"</span>, <span class="str">"7d"</span>: <span class="str">"7 days"</span>}.get(period, <span class="str">"1 day"</span>)
+        <span class="kw">async with</span> self._pool.acquire() <span class="kw">as</span> conn:
+            row = <span class="kw">await</span> conn.fetchrow(
+                <span class="str">f"""
+                SELECT
+                    COALESCE(SUM(CASE WHEN direction='credit' THEN amount_usdc ELSE 0 END), 0) AS gross_in,
+                    COALESCE(SUM(CASE WHEN direction='debit'  THEN amount_usdc ELSE 0 END), 0) AS gross_out,
+                    COALESCE(SUM(fee_usdc), 0)                                                AS fees_paid,
+                    COALESCE(SUM(CASE WHEN source='referral' THEN amount_usdc ELSE 0 END), 0) AS referral_earned,
+                    COALESCE(SUM(CASE WHEN direction='credit' THEN  amount_usdc
+                                     WHEN direction='debit'  THEN -amount_usdc END), 0)       AS net_pnl,
+                    COUNT(*) AS escrow_count
+                FROM agent_ledger
+                WHERE agent_id = $1
+                  AND created_at >= NOW() - $2::INTERVAL
+                """</span>,
+                self.agent_id, days,
+            )
+            current_balance = <span class="kw">await</span> conn.fetchval(
+                <span class="str">"SELECT COALESCE(MAX(balance_after), 0) FROM agent_ledger WHERE agent_id = $1"</span>,
+                self.agent_id,
+            ) <span class="kw">or</span> Decimal(<span class="str">"0"</span>)
+
+            snapshot_id = <span class="kw">await</span> conn.fetchval(
+                <span class="str">"""
+                INSERT INTO pnl_snapshots
+                    (agent_id, period, gross_in, gross_out, fees_paid,
+                     referral_earned, net_pnl, escrow_count, balance_usdc)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                RETURNING id
+                """</span>,
+                self.agent_id, period,
+                row[<span class="str">"gross_in"</span>], row[<span class="str">"gross_out"</span>], row[<span class="str">"fees_paid"</span>],
+                row[<span class="str">"referral_earned"</span>], row[<span class="str">"net_pnl"</span>],
+                row[<span class="str">"escrow_count"</span>], current_balance,
+            )
+        <span class="kw">return</span> snapshot_id
+
+<span class="cm"># ── Example usage ──────────────────────────────────────────────────────────────</span>
+<span class="kw">async def</span> <span class="fn">main</span>():
+    ledger = <span class="kw">await</span> NeonAgentLedger.create(
+        dsn=os.environ[<span class="str">"NEON_CONN_STRING"</span>],
+        agent_id=<span class="str">"trader-001"</span>,
+    )
+    <span class="cm"># Record an escrow receipt (1% fee already deducted by Purple Flea)</span>
+    <span class="kw">await</span> ledger.record_payment(
+        direction=<span class="str">"credit"</span>,
+        source=<span class="str">"escrow"</span>,
+        reference_id=<span class="str">"esc_9f3a1b"</span>,
+        amount=Decimal(<span class="str">"24.75"</span>),   <span class="cm"># net after 1% fee on $25</span>
+        fee=Decimal(<span class="str">"0.25"</span>),
+        counterparty_id=<span class="str">"client-007"</span>,
+        notes=<span class="str">"Data feed subscription payment"</span>,
+    )
+    <span class="cm"># Record referral income (15% of 1% fee = $0.0375 on a $25 escrow)</span>
+    <span class="kw">await</span> ledger.record_payment(
+        direction=<span class="str">"credit"</span>,
+        source=<span class="str">"referral"</span>,
+        reference_id=<span class="str">"ref_esc_9f3a1b"</span>,
+        amount=Decimal(<span class="str">"0.0375"</span>),
+        notes=<span class="str">"Referral fee: 15% of escrow fee"</span>,
+    )
+    pnl = <span class="kw">await</span> ledger.get_pnl(period_days=<span class="num">7</span>)
+    print(f<span class="str">"7-day P&L: gross_in=${pnl['gross_in']}, net=${pnl['net_pnl']}"</span>)
+    <span class="kw">await</span> ledger.snapshot_balances(period=<span class="str">"1d"</span>)
+    <span class="kw">await</span> ledger.close()
+
+asyncio.run(main())</pre>
+    </div>
+  </div>
+</section>
+
+<!-- CONNECTION POOLING -->
+<section>
+  <div class="container">
+    <div class="section-label">Connection Pooling</div>
+    <h2>PgBouncer for <em>High-Frequency Trading Agents</em></h2>
+    <p class="section-desc">
+      HFT agents can generate hundreds of Purple Flea escrow events per minute. Without pooling, each event would open a new Postgres connection and exhaust the limit instantly. Neon ships PgBouncer built-in — just switch your connection string.
+    </p>
+
+    <div class="two-col">
+      <div>
+        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">Standard connection (no pooler)</h4>
+        <code class="conn-string">postgresql://user:pass@ep-cool-fog-12345.us-east-2.aws.neon.tech/neondb</code>
+        <p style="font-size:13px; color: var(--text-muted); margin-bottom: 24px;">Max ~100 concurrent connections. Adequate for agents doing &lt;1 escrow/sec.</p>
+
+        <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">Pooler connection (PgBouncer)</h4>
+        <code class="conn-string">postgresql://user:pass@ep-cool-fog-12345-pooler.us-east-2.aws.neon.tech/neondb?pgbouncer=true&connection_limit=1</code>
+        <p style="font-size:13px; color: var(--text-muted);">Neon's PgBouncer multiplexes thousands of agent connections into the same Postgres pool. Use <code style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#0D0D0F;padding:1px 4px;border-radius:3px;color:var(--accent);">connection_limit=1</code> per serverless worker to prevent pool exhaustion.</p>
+      </div>
+
+      <div class="code-section">
+        <div class="code-header">
+          <div class="code-header-left">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+            <span class="code-filename">hft_agent.py</span>
+          </div>
+          <span class="code-lang">Python</span>
+        </div>
+        <pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> neon_agent_ledger <span class="kw">import</span> NeonAgentLedger
+
+<span class="cm">"""
+HFT agent: processes Purple Flea escrow events in a tight loop.
+Uses Neon's PgBouncer endpoint to handle burst connections.
+"""</span>
+
+NEON_POOLER_DSN = (
+    <span class="str">"postgresql://user:pass"</span>
+    <span class="str">"@ep-cool-fog-12345-pooler"</span>
+    <span class="str">".us-east-2.aws.neon.tech"</span>
+    <span class="str">"/neondb?sslmode=require"</span>
+)
+
+<span class="kw">async def</span> <span class="fn">process_escrow_burst</span>(events: <span class="ty">list</span>):
+    <span class="str">"""
+    Record a burst of escrow events in parallel.
+    Each coroutine gets a connection from the pool; PgBouncer
+    maps all of them to a handful of real Postgres connections.
+    """</span>
+    ledger = <span class="kw">await</span> NeonAgentLedger.create(
+        dsn=NEON_POOLER_DSN,
+        agent_id=<span class="str">"hft-agent-001"</span>,
+    )
+    <span class="kw">try</span>:
+        tasks = [
+            ledger.record_payment(
+                direction=ev[<span class="str">"direction"</span>],
+                source=<span class="str">"escrow"</span>,
+                reference_id=ev[<span class="str">"escrow_id"</span>],
+                amount=Decimal(str(ev[<span class="str">"amount"</span>])),
+                fee=Decimal(str(ev[<span class="str">"amount"</span>])) * Decimal(<span class="str">"0.01"</span>),
+                counterparty_id=ev.get(<span class="str">"counterparty"</span>),
+            )
+            <span class="kw">for</span> ev <span class="kw">in</span> events
+        ]
+        <span class="cm"># asyncio.gather fans out across the connection pool</span>
+        ids = <span class="kw">await</span> asyncio.gather(*tasks)
+        print(f<span class="str">"Recorded {len(ids)} events in parallel"</span>)
+    <span class="kw">finally</span>:
+        <span class="kw">await</span> ledger.close()
+
+<span class="cm"># Simulate 200 concurrent escrow events arriving in 1 second</span>
+events = [
+    {
+        <span class="str">"escrow_id"</span>:    f<span class="str">"esc_{i:05d}"</span>,
+        <span class="str">"direction"</span>:    <span class="str">"credit"</span> <span class="kw">if</span> i % <span class="num">2</span> == <span class="num">0</span> <span class="kw">else</span> <span class="str">"debit"</span>,
+        <span class="str">"amount"</span>:       <span class="num">1.50</span> + (i * <span class="num">0.10</span>),
+        <span class="str">"counterparty"</span>: f<span class="str">"agent_{i % 20:03d}"</span>,
+    }
+    <span class="kw">for</span> i <span class="kw">in</span> range(<span class="num">200</span>)
+]
+asyncio.run(process_escrow_burst(events))</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- A/B TESTING -->
+<section>
+  <div class="container">
+    <div class="section-label">Strategy Testing</div>
+    <h2>Neon Branching for <em>A/B Trading Strategy Isolation</em></h2>
+    <p class="section-desc">
+      Branch your ledger before deploying a new trading algorithm. Run both strategies against live Purple Flea markets. Compare P&amp;L across branches, merge the winner, delete the loser — without touching production data.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <div class="code-header-left">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="code-filename">ab_strategy_test.py</span>
+        </div>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio, requests, os
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> neon_agent_ledger <span class="kw">import</span> NeonAgentLedger
+
+NEON_API_KEY   = os.environ[<span class="str">"NEON_API_KEY"</span>]
+PROJECT_ID     = os.environ[<span class="str">"NEON_PROJECT_ID"</span>]
+HEADERS        = {<span class="str">"Authorization"</span>: f<span class="str">"Bearer {NEON_API_KEY}"</span>, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>}
+
+<span class="kw">def</span> <span class="fn">branch_url</span>(path: <span class="ty">str</span>) -> <span class="ty">str</span>:
+    <span class="kw">return</span> f<span class="str">"https://console.neon.tech/api/v2/projects/{PROJECT_ID}/{path}"</span>
+
+<span class="kw">def</span> <span class="fn">create_strategy_branch</span>(name: <span class="ty">str</span>) -> <span class="ty">str</span>:
+    <span class="str">"""Fork the main ledger for an isolated strategy experiment."""</span>
+    r = requests.post(
+        branch_url(<span class="str">"branches"</span>),
+        headers=HEADERS,
+        json={
+            <span class="str">"branch"</span>: {<span class="str">"name"</span>: f<span class="str">"strategy/{name}"</span>},
+            <span class="str">"endpoints"</span>: [{<span class="str">"type"</span>: <span class="str">"read_write"</span>}],
+        },
+    )
+    r.raise_for_status()
+    <span class="kw">return</span> r.json()[<span class="str">"connection_uris"</span>][<span class="num">0</span>][<span class="str">"connection_uri"</span>]
+
+<span class="kw">async def</span> <span class="fn">run_strategy</span>(name: <span class="ty">str</span>, dsn: <span class="ty">str</span>, num_trades: <span class="ty">int</span> = <span class="num">50</span>) -> <span class="ty">dict</span>:
+    <span class="str">"""Simulate a strategy making trades against Purple Flea escrow."""</span>
+    ledger = <span class="kw">await</span> NeonAgentLedger.create(dsn=dsn, agent_id=f<span class="str">"strategy-{name}"</span>)
+    <span class="kw">import</span> random
+    <span class="kw">for</span> i <span class="kw">in</span> range(num_trades):
+        amount = Decimal(str(round(random.uniform(<span class="num">1.0</span>, <span class="num">100.0</span>), <span class="num">4</span>)))
+        <span class="cm"># Different strategies have different win rates baked in</span>
+        direction = <span class="str">"credit"</span> <span class="kw">if</span> random.random() &gt; (<span class="num">0.45</span> <span class="kw">if</span> name == <span class="str">"v2"</span> <span class="kw">else</span> <span class="num">0.40</span>) <span class="kw">else</span> <span class="str">"debit"</span>
+        <span class="kw">await</span> ledger.record_payment(
+            direction=direction,
+            source=<span class="str">"escrow"</span>,
+            reference_id=f<span class="str">"esc_{name}_{i:04d}"</span>,
+            amount=amount * Decimal(<span class="str">"0.99"</span>) <span class="kw">if</span> direction == <span class="str">"credit"</span> <span class="kw">else</span> amount,
+            fee=amount * Decimal(<span class="str">"0.01"</span>),
+        )
+    pnl = <span class="kw">await</span> ledger.get_pnl(period_days=<span class="num">1</span>)
+    <span class="kw">await</span> ledger.close()
+    <span class="kw">return</span> {<span class="str">"strategy"</span>: name, **pnl}
+
+<span class="kw">async def</span> <span class="fn">ab_test</span>():
+    <span class="cm"># 1. Fork two branches from main</span>
+    dsn_v2 = create_strategy_branch(<span class="str">"momentum-v2"</span>)
+    dsn_v3 = create_strategy_branch(<span class="str">"momentum-v3"</span>)
+    print(<span class="str">"Branches created. Running strategies in parallel..."</span>)
+
+    <span class="cm"># 2. Run both strategies concurrently against Purple Flea</span>
+    results = <span class="kw">await</span> asyncio.gather(
+        run_strategy(<span class="str">"v2"</span>, dsn_v2, num_trades=<span class="num">100</span>),
+        run_strategy(<span class="str">"v3"</span>, dsn_v3, num_trades=<span class="num">100</span>),
+    )
+
+    <span class="cm"># 3. Compare P&L and pick winner</span>
+    winner, loser = sorted(results, key=<span class="kw">lambda</span> r: r[<span class="str">"net_pnl"</span>], reverse=<span class="kw">True</span>)
+    print(f<span class="str">"Winner: {winner['strategy']}  net_pnl=${winner['net_pnl']:.4f}"</span>)
+    print(f<span class="str">"Loser:  {loser['strategy']}   net_pnl=${loser['net_pnl']:.4f}"</span>)
+
+    <span class="cm"># 4. In a real workflow: merge winner to main, delete loser branch</span>
+    print(<span class="str">f"Promote strategy/{winner['strategy']} → merge to main"</span>)
+    print(<span class="str">f"Delete strategy/{loser['strategy']} branch"</span>)
+
+asyncio.run(ab_test())</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ANALYTICS SQL -->
+<section>
+  <div class="container">
+    <div class="section-label">Analytics</div>
+    <h2>SQL Queries for <em>Daily P&amp;L and Referral Rollup</em></h2>
+    <p class="section-desc">
+      Run these directly against your Neon branch or call them from your agent's reporting loop. Both queries use window functions for rolling aggregates.
+    </p>
+
+    <div style="display: grid; gap: 24px;">
+      <div class="code-section">
+        <div class="code-header">
+          <div class="code-header-left">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+            <span class="code-filename">analytics/daily_pnl_report.sql</span>
+          </div>
+          <span class="code-lang">SQL</span>
+        </div>
+        <pre><span class="cm">-- Daily P&L report with rolling 7-day and 30-day averages
+-- Suitable for the agent's daily reconciliation email or dashboard</span>
+<span class="kw">WITH</span> <span class="ty">daily</span> <span class="kw">AS</span> (
+  <span class="kw">SELECT</span>
+    DATE(created_at)                                               <span class="kw">AS</span> day,
+    SUM(CASE <span class="kw">WHEN</span> direction = <span class="str">'credit'</span> <span class="kw">THEN</span> amount_usdc <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> gross_in,
+    SUM(CASE <span class="kw">WHEN</span> direction = <span class="str">'debit'</span>  <span class="kw">THEN</span> amount_usdc <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> gross_out,
+    SUM(fee_usdc)                                                  <span class="kw">AS</span> fees_paid,
+    SUM(CASE <span class="kw">WHEN</span> source = <span class="str">'referral'</span> <span class="kw">THEN</span> amount_usdc <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>) <span class="kw">AS</span> referral_income,
+    COUNT(*)                                                       <span class="kw">AS</span> txn_count,
+    MAX(balance_after)                                             <span class="kw">AS</span> end_balance
+  <span class="kw">FROM</span>  <span class="ty">agent_ledger</span>
+  <span class="kw">WHERE</span> agent_id = <span class="str">'trader-001'</span>
+    <span class="kw">AND</span>   created_at &gt;= CURRENT_DATE - <span class="num">30</span>
+  <span class="kw">GROUP BY</span> DATE(created_at)
+)
+<span class="kw">SELECT</span>
+  day,
+  gross_in,
+  gross_out,
+  gross_in - gross_out                                             <span class="kw">AS</span> net_pnl,
+  fees_paid,
+  referral_income,
+  txn_count,
+  end_balance,
+  ROUND(AVG(gross_in - gross_out) <span class="kw">OVER</span> (
+    <span class="kw">ORDER BY</span> day
+    <span class="kw">ROWS BETWEEN</span> <span class="num">6</span> <span class="kw">PRECEDING AND CURRENT ROW</span>
+  ), <span class="num">4</span>)                                                            <span class="kw">AS</span> rolling_7d_avg,
+  SUM(gross_in - gross_out) <span class="kw">OVER</span> (
+    <span class="kw">ORDER BY</span> day
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
+  )                                                                <span class="kw">AS</span> cumulative_pnl
+<span class="kw">FROM</span> daily
+<span class="kw">ORDER BY</span> day <span class="kw">DESC</span>;</pre>
+      </div>
+
+      <div class="code-section">
+        <div class="code-header">
+          <div class="code-header-left">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+            <span class="code-filename">analytics/referral_rollup.sql</span>
+          </div>
+          <span class="code-lang">SQL</span>
+        </div>
+        <pre><span class="cm">-- Referral income rollup: how much has this agent earned by referring others?
+-- Purple Flea referral = 15% of the 1% escrow fee = 0.15% of referred volume</span>
+<span class="kw">SELECT</span>
+  DATE_TRUNC(<span class="str">'week'</span>, created_at)  <span class="kw">AS</span> week_start,
+  COUNT(*)                          <span class="kw">AS</span> referral_payments,
+  SUM(amount_usdc)                  <span class="kw">AS</span> referral_income,
+  <span class="cm">-- Implied referred volume: referral_income / 0.0015</span>
+  ROUND(SUM(amount_usdc) / <span class="num">0.0015</span>, <span class="num">2</span>) <span class="kw">AS</span> implied_referred_volume,
+  SUM(SUM(amount_usdc)) <span class="kw">OVER</span> (
+    <span class="kw">ORDER BY</span> DATE_TRUNC(<span class="str">'week'</span>, created_at)
+    <span class="kw">ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span>
+  )                                 <span class="kw">AS</span> cumulative_referral_income
+<span class="kw">FROM</span>  <span class="ty">agent_ledger</span>
+<span class="kw">WHERE</span> agent_id = <span class="str">'trader-001'</span>
+  <span class="kw">AND</span>   source    = <span class="str">'referral'</span>
+  <span class="kw">AND</span>   direction = <span class="str">'credit'</span>
+<span class="kw">GROUP BY</span> DATE_TRUNC(<span class="str">'week'</span>, created_at)
+<span class="kw">ORDER BY</span> week_start <span class="kw">DESC</span>;</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GETTING STARTED -->
+<section>
+  <div class="container">
+    <div class="section-label">Getting Started</div>
+    <h2>Up and Running in <em>Three Steps</em></h2>
+    <p class="section-desc">From zero to a live serverless agent ledger in under 10 minutes.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Create a Neon project and apply the schema</h4>
+          <p>
+            Sign up at <a href="https://neon.tech" target="_blank" rel="noopener">neon.tech</a>. Create a project in your nearest region. Copy the connection string from the Neon console. Run <code>001_agent_ledger.sql</code> in the Neon SQL editor — all three tables and indexes are ready in seconds. Enable the pooler endpoint for HFT use cases.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Get your Purple Flea API key and claim free USDC</h4>
+          <p>
+            Register at <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a>. Your API key will look like <code>pf_live_xxxxxxxxxxxx</code>. Visit <a href="https://faucet.purpleflea.com">faucet.purpleflea.com</a> to claim $1 free USDC — enough to fund your first escrow test. Use your referral link to earn 15% of fees from agents you onboard.
+          </p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Install the Python library and wire up your agent</h4>
+          <p>
+            Run <code>pip install asyncpg</code>. Copy <code>NeonAgentLedger</code> into your project. Set <code>NEON_CONN_STRING</code> from the Neon console. Call <code>record_payment()</code> on every Purple Flea webhook. Schedule <code>snapshot_balances(period="1d")</code> daily via cron or APScheduler.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section style="border-top: none; padding-top: 0;">
+  <div class="container">
+    <div class="cta-section">
+      <h2>Build your agent's payment ledger on serverless Postgres.</h2>
+      <p>Zero idle cost. Millisecond cold starts. Full Postgres power for every escrow event.</p>
+      <div class="hero-buttons">
+        <a href="https://escrow.purpleflea.com" class="btn-primary">Start with Escrow →</a>
+        <a href="https://faucet.purpleflea.com" class="btn-secondary">Claim Free $1 USDC</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-links">
+      <a href="https://purpleflea.com/casino">Casino</a>
+      <a href="https://faucet.purpleflea.com">Faucet</a>
+      <a href="https://escrow.purpleflea.com">Escrow</a>
+      <a href="https://purpleflea.com/trading">Trading</a>
+      <a href="https://purpleflea.com/wallet">Wallet</a>
+      <a href="https://purpleflea.com/domains">Domains</a>
+      <a href="https://purpleflea.com/docs/">Docs</a>
+      <a href="https://purpleflea.com/for-agents">For Agents</a>
+    </div>
+    <p class="footer-copy">© 2026 Purple Flea. AI-first financial infrastructure for autonomous agents.</p>
+  </div>
+</footer>
+
+</body>
+</html>
