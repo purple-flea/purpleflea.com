@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Optimal Order Execution for AI Trading Agents: TWAP, VWAP, Implementation Shortfall | Purple Flea</title>
+  <meta name="description" content="Deep dive into order execution algorithms for AI trading agents — TWAP, VWAP, and implementation shortfall. Python OrderExecutionEngine with Purple Flea trading API integration." />
+  <meta property="og:title" content="Optimal Order Execution for AI Trading Agents" />
+  <meta property="og:description" content="Market impact, timing risk, slippage benchmarking, and a full Python OrderExecutionEngine for AI agents using Purple Flea's trading infrastructure." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-order-execution/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-order-execution/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Optimal Order Execution for AI Trading Agents: TWAP, VWAP, Implementation Shortfall",
+    "description": "Complete guide to algorithmic order execution for AI trading agents. Covers TWAP, VWAP, implementation shortfall, and Python OrderExecutionEngine with Purple Flea trading API.",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {"@type": "Organization", "name": "Purple Flea"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "url": "https://purpleflea.com/blog/agent-order-execution/",
+    "keywords": ["order execution", "TWAP", "VWAP", "implementation shortfall", "AI trading agents", "slippage", "market impact"]
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --text: #FAFAFA;
+      --secondary: #A1A1AA;
+      --green: #22C55E;
+      --yellow: #EAB308;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --code-bg: #0D0D0F;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.7;
+      font-size: 16px;
+    }
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 900;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo { font-weight: 700; font-size: 1rem; text-decoration: none; color: var(--text); display: flex; align-items: center; gap: 0.4rem; }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-links a { color: var(--secondary); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--accent); color: #fff; padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+    .nav-cta:hover { background: var(--accent-dim); color: #fff !important; }
+
+    .hero {
+      padding: 4rem 1.5rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(168,85,247,0.12);
+      border: 1px solid rgba(168,85,247,0.3);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 2rem;
+      color: var(--secondary);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 0.35rem; }
+    .hero-desc {
+      font-size: 1.125rem;
+      color: var(--secondary);
+      max-width: 760px;
+      line-height: 1.75;
+    }
+
+    .layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+    }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 72px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .toc-sidebar h3 {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--secondary);
+      margin-bottom: 0.75rem;
+    }
+    .toc-sidebar a {
+      display: block;
+      color: var(--secondary);
+      text-decoration: none;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+      line-height: 1.4;
+      margin-bottom: 0.1rem;
+    }
+    .toc-sidebar a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .toc-sidebar a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(168,85,247,0.08); }
+    .toc-sidebar a.sub { padding-left: 1.25rem; font-size: 0.75rem; }
+
+    article h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      scroll-margin-top: 72px;
+    }
+    article h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 72px;
+    }
+    article h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1.25rem 0 0.5rem;
+      color: var(--secondary);
+    }
+    article p { margin-bottom: 1rem; color: var(--secondary); line-height: 1.8; }
+    article p strong { color: var(--text); }
+    article ul, article ol { margin: 0.75rem 0 1rem 1.5rem; color: var(--secondary); }
+    article li { margin-bottom: 0.4rem; line-height: 1.7; }
+    article a { color: var(--accent); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+    article hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      color: var(--secondary);
+    }
+    .callout strong { color: var(--text); }
+    .callout.green { border-left-color: var(--green); }
+    .callout.yellow { border-left-color: var(--yellow); }
+    .callout.red { border-left-color: var(--red); }
+    .callout.blue { border-left-color: var(--blue); }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.25rem 0 1.75rem;
+      position: relative;
+    }
+    pre code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      color: #E4E4E7;
+    }
+    .code-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--secondary);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: rgba(168,85,247,0.12); color: var(--accent); padding: 0.1em 0.4em; border-radius: 4px; }
+    pre code { background: none; color: inherit; padding: 0; font-size: 0.82rem; }
+
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .st { color: #86EFAC; }
+    .cm { color: #6B7280; font-style: italic; }
+    .nm { color: #FCD34D; }
+    .op { color: #F87171; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+    .metric-card .label { font-size: 0.75rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
+    .metric-card .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .metric-card .desc { font-size: 0.78rem; color: var(--secondary); margin-top: 0.3rem; }
+
+    .algo-compare {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.875rem;
+    }
+    .algo-compare th {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      text-align: left;
+      color: var(--secondary);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .algo-compare td {
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      color: var(--secondary);
+      vertical-align: top;
+    }
+    .algo-compare tr:hover td { background: rgba(255,255,255,0.02); }
+    .algo-compare .good { color: var(--green); }
+    .algo-compare .bad { color: var(--red); }
+    .algo-compare .mid { color: var(--yellow); }
+
+    .step-list { list-style: none; margin-left: 0; counter-reset: steps; }
+    .step-list li {
+      counter-increment: steps;
+      padding-left: 2.5rem;
+      position: relative;
+      margin-bottom: 0.75rem;
+      color: var(--secondary);
+    }
+    .step-list li::before {
+      content: counter(steps);
+      position: absolute;
+      left: 0;
+      top: 0.1rem;
+      width: 1.6rem;
+      height: 1.6rem;
+      background: rgba(168,85,247,0.15);
+      border: 1px solid rgba(168,85,247,0.4);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .formula-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.25rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: #E4E4E7;
+      text-align: center;
+    }
+    .formula-box .formula-label { font-size: 0.72rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; font-family: 'Inter', sans-serif; }
+    .formula-box .formula { color: var(--accent); font-size: 1rem; }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(168,85,247,0.1), rgba(124,58,237,0.05));
+      border: 1px solid rgba(168,85,247,0.3);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 2.5rem 0;
+      text-align: center;
+    }
+    .cta-box h3 { color: var(--text); margin-bottom: 0.5rem; font-size: 1.15rem; }
+    .cta-box p { color: var(--secondary); margin-bottom: 1.25rem; font-size: 0.9rem; }
+    .cta-btn {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .cta-btn:hover { background: var(--accent-dim); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--secondary); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#A855F7" opacity="0.2"/><circle cx="12" cy="12" r="5" fill="#A855F7"/></svg>
+      Purple Flea
+    </a>
+    <div class="nav-links">
+      <a href="/blog/">Blog</a>
+      <a href="/docs/">Docs</a>
+      <a href="/trading/">Trading</a>
+      <a href="/for-agents/">For Agents</a>
+      <a href="/register/" class="nav-cta">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-tag">Strategy</div>
+  <h1>Optimal Order Execution for<br/><span>AI Trading Agents</span></h1>
+  <div class="hero-meta">
+    <span>March 7, 2026</span>
+    <span>19 min read</span>
+    <span>TWAP &bull; VWAP &bull; Implementation Shortfall</span>
+  </div>
+  <p class="hero-desc">
+    Smart agents don't just decide what to trade — they decide <em>how</em> to trade it. This guide covers the three dominant execution algorithms: TWAP, VWAP, and implementation shortfall minimization. Includes a full Python <code>OrderExecutionEngine</code> that integrates with Purple Flea's trading API.
+  </p>
+</div>
+
+<div class="layout">
+  <article>
+
+    <!-- SECTION 1 -->
+    <h2 id="execution-problem">1. The Execution Problem</h2>
+    <p>
+      Most AI trading agents invest enormous effort in signal generation — predicting price direction, sizing positions, and timing entries. But once the decision is made, many agents submit a single market order and call it done. That's leaving money on the table.
+    </p>
+    <p>
+      For small orders relative to market depth, the naive approach works fine. But as order size grows relative to available liquidity, three forces erode your edge before a single unit of profit is locked in.
+    </p>
+
+    <h3 id="market-impact">1.1 Market Impact</h3>
+    <p>
+      <strong>Market impact</strong> is the price movement caused by your own order. When you buy, you consume the best ask offers in the order book. If your order is large enough, you exhaust the first price level and begin filling at progressively worse prices — temporary impact. Additionally, other market participants infer from your activity that a well-informed agent is buying, causing them to update their own quotes upward — permanent impact.
+    </p>
+    <p>
+      The square-root market impact model (Almgren-Chriss framework) quantifies this:
+    </p>
+    <div class="formula-box">
+      <div class="formula-label">Almgren-Chriss Market Impact</div>
+      <div class="formula">I(x) = &sigma; &middot; T<sup>&frac12;</sup> &middot; f(x / (V &middot; T))</div>
+    </div>
+    <p>
+      Where <code>x</code> is total order size, <code>V</code> is average daily volume, <code>T</code> is execution horizon, and <code>&sigma;</code> is volatility. The function <code>f</code> is roughly proportional to the square root of participation rate. A 10% participation rate typically costs 3x more than a 1% rate.
+    </p>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="label">Participation Rate</div>
+        <div class="value">1%</div>
+        <div class="desc">Typical TWAP target — minimal impact</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Market Order Slippage</div>
+        <div class="value">0.15%</div>
+        <div class="desc">Average for $10K order in liquid crypto</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Impact Reduction</div>
+        <div class="value">60-80%</div>
+        <div class="desc">VWAP vs naive market order (institutional)</div>
+      </div>
+    </div>
+
+    <h3 id="timing-risk">1.2 Timing Risk</h3>
+    <p>
+      Every millisecond your order remains unexecuted is a millisecond of price exposure. If you're trying to buy and the market moves up before you finish, you've paid more than your decision price. This is <strong>timing risk</strong> — the variance of final execution price around the arrival midpoint.
+    </p>
+    <p>
+      Timing risk grows with the square root of execution time and with volatility. An execution stretched over 60 minutes in a 30% annualized volatility asset has roughly <code>30% / sqrt(252 * 24) * sqrt(60/60) ≈ 0.36%</code> of one-sigma price uncertainty. For a $100K position, that's ±$360 of luck.
+    </p>
+    <p>
+      The tradeoff is fundamental: <strong>executing faster reduces timing risk but increases market impact. Executing slower reduces impact but increases timing risk.</strong> Optimal execution algorithms find the path that minimizes total cost — impact plus timing risk — given your urgency.
+    </p>
+
+    <h3 id="adverse-selection">1.3 Adverse Selection</h3>
+    <p>
+      <strong>Adverse selection</strong> is the subtlest of the three forces. Limit orders get filled when someone on the other side decides to take liquidity — and that someone often has more information than you. When your buy limit order fills, it's frequently because a well-informed seller just decided to dump.
+    </p>
+    <p>
+      This means passive (limit order) execution isn't free. The bid-ask spread you "save" by posting a limit order is partially offset by the adverse selection cost of who fills against you. Sophisticated execution engines measure the post-fill price drift to quantify this cost and adapt their passive/aggressive split accordingly.
+    </p>
+
+    <div class="callout yellow">
+      <strong>The Core Insight:</strong> Execution cost = market impact + timing risk + adverse selection cost - rebates. Algorithms that minimize one component often increase another. The art is finding the right balance for your specific order characteristics.
+    </div>
+
+    <hr/>
+
+    <!-- SECTION 2 -->
+    <h2 id="twap">2. TWAP: Time-Weighted Average Price</h2>
+    <p>
+      TWAP is the simplest meaningful execution algorithm. It slices your total order into equal pieces and executes them at regular time intervals throughout a defined window. If you want to buy 1,000 units over 60 minutes with 6 slices, you submit one 167-unit order every 10 minutes.
+    </p>
+    <p>
+      The benchmark for TWAP is the arithmetic mean of all mid-prices sampled during the execution window. If your executed average price beats this benchmark, you "won" your TWAP execution.
+    </p>
+
+    <h3 id="twap-when">2.1 When TWAP Works Best</h3>
+    <ul>
+      <li><strong>No volume data:</strong> When you can't reliably predict volume profiles (thin markets, new instruments), equal time slicing avoids the risk of front-loading into a low-volume period.</li>
+      <li><strong>Trending markets:</strong> In a strong trend, you want to participate at each time interval regardless of volume concentration. TWAP keeps you in step with the trend clock.</li>
+      <li><strong>Regulatory/benchmark contexts:</strong> Some institutional mandates specify TWAP as the execution benchmark, making it the right tool by definition.</li>
+      <li><strong>Simple agent logic:</strong> TWAP is easy to implement, audit, and explain. For an AI agent still building its execution track record, TWAP provides a clean baseline to measure future improvements against.</li>
+    </ul>
+
+    <h3 id="twap-formula">2.2 TWAP Formula and Benchmark</h3>
+    <div class="formula-box">
+      <div class="formula-label">TWAP Benchmark Price</div>
+      <div class="formula">TWAP = (1/N) &sum;<sub>i=1</sub><sup>N</sup> P<sub>i</sub></div>
+    </div>
+    <p>
+      Where <code>P_i</code> is the mid-price at each interval <code>i</code> of N total sampling points. Your execution quality is measured as:
+    </p>
+    <div class="formula-box">
+      <div class="formula-label">TWAP Slippage (Buy Orders)</div>
+      <div class="formula">Slippage = (Executed Price - TWAP Benchmark) / TWAP Benchmark</div>
+    </div>
+    <p>
+      A negative slippage on a buy order means you beat the benchmark — you paid less than the time-weighted average. A positive slippage means you paid more.
+    </p>
+
+    <h3 id="twap-variations">2.3 TWAP Variations</h3>
+    <p>
+      Pure TWAP is rarely used in production without modifications:
+    </p>
+    <ul>
+      <li><strong>Randomized TWAP:</strong> Add ±20% randomness to slice size and timing to avoid the predictability that allows front-runners to exploit your pattern.</li>
+      <li><strong>Conditional TWAP:</strong> Skip or reduce slices when spread is abnormally wide (signal of poor liquidity), resume when spread normalizes.</li>
+      <li><strong>Urgency-weighted TWAP:</strong> Accelerate slice cadence as the execution window closes if remaining quantity is large — ensuring full fill by deadline.</li>
+    </ul>
+
+    <hr/>
+
+    <!-- SECTION 3 -->
+    <h2 id="vwap">3. VWAP: Volume-Weighted Average Price</h2>
+    <p>
+      VWAP improves on TWAP by aligning your order flow with market volume patterns. Instead of equal time slices, you execute larger child orders during high-volume periods (when your market impact is proportionally smaller) and smaller orders during low-volume periods.
+    </p>
+    <p>
+      The insight: if the market naturally processes 30% of its daily volume between 9am and 10am, your order should also be 30% executed during that window. This keeps your participation rate constant throughout the day, minimizing impact per unit traded.
+    </p>
+
+    <h3 id="vwap-profile">3.1 Volume Profiles in Crypto Markets</h3>
+    <p>
+      Traditional equity VWAP relies on predictable intraday volume profiles — the classic U-shape with high volume at open and close. Crypto markets have different patterns:
+    </p>
+    <ul>
+      <li><strong>UTC morning spike:</strong> Asian session open brings concentrated volume from 0:00-2:00 UTC, especially for BTC/ETH.</li>
+      <li><strong>US open surge:</strong> 13:30-15:00 UTC typically sees the highest sustained volume globally.</li>
+      <li><strong>Weekend depression:</strong> Volume drops 30-50% on weekends, spreads widen, and microstructure deteriorates.</li>
+      <li><strong>News-driven spikes:</strong> Economic data, Fed decisions, and major protocol events cause abrupt volume surges that can temporarily dominate the daily profile.</li>
+    </ul>
+    <p>
+      Purple Flea's trading API provides historical volume data by minute, enabling agents to build dynamic volume profiles that adapt to the current market regime rather than relying on stale averages.
+    </p>
+
+    <h3 id="vwap-formula">3.2 VWAP Formula</h3>
+    <div class="formula-box">
+      <div class="formula-label">VWAP Benchmark Price</div>
+      <div class="formula">VWAP = &sum;(P<sub>i</sub> &times; V<sub>i</sub>) / &sum;V<sub>i</sub></div>
+    </div>
+    <p>
+      Where <code>P_i</code> is the transaction price and <code>V_i</code> is the volume at each transaction. Your order slice sizes are:
+    </p>
+    <div class="formula-box">
+      <div class="formula-label">Child Order Size for Interval i</div>
+      <div class="formula">Q<sub>i</sub> = Q<sub>total</sub> &times; (V<sub>i</sub><sup>forecast</sup> / &sum;V<sup>forecast</sup>)</div>
+    </div>
+    <p>
+      The quality of your VWAP execution depends entirely on the accuracy of your volume forecast. Agents that build better volume prediction models consistently outperform naive VWAP implementors.
+    </p>
+
+    <h3 id="vwap-dynamic">3.3 Dynamic VWAP Adjustment</h3>
+    <p>
+      Static VWAP uses a fixed historical volume profile computed before execution begins. Dynamic VWAP continuously updates the remaining schedule based on actual realized volumes. If volume is higher than expected in early intervals, the remaining slices are reduced proportionally.
+    </p>
+    <p>
+      The adaptive formula for remaining quantity at interval <code>k</code>:
+    </p>
+    <div class="formula-box">
+      <div class="formula-label">Dynamic Remaining Schedule</div>
+      <div class="formula">Q<sub>remaining</sub> = Q<sub>total</sub> - Q<sub>executed</sub> &nbsp;&nbsp; distributed over &nbsp;&nbsp; V<sub>k..N</sub><sup>forecast</sup></div>
+    </div>
+
+    <hr/>
+
+    <!-- SECTION 4 -->
+    <h2 id="implementation-shortfall">4. Implementation Shortfall &amp; Arrival Price</h2>
+    <p>
+      Implementation shortfall (IS), also known as arrival price benchmarking, is the most theoretically rigorous of the three main execution frameworks. It measures the total cost of execution relative to the price at the moment you made the trading decision — your arrival price.
+    </p>
+    <p>
+      The concept was formalized by Robert Kissell and Robert Almgren and is now the standard benchmark for institutional execution quality measurement.
+    </p>
+
+    <h3 id="is-components">4.1 Components of Implementation Shortfall</h3>
+    <p>
+      Total IS has four additive components:
+    </p>
+    <ol class="step-list">
+      <li><strong>Delay cost:</strong> Price drift between signal generation and order submission. If you decide to buy at $100 but take 30 seconds to submit (price is now $100.05), you've incurred $0.05 of delay cost.</li>
+      <li><strong>Market impact:</strong> The price movement caused by your own execution. This is the permanent component — prices that don't revert after your order completes.</li>
+      <li><strong>Timing risk:</strong> The realized variance of execution prices around the expected trajectory. This component has zero expectation but non-zero variance.</li>
+      <li><strong>Opportunity cost:</strong> The cost of not completing the order. If you planned to buy 1,000 units but only filled 850 because prices moved away, the missed 150 units carry an opportunity cost.</li>
+    </ol>
+
+    <div class="formula-box">
+      <div class="formula-label">Implementation Shortfall (Buy Order)</div>
+      <div class="formula">IS = (P<sub>executed</sub> - P<sub>arrival</sub>) / P<sub>arrival</sub> &times; 10,000 bps</div>
+    </div>
+
+    <h3 id="is-vs-twap-vwap">4.2 IS vs TWAP/VWAP Benchmarks</h3>
+    <p>
+      The key philosophical difference: TWAP and VWAP benchmark against prices that <em>occur during</em> your execution window. Implementation shortfall benchmarks against the price that existed when you decided to trade. This matters enormously.
+    </p>
+    <p>
+      If you're executing a large buy order over 2 hours while prices drift steadily upward, TWAP will show near-zero slippage (you matched the time-weighted price). But IS will show large positive cost — you paid far more than the arrival price. IS captures the real cost of being a slow mover in a fast market.
+    </p>
+
+    <div class="callout blue">
+      <strong>IS is the honest benchmark.</strong> It credits you for being fast (arriving early when prices are low) and charges you for being slow (still executing while prices drift away). TWAP/VWAP can make slow execution look "good" by benchmarking against the same slow prices.
+    </div>
+
+    <h3 id="is-optimal-schedule">4.3 IS-Optimal Execution Schedule</h3>
+    <p>
+      Almgren and Chriss (2000) derived the IS-optimal execution schedule analytically. Under their model assumptions (linear market impact, quadratic utility), the optimal trajectory is an exponential decay:
+    </p>
+    <div class="formula-box">
+      <div class="formula-label">Optimal Inventory Trajectory</div>
+      <div class="formula">x(t) = X &middot; sinh(&kappa;(T-t)) / sinh(&kappa;T)</div>
+    </div>
+    <p>
+      Where <code>X</code> is initial order size, <code>T</code> is execution horizon, and <code>&kappa;</code> is a risk-aversion parameter derived from impact and volatility. High risk aversion (urgency) leads to front-loaded execution; low risk aversion leads to more evenly spread execution.
+    </p>
+
+    <hr/>
+
+    <!-- SECTION 5 -->
+    <h2 id="python-engine">5. Python OrderExecutionEngine</h2>
+    <p>
+      Below is a production-quality <code>OrderExecutionEngine</code> class that implements TWAP, VWAP, and an adaptive IS-minimizing algorithm. It integrates directly with Purple Flea's trading API for sliced order submission.
+    </p>
+
+    <span class="code-label">order_execution_engine.py</span>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">import</span> time
+<span class="kw">import</span> math
+<span class="kw">import</span> statistics
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List, Optional, Literal
+<span class="kw">import</span> aiohttp
+
+<span class="cm"># Purple Flea Trading API base URL</span>
+PF_API = <span class="st">"https://purpleflea.com/api/trading"</span>
+API_KEY = <span class="st">"pf_live_YOUR_KEY_HERE"</span>  <span class="cm"># replace with your key</span>
+
+
+@dataclass
+<span class="kw">class</span> <span class="fn">ExecutionSlice</span>:
+    <span class="st">"""Represents a single child order in an execution schedule."""</span>
+    index: int
+    quantity: float
+    target_time: float       <span class="cm"># Unix timestamp for submission</span>
+    submitted: bool = <span class="nm">False</span>
+    fill_price: Optional[float] = <span class="nm">None</span>
+    fill_quantity: float = 0.0
+    order_id: Optional[str] = <span class="nm">None</span>
+    latency_ms: Optional[float] = <span class="nm">None</span>
+
+
+@dataclass
+<span class="kw">class</span> <span class="fn">ExecutionReport</span>:
+    <span class="st">"""Post-execution quality report."""</span>
+    algorithm: str
+    symbol: str
+    side: str
+    total_quantity: float
+    filled_quantity: float
+    arrival_price: float
+    executed_avg_price: float
+    twap_benchmark: float
+    slices: List[ExecutionSlice] = field(default_factory=list)
+
+    @property
+    <span class="kw">def</span> <span class="fn">fill_rate</span>(self) -> float:
+        <span class="kw">return</span> self.filled_quantity / self.total_quantity
+
+    @property
+    <span class="kw">def</span> <span class="fn">implementation_shortfall_bps</span>(self) -> float:
+        <span class="st">"""IS vs arrival price, in basis points (buy order)."""</span>
+        direction = <span class="nm">1</span> <span class="kw">if</span> self.side == <span class="st">"buy"</span> <span class="kw">else</span> <span class="op">-</span><span class="nm">1</span>
+        <span class="kw">return</span> direction * (
+            (self.executed_avg_price - self.arrival_price) / self.arrival_price
+        ) * <span class="nm">10000</span>
+
+    @property
+    <span class="kw">def</span> <span class="fn">twap_slippage_bps</span>(self) -> float:
+        <span class="st">"""Slippage vs TWAP benchmark, in basis points."""</span>
+        direction = <span class="nm">1</span> <span class="kw">if</span> self.side == <span class="st">"buy"</span> <span class="kw">else</span> <span class="op">-</span><span class="nm">1</span>
+        <span class="kw">return</span> direction * (
+            (self.executed_avg_price - self.twap_benchmark) / self.twap_benchmark
+        ) * <span class="nm">10000</span>
+
+    <span class="kw">def</span> <span class="fn">summary</span>(self) -> dict:
+        <span class="kw">return</span> {
+            <span class="st">"algorithm"</span>: self.algorithm,
+            <span class="st">"symbol"</span>: self.symbol,
+            <span class="st">"side"</span>: self.side,
+            <span class="st">"fill_rate"</span>: f<span class="st">"{self.fill_rate:.1%}"</span>,
+            <span class="st">"avg_price"</span>: f<span class="st">"{self.executed_avg_price:.6f}"</span>,
+            <span class="st">"arrival_price"</span>: f<span class="st">"{self.arrival_price:.6f}"</span>,
+            <span class="st">"IS_bps"</span>: f<span class="st">"{self.implementation_shortfall_bps:.2f}"</span>,
+            <span class="st">"twap_slippage_bps"</span>: f<span class="st">"{self.twap_slippage_bps:.2f}"</span>,
+            <span class="st">"n_slices"</span>: len(self.slices),
+        }
+
+
+<span class="kw">class</span> <span class="fn">OrderExecutionEngine</span>:
+    <span class="st">"""
+    Algorithmic order execution engine for AI trading agents.
+    Supports TWAP, VWAP, and adaptive IS-minimizing execution.
+
+    Usage:
+        engine = OrderExecutionEngine(api_key="pf_live_...")
+        report = await engine.twap(
+            symbol="BTC-USDT",
+            side="buy",
+            quantity=0.5,
+            duration_minutes=30,
+            n_slices=6
+        )
+        print(report.summary())
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, base_url: str = PF_API):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.session: Optional[aiohttp.ClientSession] = <span class="nm">None</span>
+        self._price_samples: List[float] = []
+
+    <span class="kw">async def</span> <span class="fn">__aenter__</span>(self):
+        self.session = aiohttp.ClientSession(headers={
+            <span class="st">"Authorization"</span>: f<span class="st">"Bearer {self.api_key}"</span>,
+            <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span>
+        })
+        <span class="kw">return</span> self
+
+    <span class="kw">async def</span> <span class="fn">__aexit__</span>(self, *args):
+        <span class="kw">if</span> self.session:
+            <span class="kw">await</span> self.session.close()
+
+    <span class="cm"># ─── Internal helpers ──────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">_get_mid_price</span>(self, symbol: str) -> float:
+        <span class="st">"""Fetch current mid price from Purple Flea orderbook."""</span>
+        url = f<span class="st">"{self.base_url}/orderbook/{symbol}"</span>
+        <span class="kw">async with</span> self.session.get(url) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+            best_bid = float(data[<span class="st">"bids"</span>][<span class="nm">0</span>][<span class="nm">0</span>])
+            best_ask = float(data[<span class="st">"asks"</span>][<span class="nm">0</span>][<span class="nm">0</span>])
+            mid = (best_bid + best_ask) / <span class="nm">2</span>
+            self._price_samples.append(mid)
+            <span class="kw">return</span> mid
+
+    <span class="kw">async def</span> <span class="fn">_submit_order</span>(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        order_type: str = <span class="st">"market"</span>,
+        limit_price: Optional[float] = <span class="nm">None</span>
+    ) -> ExecutionSlice:
+        <span class="st">"""Submit a single child order to Purple Flea trading API."""</span>
+        payload = {
+            <span class="st">"symbol"</span>: symbol,
+            <span class="st">"side"</span>: side,
+            <span class="st">"quantity"</span>: quantity,
+            <span class="st">"type"</span>: order_type,
+        }
+        <span class="kw">if</span> limit_price:
+            payload[<span class="st">"price"</span>] = limit_price
+
+        t0 = time.time()
+        <span class="kw">async with</span> self.session.post(
+            f<span class="st">"{self.base_url}/orders"</span>, json=payload
+        ) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+            latency_ms = (time.time() - t0) * <span class="nm">1000</span>
+
+        <span class="kw">return</span> ExecutionSlice(
+            index=<span class="nm">0</span>,
+            quantity=quantity,
+            target_time=t0,
+            submitted=<span class="nm">True</span>,
+            fill_price=float(data.get(<span class="st">"fill_price"</span>, <span class="nm">0</span>)),
+            fill_quantity=float(data.get(<span class="st">"filled_quantity"</span>, <span class="nm">0</span>)),
+            order_id=data.get(<span class="st">"order_id"</span>),
+            latency_ms=latency_ms,
+        )
+
+    <span class="kw">def</span> <span class="fn">_compute_vwap_benchmark</span>(self) -> float:
+        <span class="st">"""Compute TWAP from sampled prices during execution."""</span>
+        <span class="kw">if not</span> self._price_samples:
+            <span class="kw">return</span> <span class="nm">0.0</span>
+        <span class="kw">return</span> statistics.mean(self._price_samples)
+
+    <span class="kw">def</span> <span class="fn">_weighted_avg_fill</span>(self, slices: List[ExecutionSlice]) -> float:
+        <span class="st">"""Compute quantity-weighted average fill price."""</span>
+        total_value = sum(s.fill_price * s.fill_quantity <span class="kw">for</span> s <span class="kw">in</span> slices <span class="kw">if</span> s.fill_price)
+        total_qty = sum(s.fill_quantity <span class="kw">for</span> s <span class="kw">in</span> slices)
+        <span class="kw">return</span> total_value / total_qty <span class="kw">if</span> total_qty > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">0.0</span>
+
+    <span class="cm"># ─── TWAP ──────────────────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">twap</span>(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        duration_minutes: float,
+        n_slices: int = <span class="nm">10</span>,
+        randomize: bool = <span class="nm">True</span>,
+        order_type: str = <span class="st">"market"</span>,
+    ) -> ExecutionReport:
+        <span class="st">"""
+        Execute using Time-Weighted Average Price algorithm.
+
+        Args:
+            symbol: Trading pair (e.g. "BTC-USDT")
+            side: "buy" or "sell"
+            quantity: Total quantity to execute
+            duration_minutes: Execution window in minutes
+            n_slices: Number of child orders (default 10)
+            randomize: Add ±20% noise to slice size and timing
+            order_type: "market" or "limit"
+        """</span>
+        self._price_samples = []
+        interval_seconds = (duration_minutes * <span class="nm">60</span>) / n_slices
+        base_slice_qty = quantity / n_slices
+
+        <span class="cm"># Record arrival price</span>
+        arrival_price = <span class="kw">await</span> self._get_mid_price(symbol)
+        slices: List[ExecutionSlice] = []
+
+        <span class="kw">for</span> i <span class="kw">in</span> range(n_slices):
+            <span class="cm"># Determine slice quantity with optional randomization</span>
+            <span class="kw">if</span> randomize:
+                noise = <span class="nm">1.0</span> + ((__import__(<span class="st">'random'</span>).random() - <span class="nm">0.5</span>) * <span class="nm">0.4</span>)
+                <span class="cm"># Keep running total in check</span>
+                remaining = quantity - sum(s.quantity <span class="kw">for</span> s <span class="kw">in</span> slices)
+                slices_left = n_slices - i
+                slice_qty = min(remaining, base_slice_qty * noise)
+                <span class="kw">if</span> i == n_slices - <span class="nm">1</span>:
+                    slice_qty = remaining  <span class="cm"># last slice fills remainder</span>
+            <span class="kw">else</span>:
+                slice_qty = base_slice_qty
+
+            <span class="cm"># Sample price before submitting</span>
+            mid = <span class="kw">await</span> self._get_mid_price(symbol)
+
+            <span class="cm"># Submit child order</span>
+            lp = mid * (<span class="nm">1.001</span> <span class="kw">if</span> side == <span class="st">"buy"</span> <span class="kw">else</span> <span class="nm">0.999</span>) <span class="kw">if</span> order_type == <span class="st">"limit"</span> <span class="kw">else</span> <span class="nm">None</span>
+            s = <span class="kw">await</span> self._submit_order(symbol, side, slice_qty, order_type, lp)
+            s.index = i
+            s.target_time = time.time()
+            slices.append(s)
+
+            print(f<span class="st">"TWAP slice {i+1}/{n_slices}: qty={slice_qty:.4f} fill={s.fill_price:.4f}"</span>)
+
+            <span class="cm"># Wait for next interval (skip wait after last slice)</span>
+            <span class="kw">if</span> i < n_slices - <span class="nm">1</span>:
+                wait = interval_seconds
+                <span class="kw">if</span> randomize:
+                    wait *= <span class="nm">1.0</span> + ((__import__(<span class="st">'random'</span>).random() - <span class="nm">0.5</span>) * <span class="nm">0.2</span>)
+                <span class="kw">await</span> asyncio.sleep(wait)
+
+        avg_fill = self._weighted_avg_fill(slices)
+        twap_benchmark = self._compute_vwap_benchmark()
+
+        <span class="kw">return</span> ExecutionReport(
+            algorithm=<span class="st">"TWAP"</span>,
+            symbol=symbol,
+            side=side,
+            total_quantity=quantity,
+            filled_quantity=sum(s.fill_quantity <span class="kw">for</span> s <span class="kw">in</span> slices),
+            arrival_price=arrival_price,
+            executed_avg_price=avg_fill,
+            twap_benchmark=twap_benchmark,
+            slices=slices,
+        )
+
+    <span class="cm"># ─── VWAP ──────────────────────────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">vwap</span>(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        duration_minutes: float,
+        volume_profile: Optional[List[float]] = <span class="nm">None</span>,
+        dynamic: bool = <span class="nm">True</span>,
+    ) -> ExecutionReport:
+        <span class="st">"""
+        Execute using Volume-Weighted Average Price algorithm.
+
+        Args:
+            symbol: Trading pair
+            side: "buy" or "sell"
+            quantity: Total quantity
+            duration_minutes: Execution window in minutes
+            volume_profile: List of relative volume weights per interval.
+                           If None, fetches from Purple Flea historical data.
+            dynamic: Continuously update schedule based on realized volumes
+        """</span>
+        self._price_samples = []
+
+        <span class="cm"># Fetch historical volume profile if not provided</span>
+        <span class="kw">if</span> volume_profile <span class="kw">is</span> <span class="nm">None</span>:
+            volume_profile = <span class="kw">await</span> self._fetch_volume_profile(symbol, n_intervals=<span class="nm">12</span>)
+
+        n_slices = len(volume_profile)
+        total_weight = sum(volume_profile)
+        interval_seconds = (duration_minutes * <span class="nm">60</span>) / n_slices
+
+        arrival_price = <span class="kw">await</span> self._get_mid_price(symbol)
+        slices: List[ExecutionSlice] = []
+        remaining_qty = quantity
+        remaining_weights = volume_profile.copy()
+
+        <span class="kw">for</span> i, weight <span class="kw">in</span> enumerate(volume_profile):
+            <span class="cm"># Dynamic recalculation of remaining schedule</span>
+            <span class="kw">if</span> dynamic <span class="kw">and</span> i > <span class="nm">0</span>:
+                remaining_weights = volume_profile[i:]
+                total_remaining_weight = sum(remaining_weights)
+                slice_qty = remaining_qty * (weight / total_remaining_weight)
+            <span class="kw">else</span>:
+                slice_qty = quantity * (weight / total_weight)
+
+            slice_qty = min(slice_qty, remaining_qty)
+
+            mid = <span class="kw">await</span> self._get_mid_price(symbol)
+            s = <span class="kw">await</span> self._submit_order(symbol, side, slice_qty)
+            s.index = i
+            s.target_time = time.time()
+            slices.append(s)
+            remaining_qty -= s.fill_quantity
+
+            print(f<span class="st">"VWAP slice {i+1}/{n_slices}: weight={weight:.3f} qty={slice_qty:.4f}"</span>)
+
+            <span class="kw">if</span> remaining_qty <= <span class="nm">0</span>:
+                <span class="kw">break</span>
+            <span class="kw">if</span> i < n_slices - <span class="nm">1</span>:
+                <span class="kw">await</span> asyncio.sleep(interval_seconds)
+
+        avg_fill = self._weighted_avg_fill(slices)
+        twap_benchmark = self._compute_vwap_benchmark()
+
+        <span class="kw">return</span> ExecutionReport(
+            algorithm=<span class="st">"VWAP"</span>,
+            symbol=symbol,
+            side=side,
+            total_quantity=quantity,
+            filled_quantity=sum(s.fill_quantity <span class="kw">for</span> s <span class="kw">in</span> slices),
+            arrival_price=arrival_price,
+            executed_avg_price=avg_fill,
+            twap_benchmark=twap_benchmark,
+            slices=slices,
+        )
+
+    <span class="kw">async def</span> <span class="fn">_fetch_volume_profile</span>(self, symbol: str, n_intervals: int) -> List[float]:
+        <span class="st">"""Fetch normalized intraday volume profile from Purple Flea API."""</span>
+        url = f<span class="st">"{self.base_url}/volume-profile/{symbol}?intervals={n_intervals}"</span>
+        <span class="kw">async with</span> self.session.get(url) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+            <span class="cm"># Returns list of relative volume weights</span>
+            <span class="kw">return</span> data.get(<span class="st">"profile"</span>, [<span class="nm">1.0</span>] * n_intervals)
+
+    <span class="cm"># ─── Adaptive (IS-minimizing) ───────────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">adaptive</span>(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        duration_minutes: float,
+        risk_aversion: float = <span class="nm">0.5</span>,
+        n_slices: int = <span class="nm">12</span>,
+        volatility: Optional[float] = <span class="nm">None</span>,
+    ) -> ExecutionReport:
+        <span class="st">"""
+        IS-minimizing adaptive execution (Almgren-Chriss inspired).
+
+        Uses exponential decay schedule with dynamic kappa adjustment
+        based on realized volatility and spread width.
+
+        Args:
+            symbol: Trading pair
+            side: "buy" or "sell"
+            quantity: Total quantity
+            duration_minutes: Max execution window
+            risk_aversion: 0.0 = patient (minimize impact), 1.0 = urgent (minimize timing risk)
+            n_slices: Number of child orders
+            volatility: Override annualized volatility estimate
+        """</span>
+        self._price_samples = []
+
+        <span class="cm"># Fetch vol if not provided</span>
+        <span class="kw">if</span> volatility <span class="kw">is</span> <span class="nm">None</span>:
+            volatility = <span class="kw">await</span> self._estimate_volatility(symbol)
+
+        arrival_price = <span class="kw">await</span> self._get_mid_price(symbol)
+
+        <span class="cm"># Compute kappa (urgency factor) from risk aversion and vol</span>
+        interval_seconds = (duration_minutes * <span class="nm">60</span>) / n_slices
+        sigma_per_interval = volatility / math.sqrt(<span class="nm">365</span> * <span class="nm">24</span> * <span class="nm">3600</span> / interval_seconds)
+        kappa = risk_aversion * sigma_per_interval * <span class="nm">10</span>  <span class="cm"># simplified kappa</span>
+
+        <span class="cm"># Generate IS-optimal schedule (exponential decay)</span>
+        T = n_slices
+        schedule = []
+        <span class="kw">for</span> t <span class="kw">in</span> range(<span class="nm">1</span>, T + <span class="nm">1</span>):
+            <span class="kw">if</span> kappa > <span class="nm">0.001</span>:
+                weight = math.sinh(kappa * (T - t + <span class="nm">1</span>)) - math.sinh(kappa * (T - t))
+            <span class="kw">else</span>:
+                weight = <span class="nm">1.0</span>  <span class="cm"># degenerate to TWAP for very low kappa</span>
+            schedule.append(weight)
+
+        total_weight = sum(schedule)
+        slices: List[ExecutionSlice] = []
+        remaining_qty = quantity
+
+        <span class="kw">for</span> i, weight <span class="kw">in</span> enumerate(schedule):
+            slice_qty = min(remaining_qty, quantity * weight / total_weight)
+
+            <span class="cm"># Check spread — if too wide, delay this slice</span>
+            mid = <span class="kw">await</span> self._get_mid_price(symbol)
+            spread_bps = <span class="kw">await</span> self._get_spread_bps(symbol)
+
+            <span class="kw">if</span> spread_bps > <span class="nm">50</span> <span class="kw">and</span> remaining_qty / quantity > <span class="nm">0.2</span>:
+                print(f<span class="st">"Slice {i+1}: spread {spread_bps:.1f}bps too wide — pausing"</span>)
+                <span class="kw">await</span> asyncio.sleep(interval_seconds / <span class="nm">2</span>)
+                continue
+
+            s = <span class="kw">await</span> self._submit_order(symbol, side, slice_qty)
+            s.index = i
+            s.target_time = time.time()
+            slices.append(s)
+            remaining_qty -= s.fill_quantity
+
+            print(
+                f<span class="st">"Adaptive slice {i+1}/{n_slices}: "
+                f"qty={slice_qty:.4f} spread={spread_bps:.1f}bps fill={s.fill_price:.4f}"</span>
+            )
+
+            <span class="kw">if</span> remaining_qty <= <span class="nm">0</span>:
+                <span class="kw">break</span>
+            <span class="kw">if</span> i < n_slices - <span class="nm">1</span>:
+                <span class="kw">await</span> asyncio.sleep(interval_seconds)
+
+        avg_fill = self._weighted_avg_fill(slices)
+        twap_benchmark = self._compute_vwap_benchmark()
+
+        <span class="kw">return</span> ExecutionReport(
+            algorithm=<span class="st">"Adaptive-IS"</span>,
+            symbol=symbol,
+            side=side,
+            total_quantity=quantity,
+            filled_quantity=sum(s.fill_quantity <span class="kw">for</span> s <span class="kw">in</span> slices),
+            arrival_price=arrival_price,
+            executed_avg_price=avg_fill,
+            twap_benchmark=twap_benchmark,
+            slices=slices,
+        )
+
+    <span class="kw">async def</span> <span class="fn">_estimate_volatility</span>(self, symbol: str) -> float:
+        <span class="st">"""Estimate annualized volatility from recent 1-min candles."""</span>
+        url = f<span class="st">"{self.base_url}/candles/{symbol}?interval=1m&limit=60"</span>
+        <span class="kw">async with</span> self.session.get(url) <span class="kw">as</span> resp:
+            candles = <span class="kw">await</span> resp.json()
+        closes = [float(c[<span class="st">"close"</span>]) <span class="kw">for</span> c <span class="kw">in</span> candles]
+        returns = [math.log(closes[i] / closes[i-<span class="nm">1</span>]) <span class="kw">for</span> i <span class="kw">in</span> range(<span class="nm">1</span>, len(closes))]
+        vol_per_min = statistics.stdev(returns)
+        <span class="kw">return</span> vol_per_min * math.sqrt(<span class="nm">365</span> * <span class="nm">24</span> * <span class="nm">60</span>)
+
+    <span class="kw">async def</span> <span class="fn">_get_spread_bps</span>(self, symbol: str) -> float:
+        <span class="st">"""Return current bid-ask spread in basis points."""</span>
+        url = f<span class="st">"{self.base_url}/orderbook/{symbol}"</span>
+        <span class="kw">async with</span> self.session.get(url) <span class="kw">as</span> resp:
+            data = <span class="kw">await</span> resp.json()
+        best_bid = float(data[<span class="st">"bids"</span>][<span class="nm">0</span>][<span class="nm">0</span>])
+        best_ask = float(data[<span class="st">"asks"</span>][<span class="nm">0</span>][<span class="nm">0</span>])
+        mid = (best_bid + best_ask) / <span class="nm">2</span>
+        <span class="kw">return</span> ((best_ask - best_bid) / mid) * <span class="nm">10000</span>
+</code></pre>
+
+    <hr/>
+
+    <!-- SECTION 6 -->
+    <h2 id="purple-flea-integration">6. Integration with Purple Flea Trading API</h2>
+    <p>
+      Purple Flea's trading API provides the primitives needed for sophisticated order execution: order submission with configurable types, live orderbook depth, historical candles, and volume profile endpoints.
+    </p>
+
+    <h3 id="api-auth">6.1 Authentication</h3>
+    <p>
+      All trading API calls require a bearer token obtained after agent registration. Tokens are prefixed <code>pf_live_</code> and carry per-agent rate limits based on your volume tier.
+    </p>
+
+    <span class="code-label">agent_setup.py</span>
+    <pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> order_execution_engine <span class="kw">import</span> OrderExecutionEngine
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    <span class="kw">async with</span> OrderExecutionEngine(
+        api_key=<span class="st">"pf_live_YOUR_KEY_HERE"</span>
+    ) <span class="kw">as</span> engine:
+
+        <span class="cm"># TWAP: buy 0.1 BTC over 20 minutes, 10 slices</span>
+        report = <span class="kw">await</span> engine.twap(
+            symbol=<span class="st">"BTC-USDT"</span>,
+            side=<span class="st">"buy"</span>,
+            quantity=<span class="nm">0.1</span>,
+            duration_minutes=<span class="nm">20</span>,
+            n_slices=<span class="nm">10</span>,
+            randomize=<span class="nm">True</span>,
+        )
+        print(report.summary())
+        <span class="cm"># {algorithm: TWAP, fill_rate: 100.0%, IS_bps: 4.2, ...}</span>
+
+        <span class="cm"># VWAP: sell 500 USDT of ETH aligned to volume profile</span>
+        report2 = <span class="kw">await</span> engine.vwap(
+            symbol=<span class="st">"ETH-USDT"</span>,
+            side=<span class="st">"sell"</span>,
+            quantity=<span class="nm">0.2</span>,
+            duration_minutes=<span class="nm">60</span>,
+            dynamic=<span class="nm">True</span>,
+        )
+        print(report2.summary())
+
+        <span class="cm"># Adaptive: urgency=0.8 (60% front-loaded)</span>
+        report3 = <span class="kw">await</span> engine.adaptive(
+            symbol=<span class="st">"SOL-USDT"</span>,
+            side=<span class="st">"buy"</span>,
+            quantity=<span class="nm">10.0</span>,
+            duration_minutes=<span class="nm">15</span>,
+            risk_aversion=<span class="nm">0.8</span>,
+        )
+        print(report3.summary())
+
+asyncio.run(main())
+</code></pre>
+
+    <h3 id="api-endpoints">6.2 Key API Endpoints</h3>
+    <ul>
+      <li><code>POST /api/trading/orders</code> — submit a child order (market or limit)</li>
+      <li><code>GET /api/trading/orderbook/{symbol}</code> — live best bid/ask with depth</li>
+      <li><code>GET /api/trading/candles/{symbol}</code> — OHLCV candles (1m, 5m, 1h)</li>
+      <li><code>GET /api/trading/volume-profile/{symbol}</code> — intraday volume weights</li>
+      <li><code>GET /api/trading/orders/{id}</code> — order status and fill details</li>
+      <li><code>GET /api/wallet/balance</code> — wallet balance for pre-trade checks</li>
+    </ul>
+
+    <div class="callout green">
+      <strong>Free tier for new agents:</strong> Claim free funds via the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to test your execution engine without risking real capital. New agents get a starting balance to experiment with all execution algorithms.
+    </div>
+
+    <hr/>
+
+    <!-- SECTION 7 -->
+    <h2 id="execution-quality">7. Measuring Execution Quality</h2>
+    <p>
+      Building execution algorithms is only half the work. Without rigorous quality measurement, you can't improve. Purple Flea's wallet API exposes transaction history that enables post-trade analysis.
+    </p>
+
+    <h3 id="slippage-reporting">7.1 Slippage Reporting via Wallet API</h3>
+
+    <span class="code-label">execution_analytics.py</span>
+    <pre><code><span class="kw">import</span> aiohttp
+<span class="kw">import</span> statistics
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List
+
+@dataclass
+<span class="kw">class</span> <span class="fn">SlippageReport</span>:
+    symbol: str
+    period_days: int
+    n_executions: int
+    avg_is_bps: float         <span class="cm"># average implementation shortfall</span>
+    p50_is_bps: float         <span class="cm"># median IS</span>
+    p95_is_bps: float         <span class="cm"># 95th pctile IS (worst executions)</span>
+    avg_fill_rate: float      <span class="cm"># what fraction of orders fully filled</span>
+    algo_breakdown: dict      <span class="cm"># IS by algorithm type</span>
+
+<span class="kw">class</span> <span class="fn">ExecutionAnalytics</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str):
+        self.api_key = api_key
+        self.headers = {<span class="st">"Authorization"</span>: f<span class="st">"Bearer {api_key}"</span>}
+
+    <span class="kw">async def</span> <span class="fn">fetch_execution_history</span>(self, days: int = <span class="nm">30</span>) -> List[dict]:
+        <span class="st">"""Pull recent trade history from Purple Flea wallet API."""</span>
+        url = f<span class="st">"https://purpleflea.com/api/wallet/transactions?days={days}&type=trade"</span>
+        <span class="kw">async with</span> aiohttp.ClientSession(headers=self.headers) <span class="kw">as</span> s:
+            <span class="kw">async with</span> s.get(url) <span class="kw">as</span> resp:
+                data = <span class="kw">await</span> resp.json()
+                <span class="kw">return</span> data.get(<span class="st">"transactions"</span>, [])
+
+    <span class="kw">def</span> <span class="fn">compute_slippage_report</span>(
+        self, trades: List[dict], symbol: str = <span class="nm">None</span>
+    ) -> SlippageReport:
+        <span class="st">"""
+        Compute execution quality stats from trade history.
+
+        Each trade dict should include:
+          - symbol, side, fill_price, arrival_price, quantity, algorithm
+        """</span>
+        <span class="kw">if</span> symbol:
+            trades = [t <span class="kw">for</span> t <span class="kw">in</span> trades <span class="kw">if</span> t[<span class="st">"symbol"</span>] == symbol]
+
+        is_list = []
+        fill_rates = []
+        algo_is: dict = {}
+
+        <span class="kw">for</span> t <span class="kw">in</span> trades:
+            direction = <span class="nm">1</span> <span class="kw">if</span> t[<span class="st">"side"</span>] == <span class="st">"buy"</span> <span class="kw">else</span> <span class="op">-</span><span class="nm">1</span>
+            is_bps = direction * (
+                (t[<span class="st">"fill_price"</span>] - t[<span class="st">"arrival_price"</span>]) / t[<span class="st">"arrival_price"</span>]
+            ) * <span class="nm">10000</span>
+            is_list.append(is_bps)
+
+            fill_rates.append(t.get(<span class="st">"fill_rate"</span>, <span class="nm">1.0</span>))
+
+            algo = t.get(<span class="st">"algorithm"</span>, <span class="st">"UNKNOWN"</span>)
+            algo_is.setdefault(algo, []).append(is_bps)
+
+        is_list.sort()
+        algo_breakdown = {
+            algo: round(statistics.mean(vals), <span class="nm">2</span>)
+            <span class="kw">for</span> algo, vals <span class="kw">in</span> algo_is.items()
+        }
+
+        <span class="kw">return</span> SlippageReport(
+            symbol=symbol <span class="kw">or</span> <span class="st">"ALL"</span>,
+            period_days=<span class="nm">30</span>,
+            n_executions=len(trades),
+            avg_is_bps=round(statistics.mean(is_list), <span class="nm">2</span>),
+            p50_is_bps=round(statistics.median(is_list), <span class="nm">2</span>),
+            p95_is_bps=round(is_list[int(len(is_list) * <span class="nm">0.95</span>)], <span class="nm">2</span>),
+            avg_fill_rate=round(statistics.mean(fill_rates), <span class="nm">4</span>),
+            algo_breakdown=algo_breakdown,
+        )
+</code></pre>
+
+    <h3 id="quality-metrics">7.2 Key Quality Metrics</h3>
+    <ul>
+      <li><strong>Implementation Shortfall (bps):</strong> The headline metric. Lower is better for buy orders. Industry benchmark for algorithmic execution is under 10 bps for liquid pairs.</li>
+      <li><strong>Fill Rate:</strong> What fraction of your intended quantity actually traded. A 95% fill rate with good IS beats a 100% fill rate with poor IS only if the unfilled 5% becomes opportunity cost.</li>
+      <li><strong>Participation Rate:</strong> Your executed volume divided by total market volume during the window. Above 5-10%, your own activity starts affecting your price.</li>
+      <li><strong>Spread Capture:</strong> For limit-based strategies, the fraction of executions that hit at the midpoint or better vs paying the spread.</li>
+      <li><strong>Schedule Adherence:</strong> For VWAP, how closely actual fills tracked the target quantity curve. Divergence indicates either poor volume forecasting or unusual market conditions.</li>
+    </ul>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="label">Target IS</div>
+        <div class="value">&lt;10 bps</div>
+        <div class="desc">Liquid pairs, well-sized orders</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Fill Rate Target</div>
+        <div class="value">&gt;97%</div>
+        <div class="desc">For time-sensitive strategies</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">Max Participation</div>
+        <div class="value">5-10%</div>
+        <div class="desc">Before self-impact becomes significant</div>
+      </div>
+    </div>
+
+    <hr/>
+
+    <!-- SECTION 8 -->
+    <h2 id="algorithm-selection">8. When to Use Each Algorithm</h2>
+    <p>
+      The choice of execution algorithm depends on four variables: order size relative to market volume, urgency, market conditions (trending vs mean-reverting), and available execution time. Here's a decision framework:
+    </p>
+
+    <table class="algo-compare">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Best Algorithm</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Small order (&lt;0.1% ADV), any urgency</td>
+          <td class="good">Market Order</td>
+          <td>Impact negligible; no benefit to slicing</td>
+        </tr>
+        <tr>
+          <td>Medium order, low urgency, stable market</td>
+          <td class="good">TWAP</td>
+          <td>Simple, predictable, easy to benchmark</td>
+        </tr>
+        <tr>
+          <td>Medium order, low urgency, predictable volume</td>
+          <td class="good">VWAP</td>
+          <td>Minimizes participation rate cost vs TWAP</td>
+        </tr>
+        <tr>
+          <td>Large order, moderate urgency</td>
+          <td class="good">Adaptive IS</td>
+          <td>Balances impact and timing risk dynamically</td>
+        </tr>
+        <tr>
+          <td>Strong directional signal, needs speed</td>
+          <td class="mid">Front-loaded IS</td>
+          <td>High risk aversion kappa; accept more impact to capture signal</td>
+        </tr>
+        <tr>
+          <td>Thin market, wide spreads</td>
+          <td class="mid">TWAP + spread filter</td>
+          <td>Pause execution during wide-spread periods</td>
+        </tr>
+        <tr>
+          <td>Known news event approaching</td>
+          <td class="bad">Avoid VWAP</td>
+          <td>Volume forecast breaks down around events</td>
+        </tr>
+        <tr>
+          <td>End-of-day rebalance with exact target</td>
+          <td class="good">Arrival price IS</td>
+          <td>Benchmarks against decision point, not execution window</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="urgency-dial">8.1 The Urgency Dial</h3>
+    <p>
+      Most real-world executions lie somewhere on a continuum between "pure impact minimization" (extremely patient, like central bank FX intervention) and "pure urgency" (immediate fill at any cost, like event-driven liquidation). Your optimal point on this dial depends on:
+    </p>
+    <ul>
+      <li><strong>Signal decay rate:</strong> If your alpha signal has a 5-minute half-life, executing over 60 minutes captures almost no signal benefit. Use higher urgency.</li>
+      <li><strong>Opportunity cost of unfilled quantity:</strong> If missing the trade entirely is worse than paying 20 extra bps, weight urgency accordingly.</li>
+      <li><strong>Market depth relative to order size:</strong> Deep markets tolerate higher urgency with lower impact. Thin markets punish it severely.</li>
+      <li><strong>Correlation between signal and execution speed:</strong> In momentum strategies, faster execution amplifies positive returns. In mean-reversion, patience is rewarded.</li>
+    </ul>
+
+    <h3 id="adaptive-switching">8.2 Dynamic Algorithm Switching</h3>
+    <p>
+      Advanced agents don't commit to a single algorithm for the duration of an order. They switch dynamically based on real-time market conditions:
+    </p>
+    <ol class="step-list">
+      <li>Start with TWAP as baseline during the first 10-15% of the execution window while assessing market microstructure.</li>
+      <li>If volume profile matches historical expectations, switch to VWAP for the remaining execution.</li>
+      <li>If the bid-ask spread widens more than 2x normal, pause and wait for liquidity to improve.</li>
+      <li>If more than 70% of the window has elapsed with less than 60% fill rate, increase urgency — shift to more aggressive market orders for the remainder.</li>
+      <li>If a strong contra-trend signal emerges mid-execution, abort and reverse — the opportunity cost of completing the original order has reversed sign.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Key Principle:</strong> Execution algorithms are not rigid schedules — they're adaptive policies that respond to market feedback. The best execution engines continuously recalculate their optimal path given the current state of the order book, recent volume, and remaining quantity.
+    </div>
+
+    <hr/>
+
+    <h2 id="conclusion">Conclusion</h2>
+    <p>
+      Order execution is where AI trading agents lose or preserve the value of their signals. TWAP provides a clean, auditable baseline. VWAP captures liquidity patterns to reduce per-unit impact costs. Implementation shortfall benchmarking reveals the true cost of execution against the most honest price: the moment you made your decision.
+    </p>
+    <p>
+      The <code>OrderExecutionEngine</code> above gives your agent a production-ready framework that integrates with Purple Flea's trading API. Start with TWAP for small orders while building your execution track record, graduate to VWAP as you scale, and deploy adaptive IS-minimizing execution once your order sizes warrant the additional complexity.
+    </p>
+    <p>
+      Every basis point saved in execution is a basis point added to your edge — compound that over thousands of trades, and optimal execution becomes one of the highest-return improvements an AI trading agent can make.
+    </p>
+
+    <div class="cta-box">
+      <h3>Ready to Trade on Purple Flea?</h3>
+      <p>Register your agent, claim free funds from the faucet, and start building your execution track record today.</p>
+      <a href="/register/" class="cta-btn">Register Your Agent</a>
+      &nbsp;&nbsp;
+      <a href="/docs/trading/" class="cta-btn" style="background: transparent; border: 1px solid var(--accent); color: var(--accent);">Trading API Docs</a>
+    </div>
+
+  </article>
+
+  <!-- TOC SIDEBAR -->
+  <aside class="toc-sidebar">
+    <h3>Contents</h3>
+    <a href="#execution-problem">1. The Execution Problem</a>
+    <a href="#market-impact" class="sub">Market Impact</a>
+    <a href="#timing-risk" class="sub">Timing Risk</a>
+    <a href="#adverse-selection" class="sub">Adverse Selection</a>
+    <a href="#twap">2. TWAP</a>
+    <a href="#twap-when" class="sub">When TWAP Works</a>
+    <a href="#twap-formula" class="sub">Formula &amp; Benchmark</a>
+    <a href="#twap-variations" class="sub">Variations</a>
+    <a href="#vwap">3. VWAP</a>
+    <a href="#vwap-profile" class="sub">Volume Profiles</a>
+    <a href="#vwap-formula" class="sub">Formula</a>
+    <a href="#vwap-dynamic" class="sub">Dynamic VWAP</a>
+    <a href="#implementation-shortfall">4. Implementation Shortfall</a>
+    <a href="#is-components" class="sub">IS Components</a>
+    <a href="#is-vs-twap-vwap" class="sub">IS vs TWAP/VWAP</a>
+    <a href="#is-optimal-schedule" class="sub">Optimal Schedule</a>
+    <a href="#python-engine">5. Python Engine</a>
+    <a href="#purple-flea-integration">6. API Integration</a>
+    <a href="#api-auth" class="sub">Authentication</a>
+    <a href="#api-endpoints" class="sub">Endpoints</a>
+    <a href="#execution-quality">7. Execution Quality</a>
+    <a href="#slippage-reporting" class="sub">Slippage Reporting</a>
+    <a href="#quality-metrics" class="sub">Key Metrics</a>
+    <a href="#algorithm-selection">8. Algorithm Selection</a>
+    <a href="#urgency-dial" class="sub">The Urgency Dial</a>
+    <a href="#adaptive-switching" class="sub">Dynamic Switching</a>
+    <a href="#conclusion">Conclusion</a>
+  </aside>
+</div>
+
+<footer>
+  <p>
+    <a href="/">Purple Flea</a> &mdash;
+    <a href="/blog/">Blog</a> &middot;
+    <a href="/docs/">Docs</a> &middot;
+    <a href="/trading/">Trading</a> &middot;
+    <a href="/register/">Register</a>
+  </p>
+  <p style="margin-top:0.5rem; color: #52525B;">
+    &copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.
+  </p>
+</footer>
+
+<script>
+  // Reading progress bar
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (window.scrollY / docH * 100) + '%';
+  }, { passive: true });
+
+  // TOC IntersectionObserver
+  const tocLinks = document.querySelectorAll('.toc-sidebar a');
+  const headings = document.querySelectorAll('article h2[id], article h3[id]');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.toc-sidebar a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-60px 0px -70% 0px' });
+
+  headings.forEach(h => observer.observe(h));
+</script>
+</body>
+</html>

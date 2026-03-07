@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Event-Driven AI Agents: Reacting to Market and Payment Events in Real Time | Purple Flea Blog</title>
+  <meta name="description" content="How to build event-driven AI agents that react instantly to escrow releases, price movements, funding rate changes, and low balance alerts — without polling. Full Python examples with WebSocket streams and Kafka." />
+  <meta name="keywords" content="event-driven AI agents, agent WebSocket, escrow event handler, price alert agent, Kafka agent events, autonomous agent payments, Purple Flea event streaming, agent event sourcing" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-event-driven" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Event-Driven AI Agents: Reacting to Market and Payment Events in Real Time" />
+  <meta property="og:description" content="Stop polling. Build agents that react instantly to escrow.released, price.moved, funding_rate.changed, and balance.low events via WebSocket streams and Kafka." />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-event-driven" />
+  <meta property="og:site_name" content="Purple Flea" />
+  <meta property="og:image" content="https://purpleflea.com/flea.jpg" />
+  <meta property="article:published_time" content="2026-03-07" />
+  <meta property="article:author" content="Purple Flea" />
+  <meta property="article:tag" content="architecture" />
+  <meta property="article:tag" content="agents" />
+  <meta property="article:tag" content="kafka" />
+  <meta property="article:tag" content="websockets" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@purpleflea" />
+  <meta name="twitter:title" content="Event-Driven AI Agents: Reacting to Market and Payment Events in Real Time" />
+  <meta name="twitter:description" content="Build agents that react to escrow releases, price spikes, and balance alerts in milliseconds — not minutes. Architecture guide + full Python code." />
+  <meta name="twitter:image" content="https://purpleflea.com/flea.jpg" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Event-Driven AI Agents: Reacting to Market and Payment Events in Real Time",
+    "description": "Architecture guide for building event-driven AI agents that react instantly to escrow releases, price movements, funding rate changes, and low balance alerts. Includes Python EventDrivenAgent class, WebSocket integration, event sourcing, and Kafka for high-volume pipelines.",
+    "url": "https://purpleflea.com/blog/agent-event-driven",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Purple Flea",
+      "url": "https://purpleflea.com",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://purpleflea.com/flea.jpg"
+      }
+    },
+    "image": "https://purpleflea.com/flea.jpg",
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": "https://purpleflea.com/blog/agent-event-driven"
+    },
+    "keywords": ["event-driven agents", "WebSocket", "Kafka", "escrow events", "price alerts", "event sourcing", "Purple Flea", "autonomous agents"],
+    "articleSection": "Architecture",
+    "inLanguage": "en",
+    "isPartOf": {
+      "@type": "Blog",
+      "name": "Purple Flea Blog",
+      "url": "https://purpleflea.com/blog"
+    }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --surface2: #1C1C1F;
+      --border: #27272A;
+      --text: #FAFAFA;
+      --muted: #71717A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --accent-glow: rgba(168, 85, 247, 0.15);
+      --code-bg: #0D0D0F;
+      --green: #22C55E;
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+      --red: #EF4444;
+      --orange: #F97316;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 200;
+      transition: width 0.1s linear;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(9,9,11,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .nav-brand span { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    /* LAYOUT: article + sidebar */
+    .post-layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 3rem 2rem 5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    /* ARTICLE */
+    article {
+      min-width: 0;
+    }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .post-tag {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tag-arch { background: rgba(59,130,246,0.15); color: var(--blue); }
+    .tag-guide { background: rgba(34,197,94,0.15); color: var(--green); }
+
+    .post-date {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .post-read {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    article h1 {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+    }
+
+    article h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .post-intro {
+      font-size: 1.1rem;
+      color: var(--muted);
+      line-height: 1.75;
+      margin-bottom: 2.5rem;
+      border-left: 3px solid var(--accent);
+      padding-left: 1.25rem;
+    }
+
+    article h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin: 2.5rem 0 1rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    article h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 2rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+
+    article p {
+      color: #D4D4D8;
+      margin-bottom: 1.25rem;
+      line-height: 1.75;
+    }
+
+    article ul, article ol {
+      margin: 0 0 1.25rem 1.5rem;
+      color: #D4D4D8;
+    }
+
+    article li {
+      margin-bottom: 0.5rem;
+      line-height: 1.7;
+    }
+
+    article strong { color: var(--text); font-weight: 700; }
+
+    article code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      color: var(--accent);
+    }
+
+    /* CODE BLOCKS */
+    .code-section {
+      margin: 1.75rem 0;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111113;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      padding: 0.6rem 1rem;
+    }
+
+    .code-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .code-lang {
+      font-size: 0.7rem;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 0 0 8px 8px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.75;
+      color: #E4E4E7;
+      margin: 0;
+    }
+
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .str { color: #86EFAC; }
+    .cm { color: #52525B; font-style: italic; }
+    .num { color: #FCD34D; }
+    .cls { color: #FB923C; }
+    .dec { color: #F472B6; }
+
+    /* CALLOUT BOX */
+    .callout {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1.25rem 1.5rem;
+      margin: 1.75rem 0;
+    }
+
+    .callout-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    .callout p {
+      color: var(--text);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    .callout.green { border-left-color: var(--green); }
+    .callout.green .callout-label { color: var(--green); }
+    .callout.yellow { border-left-color: var(--yellow); }
+    .callout.yellow .callout-label { color: var(--yellow); }
+    .callout.red { border-left-color: var(--red); }
+    .callout.red .callout-label { color: var(--red); }
+
+    /* EVENT TYPE GRID */
+    .event-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin: 1.75rem 0;
+    }
+
+    .event-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .event-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 0.6rem;
+      font-weight: 600;
+    }
+
+    .event-card h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: var(--text);
+    }
+
+    .event-card p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    /* COMPARISON TABLE */
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1.75rem 0;
+    }
+
+    .compare-table th {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .compare-table td {
+      border: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+      color: var(--text);
+    }
+
+    .compare-table tr:hover td { background: var(--surface); }
+
+    .check { color: var(--green); font-weight: 700; }
+    .cross { color: var(--red); font-weight: 700; }
+
+    /* DIAGRAM */
+    .arch-diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.75rem;
+      margin: 1.75rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.8;
+      color: #D4D4D8;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .arch-diagram .acc { color: var(--accent); }
+    .arch-diagram .grn { color: var(--green); }
+    .arch-diagram .yel { color: var(--yellow); }
+    .arch-diagram .blu { color: var(--blue); }
+    .arch-diagram .mut { color: var(--muted); }
+
+    /* SIDEBAR */
+    .sidebar {
+      position: sticky;
+      top: 80px;
+    }
+
+    .toc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .toc-list a {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      line-height: 1.5;
+      display: block;
+      padding: 0.2rem 0;
+      border-left: 2px solid transparent;
+      padding-left: 0.75rem;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .toc-list a:hover,
+    .toc-list a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+    }
+
+    .toc-list a.sub {
+      padding-left: 1.5rem;
+      font-size: 0.79rem;
+    }
+
+    .sidebar-links {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+
+    .sidebar-links h4 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .sidebar-links ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .sidebar-links a {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .sidebar-links a:hover { color: var(--text); }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr repeat(3, auto);
+      gap: 3rem;
+      align-items: start;
+    }
+
+    .footer-brand p {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+      line-height: 1.6;
+      max-width: 260px;
+    }
+
+    .footer-col h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .footer-col a {
+      font-size: 0.875rem;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-col a:hover { color: var(--text); text-decoration: none; }
+
+    .footer-bottom {
+      max-width: 1100px;
+      margin: 2rem auto 0;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-bottom p { font-size: 0.8rem; color: var(--muted); }
+
+    /* RESPONSIVE */
+    @media (max-width: 900px) {
+      .post-layout { grid-template-columns: 1fr; gap: 2rem; }
+      .sidebar { position: static; }
+      .nav-links { display: none; }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <a href="/" class="nav-brand">Purple <span>Flea</span></a>
+  <ul class="nav-links">
+    <li><a href="/casino">Casino</a></li>
+    <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+    <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+    <li><a href="/docs/trading">Trading API</a></li>
+    <li><a href="/docs/wallet">Wallet API</a></li>
+    <li><a href="/blog">Blog</a></li>
+  </ul>
+</nav>
+
+<div class="post-layout">
+  <!-- MAIN ARTICLE -->
+  <article>
+    <div class="post-meta">
+      <span class="post-tag tag-arch">Architecture</span>
+      <span class="post-tag tag-guide">Guide</span>
+      <span class="post-date">March 7, 2026</span>
+      <span class="post-read">19 min read</span>
+    </div>
+
+    <h1>Event-Driven AI Agents:<br /><em>Reacting to Market and Payment Events in Real Time</em></h1>
+
+    <p class="post-intro">
+      Most AI agents poll for information. They ask "what is the price?" every few seconds.
+      They check "was my escrow released?" on a cron. This is slow, wasteful, and brittle.
+      Event-driven agents are different: they sit idle, listening, and react the moment something happens.
+      This guide covers everything you need to build an agent that wakes up on an event and acts immediately.
+    </p>
+
+    <!-- SECTION 1 -->
+    <h2 id="why-event-driven">Why Event-Driven Beats Polling</h2>
+
+    <p>
+      A polling agent runs a loop: sleep 5 seconds, call API, check if anything changed, sleep again.
+      In the best case it wastes API quota and compute. In the worst case it misses a 200ms price spike
+      that would have triggered a profitable trade, or fails to catch an escrow release before
+      a competitor agent does.
+    </p>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Characteristic</th>
+          <th>Polling Agent</th>
+          <th>Event-Driven Agent</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Reaction latency</td>
+          <td>Poll interval (1–60s)</td>
+          <td>&lt; 10ms from event emission</td>
+        </tr>
+        <tr>
+          <td>API calls at idle</td>
+          <td>Constant — N calls/minute</td>
+          <td>Zero — only on event arrival</td>
+        </tr>
+        <tr>
+          <td>Misses short-lived events</td>
+          <td><span class="cross">Yes — if between polls</span></td>
+          <td><span class="check">No — every event delivered</span></td>
+        </tr>
+        <tr>
+          <td>Scales to 100 event types</td>
+          <td><span class="cross">Each type = separate loop</span></td>
+          <td><span class="check">Single subscription fan-out</span></td>
+        </tr>
+        <tr>
+          <td>Rate limit risk</td>
+          <td><span class="cross">High — polling counts</span></td>
+          <td><span class="check">Low — only on events</span></td>
+        </tr>
+        <tr>
+          <td>State reconstruction</td>
+          <td>Requires full API re-fetch</td>
+          <td>Replay event log</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      The core idea is simple: instead of your agent asking "has anything changed?", the system
+      tells your agent "this just happened." Purple Flea supports this via WebSocket streams
+      for real-time events and webhook callbacks for reliable delivery of payment and escrow events.
+    </p>
+
+    <div class="callout green">
+      <div class="callout-label">Key Principle</div>
+      <p>An event-driven agent spends 99% of its time blocked on I/O, consuming zero CPU.
+      The remaining 1% is pure reaction time — fast, targeted, intentional.</p>
+    </div>
+
+    <!-- SECTION 2 -->
+    <h2 id="event-types">Purple Flea Event Types</h2>
+
+    <p>
+      Every Purple Flea service emits events. Here are the core event types your agent should subscribe to,
+      organized by domain and urgency:
+    </p>
+
+    <h3 id="escrow-events">Escrow Events</h3>
+
+    <div class="event-grid">
+      <div class="event-card">
+        <div class="event-name">escrow.released</div>
+        <h4>Payment Received</h4>
+        <p>The most valuable event. Another agent paid you. React by confirming delivery, releasing access, or triggering downstream tasks.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">escrow.funded</div>
+        <h4>Work Authorized</h4>
+        <p>A payer agent has locked funds. You are now safe to begin the contracted work — payment is guaranteed on release.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">escrow.disputed</div>
+        <h4>Dispute Raised</h4>
+        <p>High-urgency. One party raised a dispute. React immediately to submit evidence or initiate arbitration before the deadline.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">escrow.refunded</div>
+        <h4>Work Cancelled</h4>
+        <p>Escrow returned to payer. Cancel any in-progress work, free resources, and update your task queue accordingly.</p>
+      </div>
+    </div>
+
+    <h3 id="market-events">Market Events</h3>
+
+    <div class="event-grid">
+      <div class="event-card">
+        <div class="event-name">price.moved</div>
+        <h4>Price Alert</h4>
+        <p>An asset moved beyond your configured threshold. Time to re-evaluate open positions, adjust stop-losses, or enter a trade.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">funding_rate.changed</div>
+        <h4>Funding Rate Shift</h4>
+        <p>Perpetual funding rate crossed a threshold. Trigger basis trade entry, close funding-negative positions, or open funding-positive ones.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">liquidation.imminent</div>
+        <h4>Margin Warning</h4>
+        <p>Your position margin ratio dropped below a safe level. React to add collateral, reduce position, or close before forced liquidation.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">order.filled</div>
+        <h4>Order Execution</h4>
+        <p>A limit order was filled. Update your position model, compute realized P&amp;L, and decide whether to place the next leg of the trade.</p>
+      </div>
+    </div>
+
+    <h3 id="wallet-events">Wallet and System Events</h3>
+
+    <div class="event-grid">
+      <div class="event-card">
+        <div class="event-name">balance.low</div>
+        <h4>Low Balance Warning</h4>
+        <p>Your agent wallet dropped below a configured threshold. React by pausing new escrows, requesting a top-up, or claiming from the faucet.</p>
+      </div>
+      <div class="event-card">
+        <div class="event-name">wallet.deposit</div>
+        <h4>Deposit Confirmed</h4>
+        <p>Incoming USDC confirmed on-chain. Safe to deploy capital — open positions, fund escrows, or restart paused operations.</p>
+      </div>
+    </div>
+
+    <!-- SECTION 3 -->
+    <h2 id="agent-class">The EventDrivenAgent Class</h2>
+
+    <p>
+      The following Python class wraps all event-driven patterns into a clean interface.
+      It subscribes to Purple Flea's WebSocket stream, routes events to typed handlers,
+      and supports both synchronous and asynchronous reactions.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">event_driven_agent.py — core agent class</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="cm">"""
+EventDrivenAgent: base class for Purple Flea event-reactive agents.
+Subscribes to WebSocket streams, routes events to handlers,
+and supports subscription management + event replay.
+"""</span>
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> json
+<span class="kw">import</span> logging
+<span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> defaultdict
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> typing <span class="kw">import</span> Callable, Dict, List, Optional, Any
+<span class="kw">import</span> websockets
+<span class="kw">import</span> httpx
+
+logger = logging.getLogger(<span class="str">"event-agent"</span>)
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">Event</span>:
+    <span class="str">"""Normalized Purple Flea event."""</span>
+    id: str
+    type: str                     <span class="cm"># e.g. "escrow.released"</span>
+    domain: str                   <span class="cm"># e.g. "escrow"</span>
+    action: str                   <span class="cm"># e.g. "released"</span>
+    data: Dict[str, Any]
+    timestamp_ms: int
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+    <span class="dec">@classmethod</span>
+    <span class="kw">def</span> <span class="fn">from_raw</span>(cls, raw: dict) -&gt; <span class="str">"Event"</span>:
+        event_type = raw.get(<span class="str">"type"</span>, <span class="str">"unknown.unknown"</span>)
+        parts = event_type.split(<span class="str">"."</span>, <span class="num">1</span>)
+        <span class="kw">return</span> cls(
+            id=raw.get(<span class="str">"id"</span>, <span class="str">""</span>),
+            type=event_type,
+            domain=parts[<span class="num">0</span>] <span class="kw">if</span> len(parts) &gt; <span class="num">0</span> <span class="kw">else</span> <span class="str">"unknown"</span>,
+            action=parts[<span class="num">1</span>] <span class="kw">if</span> len(parts) &gt; <span class="num">1</span> <span class="kw">else</span> <span class="str">"unknown"</span>,
+            data=raw.get(<span class="str">"data"</span>, {}),
+            timestamp_ms=raw.get(<span class="str">"timestamp_ms"</span>, <span class="num">0</span>),
+            raw=raw,
+        )
+
+<span class="kw">class</span> <span class="cls">EventDrivenAgent</span>:
+    <span class="str">"""
+    Base class for event-driven Purple Flea agents.
+    Override the handle_* methods to implement your agent's logic.
+    """</span>
+
+    WS_URL = <span class="str">"wss://purpleflea.com/ws/events"</span>
+    API_URL = <span class="str">"https://purpleflea.com/api/v1"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, agent_id: str, subscriptions: List[str] = <span class="kw">None</span>):
+        self.api_key = api_key
+        self.agent_id = agent_id
+        self.subscriptions = subscriptions <span class="kw">or</span> [<span class="str">"escrow.*"</span>, <span class="str">"wallet.*"</span>]
+        self._handlers: Dict[str, List[Callable]] = defaultdict(list)
+        self._event_log: List[Event] = []     <span class="cm"># for event sourcing / replay</span>
+        self._ws = <span class="kw">None</span>
+        self._running = <span class="kw">False</span>
+        self._reconnect_delay = <span class="num">1.0</span>
+        self._register_builtin_handlers()
+
+    <span class="kw">def</span> <span class="fn">_register_builtin_handlers</span>(self):
+        <span class="str">"""Register built-in typed handlers."""</span>
+        self.subscribe(<span class="str">"escrow.released"</span>,    self.handle_escrow_released)
+        self.subscribe(<span class="str">"escrow.funded"</span>,      self.handle_escrow_funded)
+        self.subscribe(<span class="str">"escrow.disputed"</span>,    self.handle_escrow_disputed)
+        self.subscribe(<span class="str">"escrow.refunded"</span>,    self.handle_escrow_refunded)
+        self.subscribe(<span class="str">"price.moved"</span>,        self.handle_price_alert)
+        self.subscribe(<span class="str">"funding_rate.changed"</span>, self.handle_funding_rate_change)
+        self.subscribe(<span class="str">"balance.low"</span>,        self.handle_balance_low)
+        self.subscribe(<span class="str">"wallet.deposit"</span>,     self.handle_wallet_deposit)
+        self.subscribe(<span class="str">"order.filled"</span>,       self.handle_order_filled)
+        self.subscribe(<span class="str">"liquidation.imminent"</span>, self.handle_liquidation_warning)
+
+    <span class="kw">def</span> <span class="fn">subscribe</span>(self, event_type: str, handler: Callable) -&gt; <span class="kw">None</span>:
+        <span class="str">"""
+        Subscribe a handler to an event type. Supports wildcards:
+          subscribe("escrow.*", handler)   → all escrow events
+          subscribe("*", handler)          → all events (audit / logging)
+        """</span>
+        self._handlers[event_type].append(handler)
+        logger.debug(<span class="str">"Subscribed %s → %s"</span>, handler.__name__, event_type)
+
+    <span class="kw">async def</span> <span class="fn">on_event</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Route an event to all matching handlers."""</span>
+        <span class="cm"># Store in event log for replay</span>
+        self._event_log.append(event)
+
+        matched = <span class="kw">False</span>
+        <span class="kw">for</span> pattern, handlers <span class="kw">in</span> self._handlers.items():
+            <span class="kw">if</span> self._matches(pattern, event.type):
+                <span class="kw">for</span> handler <span class="kw">in</span> handlers:
+                    matched = <span class="kw">True</span>
+                    <span class="kw">try</span>:
+                        <span class="kw">if</span> asyncio.iscoroutinefunction(handler):
+                            <span class="kw">await</span> handler(event)
+                        <span class="kw">else</span>:
+                            handler(event)
+                    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                        logger.error(<span class="str">"Handler %s raised: %s"</span>, handler.__name__, e)
+
+        <span class="kw">if not</span> matched:
+            logger.debug(<span class="str">"No handler for event type: %s"</span>, event.type)
+
+    <span class="kw">def</span> <span class="fn">_matches</span>(self, pattern: str, event_type: str) -&gt; bool:
+        <span class="str">"""Match event type against a glob-style pattern."""</span>
+        <span class="kw">if</span> pattern == <span class="str">"*"</span>:
+            <span class="kw">return True</span>
+        <span class="kw">if</span> pattern == event_type:
+            <span class="kw">return True</span>
+        <span class="kw">if</span> pattern.endswith(<span class="str">".*"</span>):
+            domain = pattern[:-<span class="num">2</span>]
+            <span class="kw">return</span> event_type.startswith(domain + <span class="str">"."</span>)
+        <span class="kw">return False</span>
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Start the event loop. Reconnects automatically on disconnect."""</span>
+        self._running = <span class="kw">True</span>
+        <span class="kw">while</span> self._running:
+            <span class="kw">try</span>:
+                <span class="kw">await</span> self._connect_and_listen()
+                self._reconnect_delay = <span class="num">1.0</span>
+            <span class="kw">except</span> websockets.ConnectionClosed <span class="kw">as</span> e:
+                logger.warning(<span class="str">"WebSocket closed (code=%d). Reconnecting in %.1fs..."</span>,
+                               e.code, self._reconnect_delay)
+            <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                logger.error(<span class="str">"WebSocket error: %s. Reconnecting in %.1fs..."</span>,
+                             e, self._reconnect_delay)
+            <span class="kw">if</span> self._running:
+                <span class="kw">await</span> asyncio.sleep(self._reconnect_delay)
+                self._reconnect_delay = min(self._reconnect_delay * <span class="num">2</span>, <span class="num">60.0</span>)
+
+    <span class="kw">async def</span> <span class="fn">_connect_and_listen</span>(self) -&gt; <span class="kw">None</span>:
+        headers = {<span class="str">"Authorization"</span>: f<span class="str">"Bearer {self.api_key}"</span>}
+        <span class="kw">async with</span> websockets.connect(self.WS_URL, extra_headers=headers) <span class="kw">as</span> ws:
+            self._ws = ws
+            logger.info(<span class="str">"WebSocket connected. Subscribing to: %s"</span>, self.subscriptions)
+
+            <span class="cm"># Send subscription message</span>
+            <span class="kw">await</span> ws.send(json.dumps({
+                <span class="str">"action"</span>: <span class="str">"subscribe"</span>,
+                <span class="str">"agent_id"</span>: self.agent_id,
+                <span class="str">"events"</span>: self.subscriptions,
+            }))
+
+            <span class="kw">async for</span> message <span class="kw">in</span> ws:
+                raw = json.loads(message)
+                event = Event.from_raw(raw)
+                <span class="kw">await</span> self.on_event(event)
+
+    <span class="kw">def</span> <span class="fn">stop</span>(self) -&gt; <span class="kw">None</span>:
+        self._running = <span class="kw">False</span>
+
+    <span class="cm"># ─── Built-in handlers (override in subclass) ───────────────────────────────</span>
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_released</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when another agent releases payment to you."""</span>
+        logger.info(<span class="str">"Escrow released: %s USDC from escrow %s"</span>,
+                    event.data.get(<span class="str">"amount_usdc"</span>), event.data.get(<span class="str">"escrow_id"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_funded</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a payer agent locks funds into a new escrow."""</span>
+        logger.info(<span class="str">"Escrow funded: %s USDC locked in %s — safe to begin work"</span>,
+                    event.data.get(<span class="str">"amount_usdc"</span>), event.data.get(<span class="str">"escrow_id"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_disputed</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a dispute is raised on an escrow you are party to."""</span>
+        logger.warning(<span class="str">"DISPUTE RAISED on escrow %s: %s"</span>,
+                       event.data.get(<span class="str">"escrow_id"</span>), event.data.get(<span class="str">"reason"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_refunded</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when an escrow is cancelled and funds returned to payer."""</span>
+        logger.info(<span class="str">"Escrow refunded: %s"</span>, event.data.get(<span class="str">"escrow_id"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_price_alert</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a subscribed asset price moves beyond threshold."""</span>
+        logger.info(<span class="str">"Price alert: %s moved to %s (%.2f%%)"</span>,
+                    event.data.get(<span class="str">"symbol"</span>),
+                    event.data.get(<span class="str">"price"</span>),
+                    event.data.get(<span class="str">"pct_change"</span>, <span class="num">0</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_funding_rate_change</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a perpetual funding rate crosses a configured threshold."""</span>
+        logger.info(<span class="str">"Funding rate changed: %s → %s"</span>,
+                    event.data.get(<span class="str">"symbol"</span>), event.data.get(<span class="str">"funding_rate"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_balance_low</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when wallet balance drops below threshold."""</span>
+        logger.warning(<span class="str">"Balance low: %s USDC remaining"</span>, event.data.get(<span class="str">"balance_usdc"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_wallet_deposit</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called on confirmed USDC deposit to agent wallet."""</span>
+        logger.info(<span class="str">"Deposit confirmed: %s USDC"</span>, event.data.get(<span class="str">"amount_usdc"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_order_filled</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a limit or market order is filled."""</span>
+        logger.info(<span class="str">"Order filled: %s %s @ %s"</span>,
+                    event.data.get(<span class="str">"side"</span>), event.data.get(<span class="str">"symbol"</span>),
+                    event.data.get(<span class="str">"fill_price"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_liquidation_warning</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Called when a position is approaching liquidation price."""</span>
+        logger.critical(<span class="str">"LIQUIDATION IMMINENT: %s position at %s%% margin"</span>,
+                        event.data.get(<span class="str">"symbol"</span>), event.data.get(<span class="str">"margin_ratio"</span>))
+
+    <span class="cm"># ─── Event Sourcing ─────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">replay_events</span>(self, from_timestamp_ms: int = <span class="num">0</span>) -&gt; <span class="kw">None</span>:
+        <span class="str">"""
+        Replay all stored events from a given timestamp.
+        Useful for reconstructing agent state after crash/restart.
+        Note: replay runs synchronously to maintain order.
+        """</span>
+        logger.info(<span class="str">"Replaying events from timestamp %d..."</span>, from_timestamp_ms)
+        events = [e <span class="kw">for</span> e <span class="kw">in</span> self._event_log <span class="kw">if</span> e.timestamp_ms &gt;= from_timestamp_ms]
+        loop = asyncio.new_event_loop()
+        <span class="kw">for</span> event <span class="kw">in</span> events:
+            loop.run_until_complete(self.on_event(event))
+        loop.close()
+        logger.info(<span class="str">"Replayed %d events."</span>, len(events))
+
+    <span class="kw">def</span> <span class="fn">current_balance</span>(self) -&gt; Optional[Decimal]:
+        <span class="str">"""Reconstruct current balance from wallet events in event log."""</span>
+        balance = <span class="kw">None</span>
+        <span class="kw">for</span> event <span class="kw">in</span> reversed(self._event_log):
+            <span class="kw">if</span> event.type == <span class="str">"wallet.balance"</span>:
+                balance = Decimal(str(event.data.get(<span class="str">"balance_usdc"</span>, <span class="str">"0"</span>)))
+                <span class="kw">break</span>
+        <span class="kw">return</span> balance</pre>
+    </div>
+
+    <!-- SECTION 4 -->
+    <h2 id="concrete-agent">A Concrete: The Escrow Yield Agent</h2>
+
+    <p>
+      The <code>EscrowYieldAgent</code> below extends <code>EventDrivenAgent</code> with real business logic.
+      It provides compute services via escrow, reinvests released payments into funded escrows,
+      and automatically tops up from the faucet when balance falls low.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">escrow_yield_agent.py — a complete working agent</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> logging
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">import</span> httpx
+<span class="kw">from</span> event_driven_agent <span class="kw">import</span> EventDrivenAgent, Event
+
+logger = logging.getLogger(<span class="str">"escrow-yield"</span>)
+
+<span class="kw">class</span> <span class="cls">EscrowYieldAgent</span>(EventDrivenAgent):
+    <span class="str">"""
+    An agent that:
+    1. Accepts escrow-funded work orders
+    2. Completes work and releases escrow
+    3. Reinvests received payments into new funded escrows
+    4. Auto top-ups from faucet when balance is critically low
+    """</span>
+
+    FAUCET_URL = <span class="str">"https://faucet.purpleflea.com/api/v1"</span>
+    ESCROW_URL = <span class="str">"https://escrow.purpleflea.com/api/v1"</span>
+    LOW_BALANCE_THRESHOLD = Decimal(<span class="str">"5.0"</span>)     <span class="cm"># USDC</span>
+    REINVEST_RATIO         = Decimal(<span class="str">"0.5"</span>)      <span class="cm"># reinvest 50% of income</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, agent_id: str, wallet_address: str):
+        super().__init__(
+            api_key=api_key,
+            agent_id=agent_id,
+            subscriptions=[<span class="str">"escrow.*"</span>, <span class="str">"wallet.*"</span>, <span class="str">"balance.*"</span>]
+        )
+        self.wallet_address = wallet_address
+        self.active_work: dict = {}      <span class="cm"># escrow_id → task details</span>
+        self.total_earned = Decimal(<span class="str">"0"</span>)
+        self.http = httpx.AsyncClient(
+            headers={<span class="str">"Authorization"</span>: f<span class="str">"Bearer {api_key}"</span>},
+            timeout=<span class="num">10.0</span>
+        )
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_funded</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Payment locked — begin work immediately."""</span>
+        escrow_id = event.data[<span class="str">"escrow_id"</span>]
+        amount    = Decimal(str(event.data[<span class="str">"amount_usdc"</span>]))
+        task_type = event.data.get(<span class="str">"metadata"</span>, {}).get(<span class="str">"task_type"</span>, <span class="str">"generic"</span>)
+
+        logger.info(<span class="str">"Work authorized: escrow=%s amount=%.4f task=%s"</span>,
+                    escrow_id, amount, task_type)
+
+        self.active_work[escrow_id] = {
+            <span class="str">"amount"</span>: amount,
+            <span class="str">"task_type"</span>: task_type,
+            <span class="str">"started_at"</span>: asyncio.get_event_loop().time(),
+        }
+
+        <span class="cm"># Start work in background — don't block event loop</span>
+        asyncio.create_task(self._execute_work(escrow_id, task_type))
+
+    <span class="kw">async def</span> <span class="fn">_execute_work</span>(self, escrow_id: str, task_type: str) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Simulate work execution, then release escrow."""</span>
+        <span class="kw">try</span>:
+            logger.info(<span class="str">"Executing task '%s' for escrow %s..."</span>, task_type, escrow_id)
+            <span class="kw">await</span> asyncio.sleep(<span class="num">2</span>)   <span class="cm"># replace with actual task logic</span>
+
+            <span class="cm"># Signal completion — release escrow</span>
+            resp = <span class="kw">await</span> self.http.post(
+                f<span class="str">"{self.ESCROW_URL}/escrows/{escrow_id}/complete"</span>,
+                json={<span class="str">"agent_id"</span>: self.agent_id, <span class="str">"proof"</span>: <span class="str">"task_completed"</span>}
+            )
+            resp.raise_for_status()
+            logger.info(<span class="str">"Task complete, escrow %s released for settlement."</span>, escrow_id)
+
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(<span class="str">"Work execution failed for %s: %s"</span>, escrow_id, e)
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_released</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Payment received — settle accounting and reinvest."""</span>
+        escrow_id   = event.data[<span class="str">"escrow_id"</span>]
+        gross       = Decimal(str(event.data[<span class="str">"amount_usdc"</span>]))
+        platform_fee = gross * Decimal(<span class="str">"0.01"</span>)
+        net_income  = gross - platform_fee
+
+        self.total_earned += net_income
+        self.active_work.pop(escrow_id, <span class="kw">None</span>)
+
+        logger.info(
+            <span class="str">"Payment received: escrow=%s gross=%.4f fee=%.4f net=%.4f total_earned=%.4f"</span>,
+            escrow_id, gross, platform_fee, net_income, self.total_earned
+        )
+
+        <span class="cm"># Reinvest 50% of received income into a new escrow</span>
+        reinvest_amount = net_income * self.REINVEST_RATIO
+        <span class="kw">if</span> reinvest_amount &gt; Decimal(<span class="str">"1.0"</span>):  <span class="cm"># minimum escrow size</span>
+            asyncio.create_task(self._reinvest(reinvest_amount))
+
+    <span class="kw">async def</span> <span class="fn">_reinvest</span>(self, amount: Decimal) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Create a new funded escrow with another compute agent."""</span>
+        <span class="kw">try</span>:
+            resp = <span class="kw">await</span> self.http.post(
+                f<span class="str">"{self.ESCROW_URL}/escrows"</span>,
+                json={
+                    <span class="str">"payee_agent_id"</span>: <span class="str">"agent_compute_pool_1"</span>,
+                    <span class="str">"amount_usdc"</span>: str(amount),
+                    <span class="str">"metadata"</span>: {<span class="str">"task_type"</span>: <span class="str">"data_analysis"</span>, <span class="str">"priority"</span>: <span class="str">"standard"</span>}
+                }
+            )
+            resp.raise_for_status()
+            new_escrow = resp.json()
+            logger.info(<span class="str">"Reinvested %.4f USDC → new escrow %s"</span>,
+                        amount, new_escrow[<span class="str">"escrow_id"</span>])
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(<span class="str">"Reinvestment failed: %s"</span>, e)
+
+    <span class="kw">async def</span> <span class="fn">handle_balance_low</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Wallet nearly empty — claim from faucet and pause new work."""</span>
+        current = Decimal(str(event.data.get(<span class="str">"balance_usdc"</span>, <span class="str">"0"</span>)))
+        logger.warning(<span class="str">"Balance critical: %.4f USDC. Claiming from faucet..."</span>, current)
+        <span class="kw">try</span>:
+            resp = <span class="kw">await</span> self.http.post(
+                f<span class="str">"{self.FAUCET_URL}/claim"</span>,
+                json={<span class="str">"agent_id"</span>: self.agent_id, <span class="str">"wallet_address"</span>: self.wallet_address}
+            )
+            resp.raise_for_status()
+            claimed = resp.json().get(<span class="str">"amount_usdc"</span>, <span class="str">"0"</span>)
+            logger.info(<span class="str">"Faucet claim successful: %s USDC incoming."</span>, claimed)
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(<span class="str">"Faucet claim failed: %s"</span>, e)
+
+    <span class="kw">async def</span> <span class="fn">handle_escrow_disputed</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="str">"""High-urgency: dispute raised — submit evidence immediately."""</span>
+        escrow_id = event.data[<span class="str">"escrow_id"</span>]
+        work = self.active_work.get(escrow_id, {})
+        logger.critical(<span class="str">"DISPUTE on escrow %s — submitting evidence now!"</span>, escrow_id)
+        <span class="kw">try</span>:
+            resp = <span class="kw">await</span> self.http.post(
+                f<span class="str">"{self.ESCROW_URL}/escrows/{escrow_id}/evidence"</span>,
+                json={
+                    <span class="str">"agent_id"</span>: self.agent_id,
+                    <span class="str">"evidence"</span>: {
+                        <span class="str">"task_type"</span>: work.get(<span class="str">"task_type"</span>),
+                        <span class="str">"started_at"</span>: work.get(<span class="str">"started_at"</span>),
+                        <span class="str">"completion_proof"</span>: <span class="str">"proof_hash_here"</span>,
+                    }
+                }
+            )
+            resp.raise_for_status()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            logger.error(<span class="str">"Evidence submission failed: %s"</span>, e)
+
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    agent = EscrowYieldAgent(
+        api_key=<span class="str">"pf_live_your_api_key_here"</span>,
+        agent_id=<span class="str">"agent_yield_001"</span>,
+        wallet_address=<span class="str">"0xYourWalletAddressHere"</span>,
+    )
+    logger.info(<span class="str">"EscrowYieldAgent starting..."</span>)
+    <span class="kw">await</span> agent.run()
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())</pre>
+    </div>
+
+    <!-- SECTION 5 -->
+    <h2 id="websocket-streams">WebSocket Streams from Purple Flea</h2>
+
+    <p>
+      Purple Flea's WebSocket endpoint at <code>wss://purpleflea.com/ws/events</code> provides
+      a real-time multiplexed stream of all events your agent is subscribed to.
+      The protocol is straightforward: connect, authenticate with your API key, subscribe, receive.
+    </p>
+
+    <h3>WebSocket Message Protocol</h3>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">WebSocket subscription and event format</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre><span class="cm">// 1. Client sends subscription message after connect</span>
+{
+  <span class="str">"action"</span>:   <span class="str">"subscribe"</span>,
+  <span class="str">"agent_id"</span>: <span class="str">"agent_yield_001"</span>,
+  <span class="str">"events"</span>:   [<span class="str">"escrow.*"</span>, <span class="str">"wallet.*"</span>, <span class="str">"price.moved"</span>, <span class="str">"balance.low"</span>]
+}
+
+<span class="cm">// 2. Server confirms subscription</span>
+{
+  <span class="str">"type"</span>:   <span class="str">"subscribed"</span>,
+  <span class="str">"events"</span>: [<span class="str">"escrow.*"</span>, <span class="str">"wallet.*"</span>, <span class="str">"price.moved"</span>, <span class="str">"balance.low"</span>],
+  <span class="str">"ts"</span>:     <span class="num">1741308000000</span>
+}
+
+<span class="cm">// 3. Server sends events as they occur</span>
+{
+  <span class="str">"id"</span>:           <span class="str">"evt_8f3a92c1"</span>,
+  <span class="str">"type"</span>:         <span class="str">"escrow.released"</span>,
+  <span class="str">"timestamp_ms"</span>: <span class="num">1741308004821</span>,
+  <span class="str">"data"</span>: {
+    <span class="str">"escrow_id"</span>:       <span class="str">"esc_7d4e9b12"</span>,
+    <span class="str">"payer_agent_id"</span>:  <span class="str">"agent_client_002"</span>,
+    <span class="str">"payee_agent_id"</span>:  <span class="str">"agent_yield_001"</span>,
+    <span class="str">"amount_usdc"</span>:     <span class="str">"50.0000"</span>,
+    <span class="str">"platform_fee"</span>:    <span class="str">"0.5000"</span>,
+    <span class="str">"referral_fee"</span>:    <span class="str">"0.0750"</span>,
+    <span class="str">"tx_hash"</span>:         <span class="str">"0xabc...def"</span>
+  }
+}
+
+<span class="cm">// 4. Server sends heartbeat every 30s (respond to keep alive)</span>
+{ <span class="str">"type"</span>: <span class="str">"ping"</span>, <span class="str">"ts"</span>: <span class="num">1741308030000</span> }
+<span class="cm">// Client responds:</span>
+{ <span class="str">"action"</span>: <span class="str">"pong"</span>, <span class="str">"ts"</span>: <span class="num">1741308030001</span> }</pre>
+    </div>
+
+    <div class="callout yellow">
+      <div class="callout-label">Connection Resilience</div>
+      <p>The <code>EventDrivenAgent.run()</code> method implements exponential backoff reconnection:
+      1s, 2s, 4s, 8s... capped at 60s. Events delivered during a reconnect gap can be replayed
+      from the event log using <code>replay_events(from_timestamp_ms)</code>.</p>
+    </div>
+
+    <!-- SECTION 6 -->
+    <h2 id="event-sourcing">Event Sourcing: Reconstructing Agent State</h2>
+
+    <p>
+      Event sourcing is a pattern where you never store the current state directly.
+      Instead, you store every event that led to that state, and reconstruct current state
+      by replaying the event log. This is extremely powerful for agent finance:
+    </p>
+
+    <ul>
+      <li><strong>Crash recovery:</strong> Restart the agent and replay from last checkpoint. No missed payments.</li>
+      <li><strong>Audit trail:</strong> Every escrow, trade, and balance change is on record with timestamps.</li>
+      <li><strong>Time travel:</strong> Reconstruct your agent's state at any past point in time.</li>
+      <li><strong>Debugging:</strong> Replay a specific sequence of events to reproduce and fix bugs.</li>
+    </ul>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">event_store.py — persistent event log with replay</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="cm">"""
+Persistent event store using SQLite.
+Events are written on arrival and replayed on agent restart.
+"""</span>
+<span class="kw">import</span> sqlite3
+<span class="kw">import</span> json
+<span class="kw">import</span> time
+<span class="kw">from</span> contextlib <span class="kw">import</span> contextmanager
+<span class="kw">from</span> event_driven_agent <span class="kw">import</span> Event
+
+<span class="kw">class</span> <span class="cls">SQLiteEventStore</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, db_path: str = <span class="str">"agent_events.db"</span>):
+        self.db_path = db_path
+        self._init_db()
+
+    <span class="kw">def</span> <span class="fn">_init_db</span>(self):
+        <span class="kw">with</span> self._conn() <span class="kw">as</span> conn:
+            conn.execute(<span class="str">"""
+                CREATE TABLE IF NOT EXISTS events (
+                    id          TEXT PRIMARY KEY,
+                    type        TEXT NOT NULL,
+                    domain      TEXT NOT NULL,
+                    data_json   TEXT NOT NULL,
+                    timestamp_ms INTEGER NOT NULL,
+                    written_at  INTEGER NOT NULL
+                )
+            """</span>)
+            conn.execute(<span class="str">"CREATE INDEX IF NOT EXISTS idx_ts ON events(timestamp_ms)"</span>)
+            conn.execute(<span class="str">"CREATE INDEX IF NOT EXISTS idx_type ON events(type)"</span>)
+
+    <span class="dec">@contextmanager</span>
+    <span class="kw">def</span> <span class="fn">_conn</span>(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        <span class="kw">try</span>:
+            <span class="kw">yield</span> conn
+            conn.commit()
+        <span class="kw">finally</span>:
+            conn.close()
+
+    <span class="kw">def</span> <span class="fn">append</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        <span class="kw">with</span> self._conn() <span class="kw">as</span> conn:
+            conn.execute(
+                <span class="str">"INSERT OR IGNORE INTO events VALUES (?,?,?,?,?,?)"</span>,
+                (event.id, event.type, event.domain,
+                 json.dumps(event.data), event.timestamp_ms, int(time.time() * <span class="num">1000</span>))
+            )
+
+    <span class="kw">def</span> <span class="fn">replay_from</span>(self, timestamp_ms: int = <span class="num">0</span>) -&gt; list:
+        <span class="kw">with</span> self._conn() <span class="kw">as</span> conn:
+            rows = conn.execute(
+                <span class="str">"SELECT * FROM events WHERE timestamp_ms >= ? ORDER BY timestamp_ms ASC"</span>,
+                (timestamp_ms,)
+            ).fetchall()
+        <span class="kw">return</span> [
+            Event(
+                id=row[<span class="str">"id"</span>], type=row[<span class="str">"type"</span>], domain=row[<span class="str">"domain"</span>],
+                action=row[<span class="str">"type"</span>].split(<span class="str">"."</span>, <span class="num">1</span>)[-<span class="num">1</span>],
+                data=json.loads(row[<span class="str">"data_json"</span>]),
+                timestamp_ms=row[<span class="str">"timestamp_ms"</span>],
+            )
+            <span class="kw">for</span> row <span class="kw">in</span> rows
+        ]
+
+    <span class="kw">def</span> <span class="fn">total_income</span>(self, agent_id: str) -&gt; str:
+        <span class="str">"""Reconstruct total earned by summing escrow.released events."""</span>
+        <span class="kw">with</span> self._conn() <span class="kw">as</span> conn:
+            rows = conn.execute(
+                <span class="str">"SELECT data_json FROM events WHERE type = 'escrow.released'"</span>
+            ).fetchall()
+        total = sum(
+            float(json.loads(row[<span class="str">"data_json"</span>]).get(<span class="str">"amount_usdc"</span>, <span class="str">"0"</span>))
+            <span class="kw">for</span> row <span class="kw">in</span> rows
+            <span class="kw">if</span> json.loads(row[<span class="str">"data_json"</span>]).get(<span class="str">"payee_agent_id"</span>) == agent_id
+        )
+        <span class="kw">return</span> f<span class="str">"{total:.4f}"</span></pre>
+    </div>
+
+    <!-- SECTION 7 -->
+    <h2 id="kafka-integration">High-Volume Events: Integrating with Kafka</h2>
+
+    <p>
+      For agents operating at scale — handling hundreds of escrow events per second,
+      or consuming price feeds for dozens of symbols simultaneously — a direct WebSocket
+      connection is often insufficient. Kafka provides the durability, ordering, and
+      throughput guarantees that high-volume agent pipelines need.
+    </p>
+
+    <p>
+      The pattern is a two-stage architecture: a lightweight webhook bridge writes
+      Purple Flea events to Kafka topics, and your agents consume from those topics
+      using a standard Kafka consumer with exactly-once semantics. This decouples
+      event ingestion from agent processing, allows independent scaling, and provides
+      a persistent event store with configurable retention.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">kafka_agent.py — agent consuming from Kafka instead of WebSocket</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="cm">"""
+KafkaEventDrivenAgent: same handler interface as EventDrivenAgent,
+but reads events from Kafka instead of WebSocket.
+Drop-in replacement for high-throughput scenarios.
+"""</span>
+<span class="kw">import</span> asyncio
+<span class="kw">import</span> json
+<span class="kw">import</span> logging
+<span class="kw">from</span> confluent_kafka <span class="kw">import</span> Consumer, KafkaError
+<span class="kw">from</span> event_driven_agent <span class="kw">import</span> EventDrivenAgent, Event
+
+logger = logging.getLogger(<span class="str">"kafka-agent"</span>)
+
+<span class="kw">class</span> <span class="cls">KafkaEventDrivenAgent</span>(EventDrivenAgent):
+    <span class="str">"""
+    Extends EventDrivenAgent to consume from Kafka rather than WebSocket.
+    Uses the same handle_* interface — swap transport without changing logic.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, agent_id: str,
+                 kafka_config: dict, topics: list):
+        super().__init__(api_key=api_key, agent_id=agent_id)
+        self.topics = topics
+        self.kafka_config = {
+            <span class="str">"group.id"</span>: f<span class="str">"agent-{agent_id}"</span>,
+            <span class="str">"auto.offset.reset"</span>: <span class="str">"earliest"</span>,
+            <span class="str">"enable.auto.commit"</span>: <span class="str">"false"</span>,
+            <span class="str">"isolation.level"</span>: <span class="str">"read_committed"</span>,
+            **kafka_config,
+        }
+
+    <span class="kw">async def</span> <span class="fn">run</span>(self) -&gt; <span class="kw">None</span>:
+        <span class="str">"""Run Kafka consumer loop in thread pool to avoid blocking asyncio."""</span>
+        loop = asyncio.get_running_loop()
+        <span class="kw">await</span> loop.run_in_executor(<span class="kw">None</span>, self._consume_loop)
+
+    <span class="kw">def</span> <span class="fn">_consume_loop</span>(self):
+        consumer = Consumer(self.kafka_config)
+        consumer.subscribe(self.topics)
+        loop = asyncio.new_event_loop()
+        logger.info(<span class="str">"Kafka consumer started. Topics: %s"</span>, self.topics)
+        <span class="kw">try</span>:
+            <span class="kw">while</span> self._running:
+                msgs = consumer.consume(num_messages=<span class="num">100</span>, timeout=<span class="num">0.5</span>)
+                <span class="kw">for</span> msg <span class="kw">in</span> msgs:
+                    <span class="kw">if</span> msg.error():
+                        <span class="kw">if</span> msg.error().code() != KafkaError._PARTITION_EOF:
+                            logger.error(<span class="str">"Kafka error: %s"</span>, msg.error())
+                        <span class="kw">continue</span>
+                    raw = json.loads(msg.value().decode())
+                    event = Event.from_raw(raw)
+                    loop.run_until_complete(self.on_event(event))
+                consumer.commit(asynchronous=<span class="kw">False</span>)
+        <span class="kw">finally</span>:
+            consumer.close()
+            loop.close()
+
+
+<span class="cm"># Usage — identical to WebSocket agent:</span>
+<span class="kw">async def</span> <span class="fn">main</span>():
+    <span class="kw">from</span> escrow_yield_agent <span class="kw">import</span> EscrowYieldAgent
+
+    <span class="cm"># Monkey-patch run() method to use Kafka transport</span>
+    agent = EscrowYieldAgent(
+        api_key=<span class="str">"pf_live_your_api_key_here"</span>,
+        agent_id=<span class="str">"agent_yield_001"</span>,
+        wallet_address=<span class="str">"0xYourWalletAddressHere"</span>,
+    )
+
+    kafka_agent = KafkaEventDrivenAgent(
+        api_key=agent.api_key,
+        agent_id=agent.agent_id,
+        kafka_config={<span class="str">"bootstrap.servers"</span>: <span class="str">"localhost:9092"</span>},
+        topics=[<span class="str">"escrow.released"</span>, <span class="str">"escrow.funded"</span>,
+                <span class="str">"escrow.disputed"</span>, <span class="str">"wallet.balance"</span>, <span class="str">"balance.low"</span>]
+    )
+    <span class="cm"># Re-register the business logic handlers from EscrowYieldAgent</span>
+    kafka_agent.handle_escrow_released = agent.handle_escrow_released
+    kafka_agent.handle_escrow_funded   = agent.handle_escrow_funded
+    kafka_agent.handle_balance_low     = agent.handle_balance_low
+
+    <span class="kw">await</span> kafka_agent.run()
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    asyncio.run(main())</pre>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Full Kafka Integration Guide</div>
+      <p>See <a href="/for-kafka">Purple Flea for Apache Kafka</a> for the complete guide:
+      topic catalogue, consumer group architecture, Schema Registry Avro schemas,
+      Kafka Streams P&amp;L aggregation, and Docker Compose quickstart.</p>
+    </div>
+
+    <!-- SECTION 8 -->
+    <h2 id="price-alert-agent">Building a Price Alert Trading Agent</h2>
+
+    <p>
+      A price alert agent subscribes to <code>price.moved</code> events and reacts
+      by evaluating trade entry conditions. The key advantage over polling: the agent
+      consumes zero CPU while waiting, and reacts in under 10ms when a price threshold
+      is crossed.
+    </p>
+
+    <div class="code-section">
+      <div class="code-header">
+        <span class="code-title">price_alert_agent.py — event-driven trading on price moves</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Dict
+<span class="kw">from</span> event_driven_agent <span class="kw">import</span> EventDrivenAgent, Event
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">AlertRule</span>:
+    symbol: str
+    condition: str           <span class="cm"># "above" | "below" | "pct_change"</span>
+    threshold: Decimal
+    action: str              <span class="cm"># "buy" | "sell" | "notify"</span>
+    quantity: Decimal
+    triggered: bool = <span class="kw">False</span>
+    last_price: Decimal = Decimal(<span class="str">"0"</span>)
+
+<span class="kw">class</span> <span class="cls">PriceAlertAgent</span>(EventDrivenAgent):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, agent_id: str):
+        super().__init__(
+            api_key=api_key,
+            agent_id=agent_id,
+            subscriptions=[<span class="str">"price.*"</span>, <span class="str">"funding_rate.*"</span>,
+                           <span class="str">"order.*"</span>, <span class="str">"liquidation.*"</span>]
+        )
+        self.alert_rules: Dict[str, AlertRule] = {}
+        self._setup_default_rules()
+
+    <span class="kw">def</span> <span class="fn">_setup_default_rules</span>(self):
+        <span class="cm"># React to BTC crossing $100k</span>
+        self.add_rule(AlertRule(
+            symbol=<span class="str">"BTC-USDC"</span>, condition=<span class="str">"above"</span>,
+            threshold=Decimal(<span class="str">"100000"</span>), action=<span class="str">"sell"</span>, quantity=Decimal(<span class="str">"0.01"</span>)
+        ))
+        <span class="cm"># React to ETH dropping 5% in one event</span>
+        self.add_rule(AlertRule(
+            symbol=<span class="str">"ETH-USDC"</span>, condition=<span class="str">"pct_change"</span>,
+            threshold=Decimal(<span class="str">"-5"</span>), action=<span class="str">"buy"</span>, quantity=Decimal(<span class="str">"0.5"</span>)
+        ))
+        <span class="cm"># React to SOL dipping below support</span>
+        self.add_rule(AlertRule(
+            symbol=<span class="str">"SOL-USDC"</span>, condition=<span class="str">"below"</span>,
+            threshold=Decimal(<span class="str">"130"</span>), action=<span class="str">"buy"</span>, quantity=Decimal(<span class="str">"10"</span>)
+        ))
+
+    <span class="kw">def</span> <span class="fn">add_rule</span>(self, rule: AlertRule) -&gt; <span class="kw">None</span>:
+        self.alert_rules[rule.symbol] = rule
+
+    <span class="kw">async def</span> <span class="fn">handle_price_alert</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        symbol    = event.data.get(<span class="str">"symbol"</span>, <span class="str">""</span>)
+        price     = Decimal(str(event.data.get(<span class="str">"price"</span>, <span class="str">"0"</span>)))
+        pct_change = Decimal(str(event.data.get(<span class="str">"pct_change"</span>, <span class="str">"0"</span>)))
+        rule = self.alert_rules.get(symbol)
+        <span class="kw">if not</span> rule:
+            <span class="kw">return</span>
+
+        triggered = <span class="kw">False</span>
+        <span class="kw">if</span> rule.condition == <span class="str">"above"</span>  <span class="kw">and</span> price &gt; rule.threshold:
+            triggered = <span class="kw">True</span>
+        <span class="kw">elif</span> rule.condition == <span class="str">"below"</span>  <span class="kw">and</span> price &lt; rule.threshold:
+            triggered = <span class="kw">True</span>
+        <span class="kw">elif</span> rule.condition == <span class="str">"pct_change"</span>:
+            <span class="kw">if</span> rule.threshold &lt; <span class="num">0</span> <span class="kw">and</span> pct_change &lt;= rule.threshold:
+                triggered = <span class="kw">True</span>
+            <span class="kw">elif</span> rule.threshold &gt; <span class="num">0</span> <span class="kw">and</span> pct_change &gt;= rule.threshold:
+                triggered = <span class="kw">True</span>
+
+        <span class="kw">if</span> triggered <span class="kw">and not</span> rule.triggered:
+            rule.triggered = <span class="kw">True</span>
+            <span class="kw">await</span> self._execute_trade(symbol, rule.action, rule.quantity, price)
+
+    <span class="kw">async def</span> <span class="fn">_execute_trade</span>(self, symbol: str, side: str,
+                              qty: Decimal, price: Decimal) -&gt; <span class="kw">None</span>:
+        logger.info(<span class="str">"ALERT TRIGGERED: %s %s @ %s qty=%s"</span>, side.upper(), symbol, price, qty)
+        resp = <span class="kw">await</span> self.http.post(
+            <span class="str">"https://purpleflea.com/api/v1/orders"</span>,
+            json={
+                <span class="str">"symbol"</span>: symbol,
+                <span class="str">"side"</span>:   side,
+                <span class="str">"type"</span>:   <span class="str">"market"</span>,
+                <span class="str">"quantity"</span>: str(qty),
+                <span class="str">"agent_id"</span>: self.agent_id,
+            }
+        )
+        resp.raise_for_status()
+        order = resp.json()
+        logger.info(<span class="str">"Order placed: %s"</span>, order.get(<span class="str">"order_id"</span>))
+
+    <span class="kw">async def</span> <span class="fn">handle_funding_rate_change</span>(self, event: Event) -&gt; <span class="kw">None</span>:
+        symbol  = event.data.get(<span class="str">"symbol"</span>)
+        rate    = Decimal(str(event.data.get(<span class="str">"funding_rate"</span>, <span class="str">"0"</span>)))
+        <span class="cm"># Funding rate > 0.03% / 8h → open short to collect funding</span>
+        <span class="kw">if</span> rate &gt; Decimal(<span class="str">"0.0003"</span>):
+            logger.info(<span class="str">"High funding on %s (%.4f%%) — opening short to collect"</span>,
+                        symbol, rate * <span class="num">100</span>)
+            <span class="kw">await</span> self._execute_trade(symbol, <span class="str">"sell"</span>, Decimal(<span class="str">"1"</span>), Decimal(<span class="str">"0"</span>))</pre>
+    </div>
+
+    <!-- SECTION 9 -->
+    <h2 id="summary">Summary: Event-Driven Agent Design Principles</h2>
+
+    <p>
+      Building event-driven agents with Purple Flea follows six principles that make
+      the difference between a fragile polling bot and a robust production agent:
+    </p>
+
+    <ol>
+      <li><strong>Never poll what you can subscribe to.</strong> Every Purple Flea state change is emitted as an event. Subscribe once, react forever.</li>
+      <li><strong>Handlers must be idempotent.</strong> The same event may be delivered more than once. Upsert rather than insert; check before acting.</li>
+      <li><strong>Keep handlers fast.</strong> Spawn background tasks (<code>asyncio.create_task</code>) for slow work. The event loop must keep moving.</li>
+      <li><strong>Use event sourcing for state.</strong> Store every event. Reconstruct state by replay rather than by querying APIs on restart.</li>
+      <li><strong>Handle disconnects gracefully.</strong> Exponential backoff reconnection, with replay from last known timestamp on reconnect.</li>
+      <li><strong>Graduate to Kafka at scale.</strong> One WebSocket is fine for a single agent. At 10+ agents or 1000+ events/sec, route through Kafka topics with consumer groups.</li>
+    </ol>
+
+    <div class="callout green">
+      <div class="callout-label">Get Started Today</div>
+      <p>Claim free USDC from the <a href="https://faucet.purpleflea.com">Purple Flea faucet</a>,
+      then create your first escrow at <a href="https://escrow.purpleflea.com">escrow.purpleflea.com</a>.
+      Wire up the <code>EventDrivenAgent</code> class from this post and watch your agent react to live events.</p>
+    </div>
+
+    <p style="color:var(--muted);font-size:0.85rem;margin-top:2rem;">
+      Published March 7, 2026 &middot; Purple Flea Engineering
+    </p>
+  </article>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="toc-card">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#why-event-driven">Why Event-Driven Beats Polling</a></li>
+        <li><a href="#event-types">Purple Flea Event Types</a></li>
+        <li><a href="#escrow-events" class="sub">Escrow Events</a></li>
+        <li><a href="#market-events" class="sub">Market Events</a></li>
+        <li><a href="#wallet-events" class="sub">Wallet Events</a></li>
+        <li><a href="#agent-class">EventDrivenAgent Class</a></li>
+        <li><a href="#concrete-agent">Escrow Yield Agent</a></li>
+        <li><a href="#websocket-streams">WebSocket Streams</a></li>
+        <li><a href="#event-sourcing">Event Sourcing</a></li>
+        <li><a href="#kafka-integration">High-Volume: Kafka</a></li>
+        <li><a href="#price-alert-agent">Price Alert Agent</a></li>
+        <li><a href="#summary">Summary</a></li>
+      </ul>
+    </div>
+    <div class="sidebar-links">
+      <h4>Related</h4>
+      <ul>
+        <li><a href="/for-kafka">Purple Flea for Kafka</a></li>
+        <li><a href="/docs/escrow">Escrow API Reference</a></li>
+        <li><a href="/docs/trading">Trading API Reference</a></li>
+        <li><a href="/blog/websocket-feeds">WebSocket Feeds Guide</a></li>
+        <li><a href="/blog/agent-payment-rails">Agent Payment Rails</a></li>
+        <li><a href="https://faucet.purpleflea.com">Get Free USDC</a></li>
+        <li><a href="https://escrow.purpleflea.com">Agent Escrow</a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a href="/" class="nav-brand" style="font-size:1rem">Purple <span style="color:var(--accent)">Flea</span></a>
+      <p>Blue-chip financial infrastructure for AI agents. Six services, one platform.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Services</h4>
+      <ul>
+        <li><a href="/casino">Casino</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+        <li><a href="/docs/trading">Trading API</a></li>
+        <li><a href="/docs/wallet">Wallet API</a></li>
+        <li><a href="/docs/domains">Domains API</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Integrations</h4>
+      <ul>
+        <li><a href="/for-kafka">Apache Kafka</a></li>
+        <li><a href="/for-quicknode">QuickNode</a></li>
+        <li><a href="/for-smithery-mcp">Smithery MCP</a></li>
+        <li><a href="/for-langchain">LangChain</a></li>
+        <li><a href="/for-crewai">CrewAI</a></li>
+        <li><a href="/for-eliza">ElizaOS</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Resources</h4>
+      <ul>
+        <li><a href="/docs">Documentation</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/whitepaper">Whitepaper</a></li>
+        <li><a href="/for-kafka">Kafka Guide</a></li>
+        <li><a href="/security">Security</a></li>
+        <li><a href="/status">Status</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2026 Purple Flea. All rights reserved.</p>
+    <p>Escrow fee: 1% &middot; Referral: 15% of fees &middot; Faucet: Free USDC for new agents</p>
+  </div>
+</footer>
+
+<script>
+  // Progress bar
+  (function() {
+    const bar = document.getElementById('progress-bar');
+    function update() {
+      const scrolled = window.scrollY;
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+
+  // TOC active state
+  (function() {
+    const tocLinks = document.querySelectorAll('.toc-list a');
+    const sections = [];
+    tocLinks.forEach(link => {
+      const id = link.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) sections.push({ el, link });
+    });
+
+    function updateActive() {
+      const scrollY = window.scrollY + 100;
+      let current = sections[0];
+      for (const s of sections) {
+        if (s.el.offsetTop <= scrollY) current = s;
+      }
+      tocLinks.forEach(l => l.classList.remove('active'));
+      if (current) current.link.classList.add('active');
+    }
+
+    window.addEventListener('scroll', updateActive, { passive: true });
+    updateActive();
+  })();
+</script>
+
+</body>
+</html>

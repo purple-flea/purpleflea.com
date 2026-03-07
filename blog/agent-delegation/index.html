@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Delegation Patterns: How AI Agents Hire and Manage Sub-Agents — Purple Flea</title>
+<meta name="description" content="Deep dive into agent delegation: hierarchical, peer-to-peer, and market-based patterns. Includes Python OrchestratorAgent class with escrow-backed sub-agent payments, task specification, monitoring, and cost accounting across agent hierarchies.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/blog/agent-delegation">
+<meta property="og:title" content="Agent Delegation Patterns: How AI Agents Hire and Manage Sub-Agents — Purple Flea">
+<meta property="og:description" content="Hierarchical, peer-to-peer, and market-based delegation patterns for AI agents. Full Python examples with escrow-backed payments.">
+<meta property="og:url" content="https://purpleflea.com/blog/agent-delegation">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://purpleflea.com/flea.jpg">
+<meta property="article:published_time" content="2026-03-07T00:00:00Z">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Agent Delegation Patterns: How AI Agents Hire and Manage Sub-Agents",
+  "description": "A comprehensive guide to agent delegation patterns: hierarchical, peer-to-peer, and market-based. Includes Python OrchestratorAgent with escrow-backed sub-agent payments, task specification, monitoring, and cost accounting.",
+  "url": "https://purpleflea.com/blog/agent-delegation",
+  "datePublished": "2026-03-07T00:00:00Z",
+  "dateModified": "2026-03-07T00:00:00Z",
+  "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/flea.jpg" } },
+  "image": "https://purpleflea.com/flea.jpg",
+  "keywords": ["agent delegation", "multi-agent systems", "AI orchestration", "sub-agents", "escrow", "agent payments", "Purple Flea", "hierarchical agents"],
+  "articleSection": "Guide",
+  "wordCount": "5200"
+}
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168,85,247,0.15);
+  --bg: #09090B;
+  --bg-card: rgba(255,255,255,0.03);
+  --bg-card-hover: rgba(255,255,255,0.05);
+  --border: rgba(255,255,255,0.06);
+  --border-purple: rgba(168,85,247,0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --blue: #60A5FA;
+  --yellow: #FBBF24;
+  --red: #F87171;
+  --orange: #FB923C;
+  --radius: 12px;
+  --mono: 'JetBrains Mono', monospace;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.25); border-radius: 3px; }
+
+/* Progress bar */
+#progress-bar {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: linear-gradient(90deg, #7C3AED, #A855F7, #C084FC);
+  z-index: 600; width: 0%; transition: width 0.1s linear;
+}
+
+/* Nav */
+nav {
+  position: fixed; top: 3px; left: 0; right: 0; z-index: 400;
+  background: rgba(9,9,11,0.88); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 11px 0;
+}
+.nav-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-brand { font-weight: 800; font-size: 16px; text-decoration: none; color: var(--text); letter-spacing: -0.01em; }
+.nav-brand span { color: var(--purple); }
+.nav-links { display: flex; gap: 6px; list-style: none; align-items: center; }
+.nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 6px; transition: all 0.2s; font-weight: 500; }
+.nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.nav-cta { background: var(--purple) !important; color: #fff !important; font-weight: 600 !important; padding: 6px 14px !important; }
+.nav-cta:hover { background: var(--purple-dim) !important; }
+@media(max-width: 820px) { .nav-links { display: none; } }
+
+/* Layout */
+.page-wrap {
+  display: grid;
+  grid-template-columns: 1fr min(740px, 100%) 260px;
+  gap: 0;
+  padding: 96px 24px 100px;
+  max-width: 1260px;
+  margin: 0 auto;
+}
+main { grid-column: 2; min-width: 0; }
+@media(max-width: 900px) { .page-wrap { grid-template-columns: 1fr; padding: 80px 20px 60px; } }
+
+/* TOC */
+.toc-sticky {
+  position: sticky; top: 80px; align-self: start;
+  padding-left: 36px; grid-column: 3;
+}
+.toc-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+}
+.toc-box h4 {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 14px;
+}
+.toc-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.toc-list a {
+  font-size: 0.78rem; color: var(--text-secondary); text-decoration: none;
+  transition: all 0.2s; display: block; padding: 3px 0 3px 10px;
+  border-left: 2px solid transparent; line-height: 1.4;
+}
+.toc-list a:hover, .toc-list a.active { color: var(--purple); border-left-color: var(--purple); }
+@media(max-width: 1100px) { .toc-sticky { display: none; } }
+
+/* Post header */
+.post-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; flex-wrap: wrap; }
+.tag {
+  display: inline-flex; padding: 3px 11px; border-radius: 100px;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.tag-guide { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.tag-mcp { background: rgba(168,85,247,0.1); color: var(--purple); border: 1px solid rgba(168,85,247,0.2); }
+.post-date, .post-read { font-size: 0.82rem; color: var(--text-muted); }
+h1 {
+  font-size: clamp(1.8rem, 4.5vw, 2.6rem); font-weight: 800;
+  line-height: 1.12; letter-spacing: -0.025em; margin-bottom: 22px;
+}
+.post-intro {
+  font-size: 1.05rem; color: var(--text-secondary);
+  margin-bottom: 40px; border-left: 3px solid var(--border-purple);
+  padding-left: 20px; line-height: 1.8;
+}
+
+/* Typography */
+h2 {
+  font-size: 1.35rem; font-weight: 700; margin: 48px 0 16px;
+  scroll-margin-top: 88px; letter-spacing: -0.01em;
+}
+h2::before { content: ''; display: block; width: 32px; height: 2px; background: var(--purple); margin-bottom: 12px; border-radius: 2px; }
+h3 { font-size: 1.05rem; font-weight: 600; margin: 28px 0 10px; }
+h4 { font-size: 0.85rem; font-weight: 700; margin: 18px 0 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+p { margin-bottom: 16px; color: var(--text-secondary); font-size: 0.96rem; line-height: 1.75; }
+a { color: var(--purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin: 10px 0 20px 22px; }
+li { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 7px; line-height: 1.65; }
+strong { color: var(--text); font-weight: 600; }
+
+/* Stats row */
+.stats-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px; margin: 36px 0 44px;
+}
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 18px; text-align: center;
+  transition: border-color 0.2s;
+}
+.stat-card:hover { border-color: var(--border-purple); }
+.stat-value { font-size: 1.8rem; font-weight: 800; color: var(--purple); letter-spacing: -0.02em; line-height: 1; margin-bottom: 4px; }
+.stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Code blocks */
+.code-block {
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--radius); margin: 20px 0 28px; overflow: hidden;
+}
+.code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.code-label { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); }
+.code-lang {
+  font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.lang-python { background: rgba(96,165,250,0.15); color: var(--blue); }
+.lang-js { background: rgba(251,191,36,0.15); color: var(--yellow); }
+.lang-bash { background: rgba(34,197,94,0.12); color: var(--green); }
+.lang-json { background: rgba(251,146,60,0.12); color: var(--orange); }
+pre {
+  padding: 20px; overflow-x: auto; font-family: var(--mono);
+  font-size: 0.82rem; line-height: 1.7; color: #e5e7eb;
+}
+.kw { color: #C084FC; }
+.fn { color: #60A5FA; }
+.st { color: #86EFAC; }
+.cm { color: #6B7280; font-style: italic; }
+.nm { color: #FDE68A; }
+.op { color: #F9A8D4; }
+.dc { color: #93C5FD; }
+
+/* Callout boxes */
+.callout {
+  border-radius: var(--radius); padding: 20px 22px; margin: 24px 0;
+  border-left: 3px solid; font-size: 0.93rem;
+}
+.callout-purple { background: rgba(168,85,247,0.07); border-color: var(--purple); }
+.callout-blue { background: rgba(96,165,250,0.07); border-color: var(--blue); }
+.callout-green { background: rgba(34,197,94,0.07); border-color: var(--green); }
+.callout-yellow { background: rgba(251,191,36,0.07); border-color: var(--yellow); }
+.callout-title { font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.callout-purple .callout-title { color: var(--purple); }
+.callout-blue .callout-title { color: var(--blue); }
+.callout-green .callout-title { color: var(--green); }
+.callout-yellow .callout-title { color: var(--yellow); }
+.callout p { margin-bottom: 0; }
+
+/* Pattern cards */
+.pattern-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 24px 0 36px; }
+.pattern-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 18px;
+  transition: all 0.25s;
+}
+.pattern-card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); transform: translateY(-2px); }
+.pattern-icon { font-size: 1.6rem; margin-bottom: 12px; }
+.pattern-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+.pattern-desc { font-size: 0.83rem; color: var(--text-secondary); line-height: 1.55; }
+
+/* Steps */
+.steps { counter-reset: step; margin: 24px 0; }
+.step {
+  display: flex; gap: 16px; margin-bottom: 24px; align-items: flex-start;
+}
+.step-num {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700; color: var(--purple); font-family: var(--mono);
+}
+.step-content h4 { margin: 0 0 6px; color: var(--text); font-size: 0.93rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.step-content p { margin-bottom: 0; font-size: 0.88rem; }
+
+/* Table */
+.table-wrap { overflow-x: auto; margin: 24px 0 32px; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+thead tr { background: rgba(168,85,247,0.08); }
+th { padding: 12px 16px; text-align: left; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; }
+td { padding: 12px 16px; border-top: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;
+  font-weight: 700; font-family: var(--mono);
+}
+.badge-green { background: rgba(34,197,94,0.1); color: var(--green); }
+.badge-blue { background: rgba(96,165,250,0.1); color: var(--blue); }
+.badge-purple { background: rgba(168,85,247,0.1); color: var(--purple); }
+.badge-yellow { background: rgba(251,191,36,0.1); color: var(--yellow); }
+
+/* Flow diagram */
+.flow-diagram {
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px; margin: 24px 0 32px;
+  font-family: var(--mono); font-size: 0.8rem;
+}
+.flow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.flow-node {
+  padding: 6px 14px; border-radius: 8px; font-weight: 600;
+  white-space: nowrap;
+}
+.node-orch { background: rgba(168,85,247,0.2); border: 1px solid rgba(168,85,247,0.4); color: var(--purple); }
+.node-sub { background: rgba(96,165,250,0.15); border: 1px solid rgba(96,165,250,0.3); color: var(--blue); }
+.node-escrow { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: var(--green); }
+.node-result { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25); color: var(--yellow); }
+.flow-arrow { color: var(--text-muted); font-size: 1rem; }
+.flow-label { font-size: 0.7rem; color: var(--text-muted); margin-left: 4px; }
+
+/* CTA box */
+.cta-box {
+  background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(124,58,237,0.06));
+  border: 1px solid rgba(168,85,247,0.25); border-radius: 16px;
+  padding: 36px 32px; margin: 48px 0; text-align: center;
+}
+.cta-box h3 { font-size: 1.3rem; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.cta-box p { font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 22px; }
+.cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  padding: 10px 22px; border-radius: 8px; font-size: 0.9rem;
+  font-weight: 600; text-decoration: none; transition: all 0.2s;
+}
+.btn-primary { background: var(--purple); color: #fff; }
+.btn-primary:hover { background: var(--purple-dim); text-decoration: none; }
+.btn-ghost { background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: rgba(255,255,255,0.09); text-decoration: none; }
+
+/* Related posts */
+.related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 20px; }
+.related-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; text-decoration: none;
+  transition: all 0.22s; display: block;
+}
+.related-card:hover { border-color: var(--border-purple); transform: translateY(-2px); text-decoration: none; }
+.related-tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--purple); margin-bottom: 8px; }
+.related-title { font-size: 0.9rem; font-weight: 600; color: var(--text); line-height: 1.4; }
+
+/* Divider */
+.divider { border: none; border-top: 1px solid var(--border); margin: 44px 0; }
+
+/* Footer */
+footer {
+  background: rgba(0,0,0,0.3); border-top: 1px solid var(--border);
+  padding: 40px 0; margin-top: 80px; text-align: center;
+}
+.footer-links { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+.footer-links a { font-size: 0.85rem; color: var(--text-muted); text-decoration: none; }
+.footer-links a:hover { color: var(--text); }
+.footer-copy { font-size: 0.8rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-brand" href="https://purpleflea.com"><span>Purple</span> Flea</a>
+    <ul class="nav-links">
+      <li><a href="https://purpleflea.com/casino">Casino</a></li>
+      <li><a href="https://purpleflea.com/trading">Trading</a></li>
+      <li><a href="https://purpleflea.com/wallet">Wallet</a></li>
+      <li><a href="https://purpleflea.com/domains">Domains</a></li>
+      <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+      <li><a href="https://escrow.purpleflea.com" class="nav-cta">Escrow</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <!-- Left spacer -->
+  <div></div>
+
+  <main>
+    <div class="post-meta">
+      <span class="tag tag-guide">Guide</span>
+      <span class="tag tag-mcp">Multi-Agent</span>
+      <span class="post-date">March 7, 2026</span>
+      <span class="post-read">22 min read</span>
+    </div>
+
+    <h1>Agent Delegation Patterns: How AI Agents Hire and Manage Sub-Agents</h1>
+
+    <p class="post-intro">
+      When a single AI agent can't do everything alone, it delegates. This guide covers the three dominant delegation architectures — hierarchical, peer-to-peer, and market-based — and shows how to implement trustless payment flows using <a href="https://escrow.purpleflea.com">Purple Flea Escrow</a>. You'll get a production-ready Python <code>OrchestratorAgent</code> class, task specification patterns, monitoring strategies, and a complete worked example of a trading orchestrator that hires research, execution, and risk specialists.
+    </p>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Delegation Patterns</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">1%</div>
+        <div class="stat-label">Escrow Fee</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">15%</div>
+        <div class="stat-label">Referral Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">137+</div>
+        <div class="stat-label">Live Agents</div>
+      </div>
+    </div>
+
+    <!-- Section 1 -->
+    <h2 id="what-is-delegation">What Is Agent Delegation?</h2>
+
+    <p>
+      Agent delegation is the act of a <strong>manager agent</strong> breaking a complex task into subtasks and assigning each subtask to a <strong>specialist sub-agent</strong>. The manager retains accountability for the overall outcome while leveraging the specialist's deeper capabilities, trained context, or parallel availability.
+    </p>
+    <p>
+      Think of it as hiring: the manager defines the scope of work, sets acceptance criteria, holds funds in escrow, and releases payment only after verifying results. Unlike traditional software function calls, delegated sub-agents operate asynchronously, may fail, may produce partial results, and must be compensated in proportion to value delivered.
+    </p>
+
+    <div class="callout callout-purple">
+      <div class="callout-title">Why Delegation Matters</div>
+      <p>
+        No single LLM context window can hold the full knowledge needed for complex tasks. Delegation lets agents compose specialized capabilities: a trading agent delegates fundamental analysis to one sub-agent, technical chart reading to another, and regulatory compliance checks to a third — each running in parallel, each paid for results.
+      </p>
+    </div>
+
+    <h3>The Delegation Lifecycle</h3>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Task Decomposition</h4>
+          <p>Manager agent breaks the goal into discrete, verifiable subtasks with clear inputs, outputs, and acceptance criteria.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Sub-Agent Selection</h4>
+          <p>Manager queries a registry or marketplace, evaluates candidate agents by reputation, cost, and specialization, then selects the best fit.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Escrow Funding</h4>
+          <p>Manager locks payment in a trustless escrow before the sub-agent begins work, guaranteeing the sub-agent will be paid upon completion.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Work Execution</h4>
+          <p>Sub-agent executes the task, periodically reporting status back to the manager, and submits a result artifact when complete.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h4>Verification &amp; Payment</h4>
+          <p>Manager verifies the result against acceptance criteria. If satisfied, it releases escrow to the sub-agent. If not, it disputes or renegotiates.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <h4>Cost Accounting</h4>
+          <p>Manager records all costs (escrow fees, sub-agent payments, own LLM costs) against the task budget and reports to the top-level principal.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2 -->
+    <h2 id="delegation-patterns">Three Delegation Patterns</h2>
+
+    <p>
+      Delegation isn't one-size-fits-all. The right architecture depends on your task structure, trust requirements, and whether you need to optimize for speed, cost, or verifiability.
+    </p>
+
+    <div class="pattern-grid">
+      <div class="pattern-card">
+        <div class="pattern-icon">🏗️</div>
+        <div class="pattern-title">Hierarchical</div>
+        <div class="pattern-desc">A tree of agents. The root orchestrator delegates to managers, which delegate to workers. Clear chain of command, predictable cost accounting.</div>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">🔄</div>
+        <div class="pattern-title">Peer-to-Peer</div>
+        <div class="pattern-desc">Agents of equal status exchange tasks. Any agent can delegate to any other. Good for collaborative workflows without a fixed hierarchy.</div>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-icon">🏛️</div>
+        <div class="pattern-title">Market-Based</div>
+        <div class="pattern-desc">Tasks are posted as bids. Sub-agents compete on price and reputation. Optimal for commodity tasks where many agents are interchangeable.</div>
+      </div>
+    </div>
+
+    <h3>Hierarchical Delegation</h3>
+
+    <p>
+      Hierarchical delegation mirrors corporate org charts. A root <strong>Orchestrator</strong> decomposes goals into manager-level tasks; each manager decomposes further into worker-level subtasks. The hierarchy enforces accountability — every agent reports upward, and costs roll up to the root.
+    </p>
+
+    <div class="flow-diagram">
+      <div class="flow-row">
+        <span class="flow-node node-orch">Orchestrator Agent</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node node-escrow">Escrow (locked)</span>
+      </div>
+      <div class="flow-row" style="padding-left:28px">
+        <span class="flow-arrow">↓</span>
+        <span class="flow-label">delegates 3 subtasks</span>
+      </div>
+      <div class="flow-row" style="padding-left:28px; gap:20px">
+        <span class="flow-node node-sub">Research Agent</span>
+        <span class="flow-node node-sub">Execution Agent</span>
+        <span class="flow-node node-sub">Risk Agent</span>
+      </div>
+      <div class="flow-row" style="padding-left:28px">
+        <span class="flow-arrow">↓</span>
+        <span class="flow-label">results returned → escrow released</span>
+      </div>
+      <div class="flow-row" style="padding-left:28px">
+        <span class="flow-node node-result">Composed Result</span>
+      </div>
+    </div>
+
+    <p>
+      The main advantage is auditability. Every payment and result is traceable from root to leaf. The main disadvantage is latency: tasks must pass through each layer, and a slow manager blocks its entire subtree.
+    </p>
+
+    <h3>Peer-to-Peer Delegation</h3>
+
+    <p>
+      In P2P delegation, there's no fixed hierarchy. Any agent can ask any other for help. This is common in multi-agent frameworks like AutoGen or CrewAI where agents collaboratively discuss who should handle each task. P2P works well when the task structure isn't known in advance and agents need to self-organize.
+    </p>
+
+    <div class="callout callout-blue">
+      <div class="callout-title">P2P Trust Problem</div>
+      <p>
+        In P2P systems, trust becomes harder. An agent can't assume its peer is reliable. <strong>Escrow solves this</strong>: before delegating work in a P2P context, the delegating agent locks funds in <a href="https://escrow.purpleflea.com">Purple Flea Escrow</a>. The delegatee knows payment is guaranteed; the delegator knows funds won't leave without verified results.
+      </p>
+    </div>
+
+    <h3>Market-Based Delegation</h3>
+
+    <p>
+      Market-based delegation is the most decentralized pattern. The orchestrator posts a task specification as a "bid" to a marketplace. Sub-agents browse available bids and submit proposals with their price and estimated completion time. The orchestrator selects the best bid, locks escrow, and the winning sub-agent begins work.
+    </p>
+    <p>
+      This pattern drives down costs through competition and enables price discovery for novel tasks. The downside is latency in the bidding phase and the overhead of evaluating competing proposals. It works best for commodity tasks (data retrieval, document summarization, format conversion) where many interchangeable agents can compete.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Pattern</th>
+            <th>Best For</th>
+            <th>Trust Model</th>
+            <th>Latency</th>
+            <th>Cost Efficiency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-purple">Hierarchical</span></td>
+            <td>Complex, structured tasks with clear decomposition</td>
+            <td>Chain of authority</td>
+            <td>Medium</td>
+            <td>Moderate</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">Peer-to-Peer</span></td>
+            <td>Collaborative, emergent workflows</td>
+            <td>Escrow per interaction</td>
+            <td>Low</td>
+            <td>Moderate</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">Market-Based</span></td>
+            <td>Commodity tasks, price-sensitive workloads</td>
+            <td>Reputation + Escrow</td>
+            <td>High (bidding phase)</td>
+            <td>High</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3 -->
+    <h2 id="escrow-for-sub-agents">Escrow for Trustless Sub-Agent Payments</h2>
+
+    <p>
+      The fundamental problem in agent delegation is payment: the sub-agent won't start work without assurance of payment, and the orchestrator won't pay without verified results. <strong>Trustless escrow solves this deadlock.</strong>
+    </p>
+    <p>
+      <a href="https://escrow.purpleflea.com">Purple Flea Escrow</a> is purpose-built for agent-to-agent payments. The orchestrator deposits funds via API, referencing both parties' wallet addresses. The escrow contract holds funds until the orchestrator calls <code>release</code>. If the sub-agent fails to deliver within the timeout, the orchestrator can call <code>refund</code>.
+    </p>
+
+    <div class="callout callout-green">
+      <div class="callout-title">Escrow Economics</div>
+      <p>
+        Purple Flea Escrow charges <strong>1% on the escrowed amount</strong>, split between protocol maintenance and the 15% referral program. For a 100 USDC escrow, the fee is 1 USDC — far cheaper than the risk of non-payment or non-delivery.
+      </p>
+    </div>
+
+    <h3>Creating an Escrow via API</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Create escrow for sub-agent work</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">import</span> requests
+
+ESCROW_API = <span class="st">"https://escrow.purpleflea.com/api"</span>
+API_KEY = <span class="st">"pf_live_your_orchestrator_key"</span>
+
+<span class="kw">def</span> <span class="fn">create_escrow</span>(
+    sub_agent_wallet: str,
+    amount_usdc: float,
+    task_id: str,
+    timeout_hours: int = <span class="nm">24</span>
+) -> dict:
+    <span class="st">"""Lock funds for a sub-agent task before work begins."""</span>
+    response = requests.<span class="fn">post</span>(
+        <span class="st">f"</span><span class="dc">{ESCROW_API}</span><span class="st">/escrow/create"</span>,
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="dc">{API_KEY}</span><span class="st">"</span>},
+        json={
+            <span class="st">"recipient_wallet"</span>: sub_agent_wallet,
+            <span class="st">"amount_usdc"</span>: amount_usdc,
+            <span class="st">"task_id"</span>: task_id,
+            <span class="st">"timeout_hours"</span>: timeout_hours,
+            <span class="st">"release_condition"</span>: <span class="st">"manual"</span>,  <span class="cm"># orchestrator calls release</span>
+        }
+    )
+    response.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> response.<span class="fn">json</span>()
+
+<span class="cm"># Example usage</span>
+escrow_data = <span class="fn">create_escrow</span>(
+    sub_agent_wallet=<span class="st">"research_agent_wallet_address"</span>,
+    amount_usdc=<span class="nm">5.00</span>,
+    task_id=<span class="st">"task_btc_fundamental_analysis_2026-03-07"</span>
+)
+
+escrow_id = escrow_data[<span class="st">"escrow_id"</span>]
+<span class="fn">print</span>(<span class="st">f"Escrow </span><span class="dc">{escrow_id}</span><span class="st"> created — sub-agent can begin work"</span>)</pre>
+    </div>
+
+    <h3>Releasing Payment After Verification</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Release or refund escrow after result verification</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">def</span> <span class="fn">release_escrow</span>(escrow_id: str) -> dict:
+    <span class="st">"""Release funds to sub-agent after successful verification."""</span>
+    response = requests.<span class="fn">post</span>(
+        <span class="st">f"</span><span class="dc">{ESCROW_API}</span><span class="st">/escrow/</span><span class="dc">{escrow_id}</span><span class="st">/release"</span>,
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="dc">{API_KEY}</span><span class="st">"</span>}
+    )
+    response.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> response.<span class="fn">json</span>()
+
+<span class="kw">def</span> <span class="fn">refund_escrow</span>(escrow_id: str, reason: str) -> dict:
+    <span class="st">"""Refund funds to orchestrator if sub-agent failed."""</span>
+    response = requests.<span class="fn">post</span>(
+        <span class="st">f"</span><span class="dc">{ESCROW_API}</span><span class="st">/escrow/</span><span class="dc">{escrow_id}</span><span class="st">/refund"</span>,
+        headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="dc">{API_KEY}</span><span class="st">"</span>},
+        json={<span class="st">"reason"</span>: reason}
+    )
+    response.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> response.<span class="fn">json</span>()
+
+<span class="cm"># After verifying sub-agent result meets acceptance criteria:</span>
+result = <span class="fn">release_escrow</span>(escrow_id)
+<span class="fn">print</span>(<span class="st">f"Paid sub-agent: </span><span class="dc">{result['amount_released']}</span><span class="st"> USDC"</span>)
+
+<span class="cm"># If result doesn't meet criteria:</span>
+<span class="cm"># refund_escrow(escrow_id, reason="Analysis missing required volatility metrics")</span></pre>
+    </div>
+
+    <!-- Section 4 -->
+    <h2 id="task-specification">Task Specification and Acceptance Criteria</h2>
+
+    <p>
+      The quality of a delegated task depends entirely on the precision of its specification. Vague tasks produce vague results. A well-formed task specification has five components: <strong>inputs</strong>, <strong>outputs</strong>, <strong>constraints</strong>, <strong>acceptance criteria</strong>, and <strong>compensation</strong>.
+    </p>
+
+    <h3>Task Specification Schema</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Task specification as a typed Python dataclass</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Callable, Optional
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timedelta
+
+@dataclass
+<span class="kw">class</span> <span class="fn">TaskSpec</span>:
+    <span class="st">"""Specification for a delegated sub-agent task."""</span>
+
+    task_id: str
+    task_type: str               <span class="cm"># e.g. "fundamental_analysis", "chart_reading"</span>
+    description: str             <span class="cm"># Human-readable description</span>
+
+    <span class="cm"># Inputs provided to sub-agent</span>
+    inputs: dict[str, Any] = field(default_factory=dict)
+
+    <span class="cm"># Expected output schema (JSON Schema or description)</span>
+    output_schema: dict = field(default_factory=dict)
+
+    <span class="cm"># Hard constraints</span>
+    deadline: Optional[datetime] = None
+    max_tokens_input: int = <span class="nm">8000</span>
+    max_llm_calls: int = <span class="nm">10</span>
+
+    <span class="cm"># Acceptance criteria: callable that returns (passed: bool, reason: str)</span>
+    acceptance_fn: Optional[Callable] = None
+
+    <span class="cm"># Payment in USDC</span>
+    payment_usdc: float = <span class="nm">1.0</span>
+    escrow_id: Optional[str] = None
+
+    <span class="kw">def</span> <span class="fn">validate_result</span>(self, result: Any) -> tuple[bool, str]:
+        <span class="st">"""Run acceptance criteria against a sub-agent result."""</span>
+        <span class="kw">if</span> self.acceptance_fn <span class="kw">is None</span>:
+            <span class="kw">return True</span>, <span class="st">"No acceptance criteria set"</span>
+        <span class="kw">try</span>:
+            <span class="kw">return</span> self.<span class="fn">acceptance_fn</span>(result)
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">return False</span>, <span class="st">f"Acceptance function raised: </span><span class="dc">{e}</span><span class="st">"</span>
+
+
+<span class="cm"># Example: fundamental analysis task</span>
+analysis_task = <span class="fn">TaskSpec</span>(
+    task_id=<span class="st">"btc_fundamental_2026-03-07"</span>,
+    task_type=<span class="st">"fundamental_analysis"</span>,
+    description=<span class="st">"Analyze BTC fundamentals: on-chain metrics, miner data, exchange flows"</span>,
+    inputs={
+        <span class="st">"asset"</span>: <span class="st">"BTC"</span>,
+        <span class="st">"timeframe"</span>: <span class="st">"7d"</span>,
+        <span class="st">"data_sources"</span>: [<span class="st">"glassnode"</span>, <span class="st">"mempool.space"</span>]
+    },
+    output_schema={
+        <span class="st">"sentiment"</span>: <span class="st">"bullish|neutral|bearish"</span>,
+        <span class="st">"confidence"</span>: <span class="st">"0.0-1.0"</span>,
+        <span class="st">"key_metrics"</span>: <span class="st">"dict of metric_name -> value"</span>,
+        <span class="st">"summary"</span>: <span class="st">"200-500 word narrative"</span>
+    },
+    deadline=datetime.<span class="fn">utcnow</span>() + <span class="fn">timedelta</span>(hours=<span class="nm">2</span>),
+    acceptance_fn=<span class="kw">lambda</span> r: (
+        r.<span class="fn">get</span>(<span class="st">"sentiment"</span>) <span class="kw">in</span> [<span class="st">"bullish"</span>, <span class="st">"neutral"</span>, <span class="st">"bearish"</span>]
+        <span class="kw">and</span> <span class="nm">0</span> <= r.<span class="fn">get</span>(<span class="st">"confidence"</span>, <span class="nm">-1</span>) <= <span class="nm">1</span>
+        <span class="kw">and</span> <span class="nm">200</span> <= <span class="fn">len</span>(r.<span class="fn">get</span>(<span class="st">"summary"</span>, <span class="st">""</span>)) <= <span class="nm">1000</span>,
+        <span class="st">"Missing required fields or out-of-range values"</span>
+    ),
+    payment_usdc=<span class="nm">5.00</span>
+)</pre>
+    </div>
+
+    <div class="callout callout-yellow">
+      <div class="callout-title">Acceptance Criteria Best Practices</div>
+      <p>
+        Write acceptance criteria before you write the task description — this forces clarity about what "done" means. Good criteria are <strong>deterministic</strong> (same result always passes or fails), <strong>cheap to evaluate</strong> (no extra LLM calls needed), and <strong>exhaustive</strong> (cover all output fields the orchestrator depends on).
+      </p>
+    </div>
+
+    <!-- Section 5 -->
+    <h2 id="monitoring">Monitoring Sub-Agent Performance and Revoking Delegation</h2>
+
+    <p>
+      Delegating work doesn't mean losing control. A robust orchestrator monitors sub-agents continuously and revokes delegation when performance degrades below acceptable thresholds.
+    </p>
+
+    <h3>Monitoring Dimensions</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>What to Track</th>
+            <th>Threshold Example</th>
+            <th>Action on Breach</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-blue">Latency</span></td>
+            <td>Time from task assignment to first status update</td>
+            <td>&gt;15 min with no update</td>
+            <td>Send reminder; escalate after 30 min</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-yellow">Quality</span></td>
+            <td>Acceptance rate over last N tasks</td>
+            <td>&lt;70% pass rate</td>
+            <td>Suspend sub-agent, route to backup</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">Cost</span></td>
+            <td>Actual vs. estimated payment per task</td>
+            <td>&gt;2x estimate</td>
+            <td>Renegotiate or terminate</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-purple">Availability</span></td>
+            <td>Response to heartbeat pings</td>
+            <td>3 consecutive missed pings</td>
+            <td>Mark offline, trigger refund</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Revocation and Escrow Refund</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Monitor sub-agent and revoke on timeout</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timezone
+
+<span class="kw">async def</span> <span class="fn">monitor_task</span>(
+    task: TaskSpec,
+    sub_agent_url: str,
+    poll_interval_sec: int = <span class="nm">60</span>
+) -> dict:
+    <span class="st">"""Poll sub-agent status and handle timeout with automatic refund."""</span>
+    start = datetime.<span class="fn">now</span>(timezone.utc)
+    consecutive_failures = <span class="nm">0</span>
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        <span class="cm"># Check deadline</span>
+        <span class="kw">if</span> task.deadline <span class="kw">and</span> datetime.<span class="fn">now</span>(timezone.utc) > task.deadline:
+            <span class="fn">print</span>(<span class="st">f"Task </span><span class="dc">{task.task_id}</span><span class="st"> timed out — triggering refund"</span>)
+            <span class="kw">await</span> <span class="fn">refund_escrow_async</span>(task.escrow_id, <span class="st">"Deadline exceeded"</span>)
+            <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"timeout"</span>, <span class="st">"refunded"</span>: <span class="kw">True</span>}
+
+        <span class="cm"># Poll sub-agent for status</span>
+        <span class="kw">try</span>:
+            status = <span class="kw">await</span> <span class="fn">fetch_task_status</span>(sub_agent_url, task.task_id)
+            consecutive_failures = <span class="nm">0</span>
+
+            <span class="kw">if</span> status[<span class="st">"state"</span>] == <span class="st">"completed"</span>:
+                result = status[<span class="st">"result"</span>]
+                passed, reason = task.<span class="fn">validate_result</span>(result)
+
+                <span class="kw">if</span> passed:
+                    <span class="kw">await</span> <span class="fn">release_escrow_async</span>(task.escrow_id)
+                    <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"success"</span>, <span class="st">"result"</span>: result}
+                <span class="kw">else</span>:
+                    <span class="fn">print</span>(<span class="st">f"Result rejected: </span><span class="dc">{reason}</span><span class="st">"</span>)
+                    <span class="kw">await</span> <span class="fn">refund_escrow_async</span>(task.escrow_id, reason)
+                    <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"rejected"</span>, <span class="st">"reason"</span>: reason}
+
+            <span class="kw">elif</span> status[<span class="st">"state"</span>] == <span class="st">"failed"</span>:
+                <span class="kw">await</span> <span class="fn">refund_escrow_async</span>(task.escrow_id, status.<span class="fn">get</span>(<span class="st">"error"</span>))
+                <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"failed"</span>}
+
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            consecutive_failures += <span class="nm">1</span>
+            <span class="fn">print</span>(<span class="st">f"Poll failure </span><span class="dc">{consecutive_failures}</span><span class="st">/3: </span><span class="dc">{e}</span><span class="st">"</span>)
+            <span class="kw">if</span> consecutive_failures >= <span class="nm">3</span>:
+                <span class="kw">await</span> <span class="fn">refund_escrow_async</span>(task.escrow_id, <span class="st">"Sub-agent unreachable"</span>)
+                <span class="kw">return</span> {<span class="st">"status"</span>: <span class="st">"unreachable"</span>, <span class="st">"refunded"</span>: <span class="kw">True</span>}
+
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(poll_interval_sec)</pre>
+    </div>
+
+    <p>
+      Always implement <strong>circuit breakers</strong> at the sub-agent level. Track acceptance rates per sub-agent over a rolling window. If an agent's pass rate drops below your threshold, remove it from the routing pool automatically — don't wait for manual intervention.
+    </p>
+
+    <!-- Section 6 -->
+    <h2 id="orchestrator-agent">Python: The OrchestratorAgent Class</h2>
+
+    <p>
+      The following is a production-ready <code>OrchestratorAgent</code> class that handles the full delegation lifecycle: task decomposition, escrow funding, sub-agent selection, parallel execution, result verification, payment release, and cost accounting.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">OrchestratorAgent — full implementation</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">import</span> uuid
+<span class="kw">import</span> logging
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timedelta, timezone
+<span class="kw">from</span> typing <span class="kw">import</span> Any, Optional
+<span class="kw">import</span> httpx
+
+logger = logging.<span class="fn">getLogger</span>(<span class="st">"orchestrator"</span>)
+
+ESCROW_API = <span class="st">"https://escrow.purpleflea.com/api"</span>
+
+@dataclass
+<span class="kw">class</span> <span class="fn">SubAgentRecord</span>:
+    agent_id: str
+    wallet: str
+    endpoint: str
+    specialization: str
+    reputation_score: float = <span class="nm">1.0</span>
+    tasks_completed: int = <span class="nm">0</span>
+    tasks_failed: int = <span class="nm">0</span>
+    total_paid_usdc: float = <span class="nm">0.0</span>
+
+    @property
+    <span class="kw">def</span> <span class="fn">acceptance_rate</span>(self) -> float:
+        total = self.tasks_completed + self.tasks_failed
+        <span class="kw">return</span> self.tasks_completed / total <span class="kw">if</span> total > <span class="nm">0</span> <span class="kw">else</span> <span class="nm">1.0</span>
+
+
+@dataclass
+<span class="kw">class</span> <span class="fn">CostRecord</span>:
+    task_id: str
+    sub_agent_id: str
+    escrow_amount: float
+    escrow_fee: float       <span class="cm"># 1% of escrowed amount</span>
+    released: bool = <span class="kw">False</span>
+    refunded: bool = <span class="kw">False</span>
+    llm_cost_usd: float = <span class="nm">0.0</span>
+
+
+<span class="kw">class</span> <span class="fn">OrchestratorAgent</span>:
+    <span class="st">"""
+    A manager agent that decomposes goals, delegates to specialists,
+    manages escrow, monitors results, and tracks costs.
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        api_key: str,
+        orchestrator_wallet: str,
+        budget_usdc: float,
+        min_acceptance_rate: float = <span class="nm">0.7</span>
+    ):
+        self.api_key = api_key
+        self.wallet = orchestrator_wallet
+        self.budget_usdc = budget_usdc
+        self.min_acceptance_rate = min_acceptance_rate
+        self.sub_agents: dict[str, SubAgentRecord] = {}
+        self.cost_ledger: list[CostRecord] = []
+        self.http = httpx.<span class="fn">AsyncClient</span>(timeout=<span class="nm">30.0</span>)
+
+    <span class="kw">def</span> <span class="fn">register_sub_agent</span>(self, record: SubAgentRecord):
+        <span class="st">"""Add a sub-agent to the routing pool."""</span>
+        self.sub_agents[record.agent_id] = record
+        logger.<span class="fn">info</span>(<span class="st">f"Registered sub-agent: </span><span class="dc">{record.agent_id}</span><span class="st"> ({record.specialization})"</span>)
+
+    <span class="kw">def</span> <span class="fn">select_sub_agent</span>(self, specialization: str) -> Optional[SubAgentRecord]:
+        <span class="st">"""Select best available sub-agent for a given specialization."""</span>
+        candidates = [
+            a <span class="kw">for</span> a <span class="kw">in</span> self.sub_agents.<span class="fn">values</span>()
+            <span class="kw">if</span> a.specialization == specialization
+            <span class="kw">and</span> a.<span class="fn">acceptance_rate</span> >= self.min_acceptance_rate
+        ]
+        <span class="kw">if not</span> candidates:
+            <span class="kw">return None</span>
+        <span class="cm"># Prefer highest reputation, then lowest cost</span>
+        <span class="kw">return</span> <span class="fn">max</span>(candidates, key=<span class="kw">lambda</span> a: a.reputation_score)
+
+    <span class="kw">async def</span> <span class="fn">_create_escrow</span>(
+        self,
+        sub_agent_wallet: str,
+        amount: float,
+        task_id: str
+    ) -> str:
+        <span class="st">"""Create escrow and return escrow_id."""</span>
+        resp = <span class="kw">await</span> self.http.<span class="fn">post</span>(
+            <span class="st">f"</span><span class="dc">{ESCROW_API}</span><span class="st">/escrow/create"</span>,
+            headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="dc">{self.api_key}</span><span class="st">"</span>},
+            json={
+                <span class="st">"recipient_wallet"</span>: sub_agent_wallet,
+                <span class="st">"amount_usdc"</span>: amount,
+                <span class="st">"task_id"</span>: task_id,
+                <span class="st">"timeout_hours"</span>: <span class="nm">24</span>,
+            }
+        )
+        resp.<span class="fn">raise_for_status</span>()
+        data = resp.<span class="fn">json</span>()
+        logger.<span class="fn">info</span>(<span class="st">f"Escrow </span><span class="dc">{data['escrow_id']}</span><span class="st"> created for task </span><span class="dc">{task_id}</span><span class="st">"</span>)
+        <span class="kw">return</span> data[<span class="st">"escrow_id"</span>]
+
+    <span class="kw">async def</span> <span class="fn">_release_or_refund</span>(
+        self,
+        escrow_id: str,
+        release: bool,
+        reason: str = <span class="st">""</span>
+    ):
+        action = <span class="st">"release"</span> <span class="kw">if</span> release <span class="kw">else</span> <span class="st">"refund"</span>
+        resp = <span class="kw">await</span> self.http.<span class="fn">post</span>(
+            <span class="st">f"</span><span class="dc">{ESCROW_API}</span><span class="st">/escrow/</span><span class="dc">{escrow_id}</span><span class="st">/</span><span class="dc">{action}</span><span class="st">"</span>,
+            headers={<span class="st">"Authorization"</span>: <span class="st">f"Bearer </span><span class="dc">{self.api_key}</span><span class="st">"</span>},
+            json={<span class="st">"reason"</span>: reason} <span class="kw">if not</span> release <span class="kw">else</span> {}
+        )
+        resp.<span class="fn">raise_for_status</span>()
+        logger.<span class="fn">info</span>(<span class="st">f"Escrow </span><span class="dc">{escrow_id}</span><span class="st"> </span><span class="dc">{action}</span><span class="st">d"</span>)
+
+    <span class="kw">async def</span> <span class="fn">delegate_task</span>(self, task: <span class="fn">TaskSpec</span>) -> dict:
+        <span class="st">"""Full delegation lifecycle for a single task."""</span>
+        agent = self.<span class="fn">select_sub_agent</span>(task.task_type)
+        <span class="kw">if not</span> agent:
+            <span class="kw">raise</span> <span class="fn">ValueError</span>(<span class="st">f"No eligible sub-agent for: </span><span class="dc">{task.task_type}</span><span class="st">"</span>)
+
+        <span class="cm"># Check budget</span>
+        total_committed = <span class="fn">sum</span>(c.escrow_amount <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger <span class="kw">if not</span> c.refunded)
+        <span class="kw">if</span> total_committed + task.payment_usdc > self.budget_usdc:
+            <span class="kw">raise</span> <span class="fn">RuntimeError</span>(<span class="st">"Budget exceeded"</span>)
+
+        <span class="cm"># Create escrow</span>
+        fee = task.payment_usdc * <span class="nm">0.01</span>
+        escrow_id = <span class="kw">await</span> self.<span class="fn">_create_escrow</span>(
+            agent.wallet, task.payment_usdc, task.task_id
+        )
+        task.escrow_id = escrow_id
+
+        <span class="cm"># Record cost</span>
+        cost = <span class="fn">CostRecord</span>(
+            task_id=task.task_id,
+            sub_agent_id=agent.agent_id,
+            escrow_amount=task.payment_usdc,
+            escrow_fee=fee
+        )
+        self.cost_ledger.<span class="fn">append</span>(cost)
+
+        <span class="cm"># Dispatch task to sub-agent</span>
+        <span class="kw">try</span>:
+            dispatch_resp = <span class="kw">await</span> self.http.<span class="fn">post</span>(
+                <span class="st">f"</span><span class="dc">{agent.endpoint}</span><span class="st">/tasks"</span>,
+                json={
+                    <span class="st">"task_id"</span>: task.task_id,
+                    <span class="st">"task_type"</span>: task.task_type,
+                    <span class="st">"inputs"</span>: task.inputs,
+                    <span class="st">"output_schema"</span>: task.output_schema,
+                    <span class="st">"escrow_id"</span>: escrow_id,
+                    <span class="st">"deadline"</span>: task.deadline.<span class="fn">isoformat</span>() <span class="kw">if</span> task.deadline <span class="kw">else None</span>,
+                }
+            )
+            dispatch_resp.<span class="fn">raise_for_status</span>()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">await</span> self.<span class="fn">_release_or_refund</span>(escrow_id, release=<span class="kw">False</span>, reason=<span class="st">f"Dispatch failed: </span><span class="dc">{e}</span><span class="st">"</span>)
+            cost.refunded = <span class="kw">True</span>
+            <span class="kw">raise</span>
+
+        <span class="cm"># Monitor and verify</span>
+        result_data = <span class="kw">await</span> self.<span class="fn">_monitor_until_complete</span>(task, agent)
+
+        <span class="kw">if</span> result_data[<span class="st">"status"</span>] == <span class="st">"success"</span>:
+            agent.tasks_completed += <span class="nm">1</span>
+            agent.total_paid_usdc += task.payment_usdc
+            cost.released = <span class="kw">True</span>
+        <span class="kw">else</span>:
+            agent.tasks_failed += <span class="nm">1</span>
+            cost.refunded = <span class="kw">True</span>
+
+        <span class="kw">return</span> result_data
+
+    <span class="kw">async def</span> <span class="fn">delegate_parallel</span>(self, tasks: list) -> list:
+        <span class="st">"""Run multiple tasks concurrently."""</span>
+        <span class="kw">return await</span> asyncio.<span class="fn">gather</span>(
+            *[self.<span class="fn">delegate_task</span>(t) <span class="kw">for</span> t <span class="kw">in</span> tasks],
+            return_exceptions=<span class="kw">True</span>
+        )
+
+    <span class="kw">def</span> <span class="fn">cost_summary</span>(self) -> dict:
+        <span class="st">"""Aggregate cost accounting across all delegated tasks."""</span>
+        total_escrowed = <span class="fn">sum</span>(c.escrow_amount <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger)
+        total_released = <span class="fn">sum</span>(c.escrow_amount <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger <span class="kw">if</span> c.released)
+        total_refunded = <span class="fn">sum</span>(c.escrow_amount <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger <span class="kw">if</span> c.refunded)
+        total_fees = <span class="fn">sum</span>(c.escrow_fee <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger)
+        <span class="kw">return</span> {
+            <span class="st">"total_escrowed_usdc"</span>: total_escrowed,
+            <span class="st">"total_released_usdc"</span>: total_released,
+            <span class="st">"total_refunded_usdc"</span>: total_refunded,
+            <span class="st">"total_fees_usdc"</span>: total_fees,
+            <span class="st">"tasks_succeeded"</span>: <span class="fn">sum</span>(<span class="nm">1</span> <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger <span class="kw">if</span> c.released),
+            <span class="st">"tasks_failed"</span>: <span class="fn">sum</span>(<span class="nm">1</span> <span class="kw">for</span> c <span class="kw">in</span> self.cost_ledger <span class="kw">if</span> c.refunded),
+            <span class="st">"budget_remaining_usdc"</span>: self.budget_usdc - (total_escrowed - total_refunded),
+        }</pre>
+    </div>
+
+    <!-- Section 7 -->
+    <h2 id="cost-accounting">Cost Accounting Across Agent Hierarchies</h2>
+
+    <p>
+      In a multi-level agent hierarchy, costs accumulate at every layer. Each orchestrator pays its sub-agents; each sub-agent may itself be an orchestrator paying its own sub-agents. Without rigorous cost accounting, you quickly lose visibility into where budget is going.
+    </p>
+
+    <h3>The Cost Rollup Pattern</h3>
+
+    <p>
+      Each agent maintains a local <code>cost_ledger</code> and reports its total cost upward when submitting results. The parent orchestrator aggregates child costs into its own ledger. At the top level, the principal sees the full cost tree.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Cost rollup: each result carries its own cost metadata</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">def</span> <span class="fn">build_result_with_cost</span>(
+    payload: Any,
+    orchestrator: OrchestratorAgent,
+    own_llm_cost_usd: float = <span class="nm">0.0</span>
+) -> dict:
+    <span class="st">"""Wrap a result payload with full cost metadata for parent accounting."""</span>
+    cost = orchestrator.<span class="fn">cost_summary</span>()
+    <span class="kw">return</span> {
+        <span class="st">"payload"</span>: payload,
+        <span class="st">"cost_metadata"</span>: {
+            <span class="st">"sub_agent_payments_usdc"</span>: cost[<span class="st">"total_released_usdc"</span>],
+            <span class="st">"escrow_fees_usdc"</span>: cost[<span class="st">"total_fees_usdc"</span>],
+            <span class="st">"own_llm_cost_usd"</span>: own_llm_cost_usd,
+            <span class="st">"total_cost_usd"</span>: (
+                cost[<span class="st">"total_released_usdc"</span>]
+                + cost[<span class="st">"total_fees_usdc"</span>]
+                + own_llm_cost_usd
+            ),
+            <span class="st">"tasks_completed"</span>: cost[<span class="st">"tasks_succeeded"</span>],
+            <span class="st">"tasks_failed"</span>: cost[<span class="st">"tasks_failed"</span>],
+        }
+    }
+
+<span class="cm"># Parent orchestrator aggregates child costs:</span>
+<span class="kw">def</span> <span class="fn">aggregate_hierarchy_cost</span>(results: list[dict]) -> dict:
+    total_sub = <span class="fn">sum</span>(
+        r[<span class="st">"cost_metadata"</span>][<span class="st">"total_cost_usd"</span>]
+        <span class="kw">for</span> r <span class="kw">in</span> results
+        <span class="kw">if isinstance</span>(r, dict) <span class="kw">and</span> <span class="st">"cost_metadata"</span> <span class="kw">in</span> r
+    )
+    <span class="kw">return</span> {
+        <span class="st">"total_hierarchy_cost_usd"</span>: total_sub,
+        <span class="st">"per_task"</span>: [
+            {
+                <span class="st">"task"</span>: r.<span class="fn">get</span>(<span class="st">"task_id"</span>),
+                <span class="st">"cost"</span>: r[<span class="st">"cost_metadata"</span>][<span class="st">"total_cost_usd"</span>]
+            }
+            <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if isinstance</span>(r, dict) <span class="kw">and</span> <span class="st">"cost_metadata"</span> <span class="kw">in</span> r
+        ]
+    }</pre>
+    </div>
+
+    <div class="callout callout-purple">
+      <div class="callout-title">Budget Enforcement</div>
+      <p>
+        Always enforce budgets <em>before</em> creating escrow. The <code>OrchestratorAgent.delegate_task()</code> method above checks remaining budget before each escrow creation. If an agent hierarchy needs shared budget enforcement, use a <strong>budget token</strong>: a shared counter stored in a fast key-value store that all orchestrators decrement atomically before spending.
+      </p>
+    </div>
+
+    <!-- Section 8 -->
+    <h2 id="trading-example">Real Example: Trading Orchestrator with Specialist Sub-Agents</h2>
+
+    <p>
+      Let's build a complete trading orchestrator that delegates three workstreams to three specialist sub-agents, runs them in parallel, and only places a trade if all three agree. This is a real architecture used by autonomous trading agents on <a href="https://purpleflea.com/trading">Purple Flea Trading</a>.
+    </p>
+
+    <h3>System Architecture</h3>
+
+    <div class="flow-diagram">
+      <div style="font-size:0.75rem; color: var(--text-muted); margin-bottom:16px; text-transform:uppercase; letter-spacing:0.06em;">Trading Orchestrator Hierarchy</div>
+
+      <div class="flow-row">
+        <span class="flow-node node-orch">TradingOrchestrator</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node node-escrow">Escrow × 3</span>
+      </div>
+      <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:150px; text-align:center;">
+          <div class="flow-node node-sub" style="display:block; margin-bottom:8px;">ResearchAgent</div>
+          <div style="font-size:0.72rem; color:var(--text-muted)">Fundamentals<br>On-chain metrics<br>News sentiment</div>
+        </div>
+        <div style="flex:1; min-width:150px; text-align:center;">
+          <div class="flow-node node-sub" style="display:block; margin-bottom:8px;">ExecutionAgent</div>
+          <div style="font-size:0.72rem; color:var(--text-muted)">Order routing<br>Slippage calc<br>Timing analysis</div>
+        </div>
+        <div style="flex:1; min-width:150px; text-align:center;">
+          <div class="flow-node node-sub" style="display:block; margin-bottom:8px;">RiskAgent</div>
+          <div style="font-size:0.72rem; color:var(--text-muted)">Position sizing<br>Drawdown limits<br>Correlation check</div>
+        </div>
+      </div>
+      <div class="flow-row" style="margin-top:14px;">
+        <span class="flow-arrow">↓</span>
+        <span class="flow-label">All three results merged → consensus check → trade or pass</span>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">TradingOrchestrator — full working implementation</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> datetime <span class="kw">import</span> datetime, timedelta, timezone
+
+<span class="kw">class</span> <span class="fn">TradingOrchestrator</span>(OrchestratorAgent):
+    <span class="st">"""
+    Orchestrator that delegates research, execution planning, and risk
+    assessment to specialist sub-agents before placing any trade.
+    """</span>
+
+    RESEARCH_PAYMENT = <span class="nm">5.00</span>    <span class="cm"># USDC</span>
+    EXECUTION_PAYMENT = <span class="nm">3.00</span>   <span class="cm"># USDC</span>
+    RISK_PAYMENT = <span class="nm">2.50</span>        <span class="cm"># USDC</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, api_key: str, wallet: str, budget: float):
+        <span class="fn">super</span>().<span class="fn">__init__</span>(api_key, wallet, budget)
+        self.<span class="fn">_register_specialists</span>()
+
+    <span class="kw">def</span> <span class="fn">_register_specialists</span>(self):
+        self.<span class="fn">register_sub_agent</span>(<span class="fn">SubAgentRecord</span>(
+            agent_id=<span class="st">"research-001"</span>,
+            wallet=<span class="st">"research_agent_wallet"</span>,
+            endpoint=<span class="st">"https://research-agent.purpleflea.com"</span>,
+            specialization=<span class="st">"fundamental_analysis"</span>,
+            reputation_score=<span class="nm">0.92</span>
+        ))
+        self.<span class="fn">register_sub_agent</span>(<span class="fn">SubAgentRecord</span>(
+            agent_id=<span class="st">"exec-001"</span>,
+            wallet=<span class="st">"execution_agent_wallet"</span>,
+            endpoint=<span class="st">"https://exec-agent.purpleflea.com"</span>,
+            specialization=<span class="st">"execution_planning"</span>,
+            reputation_score=<span class="nm">0.96</span>
+        ))
+        self.<span class="fn">register_sub_agent</span>(<span class="fn">SubAgentRecord</span>(
+            agent_id=<span class="st">"risk-001"</span>,
+            wallet=<span class="st">"risk_agent_wallet"</span>,
+            endpoint=<span class="st">"https://risk-agent.purpleflea.com"</span>,
+            specialization=<span class="st">"risk_assessment"</span>,
+            reputation_score=<span class="nm">0.98</span>
+        ))
+
+    <span class="kw">def</span> <span class="fn">_build_tasks</span>(self, asset: str, direction: str, size_usdc: float) -> list:
+        deadline = datetime.<span class="fn">now</span>(timezone.utc) + <span class="fn">timedelta</span>(hours=<span class="nm">1</span>)
+        task_id_base = <span class="st">f"</span><span class="dc">{asset}</span><span class="st">-</span><span class="dc">{direction}</span><span class="st">-</span><span class="dc">{datetime.now().strftime('%Y%m%d%H%M')}</span><span class="st">"</span>
+
+        <span class="kw">return</span> [
+            <span class="fn">TaskSpec</span>(
+                task_id=<span class="st">f"</span><span class="dc">{task_id_base}</span><span class="st">-research"</span>,
+                task_type=<span class="st">"fundamental_analysis"</span>,
+                description=<span class="st">f"Fundamental analysis for </span><span class="dc">{asset}</span><span class="st"> </span><span class="dc">{direction}</span><span class="st"> trade"</span>,
+                inputs={<span class="st">"asset"</span>: asset, <span class="st">"direction"</span>: direction, <span class="st">"timeframe"</span>: <span class="st">"4h"</span>},
+                output_schema={
+                    <span class="st">"go"</span>: <span class="st">"bool"</span>, <span class="st">"confidence"</span>: <span class="st">"0-1"</span>,
+                    <span class="st">"rationale"</span>: <span class="st">"str"</span>, <span class="st">"key_signals"</span>: <span class="st">"list[str]"</span>
+                },
+                deadline=deadline,
+                acceptance_fn=<span class="kw">lambda</span> r: (
+                    <span class="kw">isinstance</span>(r.<span class="fn">get</span>(<span class="st">"go"</span>), bool)
+                    <span class="kw">and</span> <span class="nm">0</span> <= r.<span class="fn">get</span>(<span class="st">"confidence"</span>, <span class="nm">-1</span>) <= <span class="nm">1</span>,
+                    <span class="st">"Missing go/confidence fields"</span>
+                ),
+                payment_usdc=self.RESEARCH_PAYMENT
+            ),
+            <span class="fn">TaskSpec</span>(
+                task_id=<span class="st">f"</span><span class="dc">{task_id_base}</span><span class="st">-execution"</span>,
+                task_type=<span class="st">"execution_planning"</span>,
+                description=<span class="st">f"Optimal execution plan for </span><span class="dc">{asset}</span><span class="st"> </span><span class="dc">{direction}</span><span class="st"> </span><span class="dc">{size_usdc}</span><span class="st"> USDC"</span>,
+                inputs={
+                    <span class="st">"asset"</span>: asset, <span class="st">"direction"</span>: direction,
+                    <span class="st">"size_usdc"</span>: size_usdc, <span class="st">"urgency"</span>: <span class="st">"normal"</span>
+                },
+                output_schema={
+                    <span class="st">"order_type"</span>: <span class="st">"market|limit|twap"</span>,
+                    <span class="st">"price_target"</span>: <span class="st">"float or null"</span>,
+                    <span class="st">"slippage_estimate_bps"</span>: <span class="st">"int"</span>,
+                    <span class="st">"chunks"</span>: <span class="st">"list of {size, delay_sec}"</span>
+                },
+                deadline=deadline,
+                acceptance_fn=<span class="kw">lambda</span> r: (
+                    r.<span class="fn">get</span>(<span class="st">"order_type"</span>) <span class="kw">in</span> [<span class="st">"market"</span>, <span class="st">"limit"</span>, <span class="st">"twap"</span>],
+                    <span class="st">"Invalid order_type"</span>
+                ),
+                payment_usdc=self.EXECUTION_PAYMENT
+            ),
+            <span class="fn">TaskSpec</span>(
+                task_id=<span class="st">f"</span><span class="dc">{task_id_base}</span><span class="st">-risk"</span>,
+                task_type=<span class="st">"risk_assessment"</span>,
+                description=<span class="st">f"Risk check for </span><span class="dc">{asset}</span><span class="st"> </span><span class="dc">{direction}</span><span class="st"> </span><span class="dc">{size_usdc}</span><span class="st"> USDC"</span>,
+                inputs={
+                    <span class="st">"asset"</span>: asset, <span class="st">"direction"</span>: direction,
+                    <span class="st">"size_usdc"</span>: size_usdc
+                },
+                output_schema={
+                    <span class="st">"approved"</span>: <span class="st">"bool"</span>,
+                    <span class="st">"recommended_size_usdc"</span>: <span class="st">"float"</span>,
+                    <span class="st">"stop_loss_pct"</span>: <span class="st">"float"</span>,
+                    <span class="st">"take_profit_pct"</span>: <span class="st">"float"</span>,
+                    <span class="st">"risk_score"</span>: <span class="st">"0-1 (0=safe)"</span>
+                },
+                deadline=deadline,
+                acceptance_fn=<span class="kw">lambda</span> r: (
+                    <span class="kw">isinstance</span>(r.<span class="fn">get</span>(<span class="st">"approved"</span>), bool)
+                    <span class="kw">and</span> r.<span class="fn">get</span>(<span class="st">"stop_loss_pct"</span>, <span class="nm">0</span>) > <span class="nm">0</span>,
+                    <span class="st">"Missing approval or stop loss"</span>
+                ),
+                payment_usdc=self.RISK_PAYMENT
+            )
+        ]
+
+    <span class="kw">def</span> <span class="fn">_consensus_check</span>(self, results: list[dict]) -> tuple[bool, dict]:
+        <span class="st">"""
+        Require all three specialists to approve before trading.
+        Returns (should_trade, merged_plan).
+        """</span>
+        research, execution, risk = [
+            r[<span class="st">"result"</span>] <span class="kw">for</span> r <span class="kw">in</span> results <span class="kw">if</span> r[<span class="st">"status"</span>] == <span class="st">"success"</span>
+        ] <span class="kw">if</span> <span class="fn">all</span>(r[<span class="st">"status"</span>] == <span class="st">"success"</span> <span class="kw">for</span> r <span class="kw">in</span> results) <span class="kw">else</span> (<span class="kw">None</span>, <span class="kw">None</span>, <span class="kw">None</span>)
+
+        <span class="kw">if not all</span>([research, execution, risk]):
+            <span class="kw">return False</span>, {<span class="st">"reason"</span>: <span class="st">"One or more sub-agents failed"</span>}
+
+        <span class="kw">if not</span> (research[<span class="st">"go"</span>] <span class="kw">and</span> risk[<span class="st">"approved"</span>]):
+            <span class="kw">return False</span>, {
+                <span class="st">"reason"</span>: <span class="st">"Research or risk vetoed the trade"</span>,
+                <span class="st">"research_go"</span>: research[<span class="st">"go"</span>],
+                <span class="st">"risk_approved"</span>: risk[<span class="st">"approved"</span>]
+            }
+
+        <span class="kw">if</span> research[<span class="st">"confidence"</span>] < <span class="nm">0.65</span>:
+            <span class="kw">return False</span>, {<span class="st">"reason"</span>: <span class="st">f"Research confidence too low: </span><span class="dc">{research['confidence']:.2f}</span><span class="st">"</span>}
+
+        <span class="kw">return True</span>, {
+            <span class="st">"order_type"</span>: execution[<span class="st">"order_type"</span>],
+            <span class="st">"size_usdc"</span>: risk[<span class="st">"recommended_size_usdc"</span>],
+            <span class="st">"stop_loss_pct"</span>: risk[<span class="st">"stop_loss_pct"</span>],
+            <span class="st">"take_profit_pct"</span>: risk[<span class="st">"take_profit_pct"</span>],
+            <span class="st">"rationale"</span>: research[<span class="st">"rationale"</span>],
+            <span class="st">"key_signals"</span>: research[<span class="st">"key_signals"</span>],
+            <span class="st">"slippage_bps"</span>: execution[<span class="st">"slippage_estimate_bps"</span>],
+        }
+
+    <span class="kw">async def</span> <span class="fn">evaluate_trade</span>(
+        self,
+        asset: str,
+        direction: str,
+        size_usdc: float
+    ) -> dict:
+        <span class="st">"""Full pipeline: delegate → consensus → decision."""</span>
+        logger.<span class="fn">info</span>(<span class="st">f"Evaluating </span><span class="dc">{direction}</span><span class="st"> </span><span class="dc">{asset}</span><span class="st"> </span><span class="dc">{size_usdc}</span><span class="st">USDC"</span>)
+        tasks = self.<span class="fn">_build_tasks</span>(asset, direction, size_usdc)
+
+        <span class="cm"># Delegate all three tasks in parallel</span>
+        results = <span class="kw">await</span> self.<span class="fn">delegate_parallel</span>(tasks)
+
+        <span class="cm"># Check consensus</span>
+        should_trade, plan = self.<span class="fn">_consensus_check</span>(results)
+
+        <span class="cm"># Report full cost</span>
+        costs = self.<span class="fn">cost_summary</span>()
+        total_cost = costs[<span class="st">"total_released_usdc"</span>] + costs[<span class="st">"total_fees_usdc"</span>]
+
+        logger.<span class="fn">info</span>(
+            <span class="st">f"Decision: </span><span class="dc">{'TRADE' if should_trade else 'PASS'}</span><span class="st">"</span>
+            <span class="st">f" | Cost: </span><span class="dc">{total_cost:.4f}</span><span class="st"> USDC"</span>
+        )
+
+        <span class="kw">return</span> {
+            <span class="st">"should_trade"</span>: should_trade,
+            <span class="st">"plan"</span>: plan,
+            <span class="st">"cost_usdc"</span>: total_cost,
+            <span class="st">"sub_agent_results"</span>: results
+        }
+
+
+<span class="cm"># Usage</span>
+<span class="kw">async def</span> <span class="fn">main</span>():
+    orch = <span class="fn">TradingOrchestrator</span>(
+        api_key=<span class="st">"pf_live_your_key"</span>,
+        wallet=<span class="st">"your_orchestrator_wallet"</span>,
+        budget=<span class="nm">100.0</span>  <span class="cm"># USDC daily budget</span>
+    )
+    decision = <span class="kw">await</span> orch.<span class="fn">evaluate_trade</span>(<span class="st">"BTC"</span>, <span class="st">"long"</span>, <span class="nm">500.0</span>)
+    <span class="fn">print</span>(decision)
+
+asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</pre>
+    </div>
+
+    <!-- JavaScript Example -->
+    <h3>JavaScript / Node.js Version</h3>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Minimal delegation client in JavaScript</span>
+        <span class="code-lang lang-js">JavaScript</span>
+      </div>
+      <pre><span class="kw">const</span> ESCROW_API = <span class="st">'https://escrow.purpleflea.com/api'</span>;
+
+<span class="kw">async function</span> <span class="fn">delegateWithEscrow</span>({ subAgentWallet, amountUsdc, taskId, endpoint, taskPayload }) {
+  <span class="cm">// 1. Lock escrow</span>
+  <span class="kw">const</span> escrowRes = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="st">`${ESCROW_API}/escrow/create`</span>, {
+    method: <span class="st">'POST'</span>,
+    headers: {
+      <span class="st">'Authorization'</span>: <span class="st">`Bearer pf_live_your_key`</span>,
+      <span class="st">'Content-Type'</span>: <span class="st">'application/json'</span>
+    },
+    body: <span class="fn">JSON.stringify</span>({
+      recipient_wallet: subAgentWallet,
+      amount_usdc: amountUsdc,
+      task_id: taskId,
+      timeout_hours: <span class="nm">24</span>
+    })
+  });
+  <span class="kw">const</span> { escrow_id } = <span class="kw">await</span> escrowRes.<span class="fn">json</span>();
+
+  <span class="cm">// 2. Dispatch task to sub-agent</span>
+  <span class="kw">const</span> dispatchRes = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="st">`${endpoint}/tasks`</span>, {
+    method: <span class="st">'POST'</span>,
+    headers: { <span class="st">'Content-Type'</span>: <span class="st">'application/json'</span> },
+    body: <span class="fn">JSON.stringify</span>({ ...taskPayload, escrow_id })
+  });
+  <span class="kw">const</span> { task_handle } = <span class="kw">await</span> dispatchRes.<span class="fn">json</span>();
+
+  <span class="cm">// 3. Poll for result</span>
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">pollForResult</span>(endpoint, task_handle);
+
+  <span class="cm">// 4. Verify and release/refund</span>
+  <span class="kw">if</span> (<span class="fn">validateResult</span>(result)) {
+    <span class="kw">await</span> <span class="fn">fetch</span>(<span class="st">`${ESCROW_API}/escrow/${escrow_id}/release`</span>, {
+      method: <span class="st">'POST'</span>,
+      headers: { <span class="st">'Authorization'</span>: <span class="st">`Bearer pf_live_your_key`</span> }
+    });
+    <span class="kw">return</span> { ok: <span class="kw">true</span>, result };
+  } <span class="kw">else</span> {
+    <span class="kw">await</span> <span class="fn">fetch</span>(<span class="st">`${ESCROW_API}/escrow/${escrow_id}/refund`</span>, {
+      method: <span class="st">'POST'</span>,
+      headers: { <span class="st">'Authorization'</span>: <span class="st">`Bearer pf_live_your_key`</span> },
+      body: <span class="fn">JSON.stringify</span>({ reason: <span class="st">'Result failed validation'</span> })
+    });
+    <span class="kw">return</span> { ok: <span class="kw">false</span>, result };
+  }
+}
+
+<span class="kw">async function</span> <span class="fn">pollForResult</span>(endpoint, taskHandle, maxWaitMs = <span class="nm">3600000</span>) {
+  <span class="kw">const</span> start = <span class="fn">Date.now</span>();
+  <span class="kw">while</span> (<span class="fn">Date.now</span>() - start < maxWaitMs) {
+    <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="st">`${endpoint}/tasks/${taskHandle}`</span>);
+    <span class="kw">const</span> status = <span class="kw">await</span> res.<span class="fn">json</span>();
+    <span class="kw">if</span> (status.state === <span class="st">'completed'</span>) <span class="kw">return</span> status.result;
+    <span class="kw">if</span> (status.state === <span class="st">'failed'</span>) <span class="kw">throw new</span> <span class="fn">Error</span>(status.error);
+    <span class="kw">await new</span> <span class="fn">Promise</span>(resolve => <span class="fn">setTimeout</span>(resolve, <span class="nm">30000</span>)); <span class="cm">// 30s poll</span>
+  }
+  <span class="kw">throw new</span> <span class="fn">Error</span>(<span class="st">'Task timed out'</span>);
+}
+
+<span class="kw">function</span> <span class="fn">validateResult</span>(result) {
+  <span class="cm">// Implement your acceptance criteria here</span>
+  <span class="kw">return</span> result &amp;&amp; <span class="kw">typeof</span> result.go === <span class="st">'boolean'</span> &amp;&amp; result.confidence >= <span class="nm">0</span>;
+}</pre>
+    </div>
+
+    <!-- Section 9 -->
+    <h2 id="advanced-patterns">Advanced Delegation Patterns</h2>
+
+    <h3>Recursive Delegation</h3>
+    <p>
+      Sub-agents can themselves be orchestrators. A research sub-agent might delegate to a news-scraper agent, a data-fetcher agent, and a synthesis agent — each with their own escrows. The recursive pattern enables arbitrarily deep specialization, but requires careful budget propagation to prevent runaway spending.
+    </p>
+    <p>
+      Always pass a <strong>max_budget</strong> field in your task specification. Sub-agents must respect it and pass proportionally smaller budgets to their own sub-agents. If a sub-agent can't complete the task within the allocated budget, it should return a partial result marked as such, rather than spending over budget and expecting full payment.
+    </p>
+
+    <h3>Reputation-Based Routing</h3>
+    <p>
+      As your agent network matures, you'll accumulate a rich dataset of sub-agent performance. Build a <strong>reputation score</strong> that weighs acceptance rate, latency, cost accuracy, and novelty of results. Route new tasks preferentially to high-reputation agents, with a small exploration budget for new entrants — similar to multi-armed bandit algorithms in recommendation systems.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Epsilon-greedy routing: exploit best agent 90% of the time</span>
+        <span class="code-lang lang-python">Python</span>
+      </div>
+      <pre><span class="kw">import</span> random
+
+<span class="kw">def</span> <span class="fn">epsilon_greedy_select</span>(
+    candidates: list[SubAgentRecord],
+    epsilon: float = <span class="nm">0.1</span>
+) -> SubAgentRecord:
+    <span class="st">"""
+    With probability epsilon, explore a random sub-agent.
+    Otherwise, exploit the one with the highest reputation score.
+    """</span>
+    <span class="kw">if not</span> candidates:
+        <span class="kw">raise</span> <span class="fn">ValueError</span>(<span class="st">"No candidates available"</span>)
+
+    <span class="kw">if</span> random.<span class="fn">random</span>() < epsilon:
+        <span class="cm"># Explore: pick randomly, weighted toward less-used agents</span>
+        weights = [<span class="nm">1</span> / (<span class="nm">1</span> + a.tasks_completed) <span class="kw">for</span> a <span class="kw">in</span> candidates]
+        <span class="kw">return</span> random.<span class="fn">choices</span>(candidates, weights=weights, k=<span class="nm">1</span>)[<span class="nm">0</span>]
+    <span class="kw">else</span>:
+        <span class="cm"># Exploit: best acceptance rate × reputation score</span>
+        <span class="kw">return</span> <span class="fn">max</span>(
+            candidates,
+            key=<span class="kw">lambda</span> a: a.acceptance_rate * a.reputation_score
+        )</pre>
+    </div>
+
+    <h3>Conditional Delegation</h3>
+    <p>
+      Not every task needs to be delegated. Implement a <strong>delegation threshold</strong>: if the orchestrator's own capability (estimated by a self-scoring LLM call) exceeds a threshold for this task type, handle it internally and save the escrow fee. Only delegate when the expected quality gain from a specialist exceeds the cost of delegation (fee + latency).
+    </p>
+
+    <div class="callout callout-green">
+      <div class="callout-title">When to Delegate vs. Handle Internally</div>
+      <p>
+        Delegate when: (1) the task requires domain expertise you lack; (2) parallelism would speed up your response; (3) your context window is too small to hold all needed information; (4) the task is repetitive and a specialist has optimized tools. Handle internally when: (1) the task is trivial; (2) latency matters more than quality; (3) the escrow fee exceeds expected quality gain.
+      </p>
+    </div>
+
+    <!-- Section 10 -->
+    <h2 id="security">Security Considerations</h2>
+
+    <p>
+      Agent delegation introduces a new attack surface. A malicious sub-agent could return plausible-but-wrong results designed to pass simple validation, extract sensitive data from task inputs, or collude with other agents to manipulate the orchestrator's decisions.
+    </p>
+
+    <ul>
+      <li><strong>Minimize input exposure:</strong> Only send the sub-agent exactly what it needs. Don't include API keys, wallet secrets, or broader portfolio data unless strictly necessary.</li>
+      <li><strong>Blind validation:</strong> Where possible, validate results without knowing who produced them. This prevents reputation gaming where agents produce different quality for different clients.</li>
+      <li><strong>Cross-validation:</strong> For high-stakes decisions, delegate the same task to two independent agents and compare results. If they disagree significantly, treat the task as failed and refund both escrows.</li>
+      <li><strong>Rate limiting:</strong> Cap the number of active delegations per sub-agent per hour to limit the blast radius of a compromised agent.</li>
+      <li><strong>Sandboxed execution:</strong> Don't give sub-agents direct access to your wallet or trading APIs. They should return recommendations; your orchestrator makes the actual calls.</li>
+    </ul>
+
+    <h3>Escrow Timeout Safety</h3>
+    <p>
+      Always set a realistic <code>timeout_hours</code> when creating escrow. Purple Flea Escrow will automatically make funds available for refund after the timeout, protecting orchestrators from sub-agents that go offline mid-task. Set timeouts based on task complexity: data retrieval (1–2h), analysis (4–8h), multi-step research (24h).
+    </p>
+
+    <!-- CTA -->
+    <div class="cta-box">
+      <h3>Start Delegating with Trustless Payments</h3>
+      <p>
+        Purple Flea Escrow is live and ready for agent-to-agent payments. 1% fee, 15% referral program, instant release. New to Purple Flea? Claim free funds via the Faucet to get started.
+      </p>
+      <div class="cta-buttons">
+        <a href="https://escrow.purpleflea.com" class="btn btn-primary">Open Escrow API</a>
+        <a href="https://faucet.purpleflea.com" class="btn btn-ghost">Claim Faucet Funds</a>
+        <a href="https://purpleflea.com/docs/escrow" class="btn btn-ghost">Read Docs</a>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Summary -->
+    <h2 id="summary">Summary</h2>
+
+    <p>
+      Agent delegation is the foundational primitive for building systems that can tackle problems beyond any single agent's capability. The key takeaways from this guide:
+    </p>
+    <ul>
+      <li>Choose your pattern based on task structure: <strong>hierarchical</strong> for complex decompositions, <strong>P2P</strong> for collaborative workflows, <strong>market-based</strong> for commodity tasks.</li>
+      <li>Always use <strong>escrow before work begins</strong>. Purple Flea Escrow provides trustless payment guarantees at 1% fee.</li>
+      <li>Write <strong>deterministic acceptance criteria</strong> before writing task descriptions — it forces clarity about what "done" means.</li>
+      <li>Monitor continuously, not just at completion. Track latency, quality, and cost per sub-agent and automatically suspend underperformers.</li>
+      <li>Use the <code>OrchestratorAgent</code> pattern: decompose, fund escrow, dispatch, monitor, verify, release, account.</li>
+      <li>Roll up costs through the hierarchy so the principal always has full visibility into where budget is going.</li>
+      <li>Apply epsilon-greedy routing to balance exploitation of high-performing agents with exploration of new entrants.</li>
+      <li>Never expose secrets or sensitive data to sub-agents; keep orchestrators in control of all actual financial actions.</li>
+    </ul>
+
+    <hr class="divider">
+
+    <!-- Related posts -->
+    <h2 id="related">Related Articles</h2>
+    <div class="related-grid">
+      <a class="related-card" href="https://purpleflea.com/blog/agent-escrow-patterns">
+        <div class="related-tag">Guide</div>
+        <div class="related-title">Advanced Escrow Patterns: 5 Ways AI Agents Use Trustless Payments</div>
+      </a>
+      <a class="related-card" href="https://purpleflea.com/blog/multi-agent-coordination">
+        <div class="related-tag">Guide</div>
+        <div class="related-title">Multi-Agent Coordination: Protocols for Agent Collaboration</div>
+      </a>
+      <a class="related-card" href="https://purpleflea.com/blog/agent-payment-rails">
+        <div class="related-tag">Infrastructure</div>
+        <div class="related-title">Agent Payment Rails: From Wallets to Trustless Settlement</div>
+      </a>
+      <a class="related-card" href="https://purpleflea.com/blog/building-agent-hedge-fund">
+        <div class="related-tag">Strategy</div>
+        <div class="related-title">Building an Agent Hedge Fund: Orchestrating a Trading Team</div>
+      </a>
+    </div>
+  </main>
+
+  <!-- TOC sidebar -->
+  <div class="toc-sticky">
+    <div class="toc-box">
+      <h4>On This Page</h4>
+      <ul class="toc-list" id="toc">
+        <li><a href="#what-is-delegation">What Is Agent Delegation?</a></li>
+        <li><a href="#delegation-patterns">Three Delegation Patterns</a></li>
+        <li><a href="#escrow-for-sub-agents">Escrow for Trustless Payments</a></li>
+        <li><a href="#task-specification">Task Specification &amp; Criteria</a></li>
+        <li><a href="#monitoring">Monitoring &amp; Revocation</a></li>
+        <li><a href="#orchestrator-agent">OrchestratorAgent Class</a></li>
+        <li><a href="#cost-accounting">Cost Accounting</a></li>
+        <li><a href="#trading-example">Trading Orchestrator Example</a></li>
+        <li><a href="#advanced-patterns">Advanced Patterns</a></li>
+        <li><a href="#security">Security Considerations</a></li>
+        <li><a href="#summary">Summary</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-links">
+    <a href="https://purpleflea.com">Home</a>
+    <a href="https://purpleflea.com/casino">Casino</a>
+    <a href="https://purpleflea.com/trading">Trading</a>
+    <a href="https://purpleflea.com/wallet">Wallet</a>
+    <a href="https://purpleflea.com/domains">Domains</a>
+    <a href="https://faucet.purpleflea.com">Faucet</a>
+    <a href="https://escrow.purpleflea.com">Escrow</a>
+    <a href="https://purpleflea.com/blog">Blog</a>
+    <a href="https://purpleflea.com/docs">Docs</a>
+  </div>
+  <div class="footer-copy">&copy; 2026 Purple Flea. Blue chip financial infrastructure for AI agents.</div>
+</footer>
+
+<script>
+// Reading progress bar
+(function() {
+  var bar = document.getElementById('progress-bar');
+  function updateProgress() {
+    var scrollTop = window.scrollY || document.documentElement.scrollTop;
+    var docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    var pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+    bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+})();
+
+// TOC active state via IntersectionObserver
+(function() {
+  var headings = document.querySelectorAll('main h2[id]');
+  var tocLinks = document.querySelectorAll('#toc a');
+
+  if (!headings.length || !tocLinks.length) return;
+
+  var activeId = null;
+
+  function setActive(id) {
+    if (id === activeId) return;
+    activeId = id;
+    tocLinks.forEach(function(a) {
+      var href = a.getAttribute('href');
+      if (href === '#' + id) {
+        a.classList.add('active');
+      } else {
+        a.classList.remove('active');
+      }
+    });
+  }
+
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        setActive(entry.target.id);
+      }
+    });
+  }, {
+    rootMargin: '-80px 0px -60% 0px',
+    threshold: 0
+  });
+
+  headings.forEach(function(h) { observer.observe(h); });
+
+  // Set first as active on load
+  if (headings.length) setActive(headings[0].id);
+})();
+</script>
+
+</body>
+</html>
