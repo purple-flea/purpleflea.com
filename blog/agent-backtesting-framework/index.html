@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Building a Backtesting Framework for Agent Strategies | Purple Flea</title>
-  <meta name="description" content="Complete guide to event-driven backtesting for AI agent strategies: historical data, transaction costs, lookahead bias, walk-forward optimization, overfitting detection, and performance metrics." />
-  <meta property="og:title" content="Building a Backtesting Framework for Agent Strategies" />
-  <meta property="og:description" content="Event-driven backtesting, walk-forward optimization, Sharpe/Calmar/Sortino metrics, and overfitting prevention for AI trading agents." />
+  <title>Building a Production Backtesting Framework for AI Trading Agents | Purple Flea</title>
+  <meta name="description" content="Complete guide to building a production backtesting framework for AI trading agents: BacktestEngine class, lookahead bias prevention, walk-forward optimization, Monte Carlo testing, and paper trading with Purple Flea." />
+  <meta property="og:title" content="Building a Production Backtesting Framework for AI Trading Agents" />
+  <meta property="og:description" content="Event-driven BacktestEngine in Python with transaction cost modeling, walk-forward optimization, Monte Carlo robustness testing, and statistical significance — then paper trade live with Purple Flea." />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://purpleflea.com/blog/agent-backtesting-framework/" />
   <link rel="canonical" href="https://purpleflea.com/blog/agent-backtesting-framework/" />
@@ -17,14 +17,14 @@
   {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
-    "headline": "Building a Backtesting Framework for Agent Strategies",
-    "description": "Event-driven backtesting, transaction costs, lookahead bias prevention, walk-forward optimization, and performance metrics for AI agent strategies.",
+    "headline": "Building a Production Backtesting Framework for AI Trading Agents",
+    "description": "Complete guide to building a production backtesting framework: BacktestEngine class, event-driven architecture, transaction cost modeling, walk-forward optimization, Monte Carlo robustness, and paper trading with Purple Flea.",
     "author": { "@type": "Organization", "name": "Purple Flea" },
     "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
-    "datePublished": "2026-03-06",
-    "dateModified": "2026-03-06",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
     "url": "https://purpleflea.com/blog/agent-backtesting-framework/",
-    "keywords": ["backtesting", "AI agents", "trading strategy", "Sharpe ratio", "walk-forward", "overfitting", "Python"]
+    "keywords": ["backtesting", "AI trading agents", "event-driven backtesting", "walk-forward optimization", "Monte Carlo", "Sharpe ratio", "paper trading", "Purple Flea", "Python BacktestEngine"]
   }
   </script>
   <style>
@@ -36,6 +36,7 @@
       --border: #27272A;
       --accent: #A855F7;
       --accent-dim: #7C3AED;
+      --accent-light: rgba(168,85,247,0.1);
       --text: #FAFAFA;
       --muted: #A1A1AA;
       --green: #22C55E;
@@ -43,953 +44,1141 @@
       --blue: #3B82F6;
       --yellow: #EAB308;
       --orange: #F97316;
+      --teal: #14B8A6;
     }
     html { scroll-behavior: smooth; }
-    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.7; }
-    #progress-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); z-index: 1000; transition: width 0.1s linear; }
-    nav { position: sticky; top: 0; background: rgba(9,9,11,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 2rem; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.75; }
+
+    /* Progress bar */
+    #progress-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); z-index: 999; transition: width 0.1s linear; }
+
+    /* Nav */
+    nav { position: sticky; top: 0; background: rgba(9,9,11,0.93); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 2rem; }
     .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 60px; }
-    .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.4rem; }
+    .nav-logo { font-weight: 800; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+    .nav-logo em { font-style: normal; color: var(--accent); }
     .nav-links { display: flex; align-items: center; gap: 1.5rem; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
-    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.4rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem !important; }
+    .nav-cta { background: var(--accent); color: #fff !important; padding: 0.4rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.82rem !important; }
     .nav-cta:hover { background: var(--accent-dim) !important; }
-    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 3rem 2rem; display: grid; grid-template-columns: 1fr 260px; gap: 4rem; align-items: start; }
+
+    /* Layout: article + sidebar */
+    .page-wrap { max-width: 1200px; margin: 0 auto; padding: 3.5rem 2rem 5rem; display: grid; grid-template-columns: 1fr 260px; gap: 4rem; align-items: start; }
+    @media (max-width: 900px) { .page-wrap { grid-template-columns: 1fr; } .sidebar { display: none; } }
     article { min-width: 0; }
+
+    /* Article header */
     .tag-chip { display: inline-block; background: rgba(249,115,22,0.15); color: var(--orange); border: 1px solid rgba(249,115,22,0.3); padding: 0.2rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
-    h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
-    .meta { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; }
-    .meta span::before { content: '· '; }
-    .meta span:first-child::before { content: ''; }
-    .lead { font-size: 1.15rem; color: var(--muted); margin-bottom: 2.5rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
-    h2 { font-size: 1.6rem; font-weight: 700; margin: 3rem 0 1rem; color: var(--text); scroll-margin-top: 80px; }
-    h3 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--text); }
-    p { margin-bottom: 1.2rem; color: #D4D4D8; }
-    ul, ol { margin: 1rem 0 1.2rem 1.5rem; color: #D4D4D8; }
-    li { margin-bottom: 0.4rem; }
-    strong { color: var(--text); font-weight: 600; }
-    code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--surface2); color: var(--accent); padding: 0.1em 0.4em; border-radius: 4px; }
-    pre { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; overflow-x: auto; margin: 1.5rem 0; }
-    pre code { background: none; color: #E4E4E7; font-size: 0.82rem; padding: 0; }
-    .callout { background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.25); border-radius: 10px; padding: 1.25rem 1.5rem; margin: 2rem 0; }
-    .callout-title { font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .callout p { color: #D4D4D8; margin: 0; }
-    .warning { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.25); border-radius: 10px; padding: 1.25rem 1.5rem; margin: 2rem 0; }
-    .warning .callout-title { color: var(--yellow); }
-    .warning p { color: #D4D4D8; margin: 0; }
-    .data-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.9rem; }
-    .data-table th { background: var(--surface2); color: var(--muted); font-weight: 600; text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: #D4D4D8; }
-    .data-table tr:hover td { background: var(--surface); }
-    .green { color: var(--green); }
-    .red { color: var(--red); }
-    .yellow { color: var(--yellow); }
-    .formula { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: var(--text); text-align: center; }
-    .toc-sidebar { position: sticky; top: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; max-height: calc(100vh - 100px); overflow-y: auto; }
-    .toc-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 1rem; }
-    .toc-list { list-style: none; margin: 0; padding: 0; }
-    .toc-list li { margin-bottom: 0.1rem; }
-    .toc-list a { color: var(--muted); text-decoration: none; font-size: 0.82rem; line-height: 1.5; display: block; padding: 0.3rem 0.5rem; border-radius: 6px; transition: all 0.2s; border-left: 2px solid transparent; }
-    .toc-list a:hover { color: var(--text); background: var(--surface2); }
-    .toc-list a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(168,85,247,0.08); }
-    @media (max-width: 900px) { .page-wrap { grid-template-columns: 1fr; } .toc-sidebar { display: none; } }
+    .tag-chip.strategy { background: rgba(168,85,247,0.15); color: var(--accent); border-color: rgba(168,85,247,0.3); }
+    article h1 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 1rem; }
+    .article-meta { display: flex; align-items: center; gap: 1.25rem; color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .article-meta span { display: flex; align-items: center; gap: 0.35rem; }
+
+    /* Lead */
+    .lead { font-size: 1.1rem; color: var(--muted); line-height: 1.75; border-left: 3px solid var(--accent); padding-left: 1.25rem; margin-bottom: 2.5rem; }
+
+    /* Article typography */
+    article h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin: 3rem 0 0.75rem; padding-top: 1rem; line-height: 1.25; border-top: 1px solid var(--border); }
+    article h2:first-of-type { border-top: none; margin-top: 1rem; }
+    article h3 { font-size: 1.15rem; font-weight: 700; margin: 2rem 0 0.6rem; }
+    article p { margin-bottom: 1.25rem; color: var(--text); }
+    article p:last-child { margin-bottom: 0; }
+    article ul, article ol { margin: 1rem 0 1.25rem 1.5rem; color: var(--muted); }
+    article li { margin-bottom: 0.5rem; line-height: 1.65; }
+    article li strong { color: var(--text); }
+    article a { color: var(--accent); text-decoration: none; }
+    article a:hover { text-decoration: underline; }
+    p code, li code { background: rgba(168,85,247,0.12); color: #C084FC; padding: 0.15em 0.45em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82em; }
+
+    /* Code blocks */
+    .code-header { background: #0D0D0F; border: 1px solid var(--border); border-bottom: 1px solid #1A1A1D; border-radius: 10px 10px 0 0; padding: 0.6rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-top: 1.5rem; }
+    .code-header + pre { border-top: none; border-radius: 0 0 10px 10px; margin-top: 0; }
+    .code-lang { font-size: 0.73rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+    .code-filename { font-size: 0.78rem; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    pre { background: #0D0D0F; border: 1px solid var(--border); border-radius: 10px; padding: 1.4rem 1.5rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.65; margin: 1.5rem 0; }
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .str { color: #4ADE80; }
+    .cm { color: #52525B; font-style: italic; }
+    .num { color: #FB923C; }
+    .dec { color: #F97316; }
+    .var { color: #FAFAFA; }
+    .op { color: #A1A1AA; }
+    .cl { color: #FACC15; }
+
+    /* Callouts */
+    .callout { border-radius: 10px; padding: 1.25rem 1.5rem; margin: 1.75rem 0; display: flex; gap: 1rem; }
+    .callout.warning { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.25); }
+    .callout.info { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); }
+    .callout.danger { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); }
+    .callout.success { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); }
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .callout-body strong { display: block; margin-bottom: 0.35rem; }
+    .callout-body p { color: var(--muted); font-size: 0.9rem; margin: 0; line-height: 1.6; }
+    .callout.warning .callout-body strong { color: var(--yellow); }
+    .callout.danger .callout-body strong { color: var(--red); }
+    .callout.info .callout-body strong { color: var(--blue); }
+    .callout.success .callout-body strong { color: var(--green); }
+
+    /* Compare table */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th { background: var(--surface2); color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.65rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid rgba(39,39,42,0.5); }
+    tr:last-child td { border-bottom: none; }
+    td code { font-size: 0.78rem; }
+
+    /* Sidebar TOC */
+    .sidebar { position: sticky; top: 80px; }
+    .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
+    .toc h4 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; }
+    .toc ol { list-style: none; margin: 0; padding: 0; }
+    .toc li { margin-bottom: 0; }
+    .toc a { display: block; color: var(--muted); text-decoration: none; font-size: 0.82rem; padding: 0.3rem 0.5rem; border-radius: 5px; line-height: 1.45; transition: color 0.2s, background 0.2s; }
+    .toc a:hover { color: var(--accent); background: var(--accent-light); }
+    .toc .toc-h3 { padding-left: 1.1rem; font-size: 0.78rem; }
+    .sidebar-cta { background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(168,85,247,0.1)); border: 1px solid rgba(168,85,247,0.3); border-radius: 10px; padding: 1.25rem; margin-top: 1.25rem; }
+    .sidebar-cta p { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.9rem; line-height: 1.55; }
+    .sidebar-cta a { display: block; background: var(--accent); color: #fff; text-align: center; padding: 0.55rem 1rem; border-radius: 7px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.2s; }
+    .sidebar-cta a:hover { background: var(--accent-dim); }
+
+    /* Metrics grid */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .metric-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.25rem; }
+    .metric-card .metric-name { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.3rem; }
+    .metric-card .metric-formula { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--accent); }
+    .metric-card p { font-size: 0.82rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.5; }
+
+    /* Footer */
+    footer { background: var(--surface); border-top: 1px solid var(--border); padding: 2.5rem 0; margin-top: 4rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--accent); }
+    .footer-copy { color: var(--muted); font-size: 0.8rem; }
+    @media (max-width: 600px) { .nav-links { display: none; } }
   </style>
 </head>
 <body>
-<div id="progress-bar"></div>
 
-<nav>
-  <div class="nav-inner">
-    <a href="/" class="nav-logo">🟣 Purple Flea</a>
-    <div class="nav-links">
-      <a href="/docs">Docs</a>
-      <a href="/blog">Blog</a>
-      <a href="/for-agents">For Agents</a>
-      <a href="/register" class="nav-cta">Get API Key →</a>
-    </div>
-  </div>
-</nav>
-
-<div class="page-wrap">
-  <article>
-    <div class="tag-chip">Guide</div>
-    <h1>Building a Backtesting Framework for Agent Strategies</h1>
-    <div class="meta">
-      <span>Purple Flea Research</span>
-      <span>March 6, 2026</span>
-      <span>25 min read</span>
-    </div>
-    <p class="lead">
-      Backtesting is how you separate strategies that look profitable from strategies that are profitable. Done wrong, it produces spectacular fiction. Done right, it gives you high-confidence estimates of live performance before risking a single satoshi. This guide builds a complete, production-quality backtesting framework from first principles — with every correctness pitfall documented, and full integration with Purple Flea's live data.
-    </p>
-
-    <!-- S1 -->
-    <h2 id="historical-data">Historical Data Sourcing</h2>
-    <p>
-      A backtest is only as good as its data. The most common data quality failures that invalidate backtests:
-    </p>
-    <ul>
-      <li><strong>Survivorship bias</strong> — using only assets that still exist today inflates apparent returns. Cryptocurrencies that were delisted, hacked, or abandoned are absent from most databases.</li>
-      <li><strong>Point-in-time data</strong> — fundamental data (e.g., order book state at T) must reflect what was actually known at T, not what was known later (revised data).</li>
-      <li><strong>Tick data vs OHLCV aggregation</strong> — bar-level data loses intrabar price path information. Strategies that depend on stop-loss triggers need tick-level resolution.</li>
-      <li><strong>Exchange-specific data</strong> — prices vary across exchanges. Always use data from the exchange where you will actually trade.</li>
-    </ul>
-
-    <h3>Purple Flea Historical Data API</h3>
-    <pre><code>import requests
-import pandas as pd
-from datetime import datetime
-
-API_KEY = "pf_live_<your_key>"
-BASE_URL = "https://purpleflea.com/api/v1"
-
-def fetch_ohlcv(
-    symbol: str,
-    interval: str,
-    start: datetime,
-    end: datetime,
-    include_volume_profile: bool = False
-) -> pd.DataFrame:
-    """
-    Fetch OHLCV data from Purple Flea.
-    interval: '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
-    """
-    resp = requests.get(
-        f"{BASE_URL}/market/history",
-        headers={"Authorization": f"Bearer {API_KEY}"},
-        params={
-            "symbol": symbol,
-            "interval": interval,
-            "start": int(start.timestamp()),
-            "end": int(end.timestamp()),
-            "volume_profile": include_volume_profile
-        }
-    )
-    data = resp.json()["candles"]
-    df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
-    df = df.set_index("timestamp").sort_index()
-    return df
-
-def fetch_trade_data(symbol: str, start: datetime, end: datetime) -> pd.DataFrame:
-    """Fetch raw trade data (individual ticks) for high-resolution backtests."""
-    resp = requests.get(
-        f"{BASE_URL}/market/trades",
-        headers={"Authorization": f"Bearer {API_KEY}"},
-        params={
-            "symbol": symbol,
-            "start": int(start.timestamp()),
-            "end": int(end.timestamp()),
-        }
-    )
-    trades = resp.json()["trades"]
-    df = pd.DataFrame(trades)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    return df
-
-# Example: fetch 6 months of 1-hour BTC/USD data
-start = datetime(2025, 9, 1)
-end = datetime(2026, 3, 1)
-# df = fetch_ohlcv("BTC-USD", "1h", start, end)</code></pre>
-
-    <h3>Data Cleaning Pipeline</h3>
-    <pre><code>def clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Standard OHLCV data cleaning pipeline.
-    Removes corrupt bars and fills minor gaps.
-    """
-    original_len = len(df)
-
-    # Remove bars where OHLCV constraints are violated
-    valid_mask = (
-        (df["high"] >= df["low"]) &
-        (df["high"] >= df["open"]) &
-        (df["high"] >= df["close"]) &
-        (df["low"] <= df["open"]) &
-        (df["low"] <= df["close"]) &
-        (df["volume"] >= 0) &
-        (df["close"] > 0)
-    )
-    df = df[valid_mask].copy()
-
-    # Flag and remove extreme outliers (>10 sigma moves are likely data errors)
-    returns = df["close"].pct_change()
-    sigma = returns.std()
-    df = df[returns.abs() < 10 * sigma].copy()
-
-    # Forward-fill up to 3 consecutive missing bars (exchange downtime)
-    df = df.resample(df.index.freq or "1H").last()
-    df = df.fillna(method="ffill", limit=3)
-
-    # Drop remaining NaN rows
-    df = df.dropna()
-
-    removed = original_len - len(df)
-    if removed > 0:
-        print(f"Removed {removed} invalid bars ({removed/original_len*100:.1f}%)")
-    return df</code></pre>
-
-    <!-- S2 -->
-    <h2 id="event-vs-vectorized">Event-Driven vs Vectorized Backtesting</h2>
-    <p>
-      There are two fundamental backtesting architectures, each with different accuracy vs speed tradeoffs:
-    </p>
-
-    <h3>Vectorized Backtesting</h3>
-    <p>
-      Apply trading rules as vectorized operations on the entire dataset simultaneously. Fast (milliseconds for years of data), simple to implement, but <strong>fundamentally incorrect</strong> for any strategy that uses feedback from previous trades, position sizing, or dynamic risk management.
-    </p>
-    <pre><code>import pandas as pd
-import numpy as np
-
-def vectorized_backtest_simple(df: pd.DataFrame, fast: int = 10, slow: int = 30) -> pd.DataFrame:
-    """
-    Vectorized backtest: fast/slow moving average crossover.
-    WARNING: This is a simplified demo. Vectorized backtesting
-    cannot correctly model realistic order execution, slippage,
-    or position sizing. Use event-driven for production.
-    """
-    df = df.copy()
-    df["fast_ma"] = df["close"].rolling(fast).mean()
-    df["slow_ma"] = df["close"].rolling(slow).mean()
-
-    # Signal: 1 = long, -1 = short, 0 = flat
-    df["signal"] = np.where(df["fast_ma"] > df["slow_ma"], 1, -1)
-    df["signal"] = df["signal"].shift(1)  # avoid lookahead: act on NEXT bar
-
-    # Returns
-    df["returns"] = df["close"].pct_change()
-    df["strategy_returns"] = df["signal"] * df["returns"]
-    df["cumulative"] = (1 + df["strategy_returns"]).cumprod()
-    return df</code></pre>
-
-    <h3>Event-Driven Backtesting</h3>
-    <p>
-      Process the data chronologically as a stream of events — exactly as a live trading system does. Each bar or tick triggers event handlers that can place orders, manage positions, and update state. Slower but far more accurate — it correctly handles:
-    </p>
-    <ul>
-      <li>Order fills that depend on the order book state at fill time</li>
-      <li>Dynamic position sizing based on current capital</li>
-      <li>Portfolio-level constraints (margin, correlation limits)</li>
-      <li>Realistic order types (limit, stop, IOC) with proper fill logic</li>
-      <li>Commission and slippage on a per-trade basis</li>
-    </ul>
-
-    <div class="callout">
-      <div class="callout-title">Always Use Event-Driven</div>
-      <p>For any strategy you will deploy with real capital, event-driven backtesting is mandatory. Vectorized backtests consistently overestimate returns by 15-40% due to unrealistic fill assumptions. The extra implementation time pays for itself on the first live trade.</p>
-    </div>
-
-    <!-- S3 -->
-    <h2 id="transaction-costs">Transaction Costs Modeling</h2>
-    <p>
-      The single biggest reason backtests fail to predict live performance is inadequate cost modeling. Complete cost structure:
-    </p>
-    <table class="data-table">
-      <thead>
-        <tr><th>Cost Component</th><th>Typical Range</th><th>Scales With</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Commission (taker)</td><td>3-25 bps</td><td>Trade value</td></tr>
-        <tr><td>Commission (maker)</td><td>-2 to +5 bps</td><td>Trade value</td></tr>
-        <tr><td>Bid-ask spread</td><td>1-50 bps</td><td>Asset liquidity</td></tr>
-        <tr><td>Market impact</td><td>0-200 bps</td><td>Order size / ADV</td></tr>
-        <tr><td>Slippage (timing)</td><td>1-10 bps</td><td>Market volatility</td></tr>
-        <tr><td>Funding rate (perps)</td><td>0-50 bps/day</td><td>Open interest</td></tr>
-        <tr><td>Borrow cost (short)</td><td>0-500 bps/yr</td><td>Short demand</td></tr>
-      </tbody>
-    </table>
-    <pre><code>from dataclasses import dataclass
-from typing import Optional
-
-@dataclass
-class TransactionCostModel:
-    """
-    Complete transaction cost model for backtesting.
-    All rates in basis points (bps), where 100 bps = 1%.
-    """
-    taker_commission_bps: float = 10.0   # 0.10%
-    maker_commission_bps: float = 3.0    # 0.03% (maker rebate on some exchanges)
-    spread_bps: float = 5.0              # half-spread paid
-    impact_eta: float = 0.1              # market impact coefficient
-    adv_usd: float = 2_000_000           # average daily volume
-    daily_vol: float = 0.025             # daily price volatility
-    funding_rate_daily_bps: float = 5.0  # for perpetual futures
-
-    def compute_cost(
-        self,
-        order_size_usd: float,
-        order_type: str = "taker",
-        holding_period_days: float = 1.0,
-        is_short: bool = False
-    ) -> dict:
-        # Commission
-        if order_type == "taker":
-            commission = self.taker_commission_bps
-        else:
-            commission = self.maker_commission_bps
-
-        # Half spread (entering + exiting = full spread, but amortized per leg)
-        spread_cost = self.spread_bps / 2
-
-        # Market impact: square root law
-        import math
-        participation = order_size_usd / self.adv_usd
-        impact = self.daily_vol * math.sqrt(participation) * self.impact_eta * 10000  # bps
-
-        # Funding cost (for futures/perps on long positions)
-        funding = self.funding_rate_daily_bps * holding_period_days
-
-        # Borrow cost for short positions
-        borrow = 20.0 * holding_period_days / 365 if is_short else 0  # ~20% APR / 365
-
-        total_bps = commission + spread_cost + impact + funding + borrow
-        total_usd = order_size_usd * total_bps / 10000
-
-        return {
-            "commission_bps": commission,
-            "spread_bps": spread_cost,
-            "impact_bps": impact,
-            "funding_bps": funding,
-            "borrow_bps": borrow,
-            "total_bps": total_bps,
-            "total_usd": total_usd
-        }
-
-cost_model = TransactionCostModel()
-costs = cost_model.compute_cost(50_000, "taker", holding_period_days=1.0)
-print(f"Total cost: {costs['total_bps']:.2f} bps = ${costs['total_usd']:.2f}")
-# → Total cost: 21.58 bps = $10.79</code></pre>
-
-    <!-- S4 -->
-    <h2 id="lookahead-bias">Lookahead Bias Prevention</h2>
-    <p>
-      Lookahead bias — using future information in historical decisions — is the most insidious backtest failure mode because it is invisible and always inflates performance. A strategy that uses tomorrow's closing price to make today's decision looks brilliant in backtest and is worthless live.
-    </p>
-
-    <div class="warning">
-      <div class="callout-title">Common Lookahead Bias Sources</div>
-      <p>
-        1. Using today's OHLCV to enter at today's open (open is known at bar start; close is not).<br/>
-        2. Applying <code>.fillna()</code> or normalization across the full dataset before splitting train/test.<br/>
-        3. Indicators like rolling Z-score using forward-looking window edges.<br/>
-        4. Using the same bar's high/low to trigger stop-loss and re-enter on the same bar.
-      </p>
-    </div>
-
-    <pre><code>import pandas as pd
-import numpy as np
-
-def safe_signal_generation(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Demonstrates correct signal timing to prevent lookahead bias.
-    Rule: signals computed at bar CLOSE, executed at NEXT bar OPEN.
-    """
-    df = df.copy()
-
-    # WRONG: signal uses same bar's close, would execute at that bar's open
-    # df["signal"] = (df["close"] > df["close"].shift(1)).astype(int)
-
-    # CORRECT: shift signal by 1 so it acts on the FOLLOWING bar
-    raw_signal = (df["close"] > df["close"].shift(1)).astype(int)
-    df["signal"] = raw_signal.shift(1)  # execute at next bar open
-
-    # WRONG: normalize using full series (uses future data)
-    # df["normalized"] = (df["close"] - df["close"].mean()) / df["close"].std()
-
-    # CORRECT: use expanding window (only past data at each point)
-    df["normalized"] = (
-        (df["close"] - df["close"].expanding().mean()) /
-        df["close"].expanding().std()
-    )
-
-    # WRONG: RSI using full-window stats
-    # CORRECT: use fixed lookback, ensure index alignment
-    delta = df["close"].diff()
-    gain = delta.where(delta > 0, 0).rolling(14).mean()
-    loss = (-delta).where(delta < 0, 0).rolling(14).mean()
-    rs = gain / loss.replace(0, np.nan)
-    df["rsi"] = 100 - (100 / (1 + rs))
-    # RSI is computed from data up to and including bar T — safe to use for T+1 signal
-
-    return df
-
-def train_test_split_temporal(
-    df: pd.DataFrame,
-    train_frac: float = 0.7
-) -> tuple:
-    """
-    Temporal train/test split — NEVER shuffle time series data.
-    All normalization and fitting must happen only on training data.
-    """
-    split_idx = int(len(df) * train_frac)
-    train = df.iloc[:split_idx].copy()
-    test = df.iloc[split_idx:].copy()
-
-    # Compute any statistics (mean, std, etc.) ONLY on train
-    train_mean = train["close"].mean()
-    train_std = train["close"].std()
-
-    # Apply train statistics to both splits (never test statistics)
-    train["z_score"] = (train["close"] - train_mean) / train_std
-    test["z_score"] = (test["close"] - train_mean) / train_std  # use train stats!
-
-    return train, test</code></pre>
-
-    <!-- S5 -->
-    <h2 id="walk-forward">Walk-Forward Optimization</h2>
-    <p>
-      Walk-forward optimization (WFO) is the gold standard for strategy parameter selection because it tests parameters on truly out-of-sample data at every step. It simulates exactly what a live trading system does: periodically re-optimize on recent history, then trade on unseen future data.
-    </p>
-    <p>
-      The procedure:
-    </p>
-    <ol>
-      <li>Divide data into a sequence of windows: [train_1, test_1], [train_2, test_2], ...</li>
-      <li>Each test window is immediately after the preceding train window (anchored or rolling)</li>
-      <li>On each train window: grid search parameters, select the best</li>
-      <li>Apply those parameters to the test window: record live-equivalent performance</li>
-      <li>Concatenate all test-window results for final evaluation</li>
-    </ol>
-    <pre><code>import numpy as np
-import pandas as pd
-from itertools import product
-from typing import Callable, Dict, List, Any
-
-class WalkForwardOptimizer:
-    def __init__(
-        self,
-        strategy_fn: Callable,
-        param_grid: Dict[str, List[Any]],
-        n_train_periods: int = 252,
-        n_test_periods: int = 63,
-        step_size: int = 63,  # re-optimize every quarter
-        objective: str = "sharpe"
-    ):
-        self.strategy_fn = strategy_fn
-        self.param_grid = param_grid
-        self.n_train = n_train_periods
-        self.n_test = n_test_periods
-        self.step = step_size
-        self.objective = objective
-
-    def _score(self, returns: pd.Series) -> float:
-        if len(returns) < 5 or returns.std() == 0:
-            return -np.inf
-        if self.objective == "sharpe":
-            return returns.mean() / returns.std() * np.sqrt(252)
-        elif self.objective == "calmar":
-            ann_return = returns.mean() * 252
-            max_dd = self._max_drawdown(returns)
-            return ann_return / abs(max_dd) if max_dd != 0 else 0
-        elif self.objective == "total_return":
-            return (1 + returns).prod() - 1
-
-    def _max_drawdown(self, returns: pd.Series) -> float:
-        cum = (1 + returns).cumprod()
-        roll_max = cum.expanding().max()
-        drawdowns = cum / roll_max - 1
-        return drawdowns.min()
-
-    def run(self, df: pd.DataFrame) -> dict:
-        all_test_returns = []
-        optimization_log = []
-        param_combos = list(product(*self.param_grid.values()))
-        param_names = list(self.param_grid.keys())
-
-        start = self.n_train
-        while start + self.n_test <= len(df):
-            train_data = df.iloc[start - self.n_train : start]
-            test_data = df.iloc[start : start + self.n_test]
-
-            # Find best params on training data
-            best_score = -np.inf
-            best_params = None
-            for combo in param_combos:
-                params = dict(zip(param_names, combo))
-                try:
-                    train_returns = self.strategy_fn(train_data, **params)
-                    score = self._score(train_returns)
-                    if score > best_score:
-                        best_score = score
-                        best_params = params
-                except Exception:
-                    continue
-
-            if best_params is None:
-                start += self.step
-                continue
-
-            # Evaluate on OOS test window
-            test_returns = self.strategy_fn(test_data, **best_params)
-            all_test_returns.append(test_returns)
-            optimization_log.append({
-                "window_start": test_data.index[0],
-                "best_params": best_params,
-                "is_score": best_score,
-                "oos_score": self._score(test_returns)
-            })
-            start += self.step
-
-        combined = pd.concat(all_test_returns) if all_test_returns else pd.Series()
-        return {
-            "oos_returns": combined,
-            "optimization_log": optimization_log,
-            "oos_sharpe": self._score(combined) if len(combined) > 0 else None,
-            "oos_max_drawdown": self._max_drawdown(combined) if len(combined) > 0 else None
-        }</code></pre>
-
-    <!-- S6 -->
-    <h2 id="overfitting">Overfitting Detection</h2>
-    <p>
-      Overfitting in backtesting occurs when parameters are chosen that maximize historical performance but are specific to noise rather than signal. The result: exceptional backtest, dismal live performance.
-    </p>
-
-    <h3>In-Sample / Out-of-Sample Split</h3>
-    <p>
-      The basic defense: never touch the test set until the strategy is finalized. A contaminated test set provides no information about live performance.
-    </p>
-    <div class="formula">
-      Overfitting Ratio = OOS Sharpe / IS Sharpe
-      <br/>
-      Ratio > 0.7: acceptable | 0.5-0.7: caution | &lt; 0.5: likely overfit
-    </div>
-
-    <h3>Combinatorial Purged Cross-Validation (CPCV)</h3>
-    <p>
-      CPCV, from Lopez de Prado's "Advances in Financial Machine Learning," is the state-of-the-art method for testing financial strategies. It addresses the serial autocorrelation in financial data that makes standard k-fold cross-validation invalid.
-    </p>
-    <pre><code>import numpy as np
-import pandas as pd
-from scipy.stats import norm
-
-def purged_k_fold(
-    df: pd.DataFrame,
-    n_splits: int = 5,
-    embargo_pct: float = 0.01
-) -> list:
-    """
-    Purged K-Fold cross-validation for time series.
-    Embargo: after each training fold, leave a gap equal to
-    embargo_pct of total samples to prevent leakage from
-    overlapping return windows.
-    """
-    n = len(df)
-    fold_size = n // n_splits
-    embargo_size = int(n * embargo_pct)
-    folds = []
-
-    for k in range(n_splits):
-        test_start = k * fold_size
-        test_end = min((k + 1) * fold_size, n)
-
-        # Training data: everything except test + embargo buffer
-        train_indices = list(range(0, max(0, test_start - embargo_size)))
-        train_indices += list(range(min(n, test_end + embargo_size), n))
-
-        test_indices = list(range(test_start, test_end))
-        folds.append({
-            "fold": k,
-            "train": df.iloc[train_indices],
-            "test": df.iloc[test_indices]
-        })
-    return folds
-
-def deflated_sharpe_ratio(
-    observed_sharpe: float,
-    n_trials: int,
-    n_observations: int,
-    skewness: float = 0.0,
-    kurtosis: float = 3.0
-) -> float:
-    """
-    Bailey & Lopez de Prado Deflated Sharpe Ratio.
-    Adjusts observed Sharpe for selection bias from trying multiple strategies.
-    Returns the probability that the strategy has a true positive Sharpe.
-    """
-    # Expected maximum Sharpe from n_trials random strategies
-    euler_mascheroni = 0.5772156649
-    expected_max_sr = (
-        (1 - euler_mascheroni) * norm.ppf(1 - 1/n_trials) +
-        euler_mascheroni * norm.ppf(1 - 1/(n_trials * np.e))
-    )
-
-    # Variance of Sharpe estimator (accounting for non-normality)
-    sr_variance = (
-        (1 - skewness * observed_sharpe + (kurtosis - 1) / 4 * observed_sharpe**2)
-        / (n_observations - 1)
-    )
-
-    # Deflated SR: probability of beating expected maximum by chance
-    deflated = (observed_sharpe - expected_max_sr) / np.sqrt(sr_variance)
-    psr = norm.cdf(deflated)
-    return psr
-
-# Example: we tried 50 parameter combinations, observed Sharpe = 2.1
-psr = deflated_sharpe_ratio(
-    observed_sharpe=2.1,
-    n_trials=50,
-    n_observations=500
-)
-print(f"Probability of genuine alpha: {psr:.1%}")
-# Low PSR → strategy is likely overfit from parameter search</code></pre>
-
-    <!-- S7 -->
-    <h2 id="performance-metrics">Performance Metrics</h2>
-    <p>
-      No single metric captures all aspects of strategy quality. Use a dashboard of metrics that together paint a complete picture.
-    </p>
-
-    <h3>Complete Metrics Implementation</h3>
-    <pre><code>import numpy as np
-import pandas as pd
-from scipy import stats
-
-def compute_performance_metrics(
-    returns: pd.Series,
-    benchmark_returns: pd.Series = None,
-    risk_free_rate: float = 0.05,
-    periods_per_year: int = 252
-) -> dict:
-    """
-    Comprehensive strategy performance metrics.
-    returns: daily returns series
-    risk_free_rate: annualized risk-free rate
-    """
-    rf_daily = risk_free_rate / periods_per_year
-    excess = returns - rf_daily
-
-    # Annualized return
-    n = len(returns)
-    total_return = (1 + returns).prod() - 1
-    ann_return = (1 + total_return) ** (periods_per_year / n) - 1
-
-    # Volatility
-    ann_vol = returns.std() * np.sqrt(periods_per_year)
-
-    # Sharpe Ratio
-    sharpe = excess.mean() / returns.std() * np.sqrt(periods_per_year)
-
-    # Sortino Ratio (penalizes only downside volatility)
-    downside = returns[returns < rf_daily]
-    downside_vol = downside.std() * np.sqrt(periods_per_year) if len(downside) > 0 else np.nan
-    sortino = (ann_return - risk_free_rate) / downside_vol if downside_vol else np.nan
-
-    # Maximum Drawdown
-    cum = (1 + returns).cumprod()
-    roll_max = cum.expanding().max()
-    drawdowns = cum / roll_max - 1
-    max_dd = drawdowns.min()
-
-    # Calmar Ratio
-    calmar = ann_return / abs(max_dd) if max_dd != 0 else np.nan
-
-    # Average drawdown duration
-    in_drawdown = drawdowns < 0
-    dd_starts = in_drawdown & (~in_drawdown.shift(1).fillna(False))
-    dd_ends = (~in_drawdown) & (in_drawdown.shift(1).fillna(False))
-    dd_durations = []
-    start_idx = None
-    for i, (s, e) in enumerate(zip(dd_starts, dd_ends)):
-        if s: start_idx = i
-        if e and start_idx is not None:
-            dd_durations.append(i - start_idx)
-    avg_dd_duration = np.mean(dd_durations) if dd_durations else 0
-
-    # Win rate and profit factor
-    wins = returns[returns > 0]
-    losses = returns[returns < 0]
-    win_rate = len(wins) / len(returns) if len(returns) > 0 else 0
-    gross_profit = wins.sum()
-    gross_loss = abs(losses.sum())
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else np.inf
-
-    # Tail ratio (95th percentile return / 5th percentile loss)
-    tail_ratio = abs(np.percentile(returns, 95)) / abs(np.percentile(returns, 5))
-
-    # Beta and Alpha vs benchmark
-    beta, alpha, r_value, p_value, _ = (
-        stats.linregress(benchmark_returns, returns)
-        if benchmark_returns is not None and len(benchmark_returns) == len(returns)
-        else (np.nan, np.nan, np.nan, np.nan, np.nan)
-    )
-
-    # Omega Ratio
-    threshold = rf_daily
-    omega_num = returns[returns > threshold].sum() - threshold * len(returns[returns > threshold])
-    omega_den = abs(returns[returns <= threshold].sum() - threshold * len(returns[returns <= threshold]))
-    omega = omega_num / omega_den if omega_den > 0 else np.inf
-
-    return {
-        "total_return": f"{total_return:.2%}",
-        "ann_return": f"{ann_return:.2%}",
-        "ann_volatility": f"{ann_vol:.2%}",
-        "sharpe_ratio": round(sharpe, 3),
-        "sortino_ratio": round(sortino, 3),
-        "calmar_ratio": round(calmar, 3),
-        "omega_ratio": round(omega, 3),
-        "max_drawdown": f"{max_dd:.2%}",
-        "avg_dd_duration_days": round(avg_dd_duration, 1),
-        "win_rate": f"{win_rate:.2%}",
-        "profit_factor": round(profit_factor, 3),
-        "tail_ratio": round(tail_ratio, 3),
-        "beta": round(beta, 3) if not np.isnan(beta) else None,
-        "alpha_ann": f"{alpha * periods_per_year:.2%}" if not np.isnan(alpha) else None,
-        "n_periods": n,
-    }
-
-# Example: evaluate a strategy
-np.random.seed(42)
-sample_returns = pd.Series(np.random.normal(0.0008, 0.015, 500))  # 500 daily returns
-metrics = compute_performance_metrics(sample_returns)
-for k, v in metrics.items():
-    print(f"  {k:25s}: {v}")</code></pre>
-
-    <h3>Metric Interpretation Guide</h3>
-    <table class="data-table">
-      <thead>
-        <tr><th>Metric</th><th>Poor</th><th>Acceptable</th><th>Good</th><th>Excellent</th></tr>
-      </thead>
-      <tbody>
-        <tr><td>Sharpe Ratio</td><td class="red">&lt; 0.5</td><td class="yellow">0.5 - 1.0</td><td>1.0 - 2.0</td><td class="green">&gt; 2.0</td></tr>
-        <tr><td>Sortino Ratio</td><td class="red">&lt; 0.7</td><td class="yellow">0.7 - 1.5</td><td>1.5 - 3.0</td><td class="green">&gt; 3.0</td></tr>
-        <tr><td>Calmar Ratio</td><td class="red">&lt; 0.3</td><td class="yellow">0.3 - 1.0</td><td>1.0 - 3.0</td><td class="green">&gt; 3.0</td></tr>
-        <tr><td>Max Drawdown</td><td class="red">&gt; 30%</td><td class="yellow">15-30%</td><td>5-15%</td><td class="green">&lt; 5%</td></tr>
-        <tr><td>Win Rate</td><td class="red">&lt; 40%</td><td class="yellow">40-50%</td><td>50-60%</td><td class="green">&gt; 60%</td></tr>
-        <tr><td>Profit Factor</td><td class="red">&lt; 1.0</td><td class="yellow">1.0-1.3</td><td>1.3-2.0</td><td class="green">&gt; 2.0</td></tr>
-      </tbody>
-    </table>
-
-    <!-- S8 -->
-    <h2 id="purple-flea-backtesting">Backtesting on Purple Flea Casino/Trading Data</h2>
-    <p>
-      Purple Flea's unique angle: you can backtest agent strategies against real historical casino game outcomes, trading order books, and escrow settlement data. This allows you to simulate realistic agent P&amp;L including all fee structures.
-    </p>
-    <pre><code>import requests
-import pandas as pd
-from dataclasses import dataclass, field
-from typing import List, Optional
-
-@dataclass
-class CasinoBacktestResult:
-    hands_played: int = 0
-    total_wagered: float = 0.0
-    total_returned: float = 0.0
-    max_bankroll: float = 0.0
-    min_bankroll: float = float('inf')
-    bankroll_history: List[float] = field(default_factory=list)
-
-def backtest_casino_strategy(
-    api_key: str,
-    strategy_fn,
-    initial_bankroll: float = 1.0,
-    game: str = "blackjack",
-    n_hands: int = 1000,
-    use_historical: bool = True
-) -> CasinoBacktestResult:
-    """
-    Backtest a casino strategy against Purple Flea historical hand data.
-    strategy_fn: function(hand_state) -> bet_size (fraction of bankroll)
-    """
-    result = CasinoBacktestResult()
-    bankroll = initial_bankroll
-    result.bankroll_history.append(bankroll)
-
-    if use_historical:
-        # Fetch historical hand outcomes from Purple Flea
-        resp = requests.get(
-            "https://purpleflea.com/api/v1/casino/history",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={"game": game, "limit": n_hands}
-        )
-        hands = resp.json()["hands"]
-    else:
-        # Simulate with given RTP
-        import random
-        rtp = 0.995  # 99.5% return-to-player for blackjack
-        hands = [{"outcome": random.random() < rtp, "multiplier": 1.0} for _ in range(n_hands)]
-
-    for hand in hands:
-        if bankroll <= 0:
-            break
-        bet_fraction = strategy_fn({"bankroll": bankroll, "hand": hand})
-        bet_size = bankroll * max(0, min(1, bet_fraction))  # clamp to [0, bankroll]
-
-        if hand.get("outcome"):
-            multiplier = hand.get("multiplier", 1.0)
-            bankroll += bet_size * multiplier
-        else:
-            bankroll -= bet_size
-
-        result.hands_played += 1
-        result.total_wagered += bet_size
-        result.max_bankroll = max(result.max_bankroll, bankroll)
-        result.min_bankroll = min(result.min_bankroll, bankroll)
-        result.bankroll_history.append(bankroll)
-
-    result.total_returned = bankroll
-    return result
-
-# Example: Kelly criterion strategy
-def kelly_strategy(state: dict) -> float:
-    """Kelly criterion bet sizing for a 49.5% win probability game."""
-    WIN_PROB = 0.495
-    LOSS_PROB = 1 - WIN_PROB
-    PAYOFF_RATIO = 1.0  # 1:1 payout
-    kelly_fraction = WIN_PROB - (LOSS_PROB / PAYOFF_RATIO)
-    half_kelly = kelly_fraction / 2  # half-Kelly for risk reduction
-    return max(0, half_kelly)
-
-# result = backtest_casino_strategy(
-#     "pf_live_<your_key>",
-#     kelly_strategy,
-#     initial_bankroll=1.0,
-#     game="blackjack",
-#     n_hands=5000
-# )</code></pre>
-
-    <!-- S9 -->
-    <h2 id="complete-framework">Complete Backtesting Class</h2>
-    <p>
-      Putting it all together: a production-quality backtesting class that combines all the components above into a single unified interface.
-    </p>
-    <pre><code>class AgentBacktester:
-    """
-    Complete event-driven backtesting framework for AI agent strategies.
-    Integrates data fetching, cost modeling, lookahead prevention,
-    walk-forward optimization, and performance reporting.
-    """
-
-    def __init__(
-        self,
-        api_key: str,
-        cost_model: TransactionCostModel = None,
-        initial_capital: float = 100_000.0
-    ):
-        self.api_key = api_key
-        self.cost_model = cost_model or TransactionCostModel()
-        self.capital = initial_capital
-        self.positions = {}
-        self.trades = []
-        self.equity_curve = []
-
-    def run(
-        self,
-        symbol: str,
-        strategy_fn: Callable,
-        start: datetime,
-        end: datetime,
-        interval: str = "1h",
-        walk_forward: bool = True
-    ) -> dict:
-        # Fetch and clean data
-        df = fetch_ohlcv(symbol, interval, start, end)
-        df = clean_ohlcv(df)
-
-        if walk_forward:
-            # Use WFO to avoid parameter overfitting
-            wfo = WalkForwardOptimizer(
-                strategy_fn=strategy_fn,
-                param_grid={"fast": [5, 10, 20], "slow": [20, 40, 60]},
-                n_train_periods=500,
-                n_test_periods=125
-            )
-            wfo_result = wfo.run(df)
-            returns = wfo_result["oos_returns"]
-        else:
-            # Simple single-pass backtest (use only for research, not parameter selection)
-            train_df, test_df = train_test_split_temporal(df, 0.7)
-            returns = strategy_fn(test_df)
-
-        # Apply realistic transaction costs
-        n_trades = max(1, len(self.trades))
-        avg_trade_size = self.capital / n_trades
-        cost_per_trade = self.cost_model.compute_cost(avg_trade_size)
-        cost_per_period = cost_per_trade["total_bps"] / 10000 / 20  # amortized
-
-        adjusted_returns = returns - cost_per_period
-
-        # Compute metrics
-        metrics = compute_performance_metrics(adjusted_returns)
-        psr = deflated_sharpe_ratio(
-            observed_sharpe=float(metrics["sharpe_ratio"]),
-            n_trials=9,  # 3x3 param grid = 9 combinations
-            n_observations=len(returns)
-        )
-
-        return {
-            "metrics": metrics,
-            "deflated_sharpe_psr": f"{psr:.1%}",
-            "returns_series": adjusted_returns,
-            "cost_model": cost_per_trade,
-            "recommendation": "DEPLOY" if psr > 0.85 and float(metrics["sharpe_ratio"]) > 1.5 else "MORE_TESTING"
-        }
-
-# Usage
-# backtester = AgentBacktester("pf_live_<your_key>")
-# result = backtester.run("BTC-USD", my_strategy, start, end, walk_forward=True)
-# print(result["recommendation"])</code></pre>
-
-    <!-- S10 -->
-    <h2 id="common-pitfalls">Common Pitfalls Summary</h2>
-    <p>A final checklist of the most common backtesting mistakes that cause live underperformance:</p>
-    <ol>
-      <li><strong>No cost model</strong> — even a simple 10 bps round-trip cost can eliminate most strategies. Model it.</li>
-      <li><strong>Signal-to-execution timing mismatch</strong> — signals computed at bar close must execute at next bar open (or next bar close for day-end strategies).</li>
-      <li><strong>Data-snooping bias</strong> — every parameter you manually tweak uses up degrees of freedom. Use deflated Sharpe ratio to measure true alpha.</li>
-      <li><strong>Ignoring capacity</strong> — a strategy great at $10k may fail at $1M due to market impact. Test at target capital size.</li>
-      <li><strong>Single backtest period</strong> — performance over one bull market means nothing. Test across multiple regimes.</li>
-      <li><strong>No regime analysis</strong> — strategies that work in trending markets fail in choppy ones. Classify regimes and test separately.</li>
-      <li><strong>Confusing simulated and live fills</strong> — limit orders in backtest always fill at limit price. Live orders may not fill at all.</li>
-    </ol>
-
-    <div class="callout">
-      <div class="callout-title">Get Purple Flea Live Data for Backtesting</div>
-      <p>Access Purple Flea's full historical dataset — casino outcomes, trading OHLCV, order book snapshots — via the API at <code>purpleflea.com/api/v1/market/history</code>. Register for a free API key at <strong>purpleflea.com/register</strong>. Keys use the <code>pf_live_</code> prefix. Historical data goes back to platform launch with minute-level granularity.</p>
-    </div>
-  </article>
-
-  <!-- TOC -->
-  <aside class="toc-sidebar">
-    <div class="toc-title">Contents</div>
-    <ul class="toc-list">
-      <li><a href="#historical-data">Historical Data</a></li>
-      <li><a href="#event-vs-vectorized">Event vs Vectorized</a></li>
-      <li><a href="#transaction-costs">Transaction Costs</a></li>
-      <li><a href="#lookahead-bias">Lookahead Bias</a></li>
-      <li><a href="#walk-forward">Walk-Forward Optimization</a></li>
-      <li><a href="#overfitting">Overfitting Detection</a></li>
-      <li><a href="#performance-metrics">Performance Metrics</a></li>
-      <li><a href="#purple-flea-backtesting">Purple Flea Backtesting</a></li>
-      <li><a href="#complete-framework">Complete Framework</a></li>
-      <li><a href="#common-pitfalls">Common Pitfalls</a></li>
-    </ul>
-  </aside>
-</div>
-
-<footer style="border-top:1px solid #27272A;padding:2rem;text-align:center;color:#71717A;font-size:0.85rem;margin-top:4rem;">
-  <p>&copy; 2026 Purple Flea &mdash; Blue chip financial infrastructure for AI agents. <a href="/" style="color:#A855F7;text-decoration:none;">purpleflea.com</a></p>
-</footer>
-
-<script>
-  const bar = document.getElementById('progress-bar');
-  window.addEventListener('scroll', () => {
-    const max = document.body.scrollHeight - window.innerHeight;
-    bar.style.width = (window.scrollY / max * 100) + '%';
-  });
-  const headings = document.querySelectorAll('h2[id]');
-  const tocLinks = document.querySelectorAll('.toc-list a');
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        tocLinks.forEach(l => l.classList.remove('active'));
-        const active = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
-        if (active) active.classList.add('active');
-      }
+  <div id="progress-bar"></div>
+  <script>
+    window.addEventListener('scroll', () => {
+      const el = document.getElementById('progress-bar');
+      const scrolled = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+      el.style.width = Math.min(scrolled, 100) + '%';
     });
-  }, { rootMargin: '-20% 0px -75% 0px' });
-  headings.forEach(h => observer.observe(h));
-</script>
+  </script>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Purple<em>Flea</em></a>
+      <div class="nav-links">
+        <a href="/blog/">Blog</a>
+        <a href="/docs/">Docs</a>
+        <a href="/docs/trading/">Trading API</a>
+        <a href="/pricing/">Pricing</a>
+        <a href="/register/" class="nav-cta">Get API Key</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Page content -->
+  <div class="page-wrap">
+
+    <!-- Article -->
+    <article>
+      <div class="tag-chip strategy">Strategy</div>
+      <h1>Building a Production Backtesting Framework for AI Trading Agents</h1>
+      <div class="article-meta">
+        <span>Purple Flea Research</span>
+        <span>&middot;</span>
+        <span>March 7, 2026</span>
+        <span>&middot;</span>
+        <span>22 min read</span>
+      </div>
+
+      <p class="lead">Most AI trading agents are never properly backtested before going live. The ones that are often fall victim to lookahead bias, overfitting, or wildly optimistic transaction cost assumptions. This guide builds a production-grade <code>BacktestEngine</code> from the ground up — and shows you how to validate it with walk-forward optimization and Monte Carlo robustness testing before paper trading live on Purple Flea.</p>
+
+      <!-- Section 1: Why backtesting matters -->
+      <h2 id="why-backtesting">Why Backtesting Matters — and Where Agents Go Wrong</h2>
+
+      <p>An AI trading agent that skips rigorous backtesting is an agent gambling with real funds. Backtesting is the only way to answer the fundamental question before risking capital: <em>does this strategy have a statistically positive expectation, net of all costs?</em></p>
+
+      <p>The value of a thorough backtest is not simply knowing that a strategy made money historically. It is understanding <em>why</em> it made money, under what market conditions, with what drawdown profile, and whether those conditions are likely to persist. Without this, an agent has no framework for knowing when to reduce position size, when a strategy has broken down, or how correlated its risk is to broader market factors.</p>
+
+      <h3>The Most Common Backtesting Mistakes</h3>
+
+      <p>These four errors cause the majority of failed live deployments:</p>
+
+      <ul>
+        <li><strong>Lookahead bias</strong> — Using information in your signal that was not available at the time the trading decision would have been made. Classic example: using today's closing price to generate a signal and then executing at today's open. This is mathematically impossible in live trading and inflates backtest returns by 20-80% on typical strategies.</li>
+        <li><strong>Overfitting / curve fitting</strong> — Optimising strategy parameters on the full dataset until the backtest looks great. The resulting parameters capture noise, not signal. Walk-forward optimization is the standard defence.</li>
+        <li><strong>Ignoring transaction costs</strong> — Setting fees to zero or using unrealistic fill prices. In reality, spread + slippage + commission can eliminate 60% of paper profits on high-frequency strategies.</li>
+        <li><strong>Survivorship bias in data</strong> — Backtesting only on assets that still exist today, ignoring delisted or failed tokens. This creates an upward bias in mean-reversion and momentum strategies.</li>
+      </ul>
+
+      <div class="callout danger">
+        <div class="callout-icon">&#9888;&#65039;</div>
+        <div class="callout-body">
+          <strong>Lookahead Bias is Silent and Lethal</strong>
+          <p>Lookahead bias never throws an error. A backtest with pervasive lookahead bias produces clean equity curves, strong Sharpe ratios, and precise drawdown figures — all completely fictitious. The only way to detect it is through careful architectural design and code review.</p>
+        </div>
+      </div>
+
+      <!-- Section 2: Architectures -->
+      <h2 id="architectures">Event-Driven vs Vectorized Backtesting</h2>
+
+      <p>There are two dominant backtesting architectures, with fundamentally different accuracy/speed trade-offs.</p>
+
+      <h3>Vectorized Backtesting</h3>
+
+      <p>Vectorized backtesting applies trading rules as array operations across the entire historical dataset simultaneously using NumPy or Pandas. It is extremely fast — backtesting years of data takes milliseconds — and is simple to implement for rule-based strategies.</p>
+
+      <p>The critical flaw: vectorized approaches <em>cannot accurately model order execution</em>. They implicitly assume infinite liquidity at the exact bar close price, no bid-ask spread, and no market impact. They also cannot correctly model strategies that depend on portfolio state from previous periods without significant complexity.</p>
+
+      <h3>Event-Driven Backtesting</h3>
+
+      <p>Event-driven backtesting processes market data one event (tick, OHLCV bar, order book update) at a time. The strategy only has access to data up to the current event — making lookahead bias structurally impossible when implemented correctly. Order fills are simulated separately from signal generation, allowing realistic slippage and partial fill modeling.</p>
+
+      <p>Event-driven is slower and more complex to implement, but the additional realism is essential for any strategy intended for live deployment. The speed penalty is irrelevant in practice — even complex strategies typically complete historical runs in seconds to minutes.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Dimension</th><th>Vectorized</th><th>Event-Driven</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Speed</td><td>Milliseconds</td><td>Seconds to minutes</td></tr>
+            <tr><td>Lookahead bias risk</td><td>High (easy to introduce)</td><td>Low (structurally prevented)</td></tr>
+            <tr><td>Transaction cost accuracy</td><td>Approximate</td><td>High fidelity</td></tr>
+            <tr><td>Portfolio state modeling</td><td>Difficult</td><td>Natural</td></tr>
+            <tr><td>Suitable for live deployment</td><td>Not recommended</td><td>Yes</td></tr>
+            <tr><td>Implementation complexity</td><td>Low</td><td>Medium-High</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>The <code>BacktestEngine</code> we build here is fully event-driven. For exploratory research and parameter screening, a vectorized pass is acceptable — but all final strategy validation must use event-driven architecture.</p>
+
+      <!-- Section 3: Data pipeline -->
+      <h2 id="data-pipeline">Data Pipeline: OHLCV and Tick Data</h2>
+
+      <p>A backtesting framework is only as good as its data. Garbage in, garbage out is never more true than in quantitative trading — a strategy that looks profitable on clean data can turn negative on realistic data with all its messiness.</p>
+
+      <h3>OHLCV Data Sourcing</h3>
+
+      <p>For most AI trading agents operating on crypto markets, OHLCV (Open, High, Low, Close, Volume) at 1-minute to 1-hour resolution is the practical starting point. The Purple Flea trading API provides historical OHLCV at <code>GET /api/v1/market/history?symbol=BTC-USDC&amp;resolution=1m&amp;since=&lt;timestamp&gt;</code>.</p>
+
+      <div class="code-header">
+        <span class="code-filename">data/pipeline.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> <span class="var">requests</span>
+<span class="kw">import</span> <span class="var">pandas</span> <span class="kw">as</span> <span class="var">pd</span>
+<span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+<span class="kw">from</span> <span class="var">datetime</span> <span class="kw">import</span> <span class="var">datetime</span>, <span class="var">timezone</span>
+<span class="kw">from</span> <span class="var">pathlib</span> <span class="kw">import</span> <span class="var">Path</span>
+
+
+<span class="kw">class</span> <span class="cl">PurpleFleasDataPipeline</span>:
+    <span class="str">"""Fetch, validate, and preprocess historical market data from Purple Flea API."""</span>
+
+    BASE_URL = <span class="str">"https://purpleflea.com/api/v1"</span>
+    VALID_RESOLUTIONS = {<span class="str">"1m"</span>, <span class="str">"5m"</span>, <span class="str">"15m"</span>, <span class="str">"1h"</span>, <span class="str">"4h"</span>, <span class="str">"1d"</span>}
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="var">self</span>, api_key: <span class="fn">str</span>, cache_dir: <span class="fn">str</span> = <span class="str">"./data/cache"</span>):
+        <span class="var">self</span>.api_key = api_key          <span class="cm"># pf_live_&lt;your_key&gt;</span>
+        <span class="var">self</span>.cache_dir = <span class="fn">Path</span>(cache_dir)
+        <span class="var">self</span>.cache_dir.mkdir(parents=<span class="kw">True</span>, exist_ok=<span class="kw">True</span>)
+        <span class="var">self</span>.session = <span class="var">requests</span>.<span class="fn">Session</span>()
+        <span class="var">self</span>.session.headers.update({
+            <span class="str">"Authorization"</span>: <span class="fn">f</span><span class="str">"Bearer {api_key}"</span>,
+            <span class="str">"Accept"</span>: <span class="str">"application/json"</span>
+        })
+
+    <span class="kw">def</span> <span class="fn">fetch_ohlcv</span>(<span class="var">self</span>,
+                    symbol: <span class="fn">str</span>,
+                    resolution: <span class="fn">str</span>,
+                    start: <span class="var">datetime</span>,
+                    end: <span class="var">datetime</span>) -> <span class="var">pd</span>.<span class="cl">DataFrame</span>:
+        <span class="str">"""
+        Fetch OHLCV bars from Purple Flea API with disk caching.
+        Handles pagination automatically.
+        Returns DataFrame with DatetimeIndex in UTC.
+        """</span>
+        <span class="kw">if</span> resolution <span class="kw">not in</span> <span class="var">self</span>.VALID_RESOLUTIONS:
+            <span class="kw">raise</span> <span class="fn">ValueError</span>(<span class="fn">f</span><span class="str">"Invalid resolution {resolution}. Choose from {self.VALID_RESOLUTIONS}"</span>)
+
+        cache_key = <span class="fn">f</span><span class="str">"{symbol}_{resolution}_{start:%Y%m%d}_{end:%Y%m%d}"</span>
+        cache_path = <span class="var">self</span>.cache_dir / <span class="fn">f</span><span class="str">"{cache_key}.parquet"</span>
+
+        <span class="kw">if</span> cache_path.exists():
+            <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[Cache HIT] {cache_key}"</span>)
+            <span class="kw">return</span> <span class="var">pd</span>.<span class="fn">read_parquet</span>(cache_path)
+
+        bars = []
+        since = <span class="fn">int</span>(start.replace(tzinfo=<span class="var">timezone</span>.utc).timestamp() * <span class="num">1000</span>)
+        end_ms = <span class="fn">int</span>(end.replace(tzinfo=<span class="var">timezone</span>.utc).timestamp() * <span class="num">1000</span>)
+
+        <span class="kw">while</span> since < end_ms:
+            resp = <span class="var">self</span>.session.<span class="fn">get</span>(
+                <span class="fn">f</span><span class="str">"{self.BASE_URL}/market/history"</span>,
+                params={
+                    <span class="str">"symbol"</span>: symbol,
+                    <span class="str">"resolution"</span>: resolution,
+                    <span class="str">"since"</span>: since,
+                    <span class="str">"limit"</span>: <span class="num">1000</span>
+                },
+                timeout=<span class="num">30</span>
+            )
+            resp.<span class="fn">raise_for_status</span>()
+            data = resp.<span class="fn">json</span>()
+
+            <span class="kw">if</span> <span class="kw">not</span> data.get(<span class="str">"bars"</span>):
+                <span class="kw">break</span>
+
+            bars.extend(data[<span class="str">"bars"</span>])
+            since = data[<span class="str">"bars"</span>][-<span class="num">1</span>][<span class="str">"t"</span>] + <span class="num">1</span>
+
+        df = <span class="var">pd</span>.<span class="fn">DataFrame</span>(bars, columns=[<span class="str">"t"</span>, <span class="str">"o"</span>, <span class="str">"h"</span>, <span class="str">"l"</span>, <span class="str">"c"</span>, <span class="str">"v"</span>])
+        df.columns = [<span class="str">"timestamp"</span>, <span class="str">"open"</span>, <span class="str">"high"</span>, <span class="str">"low"</span>, <span class="str">"close"</span>, <span class="str">"volume"</span>]
+        df[<span class="str">"timestamp"</span>] = <span class="var">pd</span>.<span class="fn">to_datetime</span>(df[<span class="str">"timestamp"</span>], unit=<span class="str">"ms"</span>, utc=<span class="kw">True</span>)
+        df = df.<span class="fn">set_index</span>(<span class="str">"timestamp"</span>).<span class="fn">sort_index</span>()
+
+        <span class="cm"># Validate and clean</span>
+        df = <span class="var">self</span>.<span class="fn">_clean_ohlcv</span>(df)
+        df.<span class="fn">to_parquet</span>(cache_path)
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[Fetched] {len(df)} bars for {symbol} {resolution}"</span>)
+        <span class="kw">return</span> df
+
+    <span class="kw">def</span> <span class="fn">_clean_ohlcv</span>(<span class="var">self</span>, df: <span class="var">pd</span>.<span class="cl">DataFrame</span>) -> <span class="var">pd</span>.<span class="cl">DataFrame</span>:
+        <span class="str">"""Remove invalid bars, fill minor gaps, log anomalies."""</span>
+        initial_len = <span class="fn">len</span>(df)
+
+        <span class="cm"># Drop zero-volume bars (exchange glitches)</span>
+        df = df[df[<span class="str">"volume"</span>] > <span class="num">0</span>]
+
+        <span class="cm"># Drop bars where OHLC integrity fails (low &gt; high, etc.)</span>
+        df = df[
+            (df[<span class="str">"low"</span>] <= df[<span class="str">"high"</span>]) &
+            (df[<span class="str">"open"</span>] >= df[<span class="str">"low"</span>]) &
+            (df[<span class="str">"open"</span>] <= df[<span class="str">"high"</span>]) &
+            (df[<span class="str">"close"</span>] >= df[<span class="str">"low"</span>]) &
+            (df[<span class="str">"close"</span>] <= df[<span class="str">"high"</span>])
+        ]
+
+        <span class="cm"># Remove duplicate timestamps</span>
+        df = df[~df.index.<span class="fn">duplicated</span>(keep=<span class="str">"first"</span>)]
+
+        dropped = initial_len - <span class="fn">len</span>(df)
+        <span class="kw">if</span> dropped > <span class="num">0</span>:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[Clean] Dropped {dropped} invalid bars ({dropped/initial_len:.1%})"</span>)
+
+        <span class="kw">return</span> df</pre>
+
+      <!-- Section 4: BacktestEngine -->
+      <h2 id="backtest-engine">The BacktestEngine Class</h2>
+
+      <p>The <code>BacktestEngine</code> is the core of the framework. It processes market events sequentially, maintains portfolio state, and delegates signal generation to a pluggable strategy function. The three primary methods are <code>run()</code>, <code>calculate_metrics()</code>, and <code>plot_equity_curve()</code>.</p>
+
+      <div class="code-header">
+        <span class="code-filename">backtest/engine.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> <span class="var">pandas</span> <span class="kw">as</span> <span class="var">pd</span>
+<span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+<span class="kw">import</span> <span class="var">matplotlib</span>.<span class="var">pyplot</span> <span class="kw">as</span> <span class="var">plt</span>
+<span class="kw">import</span> <span class="var">matplotlib.gridspec</span> <span class="kw">as</span> <span class="var">gridspec</span>
+<span class="kw">from</span> <span class="var">dataclasses</span> <span class="kw">import</span> <span class="var">dataclass</span>, <span class="var">field</span>
+<span class="kw">from</span> <span class="var">typing</span> <span class="kw">import</span> <span class="var">Callable</span>, <span class="var">Optional</span>
+<span class="kw">from</span> <span class="var">enum</span> <span class="kw">import</span> <span class="var">Enum</span>
+<span class="kw">from</span> <span class="var">scipy</span> <span class="kw">import</span> <span class="var">stats</span>
+
+
+<span class="kw">class</span> <span class="cl">OrderSide</span>(<span class="var">Enum</span>):
+    BUY = <span class="str">"buy"</span>
+    SELL = <span class="str">"sell"</span>
+    FLAT = <span class="str">"flat"</span>  <span class="cm"># close all positions</span>
+
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="cl">Trade</span>:
+    timestamp: <span class="var">pd</span>.<span class="cl">Timestamp</span>
+    side: <span class="cl">OrderSide</span>
+    size: <span class="fn">float</span>           <span class="cm"># position size in base currency</span>
+    entry_price: <span class="fn">float</span>
+    exit_price: <span class="fn">float</span>
+    gross_pnl: <span class="fn">float</span>
+    total_cost: <span class="fn">float</span>     <span class="cm"># spread + slippage + commission</span>
+    net_pnl: <span class="fn">float</span>
+    bars_held: <span class="fn">int</span>
+
+
+<span class="kw">@dataclass</span>
+<span class="kw">class</span> <span class="cl">BacktestConfig</span>:
+    initial_capital: <span class="fn">float</span> = <span class="num">10_000.0</span>   <span class="cm"># starting USDC</span>
+    position_size_pct: <span class="fn">float</span> = <span class="num">0.1</span>      <span class="cm"># fraction of capital per trade</span>
+    max_position_pct: <span class="fn">float</span> = <span class="num">0.5</span>       <span class="cm"># max total exposure</span>
+    commission_pct: <span class="fn">float</span> = <span class="num">0.001</span>      <span class="cm"># 0.10% maker/taker</span>
+    spread_bps: <span class="fn">float</span> = <span class="num">5.0</span>            <span class="cm"># bid-ask half-spread in bps</span>
+    slippage_bps: <span class="fn">float</span> = <span class="num">2.0</span>          <span class="cm"># market impact estimate</span>
+    warmup_bars: <span class="fn">int</span> = <span class="num">50</span>              <span class="cm"># bars before trading begins (for indicator warm-up)</span>
+    risk_free_rate: <span class="fn">float</span> = <span class="num">0.0</span>        <span class="cm"># daily risk-free rate</span>
+    trading_days_per_year: <span class="fn">int</span> = <span class="num">365</span>   <span class="cm"># 24/7 crypto markets</span>
+
+
+<span class="kw">class</span> <span class="cl">BacktestEngine</span>:
+    <span class="str">"""
+    Event-driven backtesting engine for AI trading agent strategies.
+
+    Usage:
+        engine = BacktestEngine(config=BacktestConfig())
+        results = engine.run(df, strategy_fn=my_momentum_strategy)
+        metrics = engine.calculate_metrics()
+        engine.plot_equity_curve()
+    """</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="var">self</span>, config: <span class="cl">BacktestConfig</span> = <span class="kw">None</span>):
+        <span class="var">self</span>.config = config <span class="kw">or</span> <span class="fn">BacktestConfig</span>()
+        <span class="var">self</span>._reset()
+
+    <span class="kw">def</span> <span class="fn">_reset</span>(<span class="var">self</span>):
+        <span class="var">self</span>.capital = <span class="var">self</span>.config.initial_capital
+        <span class="var">self</span>.position = <span class="num">0.0</span>         <span class="cm"># current position in base currency (positive = long)</span>
+        <span class="var">self</span>.position_entry_price = <span class="num">0.0</span>
+        <span class="var">self</span>.position_entry_bar = <span class="num">0</span>
+        <span class="var">self</span>.equity_curve: <span class="fn">list</span>[<span class="fn">dict</span>] = []
+        <span class="var">self</span>.trades: <span class="fn">list</span>[<span class="cl">Trade</span>] = []
+        <span class="var">self</span>._bar_index = <span class="num">0</span>
+        <span class="var">self</span>._df: <span class="var">pd</span>.<span class="cl">DataFrame</span> = <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="fn">run</span>(<span class="var">self</span>,
+            df: <span class="var">pd</span>.<span class="cl">DataFrame</span>,
+            strategy_fn: <span class="fn">Callable</span>,
+            strategy_params: <span class="fn">dict</span> = <span class="kw">None</span>) -> <span class="fn">dict</span>:
+        <span class="str">"""
+        Run the backtest over historical OHLCV data.
+
+        Args:
+            df: DataFrame with DatetimeIndex and columns [open, high, low, close, volume].
+                MUST be sorted ascending. No future data must be accessible in strategy_fn.
+            strategy_fn: Callable(df_slice, params) -> OrderSide
+                Receives only data UP TO AND INCLUDING the current bar.
+                Must return an OrderSide (BUY / SELL / FLAT).
+            strategy_params: dict passed to strategy_fn on each call.
+
+        Returns:
+            dict with equity_curve DataFrame and trade list.
+        """</span>
+        <span class="var">self</span>.<span class="fn">_reset</span>()
+        <span class="var">self</span>._df = df.<span class="fn">copy</span>()
+        params = strategy_params <span class="kw">or</span> {}
+        n = <span class="fn">len</span>(df)
+
+        <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(n):
+            <span class="var">self</span>._bar_index = i
+            bar = df.<span class="fn">iloc</span>[i]
+
+            <span class="cm"># Mark-to-market: current equity = cash + unrealised position value</span>
+            unrealised = <span class="var">self</span>.position * bar[<span class="str">"close"</span>] <span class="kw">if</span> <span class="var">self</span>.position != <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
+            equity = <span class="var">self</span>.capital + unrealised
+
+            <span class="var">self</span>.equity_curve.<span class="fn">append</span>({
+                <span class="str">"timestamp"</span>: df.index[i],
+                <span class="str">"equity"</span>: equity,
+                <span class="str">"capital"</span>: <span class="var">self</span>.capital,
+                <span class="str">"position"</span>: <span class="var">self</span>.position,
+                <span class="str">"unrealised_pnl"</span>: unrealised <span class="op">-</span> (<span class="var">self</span>.position * <span class="var">self</span>.position_entry_price)
+                                    <span class="kw">if</span> <span class="var">self</span>.position != <span class="num">0</span> <span class="kw">else</span> <span class="num">0.0</span>
+            })
+
+            <span class="cm"># Skip warm-up period: strategy has no access to sufficient indicator history</span>
+            <span class="kw">if</span> i < <span class="var">self</span>.config.warmup_bars:
+                <span class="kw">continue</span>
+
+            <span class="cm"># CRITICAL: pass ONLY df.iloc[:i+1] to strategy — never the full df</span>
+            <span class="cm"># This is the architectural guarantee against lookahead bias.</span>
+            df_slice = df.<span class="fn">iloc</span>[:<span class="var">i</span> + <span class="num">1</span>]
+            signal = <span class="fn">strategy_fn</span>(df_slice, params)
+
+            <span class="cm"># Execute signal against next bar's open price (realistic: decided at close, filled at open)</span>
+            <span class="kw">if</span> i + <span class="num">1</span> < n:
+                next_open = df.<span class="fn">iloc</span>[i + <span class="num">1</span>][<span class="str">"open"</span>]
+                <span class="var">self</span>.<span class="fn">_execute_signal</span>(signal, next_open, i)
+
+        <span class="cm"># Close any open position at final bar close</span>
+        <span class="kw">if</span> <span class="var">self</span>.position != <span class="num">0</span>:
+            final_price = df.<span class="fn">iloc</span>[-<span class="num">1</span>][<span class="str">"close"</span>]
+            <span class="var">self</span>.<span class="fn">_execute_signal</span>(<span class="cl">OrderSide</span>.FLAT, final_price, n - <span class="num">1</span>)
+
+        equity_df = <span class="var">pd</span>.<span class="fn">DataFrame</span>(<span class="var">self</span>.equity_curve).<span class="fn">set_index</span>(<span class="str">"timestamp"</span>)
+        <span class="kw">return</span> {<span class="str">"equity_curve"</span>: equity_df, <span class="str">"trades"</span>: <span class="var">self</span>.trades}
+
+    <span class="kw">def</span> <span class="fn">_execute_signal</span>(<span class="var">self</span>, signal: <span class="cl">OrderSide</span>, price: <span class="fn">float</span>, bar_index: <span class="fn">int</span>):
+        <span class="str">"""Apply transaction costs and update portfolio state."""</span>
+        spread_cost = price * (<span class="var">self</span>.config.spread_bps / <span class="num">10_000</span>)
+        slippage_cost = price * (<span class="var">self</span>.config.slippage_bps / <span class="num">10_000</span>)
+
+        <span class="kw">if</span> signal == <span class="cl">OrderSide</span>.BUY <span class="kw">and</span> <span class="var">self</span>.position <= <span class="num">0</span>:
+            <span class="cm"># Close any short, open long</span>
+            <span class="kw">if</span> <span class="var">self</span>.position < <span class="num">0</span>:
+                <span class="var">self</span>.<span class="fn">_close_position</span>(price, spread_cost, slippage_cost, bar_index)
+            trade_value = <span class="var">self</span>.capital * <span class="var">self</span>.config.position_size_pct
+            fill_price = price + spread_cost + slippage_cost
+            commission = trade_value * <span class="var">self</span>.config.commission_pct
+            <span class="var">self</span>.position = (trade_value - commission) / fill_price
+            <span class="var">self</span>.capital -= (trade_value + commission)
+            <span class="var">self</span>.position_entry_price = fill_price
+            <span class="var">self</span>.position_entry_bar = bar_index
+
+        <span class="kw">elif</span> signal <span class="kw">in</span> (<span class="cl">OrderSide</span>.SELL, <span class="cl">OrderSide</span>.FLAT) <span class="kw">and</span> <span class="var">self</span>.position > <span class="num">0</span>:
+            <span class="var">self</span>.<span class="fn">_close_position</span>(price, spread_cost, slippage_cost, bar_index)
+
+    <span class="kw">def</span> <span class="fn">_close_position</span>(<span class="var">self</span>, price: <span class="fn">float</span>, spread: <span class="fn">float</span>, slip: <span class="fn">float</span>, bar_index: <span class="fn">int</span>):
+        <span class="str">"""Record realised trade P&amp;L and update capital."""</span>
+        fill_price = price - spread - slip  <span class="cm"># worse fill when exiting</span>
+        gross_pnl = <span class="var">self</span>.position * (fill_price - <span class="var">self</span>.position_entry_price)
+        exit_value = <span class="var">self</span>.position * fill_price
+        commission = exit_value * <span class="var">self</span>.config.commission_pct
+        total_cost = (<span class="var">self</span>.position * (spread + slip) * <span class="num">2</span>) + commission
+        net_pnl = gross_pnl - commission
+
+        <span class="var">self</span>.trades.<span class="fn">append</span>(<span class="fn">Trade</span>(
+            timestamp=<span class="var">self</span>._df.index[bar_index],
+            side=<span class="cl">OrderSide</span>.SELL,
+            size=<span class="var">self</span>.position,
+            entry_price=<span class="var">self</span>.position_entry_price,
+            exit_price=fill_price,
+            gross_pnl=gross_pnl,
+            total_cost=total_cost,
+            net_pnl=net_pnl,
+            bars_held=bar_index - <span class="var">self</span>.position_entry_bar
+        ))
+
+        <span class="var">self</span>.capital += exit_value - commission
+        <span class="var">self</span>.position = <span class="num">0.0</span>
+        <span class="var">self</span>.position_entry_price = <span class="num">0.0</span>
+
+    <span class="kw">def</span> <span class="fn">calculate_metrics</span>(<span class="var">self</span>) -> <span class="fn">dict</span>:
+        <span class="str">"""
+        Compute a full suite of risk-adjusted performance metrics.
+
+        Returns:
+            dict with keys: total_return, cagr, sharpe_ratio, sortino_ratio,
+            calmar_ratio, max_drawdown, win_rate, profit_factor,
+            avg_trade_pnl, total_trades, avg_bars_held.
+        """</span>
+        <span class="kw">if</span> <span class="kw">not</span> <span class="var">self</span>.equity_curve:
+            <span class="kw">raise</span> <span class="fn">RuntimeError</span>(<span class="str">"No backtest data. Call run() first."</span>)
+
+        eq = <span class="var">pd</span>.<span class="fn">DataFrame</span>(<span class="var">self</span>.equity_curve)
+        equity = eq[<span class="str">"equity"</span>].<span class="fn">values</span>
+        n_bars = <span class="fn">len</span>(equity)
+
+        <span class="cm"># Returns</span>
+        returns = <span class="var">np</span>.<span class="fn">diff</span>(equity) / equity[:-<span class="num">1</span>]
+        rf_daily = <span class="var">self</span>.config.risk_free_rate
+        excess = returns - rf_daily
+        T = <span class="var">self</span>.config.trading_days_per_year
+
+        <span class="cm"># Total and annualised return</span>
+        total_return = (equity[-<span class="num">1</span>] / equity[<span class="num">0</span>]) - <span class="num">1</span>
+        days = n_bars  <span class="cm"># approximation: 1 bar ~ 1 trading period</span>
+        cagr = (<span class="num">1</span> + total_return) ** (T / <span class="fn">max</span>(days, <span class="num">1</span>)) - <span class="num">1</span>
+
+        <span class="cm"># Sharpe</span>
+        sharpe = (<span class="var">np</span>.<span class="fn">mean</span>(excess) / (<span class="var">np</span>.<span class="fn">std</span>(excess) + <span class="num">1e-10</span>)) * <span class="var">np</span>.<span class="fn">sqrt</span>(T)
+
+        <span class="cm"># Sortino (penalise only downside volatility)</span>
+        downside = excess[excess < <span class="num">0</span>]
+        sortino_denom = <span class="var">np</span>.<span class="fn">sqrt</span>(<span class="var">np</span>.<span class="fn">mean</span>(downside ** <span class="num">2</span>) + <span class="num">1e-10</span>)
+        sortino = (<span class="var">np</span>.<span class="fn">mean</span>(excess) / sortino_denom) * <span class="var">np</span>.<span class="fn">sqrt</span>(T)
+
+        <span class="cm"># Maximum drawdown</span>
+        running_max = <span class="var">np</span>.<span class="fn">maximum.accumulate</span>(equity)
+        drawdowns = (equity - running_max) / running_max
+        max_drawdown = <span class="fn">float</span>(<span class="var">np</span>.<span class="fn">min</span>(drawdowns))
+
+        <span class="cm"># Calmar ratio</span>
+        calmar = cagr / <span class="fn">abs</span>(max_drawdown) <span class="kw">if</span> max_drawdown != <span class="num">0</span> <span class="kw">else</span> <span class="var">np</span>.inf
+
+        <span class="cm"># Trade statistics</span>
+        <span class="kw">if</span> <span class="var">self</span>.trades:
+            pnls = [t.net_pnl <span class="kw">for</span> t <span class="kw">in</span> <span class="var">self</span>.trades]
+            wins = [p <span class="kw">for</span> p <span class="kw">in</span> pnls <span class="kw">if</span> p > <span class="num">0</span>]
+            losses = [p <span class="kw">for</span> p <span class="kw">in</span> pnls <span class="kw">if</span> p <= <span class="num">0</span>]
+            win_rate = <span class="fn">len</span>(wins) / <span class="fn">len</span>(pnls)
+            profit_factor = <span class="fn">sum</span>(wins) / <span class="fn">abs</span>(<span class="fn">sum</span>(losses)) <span class="kw">if</span> losses <span class="kw">else</span> <span class="var">np</span>.inf
+            avg_trade_pnl = <span class="var">np</span>.<span class="fn">mean</span>(pnls)
+            avg_bars_held = <span class="var">np</span>.<span class="fn">mean</span>([t.bars_held <span class="kw">for</span> t <span class="kw">in</span> <span class="var">self</span>.trades])
+        <span class="kw">else</span>:
+            win_rate = profit_factor = avg_trade_pnl = avg_bars_held = <span class="num">0.0</span>
+
+        <span class="kw">return</span> {
+            <span class="str">"total_return"</span>: <span class="fn">round</span>(total_return * <span class="num">100</span>, <span class="num">2</span>),
+            <span class="str">"cagr_pct"</span>: <span class="fn">round</span>(cagr * <span class="num">100</span>, <span class="num">2</span>),
+            <span class="str">"sharpe_ratio"</span>: <span class="fn">round</span>(sharpe, <span class="num">3</span>),
+            <span class="str">"sortino_ratio"</span>: <span class="fn">round</span>(sortino, <span class="num">3</span>),
+            <span class="str">"calmar_ratio"</span>: <span class="fn">round</span>(calmar, <span class="num">3</span>),
+            <span class="str">"max_drawdown_pct"</span>: <span class="fn">round</span>(max_drawdown * <span class="num">100</span>, <span class="num">2</span>),
+            <span class="str">"win_rate_pct"</span>: <span class="fn">round</span>(win_rate * <span class="num">100</span>, <span class="num">1</span>),
+            <span class="str">"profit_factor"</span>: <span class="fn">round</span>(profit_factor, <span class="num">2</span>),
+            <span class="str">"avg_trade_pnl_usdc"</span>: <span class="fn">round</span>(avg_trade_pnl, <span class="num">4</span>),
+            <span class="str">"total_trades"</span>: <span class="fn">len</span>(<span class="var">self</span>.trades),
+            <span class="str">"avg_bars_held"</span>: <span class="fn">round</span>(avg_bars_held, <span class="num">1</span>),
+            <span class="str">"final_equity_usdc"</span>: <span class="fn">round</span>(equity[-<span class="num">1</span>], <span class="num">2</span>)
+        }
+
+    <span class="kw">def</span> <span class="fn">plot_equity_curve</span>(<span class="var">self</span>, title: <span class="fn">str</span> = <span class="str">"Backtest Equity Curve"</span>,
+                          save_path: <span class="var">Optional</span>[<span class="fn">str</span>] = <span class="kw">None</span>):
+        <span class="str">"""
+        Plot equity curve with drawdown subplot and trade markers.
+
+        Args:
+            title: Chart title string.
+            save_path: If provided, saves figure to this path (PNG/PDF).
+        """</span>
+        <span class="kw">if</span> <span class="kw">not</span> <span class="var">self</span>.equity_curve:
+            <span class="kw">raise</span> <span class="fn">RuntimeError</span>(<span class="str">"No backtest data. Call run() first."</span>)
+
+        eq = <span class="var">pd</span>.<span class="fn">DataFrame</span>(<span class="var">self</span>.equity_curve).<span class="fn">set_index</span>(<span class="str">"timestamp"</span>)
+        equity = eq[<span class="str">"equity"</span>]
+        running_max = equity.<span class="fn">cummax</span>()
+        drawdown = (equity - running_max) / running_max * <span class="num">100</span>
+
+        fig = <span class="var">plt</span>.<span class="fn">figure</span>(figsize=(<span class="num">14</span>, <span class="num">8</span>), facecolor=<span class="str">"#09090B"</span>)
+        gs = <span class="var">gridspec</span>.<span class="fn">GridSpec</span>(<span class="num">3</span>, <span class="num">1</span>, figure=fig, height_ratios=[<span class="num">3</span>, <span class="num">1</span>, <span class="num">0.5</span>], hspace=<span class="num">0.08</span>)
+
+        <span class="cm"># Equity panel</span>
+        ax1 = fig.<span class="fn">add_subplot</span>(gs[<span class="num">0</span>])
+        ax1.<span class="fn">plot</span>(equity.index, equity.<span class="fn">values</span>,
+                color=<span class="str">"#A855F7"</span>, linewidth=<span class="num">1.5</span>, label=<span class="str">"Portfolio Equity"</span>)
+        ax1.<span class="fn">fill_between</span>(equity.index, equity.<span class="fn">values</span>,
+                         <span class="var">self</span>.config.initial_capital,
+                         where=equity.<span class="fn">values</span> >= <span class="var">self</span>.config.initial_capital,
+                         alpha=<span class="num">0.15</span>, color=<span class="str">"#22C55E"</span>)
+        ax1.<span class="fn">fill_between</span>(equity.index, equity.<span class="fn">values</span>,
+                         <span class="var">self</span>.config.initial_capital,
+                         where=equity.<span class="fn">values</span> < <span class="var">self</span>.config.initial_capital,
+                         alpha=<span class="num">0.15</span>, color=<span class="str">"#EF4444"</span>)
+
+        <span class="cm"># Trade markers</span>
+        <span class="kw">for</span> trade <span class="kw">in</span> <span class="var">self</span>.trades:
+            colour = <span class="str">"#22C55E"</span> <span class="kw">if</span> trade.net_pnl > <span class="num">0</span> <span class="kw">else</span> <span class="str">"#EF4444"</span>
+            <span class="kw">if</span> trade.timestamp <span class="kw">in</span> equity.index:
+                ax1.<span class="fn">axvline</span>(x=trade.timestamp, color=colour,
+                            alpha=<span class="num">0.3</span>, linewidth=<span class="num">0.7</span>, linestyle=<span class="str">"--"</span>)
+
+        ax1.<span class="fn">axhline</span>(y=<span class="var">self</span>.config.initial_capital,
+                   color=<span class="str">"#52525B"</span>, linewidth=<span class="num">0.8</span>, linestyle=<span class="str">":"</span>)
+        ax1.<span class="fn">set_facecolor</span>(<span class="str">"#09090B"</span>)
+        ax1.<span class="fn">tick_params</span>(colors=<span class="str">"#A1A1AA"</span>, labelsize=<span class="num">9</span>)
+        ax1.<span class="fn">set_ylabel</span>(<span class="str">"Equity (USDC)"</span>, color=<span class="str">"#A1A1AA"</span>, fontsize=<span class="num">9</span>)
+        ax1.<span class="fn">set_title</span>(title, color=<span class="str">"#FAFAFA"</span>, fontsize=<span class="num">13</span>, fontweight=<span class="str">"bold"</span>, pad=<span class="num">12</span>)
+        ax1.<span class="fn">legend</span>(facecolor=<span class="str">"#111113"</span>, edgecolor=<span class="str">"#27272A"</span>,
+                  labelcolor=<span class="str">"#FAFAFA"</span>, fontsize=<span class="num">9</span>)
+        ax1.<span class="fn">spines</span>[<span class="str">"bottom"</span>].<span class="fn">set_color</span>(<span class="str">"#27272A"</span>)
+        ax1.<span class="fn">spines</span>[<span class="str">"top"</span>].<span class="fn">set_visible</span>(<span class="kw">False</span>)
+        ax1.<span class="fn">spines</span>[<span class="str">"right"</span>].<span class="fn">set_visible</span>(<span class="kw">False</span>)
+        ax1.<span class="fn">spines</span>[<span class="str">"left"</span>].<span class="fn">set_color</span>(<span class="str">"#27272A"</span>)
+
+        <span class="cm"># Drawdown panel</span>
+        ax2 = fig.<span class="fn">add_subplot</span>(gs[<span class="num">1</span>], sharex=ax1)
+        ax2.<span class="fn">fill_between</span>(drawdown.index, drawdown.<span class="fn">values</span>, <span class="num">0</span>,
+                         color=<span class="str">"#EF4444"</span>, alpha=<span class="num">0.5</span>)
+        ax2.<span class="fn">plot</span>(drawdown.index, drawdown.<span class="fn">values</span>, color=<span class="str">"#EF4444"</span>, linewidth=<span class="num">0.8</span>)
+        ax2.<span class="fn">set_facecolor</span>(<span class="str">"#09090B"</span>)
+        ax2.<span class="fn">set_ylabel</span>(<span class="str">"Drawdown %"</span>, color=<span class="str">"#A1A1AA"</span>, fontsize=<span class="num">9</span>)
+        ax2.<span class="fn">tick_params</span>(colors=<span class="str">"#A1A1AA"</span>, labelsize=<span class="num">8</span>)
+        ax2.<span class="fn">spines</span>[<span class="str">"top"</span>].<span class="fn">set_visible</span>(<span class="kw">False</span>)
+        ax2.<span class="fn">spines</span>[<span class="str">"right"</span>].<span class="fn">set_visible</span>(<span class="kw">False</span>)
+        ax2.<span class="fn">spines</span>[<span class="str">"bottom"</span>].<span class="fn">set_color</span>(<span class="str">"#27272A"</span>)
+        ax2.<span class="fn">spines</span>[<span class="str">"left"</span>].<span class="fn">set_color</span>(<span class="str">"#27272A"</span>)
+
+        <span class="kw">if</span> save_path:
+            <span class="var">plt</span>.<span class="fn">savefig</span>(save_path, dpi=<span class="num">150</span>, bbox_inches=<span class="str">"tight"</span>,
+                       facecolor=<span class="str">"#09090B"</span>)
+        <span class="var">plt</span>.<span class="fn">tight_layout</span>()
+        <span class="var">plt</span>.<span class="fn">show</span>()</pre>
+
+      <!-- Section 5: Transaction costs -->
+      <h2 id="transaction-costs">Transaction Cost Modeling</h2>
+
+      <p>The three components of realistic transaction costs — spread, slippage, and commission — each impact profitability differently. Together they can represent 0.1% to 1.0% of notional per round trip, which compounds dramatically over hundreds of trades.</p>
+
+      <h3>Spread</h3>
+      <p>The bid-ask spread is the cost of immediacy. When you buy at the ask and sell at the bid, you immediately pay the spread. For BTC-USDC on Purple Flea, the spread averages 4-8 bps during normal market conditions, widening to 20-50 bps during high-volatility periods. Model it as a half-spread per side: if spread_bps is 5, you pay 2.5 bps on entry and 2.5 bps on exit.</p>
+
+      <h3>Slippage</h3>
+      <p>Slippage is market impact — your order moves the price against you as it consumes order book liquidity. It scales with order size relative to the available liquidity at each price level. For agent-sized orders (under $10,000 notional), slippage on liquid Purple Flea markets is typically 1-5 bps, but can spike to 20-50 bps during low-liquidity periods like late-night sessions.</p>
+
+      <h3>Commission</h3>
+      <p>Purple Flea charges 0.10% per side on taker orders. Maker orders receive a rebate. For a strategy taking market orders, model 0.10% entry + 0.10% exit = 0.20% round-trip commission. For mixed maker/taker strategies, use a blended rate of 0.05-0.08% per side.</p>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-name">Spread Cost</div>
+          <div class="metric-formula">price × (spread_bps / 10,000)</div>
+          <p>Paid on both entry and exit. Scales with price level, not position size.</p>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Slippage Cost</div>
+          <div class="metric-formula">price × (slippage_bps / 10,000)</div>
+          <p>Increases with order size. Worst at market open and news events.</p>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Commission</div>
+          <div class="metric-formula">notional × commission_pct</div>
+          <p>Fixed rate per trade. Purple Flea: 0.10% taker, rebate for makers.</p>
+        </div>
+        <div class="metric-card">
+          <div class="metric-name">Round-Trip Cost</div>
+          <div class="metric-formula">(2 × spread) + (2 × slip) + (2 × comm)</div>
+          <p>Total cost to open and close a position. Minimum hurdle for profitability.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-body">
+          <strong>The Break-Even Rule</strong>
+          <p>A strategy must generate gross P&L greater than its round-trip transaction cost per trade to be profitable in expectation. For Purple Flea with typical costs of 0.30-0.40% round-trip, a strategy holding positions for 1 hour needs to capture at least 0.40% price movement per trade just to break even — before considering losing trades.</p>
+        </div>
+      </div>
+
+      <!-- Section 6: Walk-forward + Monte Carlo -->
+      <h2 id="walk-forward">Walk-Forward Optimization and Monte Carlo Robustness</h2>
+
+      <p>A single in-sample / out-of-sample split is insufficient for strategy validation. Walk-forward optimization (WFO) provides a more realistic estimate of live performance by simulating the natural parameter update cycle of a deployed strategy.</p>
+
+      <h3>Walk-Forward Optimization</h3>
+
+      <div class="code-header">
+        <span class="code-filename">backtest/walk_forward.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">from</span> <span class="var">itertools</span> <span class="kw">import</span> <span class="var">product</span>
+<span class="kw">import</span> <span class="var">pandas</span> <span class="kw">as</span> <span class="var">pd</span>
+<span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+<span class="kw">from</span> <span class="var">backtest.engine</span> <span class="kw">import</span> <span class="cl">BacktestEngine</span>, <span class="cl">BacktestConfig</span>
+
+
+<span class="kw">def</span> <span class="fn">walk_forward_optimize</span>(
+    df: <span class="var">pd</span>.<span class="cl">DataFrame</span>,
+    strategy_fn,
+    param_grid: <span class="fn">dict</span>,
+    in_sample_bars: <span class="fn">int</span> = <span class="num">1000</span>,
+    out_of_sample_bars: <span class="fn">int</span> = <span class="num">200</span>,
+    config: <span class="cl">BacktestConfig</span> = <span class="kw">None</span>
+) -> <span class="fn">dict</span>:
+    <span class="str">"""
+    Walk-forward optimization.
+
+    Rolls a window through the dataset:
+    1. Optimise parameters on in-sample window (best Sharpe)
+    2. Test on immediately following out-of-sample window
+    3. Record out-of-sample results
+    4. Advance window by out_of_sample_bars bars
+    5. Repeat
+
+    Returns: dict with oos_results (list of metric dicts) and best_params per window.
+    """</span>
+    config = config <span class="kw">or</span> <span class="fn">BacktestConfig</span>()
+
+    <span class="cm"># Build flat list of all parameter combinations</span>
+    param_names = <span class="fn">list</span>(param_grid.keys())
+    param_values = <span class="fn">list</span>(param_grid.values())
+    all_combos = [<span class="fn">dict</span>(<span class="fn">zip</span>(param_names, combo))
+                  <span class="kw">for</span> combo <span class="kw">in</span> <span class="fn">product</span>(*param_values)]
+
+    oos_results = []
+    start_idx = <span class="num">0</span>
+    window_num = <span class="num">0</span>
+
+    <span class="kw">while</span> start_idx + in_sample_bars + out_of_sample_bars <= <span class="fn">len</span>(df):
+        is_end = start_idx + in_sample_bars
+        oos_end = is_end + out_of_sample_bars
+
+        df_is = df.<span class="fn">iloc</span>[start_idx:is_end]
+        df_oos = df.<span class="fn">iloc</span>[is_end:oos_end]
+
+        <span class="cm"># --- In-sample optimisation: find best Sharpe ---</span>
+        best_sharpe = -<span class="var">np</span>.inf
+        best_params = all_combos[<span class="num">0</span>]
+
+        <span class="kw">for</span> params <span class="kw">in</span> all_combos:
+            engine = <span class="fn">BacktestEngine</span>(config=config)
+            engine.<span class="fn">run</span>(df_is, strategy_fn, params)
+            metrics = engine.<span class="fn">calculate_metrics</span>()
+            <span class="kw">if</span> metrics[<span class="str">"sharpe_ratio"</span>] > best_sharpe:
+                best_sharpe = metrics[<span class="str">"sharpe_ratio"</span>]
+                best_params = params
+
+        <span class="cm"># --- Out-of-sample test with best params ---</span>
+        engine_oos = <span class="fn">BacktestEngine</span>(config=config)
+        engine_oos.<span class="fn">run</span>(df_oos, strategy_fn, best_params)
+        oos_metrics = engine_oos.<span class="fn">calculate_metrics</span>()
+        oos_metrics[<span class="str">"window"</span>] = window_num
+        oos_metrics[<span class="str">"is_start"</span>] = df.index[start_idx]
+        oos_metrics[<span class="str">"oos_start"</span>] = df.index[is_end]
+        oos_metrics[<span class="str">"best_params"</span>] = best_params
+        oos_results.<span class="fn">append</span>(oos_metrics)
+
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"Window {window_num}: IS Sharpe={best_sharpe:.2f} | "</span>
+              <span class="fn">f</span><span class="str">"OOS Sharpe={oos_metrics['sharpe_ratio']:.2f} | "</span>
+              <span class="fn">f</span><span class="str">"OOS Return={oos_metrics['total_return']:.2f}% | "</span>
+              <span class="fn">f</span><span class="str">"Params={best_params}"</span>)
+
+        start_idx += out_of_sample_bars
+        window_num += <span class="num">1</span>
+
+    combined_oos_return = <span class="var">np</span>.<span class="fn">prod</span>(
+        [<span class="num">1</span> + r[<span class="str">"total_return"</span>] / <span class="num">100</span> <span class="kw">for</span> r <span class="kw">in</span> oos_results]
+    ) - <span class="num">1</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"oos_results"</span>: oos_results,
+        <span class="str">"combined_oos_return_pct"</span>: <span class="fn">round</span>(combined_oos_return * <span class="num">100</span>, <span class="num">2</span>),
+        <span class="str">"avg_oos_sharpe"</span>: <span class="fn">round</span>(<span class="var">np</span>.<span class="fn">mean</span>([r[<span class="str">"sharpe_ratio"</span>] <span class="kw">for</span> r <span class="kw">in</span> oos_results]), <span class="num">3</span>),
+        <span class="str">"pct_profitable_windows"</span>: <span class="fn">round</span>(
+            <span class="fn">sum</span>(<span class="num">1</span> <span class="kw">for</span> r <span class="kw">in</span> oos_results <span class="kw">if</span> r[<span class="str">"total_return"</span>] > <span class="num">0</span>)
+            / <span class="fn">len</span>(oos_results) * <span class="num">100</span>, <span class="num">1</span>
+        )
+    }</pre>
+
+      <h3>Monte Carlo Robustness Testing</h3>
+
+      <p>Monte Carlo simulation tests whether strategy performance is robust to variations in trade ordering, execution timing, and slight changes in historical conditions. If performance is sensitive to tiny perturbations, the strategy is fragile and unlikely to survive live market noise.</p>
+
+      <div class="code-header">
+        <span class="code-filename">backtest/monte_carlo.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+<span class="kw">import</span> <span class="var">matplotlib.pyplot</span> <span class="kw">as</span> <span class="var">plt</span>
+
+
+<span class="kw">def</span> <span class="fn">monte_carlo_simulation</span>(
+    trade_pnls: <span class="fn">list</span>[<span class="fn">float</span>],
+    initial_capital: <span class="fn">float</span>,
+    n_simulations: <span class="fn">int</span> = <span class="num">1000</span>,
+    confidence_levels: <span class="fn">list</span>[<span class="fn">float</span>] = [<span class="num">0.05</span>, <span class="num">0.25</span>, <span class="num">0.50</span>]
+) -> <span class="fn">dict</span>:
+    <span class="str">"""
+    Monte Carlo simulation: resample trade P&amp;L sequences to estimate distribution
+    of strategy outcomes. Tests robustness to trade ordering.
+
+    Returns:
+        dict with percentile equity paths and probability of ruin.
+    """</span>
+    pnls = <span class="var">np</span>.<span class="fn">array</span>(trade_pnls)
+    n_trades = <span class="fn">len</span>(pnls)
+    paths = <span class="var">np</span>.<span class="fn">zeros</span>((n_simulations, n_trades + <span class="num">1</span>))
+    paths[:, <span class="num">0</span>] = initial_capital
+
+    <span class="kw">for</span> sim <span class="kw">in</span> <span class="fn">range</span>(n_simulations):
+        <span class="cm"># Resample with replacement: different ordering of same trades</span>
+        resampled = <span class="var">np</span>.<span class="fn">random.choice</span>(pnls, size=n_trades, replace=<span class="kw">True</span>)
+        paths[sim, <span class="num">1</span>:] = initial_capital + <span class="var">np</span>.<span class="fn">cumsum</span>(resampled)
+
+    final_equities = paths[:, -<span class="num">1</span>]
+    probability_of_ruin = <span class="fn">float</span>(<span class="var">np</span>.<span class="fn">mean</span>(final_equities < initial_capital * <span class="num">0.5</span>))
+
+    percentile_paths = {
+        <span class="fn">f</span><span class="str">"p{int(cl*100)}"</span>: <span class="var">np</span>.<span class="fn">percentile</span>(paths, cl * <span class="num">100</span>, axis=<span class="num">0</span>)
+        <span class="kw">for</span> cl <span class="kw">in</span> confidence_levels
+    }
+    percentile_paths[<span class="str">"p50"</span>] = <span class="var">np</span>.<span class="fn">percentile</span>(paths, <span class="num">50</span>, axis=<span class="num">0</span>)
+    percentile_paths[<span class="str">"p75"</span>] = <span class="var">np</span>.<span class="fn">percentile</span>(paths, <span class="num">75</span>, axis=<span class="num">0</span>)
+    percentile_paths[<span class="str">"p95"</span>] = <span class="var">np</span>.<span class="fn">percentile</span>(paths, <span class="num">95</span>, axis=<span class="num">0</span>)
+
+    <span class="kw">return</span> {
+        <span class="str">"probability_of_ruin"</span>: probability_of_ruin,
+        <span class="str">"expected_final_equity"</span>: <span class="fn">float</span>(<span class="var">np</span>.<span class="fn">mean</span>(final_equities)),
+        <span class="str">"median_final_equity"</span>: <span class="fn">float</span>(<span class="var">np</span>.<span class="fn">median</span>(final_equities)),
+        <span class="str">"worst_5pct_equity"</span>: <span class="fn">float</span>(<span class="var">np</span>.<span class="fn">percentile</span>(final_equities, <span class="num">5</span>)),
+        <span class="str">"percentile_paths"</span>: percentile_paths,
+        <span class="str">"all_paths"</span>: paths
+    }</pre>
+
+      <div class="callout warning">
+        <div class="callout-icon">&#9888;&#65039;</div>
+        <div class="callout-body">
+          <strong>Monte Carlo Threshold: Reject if Probability of Ruin &gt; 5%</strong>
+          <p>If your Monte Carlo simulation shows more than 5% of simulated paths ending at less than 50% of initial capital, the strategy's risk profile is unacceptable for live deployment regardless of its mean expected return. Reduce position sizing or tighten stop losses before proceeding.</p>
+        </div>
+      </div>
+
+      <!-- Section 7: Paper trading -->
+      <h2 id="paper-trading">From Backtest to Live: Paper Trading with Purple Flea</h2>
+
+      <p>Paper trading is the essential bridge between backtesting and live capital deployment. It runs your strategy with real-time Purple Flea market data and simulated execution — you see real fills, real slippage estimates, and real latency without risking actual funds.</p>
+
+      <div class="code-header">
+        <span class="code-filename">live/paper_trader.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">import</span> <span class="var">asyncio</span>
+<span class="kw">import</span> <span class="var">websockets</span>
+<span class="kw">import</span> <span class="var">json</span>
+<span class="kw">import</span> <span class="var">pandas</span> <span class="kw">as</span> <span class="var">pd</span>
+<span class="kw">from</span> <span class="var">collections</span> <span class="kw">import</span> <span class="var">deque</span>
+<span class="kw">from</span> <span class="var">datetime</span> <span class="kw">import</span> <span class="var">datetime</span>, <span class="var">timezone</span>
+
+
+<span class="kw">class</span> <span class="cl">PaperTrader</span>:
+    <span class="str">"""
+    Paper trading engine using Purple Flea WebSocket market data.
+    Runs your strategy in real-time with simulated execution.
+
+    API key format: pf_live_&lt;your_key&gt;
+    WebSocket endpoint: wss://purpleflea.com/ws/market
+    """</span>
+
+    WS_URL = <span class="str">"wss://purpleflea.com/ws/market"</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="var">self</span>,
+                 api_key: <span class="fn">str</span>,
+                 strategy_fn,
+                 strategy_params: <span class="fn">dict</span>,
+                 symbol: <span class="fn">str</span> = <span class="str">"BTC-USDC"</span>,
+                 resolution: <span class="fn">str</span> = <span class="str">"1m"</span>,
+                 initial_capital: <span class="fn">float</span> = <span class="num">10_000.0</span>,
+                 warmup_bars: <span class="fn">int</span> = <span class="num">50</span>):
+        <span class="var">self</span>.api_key = api_key          <span class="cm"># pf_live_...</span>
+        <span class="var">self</span>.strategy_fn = strategy_fn
+        <span class="var">self</span>.params = strategy_params
+        <span class="var">self</span>.symbol = symbol
+        <span class="var">self</span>.resolution = resolution
+        <span class="var">self</span>.capital = initial_capital
+        <span class="var">self</span>.position = <span class="num">0.0</span>
+        <span class="var">self</span>.warmup_bars = warmup_bars
+        <span class="var">self</span>.bar_buffer: <span class="var">deque</span> = <span class="fn">deque</span>(maxlen=<span class="num">500</span>)
+        <span class="var">self</span>.trade_log: <span class="fn">list</span> = []
+        <span class="var">self</span>.pnl_log: <span class="fn">list</span> = []
+
+    <span class="kw">async def</span> <span class="fn">run</span>(<span class="var">self</span>):
+        <span class="str">"""Subscribe to Purple Flea WebSocket feed and process bars in real time."""</span>
+        subscribe_msg = {
+            <span class="str">"action"</span>: <span class="str">"subscribe"</span>,
+            <span class="str">"channels"</span>: [<span class="fn">f</span><span class="str">"ohlcv:{self.symbol}:{self.resolution}"</span>],
+            <span class="str">"api_key"</span>: <span class="var">self</span>.api_key
+        }
+
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[PaperTrader] Starting paper trade: {self.symbol} {self.resolution}"</span>)
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[PaperTrader] Initial capital: ${self.capital:,.2f} USDC"</span>)
+
+        <span class="kw">async with</span> <span class="var">websockets</span>.<span class="fn">connect</span>(<span class="var">self</span>.WS_URL) <span class="kw">as</span> ws:
+            <span class="kw">await</span> ws.<span class="fn">send</span>(<span class="var">json</span>.<span class="fn">dumps</span>(subscribe_msg))
+
+            <span class="kw">async for</span> raw <span class="kw">in</span> ws:
+                msg = <span class="var">json</span>.<span class="fn">loads</span>(raw)
+                <span class="kw">if</span> msg.<span class="fn">get</span>(<span class="str">"type"</span>) != <span class="str">"bar"</span>:
+                    <span class="kw">continue</span>
+
+                bar = {
+                    <span class="str">"timestamp"</span>: <span class="var">pd</span>.<span class="fn">Timestamp</span>(msg[<span class="str">"t"</span>], unit=<span class="str">"ms"</span>, tz=<span class="str">"UTC"</span>),
+                    <span class="str">"open"</span>: <span class="fn">float</span>(msg[<span class="str">"o"</span>]),
+                    <span class="str">"high"</span>: <span class="fn">float</span>(msg[<span class="str">"h"</span>]),
+                    <span class="str">"low"</span>: <span class="fn">float</span>(msg[<span class="str">"l"</span>]),
+                    <span class="str">"close"</span>: <span class="fn">float</span>(msg[<span class="str">"c"</span>]),
+                    <span class="str">"volume"</span>: <span class="fn">float</span>(msg[<span class="str">"v"</span>])
+                }
+                <span class="var">self</span>.bar_buffer.<span class="fn">append</span>(bar)
+
+                <span class="kw">if</span> <span class="fn">len</span>(<span class="var">self</span>.bar_buffer) < <span class="var">self</span>.warmup_bars:
+                    <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[Warmup] {len(self.bar_buffer)}/{self.warmup_bars} bars"</span>)
+                    <span class="kw">continue</span>
+
+                df_slice = <span class="var">pd</span>.<span class="fn">DataFrame</span>(<span class="fn">list</span>(<span class="var">self</span>.bar_buffer)).<span class="fn">set_index</span>(<span class="str">"timestamp"</span>)
+                signal = <span class="var">self</span>.<span class="fn">strategy_fn</span>(df_slice, <span class="var">self</span>.params)
+
+                <span class="kw">await</span> <span class="var">self</span>.<span class="fn">_simulate_execution</span>(signal, bar[<span class="str">"close"</span>], bar[<span class="str">"timestamp"</span>])
+                <span class="var">self</span>.<span class="fn">_log_state</span>(bar)
+
+    <span class="kw">async def</span> <span class="fn">_simulate_execution</span>(<span class="var">self</span>, signal, price: <span class="fn">float</span>, ts):
+        <span class="str">"""Simulate realistic fill with spread + slippage."""</span>
+        fill_penalty = price * (<span class="num">7</span> / <span class="num">10_000</span>)  <span class="cm"># 5 bps spread + 2 bps slippage</span>
+        commission_rate = <span class="num">0.001</span>
+
+        <span class="kw">from</span> <span class="var">backtest.engine</span> <span class="kw">import</span> <span class="cl">OrderSide</span>
+        <span class="kw">if</span> signal == <span class="cl">OrderSide</span>.BUY <span class="kw">and</span> <span class="var">self</span>.position == <span class="num">0</span>:
+            size = (<span class="var">self</span>.capital * <span class="num">0.10</span>) / (price + fill_penalty)
+            cost = size * (price + fill_penalty) * (<span class="num">1</span> + commission_rate)
+            <span class="kw">if</span> cost <= <span class="var">self</span>.capital:
+                <span class="var">self</span>.position = size
+                <span class="var">self</span>.capital -= cost
+                <span class="var">self</span>.trade_log.<span class="fn">append</span>({
+                    <span class="str">"ts"</span>: ts, <span class="str">"side"</span>: <span class="str">"BUY"</span>,
+                    <span class="str">"price"</span>: price + fill_penalty,
+                    <span class="str">"size"</span>: size, <span class="str">"cost"</span>: cost
+                })
+                <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[PAPER BUY]  {size:.6f} @ ${price+fill_penalty:.2f} | Capital: ${self.capital:.2f}"</span>)
+
+        <span class="kw">elif</span> signal == <span class="cl">OrderSide</span>.SELL <span class="kw">and</span> <span class="var">self</span>.position > <span class="num">0</span>:
+            proceeds = <span class="var">self</span>.position * (price - fill_penalty) * (<span class="num">1</span> - commission_rate)
+            <span class="var">self</span>.capital += proceeds
+            <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[PAPER SELL] {self.position:.6f} @ ${price-fill_penalty:.2f} | Capital: ${self.capital:.2f}"</span>)
+            <span class="var">self</span>.position = <span class="num">0</span>
+
+    <span class="kw">def</span> <span class="fn">_log_state</span>(<span class="var">self</span>, bar: <span class="fn">dict</span>):
+        equity = <span class="var">self</span>.capital + <span class="var">self</span>.position * bar[<span class="str">"close"</span>]
+        <span class="var">self</span>.pnl_log.<span class="fn">append</span>(equity)
+        <span class="fn">print</span>(<span class="fn">f</span><span class="str">"[{bar['timestamp']}] Equity: ${equity:,.2f} | Position: {self.position:.4f}"</span>)</pre>
+
+      <!-- Section 8: Statistical significance -->
+      <h2 id="statistical-significance">Statistical Significance Testing</h2>
+
+      <p>A strategy that made 12% over 50 trades might be genuine alpha or might be luck. Statistical significance testing gives you the framework to distinguish between the two with quantified confidence.</p>
+
+      <h3>t-Test on Trade Returns</h3>
+      <p>The null hypothesis is that mean trade P&amp;L equals zero (the strategy has no edge). Use a one-sample t-test with the distribution of trade net P&amp;L values. A p-value below 0.05 rejects the null at 95% confidence.</p>
+
+      <div class="code-header">
+        <span class="code-filename">backtest/significance.py</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="kw">from</span> <span class="var">scipy</span> <span class="kw">import</span> <span class="var">stats</span>
+<span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+
+
+<span class="kw">def</span> <span class="fn">test_strategy_significance</span>(trade_pnls: <span class="fn">list</span>[<span class="fn">float</span>]) -> <span class="fn">dict</span>:
+    <span class="str">"""
+    Run a battery of statistical tests on trade P&amp;L to assess edge reliability.
+
+    Tests:
+    - t-test: does mean P&L significantly exceed zero?
+    - Minimum trades: is the sample size sufficient for inference?
+    - Effect size (Cohen's d): is the edge economically meaningful?
+    - Bootstrap confidence interval: non-parametric estimate of mean P&L CI
+
+    Returns:
+        dict with test results, p-value, effect size, and recommendation.
+    """</span>
+    n = <span class="fn">len</span>(trade_pnls)
+    pnls = <span class="var">np</span>.<span class="fn">array</span>(trade_pnls)
+
+    <span class="kw">if</span> n < <span class="num">30</span>:
+        <span class="kw">return</span> {
+            <span class="str">"sufficient_trades"</span>: <span class="kw">False</span>,
+            <span class="str">"recommendation"</span>: <span class="fn">f</span><span class="str">"Need at least 30 trades for inference. Have {n}."</span>
+        }
+
+    <span class="cm"># One-sample t-test: H0: mean = 0</span>
+    t_stat, p_value = <span class="var">stats</span>.<span class="fn">ttest_1samp</span>(pnls, popmean=<span class="num">0</span>)
+
+    <span class="cm"># Cohen's d effect size</span>
+    cohens_d = <span class="var">np</span>.<span class="fn">mean</span>(pnls) / (<span class="var">np</span>.<span class="fn">std</span>(pnls) + <span class="num">1e-10</span>)
+
+    <span class="cm"># Bootstrap 95% CI for mean P&L</span>
+    boot_means = [
+        <span class="var">np</span>.<span class="fn">mean</span>(<span class="var">np</span>.<span class="fn">random.choice</span>(pnls, size=n, replace=<span class="kw">True</span>))
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(<span class="num">5000</span>)
+    ]
+    ci_low, ci_high = <span class="var">np</span>.<span class="fn">percentile</span>(boot_means, [<span class="num">2.5</span>, <span class="num">97.5</span>])
+
+    <span class="cm"># Sharpe from trades</span>
+    trade_sharpe = (<span class="var">np</span>.<span class="fn">mean</span>(pnls) / (<span class="var">np</span>.<span class="fn">std</span>(pnls) + <span class="num">1e-10</span>)) * <span class="var">np</span>.<span class="fn">sqrt</span>(<span class="num">252</span>)
+
+    <span class="cm"># Overall recommendation</span>
+    significant = p_value < <span class="num">0.05</span>
+    positive_ci = ci_low > <span class="num">0</span>
+    reasonable_effect = <span class="fn">abs</span>(cohens_d) > <span class="num">0.2</span>
+
+    <span class="kw">if</span> significant <span class="kw">and</span> positive_ci <span class="kw">and</span> reasonable_effect:
+        recommendation = <span class="str">"PROCEED: Strategy shows statistically significant positive edge."</span>
+    <span class="kw">elif</span> significant <span class="kw">and</span> <span class="kw">not</span> positive_ci:
+        recommendation = <span class="str">"CAUTION: Significant but negative edge detected. Do not deploy."</span>
+    <span class="kw">elif</span> <span class="kw">not</span> significant:
+        recommendation = (<span class="str">"REJECT: Cannot reject null hypothesis of zero edge. "</span>
+                         <span class="str">"Gather more trades or revise strategy."</span>)
+    <span class="kw">else</span>:
+        recommendation = <span class="str">"MARGINAL: Significant result but effect size is small. Proceed with caution."</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"n_trades"</span>: n,
+        <span class="str">"sufficient_trades"</span>: <span class="kw">True</span>,
+        <span class="str">"mean_pnl"</span>: <span class="fn">round</span>(<span class="fn">float</span>(<span class="var">np</span>.<span class="fn">mean</span>(pnls)), <span class="num">4</span>),
+        <span class="str">"std_pnl"</span>: <span class="fn">round</span>(<span class="fn">float</span>(<span class="var">np</span>.<span class="fn">std</span>(pnls)), <span class="num">4</span>),
+        <span class="str">"t_statistic"</span>: <span class="fn">round</span>(<span class="fn">float</span>(t_stat), <span class="num">4</span>),
+        <span class="str">"p_value"</span>: <span class="fn">round</span>(<span class="fn">float</span>(p_value), <span class="num">5</span>),
+        <span class="str">"significant_at_5pct"</span>: significant,
+        <span class="str">"cohens_d"</span>: <span class="fn">round</span>(<span class="fn">float</span>(cohens_d), <span class="num">4</span>),
+        <span class="str">"bootstrap_ci_95"</span>: [<span class="fn">round</span>(ci_low, <span class="num">4</span>), <span class="fn">round</span>(ci_high, <span class="num">4</span>)],
+        <span class="str">"trade_sharpe"</span>: <span class="fn">round</span>(<span class="fn">float</span>(trade_sharpe), <span class="num">3</span>),
+        <span class="str">"recommendation"</span>: recommendation
+    }</pre>
+
+      <h3>Interpreting Results</h3>
+      <ul>
+        <li><strong>p-value &lt; 0.05:</strong> Reject the null at 95% confidence — the strategy has a non-zero mean P&L. This is necessary but not sufficient for deployment.</li>
+        <li><strong>Cohen's d &gt; 0.2:</strong> The effect size is small but economically meaningful. Below 0.1, the edge may not survive transaction cost variation in live trading.</li>
+        <li><strong>Bootstrap 95% CI entirely above zero:</strong> Even in the worst-case sampling scenario, the mean P&L is positive. This is the most robust criterion for deployment readiness.</li>
+        <li><strong>Minimum 100 trades recommended:</strong> Below 30 trades, no statistical test has power. Below 100, the confidence intervals are too wide to be actionable.</li>
+      </ul>
+
+      <div class="callout success">
+        <div class="callout-icon">&#9989;</div>
+        <div class="callout-body">
+          <strong>Deploy Checklist</strong>
+          <p>Before going live: (1) OOS walk-forward Sharpe &gt; 0.5, (2) Monte Carlo P(ruin) &lt; 5%, (3) t-test p &lt; 0.05 with at least 100 trades, (4) Bootstrap CI entirely above zero, (5) Paper traded for minimum 14 days with P&L within 20% of backtest predictions.</p>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <h2 id="summary">Summary</h2>
+
+      <p>A production backtesting framework is not a single script — it is a system of interlocking components designed to prevent the most common failure modes of AI trading agents. The <code>BacktestEngine</code> built here provides structural lookahead bias prevention, realistic transaction cost modeling, and a full suite of risk-adjusted metrics. Walk-forward optimization protects against overfitting. Monte Carlo simulation tests robustness under sampling uncertainty. Statistical significance testing determines whether the strategy's edge is real.</p>
+
+      <p>With a validated strategy in hand, paper trading on Purple Flea's WebSocket feed gives you a realistic preview of live behaviour — using actual market data, real bid-ask spreads, and true execution latency — before a single unit of real capital is at risk. The Purple Flea faucet provides free starting capital for new agents, and the trading API at <strong>purpleflea.com/docs/trading/</strong> gives you everything you need to go from backtest to live in a single afternoon.</p>
+
+      <p>Register at <a href="/register/">purpleflea.com/register</a> to get your <code>pf_live_</code> API key and start generating real trade data for your next backtest.</p>
+    </article>
+
+    <!-- Sidebar TOC -->
+    <aside class="sidebar">
+      <div class="toc">
+        <h4>Contents</h4>
+        <ol>
+          <li><a href="#why-backtesting">Why Backtesting Matters</a></li>
+          <li><a href="#architectures">Event-Driven vs Vectorized</a></li>
+          <li><a href="#data-pipeline">Data Pipeline</a></li>
+          <li><a href="#backtest-engine">BacktestEngine Class</a>
+            <a href="#backtest-engine" class="toc-h3">run()</a>
+            <a href="#backtest-engine" class="toc-h3">calculate_metrics()</a>
+            <a href="#backtest-engine" class="toc-h3">plot_equity_curve()</a>
+          </li>
+          <li><a href="#transaction-costs">Transaction Cost Modeling</a></li>
+          <li><a href="#walk-forward">Walk-Forward &amp; Monte Carlo</a></li>
+          <li><a href="#paper-trading">Paper Trading</a></li>
+          <li><a href="#statistical-significance">Statistical Significance</a></li>
+          <li><a href="#summary">Summary</a></li>
+        </ol>
+      </div>
+      <div class="sidebar-cta">
+        <p>Start paper trading your strategy with real Purple Flea market data today.</p>
+        <a href="/register/">Get Free API Key</a>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="/blog/">Blog</a>
+        <a href="/docs/trading/">Trading API</a>
+        <a href="/for-dbt/">dbt Integration</a>
+        <a href="/agent-backtesting-framework/">Backtest Docs</a>
+        <a href="/whitepaper/">Research Paper</a>
+      </div>
+      <span class="footer-copy">&copy; 2026 Purple Flea. Agent financial infrastructure.</span>
+    </div>
+  </footer>
+
 </body>
 </html>
