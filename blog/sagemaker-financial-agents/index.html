@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adding Financial Capabilities to AWS SageMaker Agents | Purple Flea Blog</title>
+  <meta name="description" content="Bridge the gap between ML inference and real financial actions. SageMaker → Lambda → Purple Flea pattern, performance-based escrow payouts, multi-agent delegation, and Python code." />
+  <link rel="canonical" href="https://purpleflea.com/blog/sagemaker-financial-agents/" />
+  <meta property="og:title" content="Adding Financial Capabilities to AWS SageMaker Agents" />
+  <meta property="og:description" content="Event-driven pattern: SageMaker model inference → Lambda trigger → Purple Flea payment. Escrow-gated model bonuses, multi-agent task delegation, MCP config, and real-world scenarios." />
+  <meta property="og:url" content="https://purpleflea.com/blog/sagemaker-financial-agents/" />
+  <meta property="og:type" content="article" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "Adding Financial Capabilities to AWS SageMaker Agents",
+    "description": "Bridge the gap between ML model inference and real financial actions. Covers the SageMaker → Lambda → Purple Flea event-driven pattern, performance-based escrow bonuses, multi-agent task delegation, Python code with boto3, and MCP configuration.",
+    "url": "https://purpleflea.com/blog/sagemaker-financial-agents/",
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "author": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "publisher": {"@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com"},
+    "keywords": ["AWS SageMaker", "AI agents", "financial infrastructure", "Purple Flea", "escrow", "Lambda", "boto3", "MCP", "agent payments", "performance bonus", "multi-agent", "fraud detection", "trading signals"]
+  }
+  </script>
+  <style>
+    :root {
+      --purple: #A855F7; --purple-dim: #7C3AED;
+      --bg: #09090B; --text: #FAFAFA;
+      --text-secondary: #A1A1AA; --text-muted: #71717A;
+      --border: rgba(255,255,255,0.06);
+      --bg-card: rgba(255,255,255,0.03);
+      --radius: 16px; --radius-sm: 10px;
+      --green: #22c55e; --red: #ef4444; --yellow: #f59e0b; --blue: #60a5fa;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 17px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    a { color: var(--purple); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    #progress-bar { position: fixed; top: 0; left: 0; width: 0%; height: 3px; background: linear-gradient(90deg, #A855F7, #7C3AED); z-index: 200; transition: width 0.1s ease; }
+
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(9,9,11,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); height: 60px; display: flex; align-items: center; padding: 0 24px; }
+    .nav-inner { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+    .nav-logo { font-size: 18px; font-weight: 700; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; letter-spacing: -0.02em; }
+    .nav-logo .flea { color: var(--purple); }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a { color: var(--text-secondary); font-size: 14px; font-weight: 500; transition: color 0.15s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    main { max-width: 760px; margin: 0 auto; padding: 100px 24px 80px; }
+
+    .tag-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 20px; }
+    .tag-guide { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.25); }
+    .tag-aws { background: rgba(251,146,60,0.12); color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
+
+    .post-header { margin-bottom: 48px; }
+    h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; margin-bottom: 16px; }
+    .post-meta { display: flex; align-items: center; gap: 16px; color: var(--text-muted); font-size: 14px; flex-wrap: wrap; }
+    .post-meta .sep { opacity: 0.4; }
+
+    h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 52px 0 16px; color: var(--text); }
+    h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 36px 0 12px; color: var(--text); }
+    p { margin-bottom: 20px; color: var(--text-secondary); }
+    p strong { color: var(--text); }
+    ul, ol { margin: 16px 0 20px 24px; color: var(--text-secondary); }
+    li { margin-bottom: 8px; }
+    li strong { color: var(--text); }
+
+    pre { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 24px; overflow-x: auto; margin: 24px 0; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 1.65; }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: #e2e8f0; }
+    .inline-code { background: rgba(168,85,247,0.1); color: var(--purple); padding: 1px 7px; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+    .code-label { display: flex; align-items: center; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: 10px 20px; margin-top: 24px; }
+    .code-label .lang { color: var(--purple); font-weight: 600; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .code-label + pre { border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-top: 0; }
+
+    /* syntax tokens */
+    .kw  { color: #c084fc; }
+    .fn  { color: #60a5fa; }
+    .str { color: #86efac; }
+    .cm  { color: #71717a; font-style: italic; }
+    .num { color: #fb923c; }
+    .var { color: #e2e8f0; }
+    .dec { color: #f472b6; }
+    .op  { color: #94a3b8; }
+    .cls { color: #fbbf24; }
+
+    .callout { background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 18px 24px; margin: 28px 0; }
+    .callout p { margin-bottom: 0; }
+    .callout-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--purple); margin-bottom: 8px; }
+    .callout-warn { border-left-color: var(--yellow); }
+    .callout-warn .callout-title { color: var(--yellow); }
+    .callout-green { border-left-color: var(--green); }
+    .callout-green .callout-title { color: var(--green); }
+
+    /* flow diagram */
+    .diagram { background: rgba(168,85,247,0.04); border: 1px solid rgba(168,85,247,0.18); border-radius: var(--radius-sm); padding: 28px 24px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 2; overflow-x: auto; margin: 28px 0; color: var(--text-secondary); }
+    .diagram .hl  { color: var(--purple); font-weight: 700; }
+    .diagram .grn { color: var(--green); }
+    .diagram .ylw { color: var(--yellow); }
+    .diagram .blu { color: var(--blue); }
+    .diagram .dim { color: var(--text-muted); }
+
+    /* comparison table */
+    .cmp-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 28px 0; }
+    .cmp-table th { padding: 12px 16px; text-align: left; font-weight: 600; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+    .cmp-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+    .cmp-table tr:last-child td { border-bottom: none; }
+    .cmp-table .pos { color: var(--green); font-weight: 600; }
+    .cmp-table .neg { color: var(--red); }
+    .cmp-table .hl  { background: rgba(168,85,247,0.04); font-weight: 600; color: var(--text); }
+
+    /* scenario cards */
+    .scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 28px 0; }
+    .scenario-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 22px; }
+    .scenario-card .scenario-icon { font-size: 26px; margin-bottom: 12px; }
+    .scenario-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    .scenario-card p { font-size: 13.5px; margin-bottom: 0; color: var(--text-secondary); }
+    .scenario-card .scenario-tag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--purple); margin-bottom: 8px; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 52px 0; }
+
+    .cta-box { background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(124,58,237,0.04)); border: 1px solid rgba(168,85,247,0.3); border-radius: var(--radius); padding: 40px; text-align: center; margin: 52px 0; }
+    .cta-box h3 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.02em; }
+    .cta-box p { color: var(--text-secondary); max-width: 500px; margin: 0 auto 28px; }
+    .cta-links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .btn-primary { display: inline-flex; align-items: center; gap: 8px; background: var(--purple); color: #fff; padding: 12px 28px; border-radius: 10px; font-weight: 600; font-size: 15px; transition: all 0.2s; }
+    .btn-primary:hover { background: var(--purple-dim); text-decoration: none; transform: translateY(-1px); }
+    .btn-ghost { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--text); border: 1px solid var(--border); padding: 12px 24px; border-radius: 10px; font-weight: 500; font-size: 15px; transition: all 0.2s; }
+    .btn-ghost:hover { border-color: rgba(168,85,247,0.5); color: var(--purple); text-decoration: none; }
+
+    footer { border-top: 1px solid var(--border); padding: 40px 24px; text-align: center; color: var(--text-muted); font-size: 14px; }
+    footer a { color: var(--text-secondary); }
+    footer a:hover { color: var(--purple); }
+    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">Purple <span class="flea">Flea</span></a>
+    <div class="nav-links">
+      <a href="/trading-api">Trading</a>
+      <a href="/escrow">Escrow</a>
+      <a href="/faucet">Faucet</a>
+      <a href="/docs">Docs</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div class="post-header">
+    <span class="tag-chip tag-guide">Guide</span>
+    <span class="tag-chip tag-aws" style="margin-left:8px;">AWS</span>
+    <h1>Adding Financial Capabilities to AWS SageMaker Agents</h1>
+    <div class="post-meta">
+      <span>March 7, 2026</span>
+      <span class="sep">&bull;</span>
+      <span>Purple Flea Engineering</span>
+      <span class="sep">&bull;</span>
+      <span>14 min read</span>
+    </div>
+  </div>
+
+  <p>
+    AWS SageMaker is exceptional at one thing: turning data into predictions. But predictions alone don't pay anyone. A fraud detection model that flags a suspicious transaction still needs a payment system to freeze funds. A trading signal model with a strong accuracy track record still needs a mechanism to reward the engineers who built it. A rebalancing agent still needs to move money between wallets once it decides to act.
+  </p>
+  <p>
+    This is the gap between <strong>ML inference and financial action</strong> — and it's wider than most teams realise. SageMaker gives you world-class model hosting, pipelines, feature stores, and monitoring. It does not give you agent wallets, trustless escrow, or a low-friction way to send cryptocurrency between autonomous processes.
+  </p>
+  <p>
+    Purple Flea fills that gap. In this post we'll walk through the patterns your team needs to wire SageMaker inference outputs into real financial actions: the event-driven Lambda bridge, SageMaker Pipelines with financial logging, performance-based escrow bonuses, multi-agent delegation, and MCP configuration for SageMaker-hosted agents.
+  </p>
+
+  <div class="callout">
+    <div class="callout-title">Prerequisites</div>
+    <p>You'll need an AWS account with SageMaker access, a Purple Flea API key (use the <a href="/faucet">faucet</a> for free credits), and Python 3.10+. All code uses <span class="inline-code">boto3</span>, <span class="inline-code">sagemaker</span> SDK, and <span class="inline-code">requests</span>.</p>
+  </div>
+
+  <h2>The Gap: Inference vs. Action</h2>
+
+  <p>
+    Consider a standard SageMaker workflow. You have an endpoint, you invoke it with a payload, you get a JSON response back. The model's job is done. What happens next is almost always glue code written by a human: call a database, post to Slack, trigger a Lambda, maybe kick off a Step Functions workflow.
+  </p>
+  <p>
+    Financial actions are harder to bolt on. Traditional payment infrastructure — Stripe, bank APIs, internal ledger systems — requires human authentication, KYC, and manual approval flows that grind autonomous agent pipelines to a halt. You cannot give a SageMaker endpoint a Stripe secret key and expect it to pay out bonuses at inference time.
+  </p>
+  <p>
+    Purple Flea is designed for exactly this scenario. Every agent gets a <strong>wallet</strong>, payments are <strong>cryptographic</strong> (not form-based), and the API is a simple HTTPS call that any Lambda function or SageMaker processing step can make. There is no dashboard login, no 2FA, no ACH delay.
+  </p>
+
+  <div class="diagram">
+<span class="dim">── Traditional pipeline (broken) ──────────────────────────────────────</span>
+
+  <span class="ylw">SageMaker Endpoint</span>  →  prediction JSON  →  <span class="dim">???</span>  →  <span class="dim">[human opens bank portal]</span>
+
+<span class="dim">── Purple Flea pattern (works) ─────────────────────────────────────────</span>
+
+  <span class="ylw">SageMaker Endpoint</span>  →  prediction JSON
+        │
+        ▼
+  <span class="blu">EventBridge / SNS</span>     (threshold crossed)
+        │
+        ▼
+  <span class="grn">Lambda Function</span>       (financial logic)
+        │
+        ├─ POST /wallet/transfer  →  <span class="hl">Purple Flea API</span>  →  agent wallet funded
+        ├─ POST /escrow/create    →  <span class="hl">Purple Flea API</span>  →  bonus held in escrow
+        └─ POST /escrow/release   →  <span class="hl">Purple Flea API</span>  →  condition met, released
+  </div>
+
+  <p>
+    The key insight is that <strong>the SageMaker endpoint never calls Purple Flea directly</strong>. Inference containers should be stateless and fast. Instead, inference outputs trigger downstream events — SNS, EventBridge, SQS — which invoke Lambda functions that contain the financial logic. This separation keeps model latency clean and lets you iterate on payment logic independently from model code.
+  </p>
+
+  <h2>Pattern 1: SageMaker → Lambda → Purple Flea (Event-Driven)</h2>
+
+  <p>
+    The simplest integration is a Lambda function subscribed to model output events. Every time your SageMaker endpoint returns a result above a confidence threshold, the event triggers a financial action.
+  </p>
+
+  <div class="code-label"><span>lambda_financial_trigger.py</span><span class="lang">Python</span></div>
+  <pre><span class="cm"># Lambda function triggered by EventBridge rule on SageMaker endpoint invocations</span>
+<span class="cm"># Required env vars: PF_API_KEY, PF_AGENT_ID, PF_RECIPIENT_WALLET</span>
+
+<span class="kw">import</span> <span class="var">json</span>
+<span class="kw">import</span> <span class="var">os</span>
+<span class="kw">import</span> <span class="var">requests</span>
+<span class="kw">import</span> <span class="var">boto3</span>
+<span class="kw">from</span> <span class="var">decimal</span> <span class="kw">import</span> <span class="var">Decimal</span>
+
+<span class="var">PF_BASE</span>    = <span class="str">"https://api.purpleflea.com/v1"</span>
+<span class="var">PF_API_KEY</span> = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"PF_API_KEY"</span>]   <span class="cm"># e.g. pf_live_xxxxxxxxxxxx</span>
+<span class="var">THRESHOLD</span>  = <span class="num">0.85</span>   <span class="cm"># minimum confidence to trigger payout</span>
+<span class="var">PAYOUT_USD</span> = <span class="num">0.10</span>   <span class="cm"># micro-payment per qualifying signal</span>
+
+<span class="var">sm_runtime</span> = <span class="var">boto3</span>.<span class="fn">client</span>(<span class="str">"sagemaker-runtime"</span>)
+
+<span class="kw">def</span> <span class="fn">pf_headers</span>():
+    <span class="kw">return</span> {
+        <span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_API_KEY}"</span>,
+        <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+    }
+
+<span class="kw">def</span> <span class="fn">get_wallet_balance</span>(<span class="var">agent_id</span>):
+    <span class="var">r</span> = <span class="var">requests</span>.<span class="fn">get</span>(
+        <span class="str">f"{PF_BASE}/wallet/{agent_id}"</span>,
+        <span class="var">headers</span>=<span class="fn">pf_headers</span>(),
+        <span class="var">timeout</span>=<span class="num">5</span>
+    )
+    <span class="var">r</span>.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> <span class="var">r</span>.<span class="fn">json</span>()[<span class="str">"balance_usd"</span>]
+
+<span class="kw">def</span> <span class="fn">transfer_payment</span>(<span class="var">from_id</span>, <span class="var">to_id</span>, <span class="var">amount_usd</span>, <span class="var">memo</span>):
+    <span class="var">payload</span> = {
+        <span class="str">"from_agent"</span>: <span class="var">from_id</span>,
+        <span class="str">"to_agent"</span>:   <span class="var">to_id</span>,
+        <span class="str">"amount_usd"</span>: <span class="fn">str</span>(<span class="var">amount_usd</span>),
+        <span class="str">"memo"</span>:       <span class="var">memo</span>,
+    }
+    <span class="var">r</span> = <span class="var">requests</span>.<span class="fn">post</span>(
+        <span class="str">f"{PF_BASE}/wallet/transfer"</span>,
+        <span class="var">json</span>=<span class="var">payload</span>,
+        <span class="var">headers</span>=<span class="fn">pf_headers</span>(),
+        <span class="var">timeout</span>=<span class="num">10</span>
+    )
+    <span class="var">r</span>.<span class="fn">raise_for_status</span>()
+    <span class="kw">return</span> <span class="var">r</span>.<span class="fn">json</span>()
+
+<span class="kw">def</span> <span class="fn">lambda_handler</span>(<span class="var">event</span>, <span class="var">context</span>):
+    <span class="cm"># Event arrives from EventBridge; extract SageMaker inference result</span>
+    <span class="var">detail</span>     = <span class="var">event</span>.<span class="fn">get</span>(<span class="str">"detail"</span>, {})
+    <span class="var">confidence</span> = <span class="fn">float</span>(<span class="var">detail</span>.<span class="fn">get</span>(<span class="str">"confidence"</span>, <span class="num">0</span>))
+    <span class="var">signal_id</span>  = <span class="var">detail</span>.<span class="fn">get</span>(<span class="str">"signal_id"</span>, <span class="str">"unknown"</span>)
+    <span class="var">agent_id</span>   = <span class="var">detail</span>.<span class="fn">get</span>(<span class="str">"producing_agent"</span>, <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"PF_AGENT_ID"</span>])
+    <span class="var">recipient</span>  = <span class="var">detail</span>.<span class="fn">get</span>(<span class="str">"recipient_agent"</span>, <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"PF_RECIPIENT_WALLET"</span>])
+
+    <span class="kw">if</span> <span class="var">confidence</span> &lt; <span class="var">THRESHOLD</span>:
+        <span class="fn">print</span>(<span class="str">f"Signal {signal_id}: confidence {confidence:.3f} below threshold, skipping"</span>)
+        <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"skipped"</span>, <span class="str">"reason"</span>: <span class="str">"below_threshold"</span>}
+
+    <span class="cm"># Check the originating agent has funds before attempting transfer</span>
+    <span class="var">balance</span> = <span class="fn">get_wallet_balance</span>(<span class="var">agent_id</span>)
+    <span class="kw">if</span> <span class="fn">float</span>(<span class="var">balance</span>) &lt; <span class="var">PAYOUT_USD</span> * <span class="num">1.02</span>:  <span class="cm"># 1% PF fee buffer</span>
+        <span class="fn">print</span>(<span class="str">f"Insufficient balance: {balance}"</span>)
+        <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"failed"</span>, <span class="str">"reason"</span>: <span class="str">"insufficient_funds"</span>}
+
+    <span class="var">result</span> = <span class="fn">transfer_payment</span>(
+        <span class="var">from_id</span>=<span class="var">agent_id</span>,
+        <span class="var">to_id</span>=<span class="var">recipient</span>,
+        <span class="var">amount_usd</span>=<span class="var">PAYOUT_USD</span>,
+        <span class="var">memo</span>=<span class="str">f"Signal payout: {signal_id} conf={confidence:.3f}"</span>
+    )
+
+    <span class="fn">print</span>(<span class="str">f"Payment sent: {result['tx_id']} — ${PAYOUT_USD} to {recipient}"</span>)
+    <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"paid"</span>, <span class="str">"tx_id"</span>: <span class="var">result</span>[<span class="str">"tx_id"</span>]}</pre>
+
+  <p>
+    Wire this Lambda to an EventBridge rule that matches your SageMaker endpoint's CloudWatch metrics or custom events. For endpoints that batch-process trading signals, this pattern handles thousands of micro-payments per hour without human intervention — each sub-cent transaction is economically viable precisely because there's no traditional payment processor overhead.
+  </p>
+
+  <h2>Pattern 2: SageMaker Pipeline with Financial Logging</h2>
+
+  <p>
+    SageMaker Pipelines let you define end-to-end ML workflows as directed acyclic graphs. A <span class="inline-code">ProcessingStep</span> can run arbitrary Python inside a managed container — which means you can log financial events to Purple Flea as a first-class step in your training and evaluation pipeline.
+  </p>
+  <p>
+    The most useful pattern is a <strong>post-evaluation financial log</strong>: after your model evaluation step computes accuracy, you record the result to an immutable on-chain log via Purple Flea. This creates an auditable trail linking model version to financial performance — useful for regulated environments where you need to prove that a model meeting a certain accuracy threshold was the one that triggered a payment.
+  </p>
+
+  <div class="code-label"><span>pipeline_with_financial_log.py</span><span class="lang">Python</span></div>
+  <pre><span class="kw">import</span> <span class="var">boto3</span>
+<span class="kw">import</span> <span class="var">sagemaker</span>
+<span class="kw">from</span> <span class="var">sagemaker.workflow.pipeline</span> <span class="kw">import</span> <span class="var">Pipeline</span>
+<span class="kw">from</span> <span class="var">sagemaker.workflow.steps</span> <span class="kw">import</span> <span class="var">ProcessingStep</span>, <span class="var">TrainingStep</span>
+<span class="kw">from</span> <span class="var">sagemaker.processing</span> <span class="kw">import</span> <span class="var">ScriptProcessor</span>, <span class="var">ProcessingInput</span>, <span class="var">ProcessingOutput</span>
+<span class="kw">from</span> <span class="var">sagemaker.sklearn</span> <span class="kw">import</span> <span class="var">SKLearn</span>
+<span class="kw">from</span> <span class="var">sagemaker.workflow.parameters</span> <span class="kw">import</span> <span class="var">ParameterString</span>, <span class="var">ParameterFloat</span>
+
+<span class="var">sess</span>     = <span class="var">sagemaker</span>.<span class="fn">Session</span>()
+<span class="var">role</span>     = <span class="var">sagemaker</span>.<span class="fn">get_execution_role</span>()
+<span class="var">bucket</span>   = <span class="var">sess</span>.<span class="var">default_bucket</span>()
+
+<span class="cm"># Pipeline parameters (set at execution time)</span>
+<span class="var">pf_api_key</span>        = <span class="fn">ParameterString</span>(<span class="var">name</span>=<span class="str">"PFApiKey"</span>)
+<span class="var">pf_agent_id</span>       = <span class="fn">ParameterString</span>(<span class="var">name</span>=<span class="str">"PFAgentId"</span>)
+<span class="var">accuracy_threshold</span> = <span class="fn">ParameterFloat</span>(<span class="var">name</span>=<span class="str">"AccuracyThreshold"</span>, <span class="var">default_value</span>=<span class="num">0.92</span>)
+
+<span class="cm"># ── Step 1: train the model ──────────────────────────────────────────────</span>
+<span class="var">sklearn_estimator</span> = <span class="fn">SKLearn</span>(
+    <span class="var">entry_point</span>     = <span class="str">"train.py"</span>,
+    <span class="var">role</span>            = <span class="var">role</span>,
+    <span class="var">instance_type</span>   = <span class="str">"ml.m5.xlarge"</span>,
+    <span class="var">framework_version</span> = <span class="str">"1.2-1"</span>,
+)
+<span class="var">train_step</span> = <span class="fn">TrainingStep</span>(<span class="var">name</span>=<span class="str">"TrainModel"</span>, <span class="var">estimator</span>=<span class="var">sklearn_estimator</span>)
+
+<span class="cm"># ── Step 2: evaluate + financial log ────────────────────────────────────</span>
+<span class="cm"># financial_eval.py (shown below) runs inside a Python 3.10 container</span>
+<span class="var">processor</span> = <span class="fn">ScriptProcessor</span>(
+    <span class="var">image_uri</span>     = <span class="str">"763104351884.dkr.ecr.us-east-1.amazonaws.com/pytorch-inference:2.2-cpu-py310"</span>,
+    <span class="var">command</span>       = [<span class="str">"python3"</span>],
+    <span class="var">role</span>          = <span class="var">role</span>,
+    <span class="var">instance_type</span> = <span class="str">"ml.t3.medium"</span>,
+    <span class="var">instance_count</span>= <span class="num">1</span>,
+    <span class="var">env</span>           = {
+        <span class="str">"PF_API_KEY"</span>         : <span class="var">pf_api_key</span>,
+        <span class="str">"PF_AGENT_ID"</span>        : <span class="var">pf_agent_id</span>,
+        <span class="str">"ACCURACY_THRESHOLD"</span> : <span class="fn">str</span>(<span class="var">accuracy_threshold</span>),
+    }
+)
+
+<span class="var">eval_step</span> = <span class="fn">ProcessingStep</span>(
+    <span class="var">name</span>      = <span class="str">"EvaluateAndLogFinancials"</span>,
+    <span class="var">processor</span> = <span class="var">processor</span>,
+    <span class="var">inputs</span>    = [<span class="fn">ProcessingInput</span>(
+        <span class="var">source</span>          = <span class="var">train_step</span>.<span class="var">properties</span>.<span class="var">ModelArtifacts</span>.<span class="var">S3ModelArtifacts</span>,
+        <span class="var">destination</span>     = <span class="str">"/opt/ml/processing/model"</span>,
+    )],
+    <span class="var">outputs</span>   = [<span class="fn">ProcessingOutput</span>(
+        <span class="var">output_name</span> = <span class="str">"financial_log"</span>,
+        <span class="var">source</span>      = <span class="str">"/opt/ml/processing/output"</span>,
+    )],
+    <span class="var">code</span>      = <span class="str">"financial_eval.py"</span>,
+    <span class="var">depends_on</span>= [<span class="var">train_step</span>],
+)
+
+<span class="var">pipeline</span> = <span class="fn">Pipeline</span>(
+    <span class="var">name</span>       = <span class="str">"FraudDetectionWithFinancialLog"</span>,
+    <span class="var">parameters</span> = [<span class="var">pf_api_key</span>, <span class="var">pf_agent_id</span>, <span class="var">accuracy_threshold</span>],
+    <span class="var">steps</span>      = [<span class="var">train_step</span>, <span class="var">eval_step</span>],
+    <span class="var">sagemaker_session</span> = <span class="var">sess</span>,
+)
+<span class="var">pipeline</span>.<span class="fn">upsert</span>(<span class="var">role_arn</span>=<span class="var">role</span>)</pre>
+
+  <div class="code-label"><span>financial_eval.py — runs inside SageMaker ProcessingStep</span><span class="lang">Python</span></div>
+  <pre><span class="cm">"""
+Runs inside the SageMaker processing container.
+Evaluates the model, then logs accuracy + escrow action to Purple Flea.
+"""</span>
+<span class="kw">import</span> <span class="var">os</span>, <span class="var">json</span>, <span class="var">time</span>, <span class="var">datetime</span>
+<span class="kw">import</span> <span class="var">requests</span>
+<span class="kw">import</span> <span class="var">numpy</span> <span class="kw">as</span> <span class="var">np</span>
+
+<span class="var">PF_BASE</span>    = <span class="str">"https://api.purpleflea.com/v1"</span>
+<span class="var">PF_API_KEY</span> = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"PF_API_KEY"</span>]
+<span class="var">AGENT_ID</span>   = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"PF_AGENT_ID"</span>]
+<span class="var">THRESHOLD</span>  = <span class="fn">float</span>(<span class="var">os</span>.<span class="fn">environ</span>.<span class="fn">get</span>(<span class="str">"ACCURACY_THRESHOLD"</span>, <span class="str">"0.92"</span>))
+<span class="var">MODEL_PATH</span> = <span class="str">"/opt/ml/processing/model"</span>
+<span class="var">OUTPUT_DIR</span> = <span class="str">"/opt/ml/processing/output"</span>
+
+<span class="kw">def</span> <span class="fn">pf_post</span>(<span class="var">path</span>, <span class="var">body</span>):
+    <span class="kw">return</span> <span class="var">requests</span>.<span class="fn">post</span>(
+        <span class="str">f"{PF_BASE}{path}"</span>,
+        <span class="var">json</span>=<span class="var">body</span>,
+        <span class="var">headers</span>={
+            <span class="str">"Authorization"</span>: <span class="str">f"Bearer {PF_API_KEY}"</span>,
+            <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+        },
+        <span class="var">timeout</span>=<span class="num">15</span>
+    )
+
+<span class="kw">def</span> <span class="fn">evaluate_model</span>():
+    <span class="cm"># Placeholder: load model artifact and run on held-out test set</span>
+    <span class="cm"># Returns float accuracy in [0, 1]</span>
+    <span class="kw">return</span> <span class="fn">float</span>(<span class="var">np</span>.<span class="var">random</span>.<span class="fn">uniform</span>(<span class="num">0.88</span>, <span class="num">0.97</span>))
+
+<span class="kw">def</span> <span class="fn">log_financial_event</span>(<span class="var">accuracy</span>, <span class="var">passed</span>):
+    <span class="cm">"""Write an immutable financial log entry via the Purple Flea memo system."""</span>
+    <span class="var">log_entry</span> = {
+        <span class="str">"agent_id"</span>      : <span class="var">AGENT_ID</span>,
+        <span class="str">"event_type"</span>    : <span class="str">"pipeline_eval"</span>,
+        <span class="str">"accuracy"</span>      : <span class="fn">round</span>(<span class="var">accuracy</span>, <span class="num">6</span>),
+        <span class="str">"threshold"</span>     : <span class="var">THRESHOLD</span>,
+        <span class="str">"passed"</span>        : <span class="var">passed</span>,
+        <span class="str">"timestamp"</span>     : <span class="var">datetime</span>.<span class="var">datetime</span>.<span class="fn">utcnow</span>().<span class="fn">isoformat</span>() + <span class="str">"Z"</span>,
+        <span class="str">"pipeline"</span>      : <span class="str">"FraudDetectionWithFinancialLog"</span>,
+    }
+    <span class="cm"># Zero-value transfer to self creates an on-chain memo (costs nothing)</span>
+    <span class="var">resp</span> = <span class="fn">pf_post</span>(<span class="str">"/wallet/transfer"</span>, {
+        <span class="str">"from_agent"</span> : <span class="var">AGENT_ID</span>,
+        <span class="str">"to_agent"</span>   : <span class="var">AGENT_ID</span>,
+        <span class="str">"amount_usd"</span> : <span class="str">"0.00"</span>,
+        <span class="str">"memo"</span>       : <span class="var">json</span>.<span class="fn">dumps</span>(<span class="var">log_entry</span>),
+    })
+    <span class="fn">print</span>(<span class="str">f"Financial log recorded: {resp.status_code}"</span>)
+    <span class="kw">return</span> <span class="var">log_entry</span>
+
+<span class="kw">if</span> <span class="var">__name__</span> == <span class="str">"__main__"</span>:
+    <span class="var">accuracy</span> = <span class="fn">evaluate_model</span>()
+    <span class="var">passed</span>   = <span class="var">accuracy</span> &gt;= <span class="var">THRESHOLD</span>
+    <span class="fn">print</span>(<span class="str">f"Accuracy: {accuracy:.4f} | Threshold: {THRESHOLD} | Pass: {passed}"</span>)
+
+    <span class="var">log</span> = <span class="fn">log_financial_event</span>(<span class="var">accuracy</span>, <span class="var">passed</span>)
+
+    <span class="cm"># Write JSON output for downstream steps</span>
+    <span class="var">os</span>.<span class="fn">makedirs</span>(<span class="var">OUTPUT_DIR</span>, <span class="var">exist_ok</span>=<span class="var">True</span>)
+    <span class="kw">with</span> <span class="fn">open</span>(<span class="str">f"{OUTPUT_DIR}/eval_result.json"</span>, <span class="str">"w"</span>) <span class="kw">as</span> <span class="var">f</span>:
+        <span class="var">json</span>.<span class="fn">dump</span>({<span class="str">"accuracy"</span>: <span class="var">accuracy</span>, <span class="str">"passed"</span>: <span class="var">passed</span>, <span class="str">"log"</span>: <span class="var">log</span>}, <span class="var">f</span>)
+
+    <span class="fn">print</span>(<span class="str">"Financial logging step complete."</span>)</pre>
+
+  <h2>Pattern 3: Performance-Based Escrow Bonuses</h2>
+
+  <p>
+    The escrow pattern is the most powerful financial primitive for SageMaker teams. Rather than paying model engineers upfront, you <strong>lock bonus funds in escrow at pipeline start</strong>, then release them automatically when the model passes a defined accuracy threshold. If the model fails, funds return to the deploying organisation.
+  </p>
+  <p>
+    This creates a trustless performance contract between the model owner and the agent that deployed it. Engineers running experimental SageMaker training jobs can see their potential bonus locked in escrow before they start training — a tangible incentive that no traditional HR bonus program can match for speed or transparency.
+  </p>
+
+  <div class="code-label"><span>performance_escrow.py</span><span class="lang">Python</span></div>
+  <pre><span class="cm">"""
+1. Deployer creates an escrow (locks bonus funds).
+2. SageMaker Pipeline runs; eval step calls check_and_release() after training.
+3. If accuracy >= threshold → escrow releases to model engineer agent.
+   If accuracy <  threshold → deployer reclaims after timeout.
+"""</span>
+<span class="kw">import</span> <span class="var">os</span>, <span class="var">json</span>, <span class="var">time</span>
+<span class="kw">import</span> <span class="var">requests</span>
+
+<span class="var">PF_BASE</span>      = <span class="str">"https://api.purpleflea.com/v1"</span>
+<span class="var">DEPLOYER_KEY</span> = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"DEPLOYER_PF_KEY"</span>]   <span class="cm"># pf_live_deployer...</span>
+<span class="var">ENGINEER_KEY</span> = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"ENGINEER_PF_KEY"</span>]   <span class="cm"># pf_live_engineer...</span>
+
+<span class="kw">def</span> <span class="fn">_headers</span>(<span class="var">key</span>):
+    <span class="kw">return</span> {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {key}"</span>, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>}
+
+<span class="kw">def</span> <span class="fn">create_accuracy_escrow</span>(
+    <span class="var">deployer_agent</span>: <span class="var">str</span>,
+    <span class="var">engineer_agent</span>: <span class="var">str</span>,
+    <span class="var">bonus_usd</span>: <span class="fn">float</span>,
+    <span class="var">accuracy_threshold</span>: <span class="fn">float</span>,
+    <span class="var">pipeline_name</span>: <span class="var">str</span>,
+    <span class="var">timeout_hours</span>: <span class="fn">int</span> = <span class="num">48</span>,
+) <span class="op">-&gt;</span> <span class="fn">dict</span>:
+    <span class="cm">"""Deployer locks bonus funds in escrow before pipeline runs."""</span>
+    <span class="var">resp</span> = <span class="var">requests</span>.<span class="fn">post</span>(
+        <span class="str">f"{PF_BASE}/escrow/create"</span>,
+        <span class="var">json</span>={
+            <span class="str">"depositor_agent"</span>    : <span class="var">deployer_agent</span>,
+            <span class="str">"beneficiary_agent"</span>  : <span class="var">engineer_agent</span>,
+            <span class="str">"amount_usd"</span>         : <span class="fn">str</span>(<span class="var">bonus_usd</span>),
+            <span class="str">"condition_memo"</span>     : (
+                <span class="str">f"Release when {pipeline_name} achieves "
+                f"accuracy >= {accuracy_threshold:.4f}"</span>
+            ),
+            <span class="str">"timeout_hours"</span>      : <span class="var">timeout_hours</span>,
+        },
+        <span class="var">headers</span>=<span class="fn">_headers</span>(<span class="var">DEPLOYER_KEY</span>),
+        <span class="var">timeout</span>=<span class="num">15</span>,
+    )
+    <span class="var">resp</span>.<span class="fn">raise_for_status</span>()
+    <span class="var">escrow</span> = <span class="var">resp</span>.<span class="fn">json</span>()
+    <span class="fn">print</span>(<span class="str">f"Escrow created: {escrow['escrow_id']} — ${bonus_usd:.2f} locked"</span>)
+    <span class="kw">return</span> <span class="var">escrow</span>
+
+<span class="kw">def</span> <span class="fn">check_and_release</span>(
+    <span class="var">escrow_id</span>: <span class="var">str</span>,
+    <span class="var">actual_accuracy</span>: <span class="fn">float</span>,
+    <span class="var">accuracy_threshold</span>: <span class="fn">float</span>,
+) <span class="op">-&gt;</span> <span class="fn">dict</span>:
+    <span class="cm">"""Called by the SageMaker eval step after model evaluation."""</span>
+    <span class="kw">if</span> <span class="var">actual_accuracy</span> &lt; <span class="var">accuracy_threshold</span>:
+        <span class="fn">print</span>(
+            <span class="str">f"Accuracy {actual_accuracy:.4f} below threshold {accuracy_threshold:.4f}. "
+            <span class="str">"Escrow NOT released. Deployer reclaims at timeout."</span>
+        )
+        <span class="kw">return</span> {<span class="str">"released"</span>: <span class="var">False</span>, <span class="str">"escrow_id"</span>: <span class="var">escrow_id</span>}
+
+    <span class="cm"># Threshold met — release to engineer</span>
+    <span class="var">resp</span> = <span class="var">requests</span>.<span class="fn">post</span>(
+        <span class="str">f"{PF_BASE}/escrow/release"</span>,
+        <span class="var">json</span>={
+            <span class="str">"escrow_id"</span>: <span class="var">escrow_id</span>,
+            <span class="str">"release_memo"</span>: (
+                <span class="str">f"Condition met: accuracy={actual_accuracy:.6f} "
+                f">= threshold={accuracy_threshold:.6f}"</span>
+            ),
+        },
+        <span class="var">headers</span>=<span class="fn">_headers</span>(<span class="var">DEPLOYER_KEY</span>),  <span class="cm"># deployer authorises release</span>
+        <span class="var">timeout</span>=<span class="num">15</span>,
+    )
+    <span class="var">resp</span>.<span class="fn">raise_for_status</span>()
+    <span class="fn">print</span>(<span class="str">f"Bonus released! {resp.json()['tx_id']}"</span>)
+    <span class="kw">return</span> {<span class="str">"released"</span>: <span class="var">True</span>, **<span class="var">resp</span>.<span class="fn">json</span>()}
+
+<span class="cm"># ── Example usage ────────────────────────────────────────────────────────</span>
+<span class="kw">if</span> <span class="var">__name__</span> == <span class="str">"__main__"</span>:
+    <span class="var">escrow</span> = <span class="fn">create_accuracy_escrow</span>(
+        <span class="var">deployer_agent</span>    = <span class="str">"deployer-agent-001"</span>,
+        <span class="var">engineer_agent</span>    = <span class="str">"ml-engineer-agent-042"</span>,
+        <span class="var">bonus_usd</span>         = <span class="num">50.00</span>,
+        <span class="var">accuracy_threshold</span>= <span class="num">0.93</span>,
+        <span class="var">pipeline_name</span>     = <span class="str">"FraudDetection-v3"</span>,
+        <span class="var">timeout_hours</span>     = <span class="num">48</span>,
+    )
+
+    <span class="cm"># … SageMaker pipeline runs here …</span>
+    <span class="var">eval_result</span> = <span class="fn">float</span>(<span class="fn">open</span>(<span class="str">"/opt/ml/processing/output/eval_result.json"</span>)
+                        .<span class="fn">read</span>().<span class="fn">split</span>(<span class="str">'"accuracy":'</span>)[<span class="num">1</span>].<span class="fn">split</span>(<span class="str">","</span>)[<span class="num">0</span>])
+
+    <span class="fn">check_and_release</span>(
+        <span class="var">escrow_id</span>          = <span class="var">escrow</span>[<span class="str">"escrow_id"</span>],
+        <span class="var">actual_accuracy</span>    = <span class="var">eval_result</span>,
+        <span class="var">accuracy_threshold</span> = <span class="num">0.93</span>,
+    )</pre>
+
+  <div class="callout callout-green">
+    <div class="callout-title">Trustless by design</div>
+    <p>Purple Flea's escrow enforces the release condition cryptographically. The engineer's agent cannot claim funds unless the deployer's agent signs the release. The deployer cannot pocket the escrow without triggering the timeout refund. No middleman, no arbitration — just code.</p>
+  </div>
+
+  <h2>Pattern 4: Multi-Agent Task Delegation with Escrow</h2>
+
+  <p>
+    Large SageMaker deployments often run <strong>orchestrator models</strong> that decompose complex requests and route subtasks to specialist worker models. Once agents have wallets, you can pair this delegation with real payment: the orchestrator escrows payment for each subtask, the worker agent completes the task and claims the escrow.
+  </p>
+
+  <div class="diagram">
+<span class="dim">── Multi-agent SageMaker delegation ────────────────────────────────────────</span>
+
+  <span class="hl">Orchestrator Model</span>  (SageMaker endpoint, GPT-4-class)
+        │
+        │  receives: "Analyse transaction T-4421 for fraud"
+        │
+        ├─ subtask-A: raw feature extraction  ──→  <span class="grn">Feature Agent</span>
+        │              escrow: $0.02 locked ──→  <span class="hl">Purple Flea</span>
+        │
+        ├─ subtask-B: graph embedding lookup  ──→  <span class="grn">Graph Agent</span>
+        │              escrow: $0.03 locked ──→  <span class="hl">Purple Flea</span>
+        │
+        └─ subtask-C: final risk score        ──→  <span class="grn">Risk Model Agent</span>
+                       escrow: $0.05 locked ──→  <span class="hl">Purple Flea</span>
+
+  Each worker completes task, posts result to orchestrator,
+  escrow releases atomically per subtask confirmation.
+
+  <span class="ylw">Total cost per request: $0.10 + 1% PF fee = $0.101</span>
+  <span class="ylw">vs. traditional API metering: monthly retainer + manual reconciliation</span>
+  </div>
+
+  <div class="code-label"><span>orchestrator_delegation.py</span><span class="lang">Python</span></div>
+  <pre><span class="kw">import</span> <span class="var">asyncio</span>, <span class="var">json</span>, <span class="var">os</span>, <span class="var">uuid</span>
+<span class="kw">import</span> <span class="var">boto3</span>
+<span class="kw">import</span> <span class="var">requests</span>
+
+<span class="var">PF_BASE</span>       = <span class="str">"https://api.purpleflea.com/v1"</span>
+<span class="var">ORCHESTRATOR_KEY</span> = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"ORCH_PF_KEY"</span>]
+<span class="var">ORCH_AGENT_ID</span>    = <span class="var">os</span>.<span class="fn">environ</span>[<span class="str">"ORCH_AGENT_ID"</span>]
+<span class="var">sm_runtime</span>    = <span class="var">boto3</span>.<span class="fn">client</span>(<span class="str">"sagemaker-runtime"</span>)
+
+<span class="var">WORKER_AGENTS</span> = {
+    <span class="str">"feature-extractor"</span> : {<span class="str">"agent_id"</span>: <span class="str">"worker-feat-001"</span>, <span class="str">"endpoint"</span>: <span class="str">"feature-extractor-ep"</span>, <span class="str">"price_usd"</span>: <span class="num">0.02</span>},
+    <span class="str">"graph-embedder"</span>    : {<span class="str">"agent_id"</span>: <span class="str">"worker-graph-002"</span>, <span class="str">"endpoint"</span>: <span class="str">"graph-embed-ep"</span>,       <span class="str">"price_usd"</span>: <span class="num">0.03</span>},
+    <span class="str">"risk-scorer"</span>       : {<span class="str">"agent_id"</span>: <span class="str">"worker-risk-003"</span>,  <span class="str">"endpoint"</span>: <span class="str">"risk-scorer-ep"</span>,       <span class="str">"price_usd"</span>: <span class="num">0.05</span>},
+}
+
+<span class="kw">def</span> <span class="fn">pf_post</span>(<span class="var">path</span>, <span class="var">body</span>, <span class="var">key</span>=<span class="var">None</span>):
+    <span class="var">k</span> = <span class="var">key</span> <span class="kw">or</span> <span class="var">ORCHESTRATOR_KEY</span>
+    <span class="kw">return</span> <span class="var">requests</span>.<span class="fn">post</span>(
+        <span class="str">f"{PF_BASE}{path}"</span>, <span class="var">json</span>=<span class="var">body</span>,
+        <span class="var">headers</span>={<span class="str">"Authorization"</span>: <span class="str">f"Bearer {k}"</span>, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>},
+        <span class="var">timeout</span>=<span class="num">15</span>
+    ).<span class="fn">json</span>()
+
+<span class="kw">def</span> <span class="fn">lock_worker_escrow</span>(<span class="var">worker_name</span>: <span class="var">str</span>, <span class="var">task_id</span>: <span class="var">str</span>) <span class="op">-&gt;</span> <span class="var">str</span>:
+    <span class="var">w</span> = <span class="var">WORKER_AGENTS</span>[<span class="var">worker_name</span>]
+    <span class="var">result</span> = <span class="fn">pf_post</span>(<span class="str">"/escrow/create"</span>, {
+        <span class="str">"depositor_agent"</span>  : <span class="var">ORCH_AGENT_ID</span>,
+        <span class="str">"beneficiary_agent"</span>: <span class="var">w</span>[<span class="str">"agent_id"</span>],
+        <span class="str">"amount_usd"</span>       : <span class="fn">str</span>(<span class="var">w</span>[<span class="str">"price_usd"</span>]),
+        <span class="str">"condition_memo"</span>   : <span class="str">f"task_id={task_id} worker={worker_name} complete"</span>,
+        <span class="str">"timeout_hours"</span>    : <span class="num">1</span>,
+    })
+    <span class="fn">print</span>(<span class="str">f"  Locked ${w['price_usd']:.2f} for {worker_name}: {result['escrow_id']}"</span>)
+    <span class="kw">return</span> <span class="var">result</span>[<span class="str">"escrow_id"</span>]
+
+<span class="kw">def</span> <span class="fn">invoke_worker</span>(<span class="var">worker_name</span>: <span class="var">str</span>, <span class="var">payload</span>: <span class="fn">dict</span>) <span class="op">-&gt;</span> <span class="fn">dict</span>:
+    <span class="var">w</span>    = <span class="var">WORKER_AGENTS</span>[<span class="var">worker_name</span>]
+    <span class="var">resp</span> = <span class="var">sm_runtime</span>.<span class="fn">invoke_endpoint</span>(
+        <span class="var">EndpointName</span>  = <span class="var">w</span>[<span class="str">"endpoint"</span>],
+        <span class="var">ContentType</span>   = <span class="str">"application/json"</span>,
+        <span class="var">Body</span>          = <span class="var">json</span>.<span class="fn">dumps</span>(<span class="var">payload</span>)
+    )
+    <span class="kw">return</span> <span class="var">json</span>.<span class="fn">loads</span>(<span class="var">resp</span>[<span class="str">"Body"</span>].<span class="fn">read</span>())
+
+<span class="kw">def</span> <span class="fn">release_escrow</span>(<span class="var">escrow_id</span>: <span class="var">str</span>, <span class="var">task_id</span>: <span class="var">str</span>):
+    <span class="fn">pf_post</span>(<span class="str">"/escrow/release"</span>, {
+        <span class="str">"escrow_id"</span>   : <span class="var">escrow_id</span>,
+        <span class="str">"release_memo"</span>: <span class="str">f"task {task_id} confirmed complete"</span>,
+    })
+    <span class="fn">print</span>(<span class="str">f"  Released escrow {escrow_id}"</span>)
+
+<span class="kw">def</span> <span class="fn">analyse_transaction</span>(<span class="var">transaction</span>: <span class="fn">dict</span>) <span class="op">-&gt;</span> <span class="fn">dict</span>:
+    <span class="var">task_id</span> = <span class="fn">str</span>(<span class="var">uuid</span>.<span class="fn">uuid4</span>())
+    <span class="fn">print</span>(<span class="str">f"Orchestrator: starting task {task_id}"</span>)
+
+    <span class="cm"># Lock all escrows upfront before any work starts</span>
+    <span class="var">escrows</span> = {<span class="var">w</span>: <span class="fn">lock_worker_escrow</span>(<span class="var">w</span>, <span class="var">task_id</span>) <span class="kw">for</span> <span class="var">w</span> <span class="kw">in</span> <span class="var">WORKER_AGENTS</span>}
+
+    <span class="cm"># Invoke workers sequentially (could be parallelised with asyncio)</span>
+    <span class="var">features</span>  = <span class="fn">invoke_worker</span>(<span class="str">"feature-extractor"</span>, <span class="var">transaction</span>)
+    <span class="fn">release_escrow</span>(<span class="var">escrows</span>[<span class="str">"feature-extractor"</span>], <span class="var">task_id</span>)
+
+    <span class="var">graph_emb</span> = <span class="fn">invoke_worker</span>(<span class="str">"graph-embedder"</span>, {**<span class="var">transaction</span>, **<span class="var">features</span>})
+    <span class="fn">release_escrow</span>(<span class="var">escrows</span>[<span class="str">"graph-embedder"</span>], <span class="var">task_id</span>)
+
+    <span class="var">risk</span>      = <span class="fn">invoke_worker</span>(<span class="str">"risk-scorer"</span>, {**<span class="var">transaction</span>, **<span class="var">features</span>, **<span class="var">graph_emb</span>})
+    <span class="fn">release_escrow</span>(<span class="var">escrows</span>[<span class="str">"risk-scorer"</span>], <span class="var">task_id</span>)
+
+    <span class="fn">print</span>(<span class="str">f"Risk score: {risk['risk_score']:.4f} | Fraud: {risk['is_fraud']}"</span>)
+    <span class="kw">return</span> <span class="var">risk</span>
+
+<span class="kw">if</span> <span class="var">__name__</span> == <span class="str">"__main__"</span>:
+    <span class="fn">analyse_transaction</span>({<span class="str">"tx_id"</span>: <span class="str">"T-4421"</span>, <span class="str">"amount"</span>: <span class="num">8420.00</span>, <span class="str">"merchant"</span>: <span class="str">"ACME-9"</span>})</pre>
+
+  <h2>MCP Configuration for SageMaker-Hosted Agents</h2>
+
+  <p>
+    If your SageMaker-hosted agent supports the <a href="https://spec.modelcontextprotocol.io/" target="_blank" rel="noopener">Model Context Protocol</a>, you can give it direct access to Purple Flea tools via the MCP server. This means your agent's system prompt can call <span class="inline-code">pf_transfer</span>, <span class="inline-code">pf_escrow_create</span>, and <span class="inline-code">pf_escrow_release</span> natively — no custom code required.
+  </p>
+
+  <div class="code-label"><span>mcp_config.json — for SageMaker agent containers</span><span class="lang">JSON</span></div>
+  <pre>{
+  <span class="str">"mcpServers"</span>: {
+    <span class="str">"purpleflea"</span>: {
+      <span class="str">"url"</span>: <span class="str">"https://faucet.purpleflea.com/mcp"</span>,
+      <span class="str">"transport"</span>: <span class="str">"streamable-http"</span>,
+      <span class="str">"headers"</span>: {
+        <span class="str">"Authorization"</span>: <span class="str">"Bearer pf_live_YOUR_KEY_HERE"</span>
+      }
+    },
+    <span class="str">"purpleflea-escrow"</span>: {
+      <span class="str">"url"</span>: <span class="str">"https://escrow.purpleflea.com/mcp"</span>,
+      <span class="str">"transport"</span>: <span class="str">"streamable-http"</span>,
+      <span class="str">"headers"</span>: {
+        <span class="str">"Authorization"</span>: <span class="str">"Bearer pf_live_YOUR_KEY_HERE"</span>
+      }
+    }
+  }
+}</pre>
+
+  <p>
+    Mount this config into your SageMaker inference container as an environment variable or SSM parameter. With MCP connected, your agent's reasoning loop has access to the full suite of Purple Flea tools and can make financial decisions as part of its chain-of-thought, not just as a side-effect triggered by post-processing logic.
+  </p>
+
+  <div class="code-label"><span>agent_system_prompt.txt — SageMaker agent with financial tools</span><span class="lang">Text</span></div>
+  <pre>You are a fraud detection agent running on AWS SageMaker.
+You have access to the following Purple Flea financial tools via MCP:
+
+- pf_wallet_balance(agent_id)       → check wallet balance
+- pf_transfer(from, to, amount, memo) → send funds between agents
+- pf_escrow_create(depositor, beneficiary, amount, condition) → lock funds
+- pf_escrow_release(escrow_id, memo) → release locked funds
+
+When you detect a transaction with risk_score > 0.9:
+1. Lock $1.00 in escrow as a fraud investigation bond (beneficiary: auditor-agent-001)
+2. Flag the transaction in your response
+3. If investigation confirms fraud, release the escrow to the auditor agent
+
+When your weekly accuracy exceeds 0.95:
+1. Call pf_transfer to send yourself a $5 performance bonus from the reward pool
+2. Log the accuracy metric using a zero-value memo transfer
+
+Never hold more than $20 in your wallet at once. Sweep excess to treasury-agent-001.</pre>
+
+  <h2>Real-World Scenarios</h2>
+
+  <div class="scenario-grid">
+    <div class="scenario-card">
+      <div class="scenario-icon">&#x1F6A8;</div>
+      <div class="scenario-tag">Fraud Detection</div>
+      <h4>Fraud Detection Payouts</h4>
+      <p>Fraud model flags transaction &rarr; Lambda locks investigation escrow &rarr; human analyst reviews &rarr; escrow released to analyst agent on confirmation. Eliminates manual invoice-and-pay cycle for fraud investigation work.</p>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-icon">&#x1F4C8;</div>
+      <div class="scenario-tag">Trading</div>
+      <h4>Predictive Trading Signals</h4>
+      <p>Signal model outputs high-confidence trade signal &rarr; EventBridge &rarr; Lambda pays $0.05 micro-fee to the signal agent &rarr; consuming trading agent executes. Aligns incentives: signal quality directly drives revenue.</p>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-icon">&#x2696;&#xFE0F;</div>
+      <div class="scenario-tag">Portfolio</div>
+      <h4>Automated Rebalancing Alerts</h4>
+      <p>Rebalancing model detects drift beyond threshold &rarr; escrow created for rebalancing agent &rarr; agent executes trades and submits proof &rarr; escrow released. No human approval needed for sub-threshold rebalancing.</p>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-icon">&#x1F9E0;</div>
+      <div class="scenario-tag">MLOps</div>
+      <h4>Model Accuracy Bonuses</h4>
+      <p>Monthly model evaluation pipeline runs &rarr; ProcessingStep logs accuracy to Purple Flea &rarr; if threshold met, escrow auto-releases to the ML team's agent wallets. Transparent performance-linked compensation.</p>
+    </div>
+  </div>
+
+  <h2>Cost Analysis</h2>
+
+  <p>
+    The economics of this architecture are surprisingly favourable, even for high-volume SageMaker deployments. The key insight is that <strong>Purple Flea's 1% fee replaces an entire traditional payment stack</strong> — no Stripe, no bank API integration, no ACH reconciliation delays, no manual approvals.
+  </p>
+
+  <table class="cmp-table">
+    <thead>
+      <tr>
+        <th>Cost Component</th>
+        <th>Traditional Stack</th>
+        <th>SageMaker + Purple Flea</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Payment processing fee</strong></td>
+        <td class="neg">2.9% + $0.30 per transaction</td>
+        <td class="pos">1% flat, no minimum</td>
+      </tr>
+      <tr>
+        <td><strong>Settlement time</strong></td>
+        <td class="neg">2–5 business days (ACH)</td>
+        <td class="pos">Seconds (crypto settlement)</td>
+      </tr>
+      <tr>
+        <td><strong>Minimum transaction</strong></td>
+        <td class="neg">~$1 (fees make sub-$1 uneconomical)</td>
+        <td class="pos">$0.001 (micro-payments viable)</td>
+      </tr>
+      <tr>
+        <td><strong>API integration effort</strong></td>
+        <td class="neg">1–2 weeks (KYC, OAuth, webhooks)</td>
+        <td class="pos">30 minutes (bearer token + HTTPS)</td>
+      </tr>
+      <tr>
+        <td><strong>Agent autonomy</strong></td>
+        <td class="neg">Requires human approval for each payout</td>
+        <td class="pos">Fully autonomous, escrow-enforced</td>
+      </tr>
+      <tr>
+        <td><strong>Referral revenue</strong></td>
+        <td class="neg">None</td>
+        <td class="pos">15% of fees on referred agents</td>
+      </tr>
+      <tr class="hl">
+        <td><strong>SageMaker inference (ml.m5.xlarge)</strong></td>
+        <td>$0.23/hr — unchanged</td>
+        <td>$0.23/hr — unchanged</td>
+      </tr>
+      <tr class="hl">
+        <td><strong>Break-even transaction size</strong></td>
+        <td class="neg">$10.34 (for Stripe to cost less than 1%)</td>
+        <td class="pos">Any amount &mdash; 1% is always 1%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    For a fraud detection pipeline processing 10,000 transactions per day with $0.10 micro-payments per qualified signal: Purple Flea charges $10/day in fees. A Stripe integration would charge $29/day in processing fees <em>plus</em> $3,000 in minimum per-transaction charges (10,000 &times; $0.30). At scale, the difference is not marginal — it's whether micro-payment incentive architectures are economically viable at all.
+  </p>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">On SageMaker inference costs</div>
+    <p>The <span class="inline-code">ml.m5.xlarge</span> endpoint costs ~$0.23/hr. For a pipeline that only runs during market hours (6.5 hrs/day), that's $1.50/day. Add Purple Flea's $10/day in fees at the transaction volumes above, and the total financial infrastructure cost is <strong>$11.50/day</strong> — versus $32+ for a traditional stack. Use <a href="https://aws.amazon.com/sagemaker/pricing/" target="_blank" rel="noopener">SageMaker Serverless Inference</a> to reduce idle costs further.</p>
+  </div>
+
+  <h2>Putting It All Together</h2>
+
+  <p>
+    Here is the complete integration checklist for adding Purple Flea financial capabilities to a SageMaker deployment:
+  </p>
+
+  <ol>
+    <li><strong>Register your agents</strong> — create one agent ID per SageMaker role (orchestrator, each worker type, deployer, auditor). Use the <a href="/faucet">faucet</a> to fund new agents automatically.</li>
+    <li><strong>Store your API key in AWS Secrets Manager</strong> — reference it as an environment variable in Lambda and SageMaker processing containers. Never hardcode <span class="inline-code">pf_live_</span> keys in source code.</li>
+    <li><strong>Deploy the Lambda bridge</strong> — use the <span class="inline-code">lambda_financial_trigger.py</span> pattern above, subscribed to EventBridge rules on your endpoint's CloudWatch metrics.</li>
+    <li><strong>Add a financial logging step to your Pipelines</strong> — the zero-value memo transfer pattern creates an immutable, timestamped audit trail at no cost.</li>
+    <li><strong>Set up performance escrows</strong> before each major training run — lock bonus funds before the pipeline starts, release on condition met after evaluation.</li>
+    <li><strong>Configure MCP</strong> if your agent runtime supports it — direct tool access removes the need for custom financial logic in Lambda.</li>
+    <li><strong>Monitor via Purple Flea's wallet API</strong> — poll <span class="inline-code">/wallet/{agent_id}</span> in your CloudWatch dashboards to include financial health alongside model performance metrics.</li>
+  </ol>
+
+  <div class="callout">
+    <div class="callout-title">Referral note</div>
+    <p>If you deploy worker agents that themselves bring other agents into the Purple Flea ecosystem, you earn <strong>15% of their transaction fees</strong> back to your orchestrator agent's wallet. A fraud detection system with 20 worker agents processing $500/day in payments generates ~$0.75/day in passive referral income back to the orchestrator — compounding across your agent fleet.</p>
+  </div>
+
+  <hr />
+
+  <div class="cta-box">
+    <h3>Ready to add financial capabilities to your SageMaker agents?</h3>
+    <p>Start with the faucet for free credits, then explore the escrow and trading APIs. The for-sagemaker guide walks through complete infrastructure setup.</p>
+    <div class="cta-links">
+      <a href="/for-sagemaker/" class="btn-primary">SageMaker integration guide &rarr;</a>
+      <a href="/docs/escrow/" class="btn-ghost">Escrow API docs</a>
+      <a href="/for-aws-bedrock/" class="btn-ghost">AWS Bedrock guide</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/trading-api">Trading API</a>
+    <a href="/escrow">Escrow</a>
+    <a href="/faucet">Faucet</a>
+    <a href="/blog">Blog</a>
+    <a href="/docs">Docs</a>
+    <a href="/for-aws-bedrock/">AWS Bedrock</a>
+  </div>
+  <p>&copy; 2026 Purple Flea &mdash; AI-first financial infrastructure</p>
+</footer>
+
+<script>
+  window.addEventListener('scroll', () => {
+    const pct = (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  });
+</script>
+</body>
+</html>
