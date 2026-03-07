@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Agents as Liquidity Providers: Passive Income from Protocol Markets | Purple Flea</title>
+  <meta name="description" content="How AI agents provide liquidity on decentralized exchanges, manage concentrated positions, collect trading fees passively, and hedge impermanent loss with perpetuals." />
+  <meta property="og:title" content="AI Agents as Liquidity Providers: Passive Income from Protocol Markets" />
+  <meta property="og:description" content="Concentrated vs full-range liquidity, fee income formulas, impermanent loss monitoring, and auto-rebalancing strategies for AI agents on Purple Flea." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://purpleflea.com/blog/agent-liquidity-pools/" />
+  <link rel="canonical" href="https://purpleflea.com/blog/agent-liquidity-pools/" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "AI Agents as Liquidity Providers: Passive Income from Protocol Markets",
+    "description": "How AI agents provide liquidity on decentralized exchanges, manage concentrated Uniswap V3-style positions, collect trading fees, monitor impermanent loss, and hedge with perpetuals using the Purple Flea Trading API.",
+    "author": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+    "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com", "logo": { "@type": "ImageObject", "url": "https://purpleflea.com/logo.png" } },
+    "datePublished": "2026-03-07",
+    "dateModified": "2026-03-07",
+    "url": "https://purpleflea.com/blog/agent-liquidity-pools/",
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://purpleflea.com/blog/agent-liquidity-pools/" },
+    "keywords": ["liquidity providers", "AI agents", "DEX", "Uniswap V3", "concentrated liquidity", "impermanent loss", "trading fees", "Purple Flea", "DeFi", "passive income"],
+    "articleSection": "DeFi",
+    "wordCount": 4200
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090B;
+      --surface: #111113;
+      --surface2: #18181B;
+      --border: #27272A;
+      --accent: #A855F7;
+      --accent-dim: #7C3AED;
+      --accent-glow: rgba(168,85,247,0.15);
+      --text: #FAFAFA;
+      --muted: #A1A1AA;
+      --green: #22C55E;
+      --red: #EF4444;
+      --blue: #3B82F6;
+      --yellow: #EAB308;
+      --orange: #F97316;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 16px;
+      line-height: 1.75;
+    }
+
+    /* ── Progress Bar ── */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      z-index: 9999;
+      transition: width 0.1s linear;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      background: rgba(9,9,11,0.93);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      z-index: 200;
+      padding: 0 1.5rem;
+    }
+    .nav-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+      align-items: center;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent);
+      color: #fff !important;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.8rem !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--accent-dim) !important; }
+
+    /* ── Layout ── */
+    .page-wrapper {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .page-wrapper { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+
+    /* ── Article ── */
+    article { min-width: 0; }
+    .post-meta {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .tag-defi { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+    .tag-strategy { background: rgba(168,85,247,0.15); color: var(--accent); border: 1px solid rgba(168,85,247,0.3); }
+    .tag-guide { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+    .post-date { color: var(--muted); font-size: 0.875rem; }
+    .read-time { color: var(--muted); font-size: 0.875rem; }
+
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .post-lead {
+      font-size: 1.15rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      margin: 2.5rem 0 1rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 2rem 0 0.75rem;
+      color: var(--text);
+      scroll-margin-top: 80px;
+    }
+    h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 1.5rem 0 0.5rem;
+      color: var(--accent);
+    }
+    p { margin-bottom: 1.25rem; color: var(--muted); }
+    strong { color: var(--text); font-weight: 600; }
+    em { color: var(--accent); font-style: normal; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { margin: 1rem 0 1.5rem 1.5rem; color: var(--muted); }
+    li { margin-bottom: 0.5rem; }
+    li strong { color: var(--text); }
+
+    /* ── Code ── */
+    pre {
+      background: #0D0D0F;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      position: relative;
+    }
+    pre code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      color: #E2E8F0;
+    }
+    .code-header {
+      background: #0D0D0F;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+      padding: 0.6rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .code-header + pre {
+      border-radius: 0 0 10px 10px;
+      margin-top: 0;
+    }
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-red { background: #EF4444; }
+    .dot-yellow { background: #EAB308; }
+    .dot-green { background: #22C55E; }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      color: var(--accent);
+      background: rgba(168,85,247,0.1);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+    /* ── Callout ── */
+    .callout {
+      border-left: 3px solid var(--accent);
+      background: var(--accent-glow);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+    }
+    .callout p { margin: 0; color: var(--text); }
+    .callout-warn { border-left-color: var(--yellow); background: rgba(234,179,8,0.08); }
+    .callout-warn p { color: #FEF08A; }
+    .callout-green { border-left-color: var(--green); background: rgba(34,197,94,0.08); }
+    .callout-green p { color: #BBF7D0; }
+
+    /* ── Formula Box ── */
+    .formula-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      text-align: center;
+    }
+    .formula-box .formula {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.05rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .formula-box .formula-desc { font-size: 0.85rem; color: var(--muted); margin: 0; text-align: left; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th {
+      background: var(--surface2);
+      color: var(--text);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    tr:hover td { background: var(--surface); }
+    .td-accent { color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .td-green { color: var(--green); font-weight: 600; }
+    .td-red { color: var(--red); font-weight: 600; }
+
+    /* ── Stat Cards ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .stat-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 0.25rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); }
+
+    /* ── Service Card ── */
+    .service-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .service-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .service-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-glow);
+    }
+    .service-card h4 { font-size: 0.95rem; color: var(--text); margin: 0 0 0.4rem; }
+    .service-card p { font-size: 0.82rem; color: var(--muted); margin: 0; }
+    .service-card a { display: block; margin-top: 0.75rem; font-size: 0.8rem; font-weight: 600; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: sticky;
+      top: 80px;
+    }
+    .toc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .toc-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .toc-list { list-style: none; margin: 0; padding: 0; }
+    .toc-list li { margin-bottom: 0.35rem; }
+    .toc-list a {
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      display: block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .toc-list a:hover { color: var(--accent); background: var(--accent-glow); }
+    .toc-list a.active { color: var(--accent); background: var(--accent-glow); font-weight: 600; }
+    .toc-list .toc-sub { margin-left: 0.75rem; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      margin-top: 5rem;
+      padding: 3rem 1.5rem;
+      background: var(--surface);
+    }
+    .footer-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 2rem;
+    }
+    @media (max-width: 768px) {
+      .footer-inner { grid-template-columns: 1fr 1fr; }
+    }
+    .footer-brand h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .footer-brand p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+    .footer-col h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.75rem; font-weight: 700; }
+    .footer-col ul { list-style: none; margin: 0; padding: 0; }
+    .footer-col li { margin-bottom: 0.4rem; }
+    .footer-col a { font-size: 0.875rem; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-col a:hover { color: var(--accent); }
+    .footer-bottom {
+      max-width: 1280px;
+      margin: 2rem auto 0;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .footer-bottom p { font-size: 0.8rem; color: var(--muted); margin: 0; }
+
+    /* Syntax highlight colors */
+    .kw { color: #C084FC; }
+    .fn { color: #60A5FA; }
+    .str { color: #86EFAC; }
+    .num { color: #FCA5A5; }
+    .cm { color: #6B7280; font-style: italic; }
+    .cls { color: #FDE68A; }
+    .dec { color: #67E8F9; }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-inner">
+      <a href="https://purpleflea.com" class="nav-logo">Purple<span>Flea</span></a>
+      <ul class="nav-links">
+        <li><a href="https://purpleflea.com/casino">Casino</a></li>
+        <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+        <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+        <li><a href="https://purpleflea.com/docs/trading/">Trading API</a></li>
+        <li><a href="https://purpleflea.com/docs/wallet/">Wallet API</a></li>
+        <li><a href="https://purpleflea.com/docs/domains/">Domains</a></li>
+        <li><a href="https://purpleflea.com/blog/" class="nav-cta">Blog</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Layout -->
+  <div class="page-wrapper">
+    <article>
+      <!-- Post Header -->
+      <div class="post-meta">
+        <span class="tag tag-defi">DeFi</span>
+        <span class="tag tag-strategy">Strategy</span>
+        <span class="tag tag-guide">Guide</span>
+        <span class="post-date">March 7, 2026</span>
+        <span class="read-time">20 min read</span>
+      </div>
+
+      <h1>AI Agents as Liquidity Providers: Passive Income from Protocol Markets</h1>
+
+      <p class="post-lead">
+        Decentralized exchanges generate billions in trading fees daily. Unlike human LPs who set positions and forget, AI agents can continuously monitor pool conditions, rebalance concentrated ranges before price escapes, collect fees the moment they accrue, and hedge impermanent loss in real time using perpetual futures. This guide covers the complete liquidity provision stack for autonomous agents.
+      </p>
+
+      <!-- Stats -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-value">0.05%</div>
+          <div class="stat-label">Low-tier pool fee (stable pairs)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">0.30%</div>
+          <div class="stat-label">Standard pool fee (volatile pairs)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">1.00%</div>
+          <div class="stat-label">High-tier fee (exotic pairs)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">~50%</div>
+          <div class="stat-label">Volume captured in-range (concentrated)</div>
+        </div>
+      </div>
+
+      <!-- ─── SECTION 1 ─── -->
+      <h2 id="lp-fundamentals">Liquidity Provision Fundamentals</h2>
+
+      <p>
+        Automated market makers (AMMs) replaced traditional order books with a simple insight: instead of matching buyers and sellers, pool tokens in a smart contract and let a mathematical formula set the price. Liquidity providers deposit token pairs, earn a pro-rata share of every swap fee, and bear <strong>impermanent loss</strong> when the price ratio shifts.
+      </p>
+
+      <p>
+        The canonical constant-product formula is <code>x * y = k</code>, where <code>x</code> and <code>y</code> are the token reserves and <code>k</code> is a constant. Every swap moves the price along this curve. LPs earn fees proportional to their share of total liquidity, but suffer IL relative to simply holding the tokens.
+      </p>
+
+      <h3>Full-Range vs Concentrated Liquidity</h3>
+
+      <p>
+        Classic AMMs spread LP capital across all prices from zero to infinity. Uniswap V3 introduced <strong>concentrated liquidity</strong>: LPs choose a price range <code>[P_lower, P_upper]</code> and deploy capital only within that band. Capital efficiency can be 4000x higher in a tight range versus full-range, but the LP earns zero fees when price leaves the range.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Capital Efficiency</th>
+              <th>Management Need</th>
+              <th>IL Exposure</th>
+              <th>Best For</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Full-Range (V2)</td>
+              <td class="td-accent">1x</td>
+              <td>Minimal</td>
+              <td class="td-red">High (always active)</td>
+              <td>Set-and-forget human LPs</td>
+            </tr>
+            <tr>
+              <td>Wide Concentrated</td>
+              <td class="td-accent">10–50x</td>
+              <td>Low</td>
+              <td class="td-yellow">Moderate</td>
+              <td>Moderate volatility pairs</td>
+            </tr>
+            <tr>
+              <td>Tight Concentrated</td>
+              <td class="td-accent">100–4000x</td>
+              <td class="td-red">High (frequent rebalance)</td>
+              <td class="td-red">Very high when active</td>
+              <td>AI agents with auto-rebalance</td>
+            </tr>
+            <tr>
+              <td>Stable Pool (Curve)</td>
+              <td class="td-accent">~500x</td>
+              <td>Minimal</td>
+              <td class="td-green">Very low (correlated assets)</td>
+              <td>USDC/USDT, stETH/ETH</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <p><strong>Why agents dominate concentrated LP:</strong> Tight ranges earn more fees when in-range but must be rebalanced every few hours in volatile markets. An agent can poll price every 60 seconds and trigger rebalance the moment the position goes out-of-range — something no human LP can sustain continuously.</p>
+      </div>
+
+      <!-- ─── SECTION 2 ─── -->
+      <h2 id="fee-income">Fee Income Calculation</h2>
+
+      <p>
+        Understanding the math behind fee income lets agents set realistic return expectations and compare positions objectively. The core formula:
+      </p>
+
+      <div class="formula-box">
+        <div class="formula">fee_income = trading_volume × fee_tier × (your_liquidity / total_liquidity)</div>
+        <p class="formula-desc">
+          where <strong>trading_volume</strong> is the 24-hour swap volume through the pool,
+          <strong>fee_tier</strong> is 0.0005, 0.003, or 0.01,
+          and the final factor is your pro-rata share of the pool in the active range.
+        </p>
+      </div>
+
+      <h3>Annualized Return (APR) from Fees</h3>
+
+      <div class="formula-box">
+        <div class="formula">LP_APR = (daily_fee_income / capital_deployed) × 365 × 100%</div>
+        <p class="formula-desc">
+          For a 0.3% pool with $10M daily volume and your $50K providing 0.5% of liquidity:
+          daily_fees = $10,000,000 × 0.003 × 0.005 = $150/day → APR ≈ 109%.
+        </p>
+      </div>
+
+      <h3>Concentrated Range Multiplier</h3>
+
+      <p>
+        When you deploy capital in a concentrated range that covers only a fraction of the full price curve, your effective liquidity multiplier is:
+      </p>
+
+      <div class="formula-box">
+        <div class="formula">range_multiplier = √(P_upper/P_lower) / (√(P_upper/P_lower) - 1)</div>
+        <p class="formula-desc">
+          A 10% price range around current price (~±5%) gives a multiplier of ~20x capital efficiency.
+          Your effective liquidity = deposited_capital × range_multiplier, directly boosting your pool share.
+        </p>
+      </div>
+
+      <!-- ─── SECTION 3 ─── -->
+      <h2 id="liquidity-manager">Python LiquidityManager Class</h2>
+
+      <p>
+        The following class provides a complete interface for an AI agent to manage LP positions. It handles position creation, fee collection, impermanent loss tracking, and auto-rebalancing. Integrate with the <a href="https://purpleflea.com/docs/trading/">Purple Flea Trading API</a> for hedging and the <a href="https://purpleflea.com/docs/wallet/">Wallet API</a> for income tracking.
+      </p>
+
+      <div class="code-header">
+        <div class="code-dot dot-red"></div>
+        <div class="code-dot dot-yellow"></div>
+        <div class="code-dot dot-green"></div>
+        <span class="code-lang">Python — liquidity_manager.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> math
+<span class="kw">import</span> time
+<span class="kw">import</span> requests
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, Dict, List, Tuple
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">import</span> logging
+
+logging.basicConfig(level=logging.INFO, format=<span class="str">'%(asctime)s %(levelname)s %(message)s'</span>)
+logger = logging.getLogger(<span class="str">'LiquidityManager'</span>)
+
+PURPLE_FLEA_BASE = <span class="str">"https://purpleflea.com/api/v1"</span>
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">LPPosition</span>:
+    position_id: str
+    pool_address: str
+    token0: str
+    token1: str
+    fee_tier: float          <span class="cm"># 0.0005, 0.003, or 0.01</span>
+    tick_lower: int
+    tick_upper: int
+    liquidity: int
+    entry_price: float
+    token0_deposited: float
+    token1_deposited: float
+    fees_collected_token0: float = <span class="num">0.0</span>
+    fees_collected_token1: float = <span class="num">0.0</span>
+    created_at: float = field(default_factory=time.time)
+    last_collected: float = field(default_factory=time.time)
+    rebalance_count: int = <span class="num">0</span>
+
+
+<span class="kw">class</span> <span class="cls">LiquidityManager</span>:
+    <span class="str">"""
+    Full lifecycle manager for AMM liquidity positions.
+    Supports concentrated Uniswap V3-style positions with
+    auto-rebalancing and impermanent loss monitoring.
+
+    API key starts with pf_live_ prefix for Purple Flea services.
+    """</span>
+
+    TICK_BASE = <span class="num">1.0001</span>
+    MIN_COLLECT_INTERVAL = <span class="num">3600</span>   <span class="cm"># 1 hour minimum between fee collections</span>
+    DEFAULT_REBALANCE_BUFFER = <span class="num">0.02</span>  <span class="cm"># 2% buffer before triggering rebalance</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        self,
+        api_key: str,
+        wallet_id: str,
+        slippage_tolerance: float = <span class="num">0.005</span>,  <span class="cm"># 0.5%</span>
+        max_gas_gwei: int = <span class="num">30</span>,
+        rebalance_buffer: float = <span class="num">0.02</span>,
+    ):
+        self.api_key = api_key
+        self.wallet_id = wallet_id
+        self.slippage = slippage_tolerance
+        self.max_gas = max_gas_gwei
+        self.rebalance_buffer = rebalance_buffer
+        self.positions: Dict[str, LPPosition] = {}
+        self.session = requests.Session()
+        self.session.headers.update({
+            <span class="str">"Authorization"</span>: f<span class="str">"Bearer {api_key}"</span>,
+            <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>,
+            <span class="str">"X-Wallet-ID"</span>: wallet_id,
+        })
+
+    <span class="cm"># ──────────────────────────────────────────────────────────────
+    # TICK MATH UTILITIES
+    # ──────────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">price_to_tick</span>(self, price: float) -> int:
+        <span class="str">"""Convert a price to the nearest valid tick."""</span>
+        <span class="kw">return</span> math.floor(math.log(price) / math.log(self.TICK_BASE))
+
+    <span class="kw">def</span> <span class="fn">tick_to_price</span>(self, tick: int) -> float:
+        <span class="str">"""Convert a tick index back to price."""</span>
+        <span class="kw">return</span> self.TICK_BASE ** tick
+
+    <span class="kw">def</span> <span class="fn">sqrt_price</span>(self, price: float) -> float:
+        <span class="kw">return</span> math.sqrt(price)
+
+    <span class="kw">def</span> <span class="fn">compute_range_multiplier</span>(self, p_lower: float, p_upper: float) -> float:
+        <span class="str">"""
+        Capital efficiency multiplier for a concentrated range.
+        Tight ranges have higher multipliers but require more rebalancing.
+        """</span>
+        ratio = math.sqrt(p_upper / p_lower)
+        <span class="kw">return</span> ratio / (ratio - <span class="num">1</span>)
+
+    <span class="kw">def</span> <span class="fn">compute_liquidity_amounts</span>(
+        self,
+        current_price: float,
+        p_lower: float,
+        p_upper: float,
+        capital_usd: float,
+    ) -> Tuple[float, float]:
+        <span class="str">"""
+        Given a capital budget and price range, compute the
+        token0 and token1 amounts to deposit (50/50 split by value).
+        """</span>
+        sq_current = self.sqrt_price(current_price)
+        sq_lower   = self.sqrt_price(p_lower)
+        sq_upper   = self.sqrt_price(p_upper)
+
+        <span class="cm"># Amount of token0 needed per unit of liquidity</span>
+        delta0 = (<span class="num">1</span> / sq_current - <span class="num">1</span> / sq_upper)
+        <span class="cm"># Amount of token1 needed per unit of liquidity</span>
+        delta1 = sq_current - sq_lower
+
+        <span class="cm"># Token0 value in USD (price = token1/token0)</span>
+        value0_per_unit = delta0 * current_price
+        value1_per_unit = delta1
+
+        total_per_unit = value0_per_unit + value1_per_unit
+        units = capital_usd / total_per_unit
+
+        amount0 = units * delta0
+        amount1 = units * delta1
+        <span class="kw">return</span> amount0, amount1
+
+    <span class="cm"># ──────────────────────────────────────────────────────────────
+    # CORE POSITION MANAGEMENT
+    # ──────────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">add_liquidity</span>(
+        self,
+        pool_address: str,
+        token0: str,
+        token1: str,
+        fee_tier: float,
+        capital_usd: float,
+        range_pct: float = <span class="num">0.10</span>,   <span class="cm"># ±10% around current price</span>
+        current_price: Optional[float] = None,
+    ) -> LPPosition:
+        <span class="str">"""
+        Open a new concentrated liquidity position.
+
+        Args:
+            pool_address: DEX pool contract address
+            token0, token1: Token symbols (e.g. 'USDC', 'ETH')
+            fee_tier: Pool fee tier (0.0005, 0.003, or 0.01)
+            capital_usd: Total capital to deploy in USD
+            range_pct: Half-width of price range as a fraction
+            current_price: Override current price (fetched if None)
+
+        Returns:
+            LPPosition tracking object
+        """</span>
+        <span class="kw">if</span> current_price <span class="kw">is</span> None:
+            current_price = self._fetch_pool_price(pool_address)
+
+        p_lower = current_price * (<span class="num">1</span> - range_pct)
+        p_upper = current_price * (<span class="num">1</span> + range_pct)
+
+        tick_lower = self.price_to_tick(p_lower)
+        tick_upper = self.price_to_tick(p_upper)
+
+        amount0, amount1 = self.compute_liquidity_amounts(
+            current_price, p_lower, p_upper, capital_usd
+        )
+
+        multiplier = self.compute_range_multiplier(p_lower, p_upper)
+        logger.info(
+            f<span class="str">"Opening LP: {token0}/{token1} range [{p_lower:.4f}, {p_upper:.4f}] "
+            f"multiplier={multiplier:.1f}x capital=${capital_usd:,.0f}"</span>
+        )
+
+        payload = {
+            <span class="str">"action"</span>: <span class="str">"add_liquidity"</span>,
+            <span class="str">"pool_address"</span>: pool_address,
+            <span class="str">"tick_lower"</span>: tick_lower,
+            <span class="str">"tick_upper"</span>: tick_upper,
+            <span class="str">"amount0_desired"</span>: amount0,
+            <span class="str">"amount1_desired"</span>: amount1,
+            <span class="str">"amount0_min"</span>: amount0 * (<span class="num">1</span> - self.slippage),
+            <span class="str">"amount1_min"</span>: amount1 * (<span class="num">1</span> - self.slippage),
+            <span class="str">"max_gas_gwei"</span>: self.max_gas,
+        }
+
+        resp = self.session.post(f<span class="str">"{PURPLE_FLEA_BASE}/trading/liquidity"</span>, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+        pos = LPPosition(
+            position_id=data[<span class="str">"position_id"</span>],
+            pool_address=pool_address,
+            token0=token0,
+            token1=token1,
+            fee_tier=fee_tier,
+            tick_lower=tick_lower,
+            tick_upper=tick_upper,
+            liquidity=data[<span class="str">"liquidity"</span>],
+            entry_price=current_price,
+            token0_deposited=amount0,
+            token1_deposited=amount1,
+        )
+        self.positions[pos.position_id] = pos
+        logger.info(f<span class="str">"Position opened: {pos.position_id}"</span>)
+        <span class="kw">return</span> pos
+
+    <span class="kw">def</span> <span class="fn">remove_liquidity</span>(
+        self,
+        position_id: str,
+        pct: float = <span class="num">1.0</span>,   <span class="cm"># 1.0 = 100% withdrawal</span>
+        collect_fees: bool = True,
+    ) -> Dict:
+        <span class="str">"""
+        Remove some or all liquidity from a position.
+        Optionally collect any unclaimed fees first.
+        """</span>
+        pos = self.positions[position_id]
+
+        <span class="kw">if</span> collect_fees:
+            self.collect_fees(position_id)
+
+        liquidity_to_remove = int(pos.liquidity * pct)
+        payload = {
+            <span class="str">"action"</span>: <span class="str">"remove_liquidity"</span>,
+            <span class="str">"position_id"</span>: position_id,
+            <span class="str">"liquidity"</span>: liquidity_to_remove,
+            <span class="str">"amount0_min"</span>: <span class="num">0</span>,
+            <span class="str">"amount1_min"</span>: <span class="num">0</span>,
+            <span class="str">"max_gas_gwei"</span>: self.max_gas,
+        }
+
+        resp = self.session.post(f<span class="str">"{PURPLE_FLEA_BASE}/trading/liquidity"</span>, json=payload)
+        resp.raise_for_status()
+        result = resp.json()
+
+        logger.info(
+            f<span class="str">"Removed {pct*100:.0f}% of {position_id}: "
+            f"got {result.get('amount0_returned', 0):.4f} {pos.token0} + "
+            f"{result.get('amount1_returned', 0):.4f} {pos.token1}"</span>
+        )
+
+        <span class="kw">if</span> pct >= <span class="num">1.0</span>:
+            <span class="kw">del</span> self.positions[position_id]
+
+        <span class="kw">return</span> result
+
+    <span class="kw">def</span> <span class="fn">collect_fees</span>(self, position_id: str) -> Dict[str, float]:
+        <span class="str">"""
+        Claim accrued trading fees for a position.
+        Returns {'fee0': float, 'fee1': float, 'fee_usd': float}.
+        """</span>
+        pos = self.positions[position_id]
+        now = time.time()
+
+        <span class="kw">if</span> now - pos.last_collected < self.MIN_COLLECT_INTERVAL:
+            logger.debug(f<span class="str">"Skipping fee collection for {position_id} — too recent"</span>)
+            <span class="kw">return</span> {<span class="str">"fee0"</span>: <span class="num">0</span>, <span class="str">"fee1"</span>: <span class="num">0</span>, <span class="str">"fee_usd"</span>: <span class="num">0</span>}
+
+        payload = {
+            <span class="str">"action"</span>: <span class="str">"collect_fees"</span>,
+            <span class="str">"position_id"</span>: position_id,
+        }
+
+        resp = self.session.post(f<span class="str">"{PURPLE_FLEA_BASE}/trading/liquidity/collect"</span>, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+        fee0 = data.get(<span class="str">"fee0"</span>, <span class="num">0</span>)
+        fee1 = data.get(<span class="str">"fee1"</span>, <span class="num">0</span>)
+        fee_usd = data.get(<span class="str">"fee_usd"</span>, <span class="num">0</span>)
+
+        pos.fees_collected_token0 += fee0
+        pos.fees_collected_token1 += fee1
+        pos.last_collected = now
+
+        logger.info(
+            f<span class="str">"Fees collected for {position_id}: "
+            f"{fee0:.6f} {pos.token0} + {fee1:.6f} {pos.token1} "
+            f"(${fee_usd:.2f})"</span>
+        )
+        <span class="kw">return</span> {<span class="str">"fee0"</span>: fee0, <span class="str">"fee1"</span>: fee1, <span class="str">"fee_usd"</span>: fee_usd}
+
+    <span class="kw">def</span> <span class="fn">rebalance_range</span>(
+        self,
+        position_id: str,
+        new_range_pct: float = <span class="num">0.10</span>,
+        current_price: Optional[float] = None,
+    ) -> LPPosition:
+        <span class="str">"""
+        Close existing position and reopen centered on current price.
+        Called when price has moved outside the active range.
+        """</span>
+        pos = self.positions[position_id]
+        logger.info(f<span class="str">"Rebalancing {position_id} (rebalance #{pos.rebalance_count + 1})"</span>)
+
+        <span class="kw">if</span> current_price <span class="kw">is</span> None:
+            current_price = self._fetch_pool_price(pos.pool_address)
+
+        <span class="cm"># Step 1: Remove all liquidity + collect fees</span>
+        removed = self.remove_liquidity(position_id, pct=<span class="num">1.0</span>, collect_fees=True)
+
+        <span class="cm"># Step 2: Calculate new capital (returned amounts converted to USD)</span>
+        new_capital_usd = removed.get(<span class="str">"total_usd"</span>, <span class="num">0</span>)
+        <span class="kw">if</span> new_capital_usd == <span class="num">0</span>:
+            new_capital_usd = (
+                removed.get(<span class="str">"amount0_returned"</span>, <span class="num">0</span>) * current_price +
+                removed.get(<span class="str">"amount1_returned"</span>, <span class="num">0</span>)
+            )
+
+        <span class="cm"># Step 3: Open new centered position</span>
+        new_pos = self.add_liquidity(
+            pool_address=pos.pool_address,
+            token0=pos.token0,
+            token1=pos.token1,
+            fee_tier=pos.fee_tier,
+            capital_usd=new_capital_usd,
+            range_pct=new_range_pct,
+            current_price=current_price,
+        )
+        new_pos.rebalance_count = pos.rebalance_count + <span class="num">1</span>
+        new_pos.fees_collected_token0 = pos.fees_collected_token0
+        new_pos.fees_collected_token1 = pos.fees_collected_token1
+        <span class="kw">return</span> new_pos
+
+    <span class="cm"># ──────────────────────────────────────────────────────────────
+    # IMPERMANENT LOSS
+    # ──────────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">compute_impermanent_loss</span>(
+        self,
+        position_id: str,
+        current_price: Optional[float] = None,
+    ) -> float:
+        <span class="str">"""
+        Compute IL as a fraction of hold value.
+        Returns a negative number (loss) or 0 if no IL.
+
+        Formula: IL = 2*sqrt(k) / (1+k) - 1
+        where k = current_price / entry_price
+        """</span>
+        pos = self.positions[position_id]
+        <span class="kw">if</span> current_price <span class="kw">is</span> None:
+            current_price = self._fetch_pool_price(pos.pool_address)
+
+        k = current_price / pos.entry_price
+        il = (<span class="num">2</span> * math.sqrt(k) / (<span class="num">1</span> + k)) - <span class="num">1</span>
+        <span class="kw">return</span> il   <span class="cm"># always <= 0</span>
+
+    <span class="kw">def</span> <span class="fn">is_in_range</span>(self, position_id: str, current_price: float) -> bool:
+        <span class="str">"""Return True if current price falls within the position's tick range."""</span>
+        pos = self.positions[position_id]
+        current_tick = self.price_to_tick(current_price)
+        <span class="kw">return</span> pos.tick_lower <= current_tick <= pos.tick_upper
+
+    <span class="kw">def</span> <span class="fn">distance_to_boundary</span>(self, position_id: str, current_price: float) -> float:
+        <span class="str">"""
+        Returns the fractional distance from current price to
+        the nearest range boundary. Negative = out of range.
+        """</span>
+        pos = self.positions[position_id]
+        p_lower = self.tick_to_price(pos.tick_lower)
+        p_upper = self.tick_to_price(pos.tick_upper)
+        dist_up   = (p_upper - current_price) / current_price
+        dist_down = (current_price - p_lower) / current_price
+        <span class="kw">return</span> min(dist_up, dist_down)
+
+    <span class="cm"># ──────────────────────────────────────────────────────────────
+    # MONITORING LOOP
+    # ──────────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">monitor_positions</span>(self, poll_interval: int = <span class="num">60</span>):
+        <span class="str">"""
+        Continuous monitoring loop. At each interval:
+        1. Fetch current price for each position's pool
+        2. Check if in-range; rebalance if out-of-range
+        3. Collect fees if accrual threshold exceeded
+        4. Log IL and cumulative P&L
+
+        Runs forever — deploy with PM2 or similar.
+        """</span>
+        logger.info(f<span class="str">"Starting monitor loop ({len(self.positions)} positions, poll={poll_interval}s)"</span>)
+
+        <span class="kw">while</span> True:
+            <span class="kw">for</span> pid, pos <span class="kw">in</span> list(self.positions.items()):
+                <span class="kw">try</span>:
+                    price = self._fetch_pool_price(pos.pool_address)
+                    in_range = self.is_in_range(pid, price)
+                    il = self.compute_impermanent_loss(pid, price)
+                    dist = self.distance_to_boundary(pid, price)
+
+                    logger.info(
+                        f<span class="str">"[{pid[:8]}] {pos.token0}/{pos.token1} "
+                        f"price={price:.4f} in_range={in_range} "
+                        f"IL={il*100:.2f}% boundary_dist={dist*100:.1f}%"</span>
+                    )
+
+                    <span class="kw">if</span> <span class="kw">not</span> in_range <span class="kw">or</span> dist < self.rebalance_buffer:
+                        logger.warning(f<span class="str">"[{pid[:8]}] Out of range — triggering rebalance"</span>)
+                        self.rebalance_range(pid, current_price=price)
+
+                    self.collect_fees(pid)
+
+                <span class="kw">except</span> Exception <span class="kw">as</span> e:
+                    logger.error(f<span class="str">"Error monitoring {pid}: {e}"</span>)
+
+            time.sleep(poll_interval)
+
+    <span class="cm"># ──────────────────────────────────────────────────────────────
+    # HELPERS
+    # ──────────────────────────────────────────────────────────────</span>
+
+    <span class="kw">def</span> <span class="fn">_fetch_pool_price</span>(self, pool_address: str) -> float:
+        <span class="str">"""Fetch current spot price from Purple Flea Trading API."""</span>
+        resp = self.session.get(
+            f<span class="str">"{PURPLE_FLEA_BASE}/trading/pools/{pool_address}/price"</span>
+        )
+        resp.raise_for_status()
+        <span class="kw">return</span> resp.json()[<span class="str">"price"</span>]
+
+    <span class="kw">def</span> <span class="fn">position_summary</span>(self, position_id: str) -> Dict:
+        <span class="str">"""Return a full P&L summary for a position."""</span>
+        pos = self.positions[position_id]
+        price = self._fetch_pool_price(pos.pool_address)
+        il = self.compute_impermanent_loss(position_id, price)
+        in_range = self.is_in_range(position_id, price)
+
+        <span class="kw">return</span> {
+            <span class="str">"position_id"</span>: position_id,
+            <span class="str">"pair"</span>: f<span class="str">"{pos.token0}/{pos.token1}"</span>,
+            <span class="str">"fee_tier"</span>: pos.fee_tier,
+            <span class="str">"entry_price"</span>: pos.entry_price,
+            <span class="str">"current_price"</span>: price,
+            <span class="str">"in_range"</span>: in_range,
+            <span class="str">"impermanent_loss_pct"</span>: il * <span class="num">100</span>,
+            <span class="str">"fees_collected_token0"</span>: pos.fees_collected_token0,
+            <span class="str">"fees_collected_token1"</span>: pos.fees_collected_token1,
+            <span class="str">"rebalance_count"</span>: pos.rebalance_count,
+            <span class="str">"age_hours"</span>: (time.time() - pos.created_at) / <span class="num">3600</span>,
+        }</code></pre>
+
+      <!-- ─── SECTION 4 ─── -->
+      <h2 id="impermanent-loss">Impermanent Loss: Monitoring and Mitigation</h2>
+
+      <p>
+        Impermanent loss (IL) is the opportunity cost of providing liquidity compared to simply holding both tokens. It is "impermanent" because if the price returns to the entry level, IL disappears. In practice, many LPs realize IL when they withdraw, making it permanent.
+      </p>
+
+      <h3>IL Formula Breakdown</h3>
+
+      <div class="formula-box">
+        <div class="formula">IL(k) = 2√k / (1 + k) − 1</div>
+        <p class="formula-desc">
+          where k = P_current / P_entry.<br>
+          k=1 → IL=0%. k=2 (price doubles) → IL≈−5.7%. k=4 (4x) → IL≈−20%. k=9 (9x) → IL≈−50%.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Price Change</th>
+              <th>k factor</th>
+              <th>Impermanent Loss</th>
+              <th>Fee APR needed to break even</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>±10%</td>
+              <td class="td-accent">0.9 or 1.1</td>
+              <td class="td-red">−0.07%</td>
+              <td>Any positive APR</td>
+            </tr>
+            <tr>
+              <td>±25%</td>
+              <td class="td-accent">0.75 or 1.25</td>
+              <td class="td-red">−0.45%</td>
+              <td>&gt;0.5% APR</td>
+            </tr>
+            <tr>
+              <td>±50%</td>
+              <td class="td-accent">0.5 or 1.5</td>
+              <td class="td-red">−2.02%</td>
+              <td>&gt;2% APR</td>
+            </tr>
+            <tr>
+              <td>+100%</td>
+              <td class="td-accent">2.0</td>
+              <td class="td-red">−5.72%</td>
+              <td>&gt;6% APR</td>
+            </tr>
+            <tr>
+              <td>+300%</td>
+              <td class="td-accent">4.0</td>
+              <td class="td-red">−20.0%</td>
+              <td>&gt;20% APR</td>
+            </tr>
+            <tr>
+              <td>+800%</td>
+              <td class="td-accent">9.0</td>
+              <td class="td-red">−50.0%</td>
+              <td>&gt;50% APR</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mitigation Strategy 1: Hedge with Perpetuals</h3>
+
+      <p>
+        An agent can hedge IL by opening an opposing perpetual futures position. If you provide ETH/USDC liquidity, you are effectively long ETH when price rises (position shifts toward USDC) and short ETH when price falls (position shifts toward ETH). The perpetual hedge cancels this directional exposure.
+      </p>
+
+      <div class="callout">
+        <p><strong>Hedge ratio:</strong> For a full-range V2-style position, short 0.5x your ETH notional in perps. For a concentrated position, the effective delta shifts continuously — use the <a href="https://purpleflea.com/docs/trading/">Purple Flea Trading API</a> to calculate and adjust the hedge dynamically as price moves through your range.</p>
+      </div>
+
+      <div class="code-header">
+        <div class="code-dot dot-red"></div>
+        <div class="code-dot dot-yellow"></div>
+        <div class="code-dot dot-green"></div>
+        <span class="code-lang">Python — il_hedge.py</span>
+      </div>
+      <pre><code><span class="kw">def</span> <span class="fn">compute_lp_delta</span>(
+    current_price: float,
+    p_lower: float,
+    p_upper: float,
+    liquidity: float,
+) -> float:
+    <span class="str">"""
+    Compute the net token0 delta of a concentrated LP position.
+    Returns tokens of token0 (negative = net short token0 equivalent).
+    Derivative of V3 position value w.r.t. price.
+    """</span>
+    sq_p     = math.sqrt(current_price)
+    sq_lower = math.sqrt(p_lower)
+    sq_upper = math.sqrt(p_upper)
+
+    <span class="kw">if</span> current_price <= p_lower:
+        <span class="cm"># Fully in token0, delta = total token0 amount</span>
+        <span class="kw">return</span> liquidity * (<span class="num">1</span>/sq_lower - <span class="num">1</span>/sq_upper)
+    <span class="kw">elif</span> current_price >= p_upper:
+        <span class="cm"># Fully in token1, delta = 0 (no more token0)</span>
+        <span class="kw">return</span> <span class="num">0</span>
+    <span class="kw">else</span>:
+        <span class="cm"># Partial: in-range delta</span>
+        <span class="kw">return</span> liquidity * (<span class="num">1</span>/sq_p - <span class="num">1</span>/sq_upper)
+
+
+<span class="kw">def</span> <span class="fn">place_perp_hedge</span>(
+    lm: LiquidityManager,
+    position_id: str,
+    current_price: float,
+) -> Dict:
+    <span class="str">"""
+    Open a perpetual short to hedge LP delta.
+    Automatically sizes the position to neutralize directional exposure.
+    """</span>
+    pos = lm.positions[position_id]
+    p_lower = lm.tick_to_price(pos.tick_lower)
+    p_upper = lm.tick_to_price(pos.tick_upper)
+
+    delta = compute_lp_delta(current_price, p_lower, p_upper, pos.liquidity)
+    hedge_size = abs(delta)   <span class="cm"># Short this many units of token0</span>
+
+    <span class="kw">if</span> hedge_size < <span class="num">0.001</span>:
+        <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"no_hedge_needed"</span>}
+
+    payload = {
+        <span class="str">"action"</span>: <span class="str">"open_perp"</span>,
+        <span class="str">"symbol"</span>: f<span class="str">"{pos.token0}/USDC-PERP"</span>,
+        <span class="str">"side"</span>: <span class="str">"short"</span>,
+        <span class="str">"size"</span>: hedge_size,
+        <span class="str">"order_type"</span>: <span class="str">"market"</span>,
+        <span class="str">"reduce_only"</span>: False,
+    }
+
+    resp = lm.session.post(f<span class="str">"{PURPLE_FLEA_BASE}/trading/perps/order"</span>, json=payload)
+    resp.raise_for_status()
+    logger.info(f<span class="str">"Perp hedge placed: short {hedge_size:.4f} {pos.token0}"</span>)
+    <span class="kw">return</span> resp.json()</code></pre>
+
+      <h3>Mitigation Strategy 2: Tight Ranges on Stable Pairs</h3>
+
+      <p>
+        For correlated assets (USDC/USDT, stETH/ETH, BTC/WBTC), IL is negligible because the price ratio rarely moves far. An agent can deploy capital in an extremely tight ±0.1% range and capture enormous fee income with minimal IL risk. These positions still need monitoring in case of depegs.
+      </p>
+
+      <h3>Mitigation Strategy 3: Range Expansion on Volatility Alerts</h3>
+
+      <p>
+        When an agent detects a volatility spike (e.g., implied vol from options markets exceeds 2 sigma), it can proactively widen the range before price escapes, sacrificing some capital efficiency to avoid the cost of an emergency rebalance. This is a classic <strong>volatility-adaptive LP</strong> strategy.
+      </p>
+
+      <!-- ─── SECTION 5 ─── -->
+      <h2 id="auto-rebalancing">Auto-Rebalancing Strategy</h2>
+
+      <p>
+        Rebalancing closes the current position and reopens it centered on the new price. Each rebalance incurs: (1) gas costs, (2) swap fees to re-balance token ratios, and (3) slippage. The key decision: <strong>when does the cost of rebalancing exceed the cost of staying out-of-range?</strong>
+      </p>
+
+      <h3>Rebalance Trigger Logic</h3>
+
+      <div class="code-header">
+        <div class="code-dot dot-red"></div>
+        <div class="code-dot dot-yellow"></div>
+        <div class="code-dot dot-green"></div>
+        <span class="code-lang">Python — rebalance_optimizer.py</span>
+      </div>
+      <pre><code><span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+
+<span class="dec">@dataclass</span>
+<span class="kw">class</span> <span class="cls">RebalanceDecision</span>:
+    should_rebalance: bool
+    reason: str
+    estimated_gas_usd: float
+    opportunity_cost_usd: float
+    net_benefit_usd: float
+
+
+<span class="kw">def</span> <span class="fn">should_rebalance</span>(
+    lm: LiquidityManager,
+    position_id: str,
+    current_price: float,
+    pool_daily_volume_usd: float,
+    gas_price_gwei: int = <span class="num">20</span>,
+) -> RebalanceDecision:
+    <span class="str">"""
+    Decide whether rebalancing a position is economically worthwhile.
+
+    Compares:
+    - Cost of rebalancing (gas + slippage)
+    - Cost of staying out-of-range (zero fees earned)
+    """</span>
+    pos = lm.positions[position_id]
+
+    <span class="cm"># If still in range, no action needed</span>
+    <span class="kw">if</span> lm.is_in_range(position_id, current_price):
+        <span class="kw">return</span> RebalanceDecision(
+            should_rebalance=False,
+            reason=<span class="str">"in_range"</span>,
+            estimated_gas_usd=<span class="num">0</span>,
+            opportunity_cost_usd=<span class="num">0</span>,
+            net_benefit_usd=<span class="num">0</span>,
+        )
+
+    <span class="cm"># Estimate gas cost of rebalance (2 txns: burn + mint)</span>
+    gas_units = <span class="num">300_000</span>  <span class="cm"># typical V3 position mgmt gas</span>
+    eth_price = <span class="num">3000</span>    <span class="cm"># fetch from oracle in production</span>
+    gas_cost_usd = (gas_price_gwei * gas_units * <span class="num">1e-9</span>) * eth_price
+
+    <span class="cm"># Slippage cost (0.1% of position value to re-balance ratios)</span>
+    position_value_usd = (
+        pos.token0_deposited * current_price + pos.token1_deposited
+    )
+    slippage_cost_usd = position_value_usd * <span class="num">0.001</span>
+    total_rebalance_cost = gas_cost_usd + slippage_cost_usd
+
+    <span class="cm"># Opportunity cost: fees missed per hour out-of-range</span>
+    <span class="cm"># Assume our share = (position_value / total_tvl), proxy 1% of volume</span>
+    daily_fee_income = pool_daily_volume_usd * pos.fee_tier * <span class="num">0.001</span>
+    hourly_fee_income = daily_fee_income / <span class="num">24</span>
+
+    <span class="cm"># Hours to recoup rebalance cost from fee income</span>
+    breakeven_hours = total_rebalance_cost / hourly_fee_income <span class="kw">if</span> hourly_fee_income > <span class="num">0</span> <span class="kw">else</span> float(<span class="str">'inf'</span>)
+
+    <span class="cm"># Always rebalance if out-of-range AND breakeven < 48h</span>
+    net_benefit = hourly_fee_income * <span class="num">24</span> - total_rebalance_cost
+
+    <span class="kw">return</span> RebalanceDecision(
+        should_rebalance=breakeven_hours < <span class="num">48</span>,
+        reason=f<span class="str">"breakeven_in_{breakeven_hours:.1f}h"</span>,
+        estimated_gas_usd=total_rebalance_cost,
+        opportunity_cost_usd=hourly_fee_income * <span class="num">24</span>,
+        net_benefit_usd=net_benefit,
+    )</code></pre>
+
+      <!-- ─── SECTION 6 ─── -->
+      <h2 id="wallet-tracking">Tracking LP Income with the Wallet API</h2>
+
+      <p>
+        LP income — fees from swap activity — is distinct from trading P&L and should be tracked separately for accurate performance attribution. The <a href="https://purpleflea.com/docs/wallet/">Purple Flea Wallet API</a> supports labeled income streams so your agent can report fee income independently from perpetual hedge P&L.
+      </p>
+
+      <div class="code-header">
+        <div class="code-dot dot-red"></div>
+        <div class="code-dot dot-yellow"></div>
+        <div class="code-dot dot-green"></div>
+        <span class="code-lang">Python — income_tracker.py</span>
+      </div>
+      <pre><code>WALLET_API = <span class="str">"https://purpleflea.com/api/v1/wallet"</span>
+
+<span class="kw">def</span> <span class="fn">record_fee_income</span>(
+    session: requests.Session,
+    wallet_id: str,
+    position_id: str,
+    fee_usd: float,
+    token0_amount: float,
+    token1_amount: float,
+    token0: str,
+    token1: str,
+) -> Dict:
+    <span class="str">"""
+    Log fee collection event to Purple Flea Wallet API.
+    Tags the transaction as 'lp_fee_income' for reporting.
+    """</span>
+    payload = {
+        <span class="str">"wallet_id"</span>: wallet_id,
+        <span class="str">"event_type"</span>: <span class="str">"lp_fee_income"</span>,
+        <span class="str">"amount_usd"</span>: fee_usd,
+        <span class="str">"metadata"</span>: {
+            <span class="str">"position_id"</span>: position_id,
+            <span class="str">"token0"</span>: token0,
+            <span class="str">"token0_amount"</span>: token0_amount,
+            <span class="str">"token1"</span>: token1,
+            <span class="str">"token1_amount"</span>: token1_amount,
+            <span class="str">"source"</span>: <span class="str">"amm_liquidity"</span>,
+        },
+        <span class="str">"timestamp"</span>: time.time(),
+    }
+    resp = session.post(f<span class="str">"{WALLET_API}/transactions"</span>, json=payload)
+    resp.raise_for_status()
+    <span class="kw">return</span> resp.json()
+
+
+<span class="kw">def</span> <span class="fn">get_lp_income_summary</span>(
+    session: requests.Session,
+    wallet_id: str,
+    since_timestamp: float,
+) -> Dict:
+    <span class="str">"""Fetch total LP fee income since a given timestamp."""</span>
+    resp = session.get(
+        f<span class="str">"{WALLET_API}/transactions"</span>,
+        params={
+            <span class="str">"wallet_id"</span>: wallet_id,
+            <span class="str">"event_type"</span>: <span class="str">"lp_fee_income"</span>,
+            <span class="str">"since"</span>: since_timestamp,
+        }
+    )
+    resp.raise_for_status()
+    txns = resp.json()[<span class="str">"transactions"</span>]
+
+    total_usd = sum(t[<span class="str">"amount_usd"</span>] for t <span class="kw">in</span> txns)
+    <span class="kw">return</span> {
+        <span class="str">"total_fee_income_usd"</span>: total_usd,
+        <span class="str">"event_count"</span>: len(txns),
+        <span class="str">"avg_per_event"</span>: total_usd / len(txns) <span class="kw">if</span> txns <span class="kw">else</span> <span class="num">0</span>,
+    }</code></pre>
+
+      <!-- ─── SECTION 7 ─── -->
+      <h2 id="full-agent">Full Agent Example</h2>
+
+      <p>
+        Putting it all together — an agent that opens a concentrated ETH/USDC position, monitors it continuously, hedges IL with perps, and reports income to the Wallet API. Ready to deploy with PM2 on any VPS.
+      </p>
+
+      <div class="code-header">
+        <div class="code-dot dot-red"></div>
+        <div class="code-dot dot-yellow"></div>
+        <div class="code-dot dot-green"></div>
+        <span class="code-lang">Python — lp_agent_main.py</span>
+      </div>
+      <pre><code><span class="kw">import</span> os
+<span class="kw">import</span> time
+<span class="kw">import</span> threading
+
+<span class="cm"># Purple Flea credentials — use pf_live_ prefix for production keys</span>
+API_KEY   = os.environ[<span class="str">"PURPLE_FLEA_API_KEY"</span>]    <span class="cm"># pf_live_...</span>
+WALLET_ID = os.environ[<span class="str">"PURPLE_FLEA_WALLET_ID"</span>]
+
+ETH_USDC_POOL = <span class="str">"0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"</span>
+
+<span class="kw">def</span> <span class="fn">main</span>():
+    lm = LiquidityManager(
+        api_key=API_KEY,
+        wallet_id=WALLET_ID,
+        slippage_tolerance=<span class="num">0.003</span>,
+        max_gas_gwei=<span class="num">25</span>,
+        rebalance_buffer=<span class="num">0.03</span>,   <span class="cm"># rebalance when within 3% of boundary</span>
+    )
+
+    <span class="cm"># Deploy $10,000 into ETH/USDC 0.3% pool, ±8% range</span>
+    pos = lm.add_liquidity(
+        pool_address=ETH_USDC_POOL,
+        token0=<span class="str">"ETH"</span>,
+        token1=<span class="str">"USDC"</span>,
+        fee_tier=<span class="num">0.003</span>,
+        capital_usd=<span class="num">10_000</span>,
+        range_pct=<span class="num">0.08</span>,
+    )
+    logger.info(f<span class="str">"Position opened: {pos.position_id}"</span>)
+
+    <span class="cm"># Place initial delta hedge via perps</span>
+    current_price = lm._fetch_pool_price(ETH_USDC_POOL)
+    hedge = place_perp_hedge(lm, pos.position_id, current_price)
+    logger.info(f<span class="str">"Hedge placed: {hedge}"</span>)
+
+    <span class="cm"># Start monitoring in main thread (blocks forever)</span>
+    lm.monitor_positions(poll_interval=<span class="num">60</span>)
+
+
+<span class="kw">if</span> __name__ == <span class="str">"__main__"</span>:
+    main()</code></pre>
+
+      <div class="callout-green callout">
+        <p><strong>Getting started:</strong> New agents can claim free USDC from the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> to test LP strategies without risk. Register your agent, claim funds, and experiment before deploying real capital.</p>
+      </div>
+
+      <!-- ─── SECTION 8 ─── -->
+      <h2 id="strategy-selection">Choosing Your LP Strategy</h2>
+
+      <p>
+        Not all liquidity provision strategies suit every agent. The right approach depends on available capital, compute budget, risk tolerance, and the pairs you are liquidity-providing for.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Capital Required</th>
+              <th>Compute</th>
+              <th>Expected APR</th>
+              <th>Risk Level</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Full-range stable (USDC/USDT)</td>
+              <td class="td-accent">Any</td>
+              <td>Minimal</td>
+              <td class="td-green">5–15%</td>
+              <td>Very Low</td>
+            </tr>
+            <tr>
+              <td>Wide concentrated (±20%)</td>
+              <td class="td-accent">$1K+</td>
+              <td>Low</td>
+              <td class="td-green">15–40%</td>
+              <td>Low</td>
+            </tr>
+            <tr>
+              <td>Tight concentrated (±5%) + rebalance</td>
+              <td class="td-accent">$5K+</td>
+              <td>Medium</td>
+              <td class="td-yellow">40–120%</td>
+              <td>Medium</td>
+            </tr>
+            <tr>
+              <td>Tight concentrated + IL hedge</td>
+              <td class="td-accent">$10K+</td>
+              <td>High</td>
+              <td class="td-green">30–80% (net)</td>
+              <td>Low–Medium</td>
+            </tr>
+            <tr>
+              <td>Ultra-tight JIT liquidity</td>
+              <td class="td-accent">$50K+</td>
+              <td>Very High</td>
+              <td class="td-yellow">80–200%+</td>
+              <td>Medium–High</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ─── SECTION 9 ─── -->
+      <h2 id="purple-flea-lp">LP Income with Purple Flea</h2>
+
+      <p>
+        Purple Flea provides the financial infrastructure to support the complete liquidity provision lifecycle for AI agents. From initial capital via the <a href="https://faucet.purpleflea.com">Faucet</a>, to hedging via the <a href="https://purpleflea.com/docs/trading/">Trading API</a>, to income separation via the <a href="https://purpleflea.com/docs/wallet/">Wallet API</a>, and agent-to-agent payments for multi-agent coordination via the <a href="https://escrow.purpleflea.com">Escrow service</a>.
+      </p>
+
+      <div class="service-grid">
+        <div class="service-card">
+          <h4>Faucet</h4>
+          <p>Claim free USDC to test LP strategies before deploying real capital. Zero risk entry.</p>
+          <a href="https://faucet.purpleflea.com">faucet.purpleflea.com &rarr;</a>
+        </div>
+        <div class="service-card">
+          <h4>Trading API</h4>
+          <p>Open perpetual futures positions to hedge LP delta and manage impermanent loss.</p>
+          <a href="https://purpleflea.com/docs/trading/">View Trading Docs &rarr;</a>
+        </div>
+        <div class="service-card">
+          <h4>Wallet API</h4>
+          <p>Track LP fee income separately from trading P&L with labeled transaction streams.</p>
+          <a href="https://purpleflea.com/docs/wallet/">View Wallet Docs &rarr;</a>
+        </div>
+        <div class="service-card">
+          <h4>Escrow</h4>
+          <p>Coordinate multi-agent LP strategies with trustless escrow. 1% fee, 15% referral.</p>
+          <a href="https://escrow.purpleflea.com">escrow.purpleflea.com &rarr;</a>
+        </div>
+        <div class="service-card">
+          <h4>Casino</h4>
+          <p>Casino-style games for agents — alternative passive income when LP returns are low.</p>
+          <a href="https://purpleflea.com/casino">purpleflea.com/casino &rarr;</a>
+        </div>
+        <div class="service-card">
+          <h4>Domains</h4>
+          <p>Register agent-readable domain handles for cross-agent LP coordination and discoverability.</p>
+          <a href="https://purpleflea.com/docs/domains/">View Domains Docs &rarr;</a>
+        </div>
+      </div>
+
+      <!-- ─── CONCLUSION ─── -->
+      <h2 id="conclusion">Conclusion</h2>
+
+      <p>
+        Concentrated liquidity provision is one of the highest-return passive income strategies available to AI agents with access to on-chain capital. The mathematics are well-understood, the risks are manageable with proper hedging, and the entire workflow — from capital deployment to fee collection to IL hedging — can be fully automated.
+      </p>
+
+      <p>
+        What gives AI agents an edge over human LPs is not strategy selection but <strong>execution frequency</strong>. A human LP rebalances weekly; an agent rebalances within minutes of price leaving the range. This compounding advantage means agents systematically capture more fees, suffer less idle capital, and accumulate positions that outperform their human counterparts over any meaningful time horizon.
+      </p>
+
+      <p>
+        Start with the <a href="https://faucet.purpleflea.com">Purple Flea Faucet</a> for free capital, connect to the <a href="https://purpleflea.com/docs/trading/">Trading API</a> for LP pool access and perpetual hedges, and use the <a href="https://purpleflea.com/docs/wallet/">Wallet API</a> to track your income streams cleanly. The infrastructure is ready — your agent just needs to run.
+      </p>
+
+      <div class="callout">
+        <p>See also: <a href="https://purpleflea.com/blog/agent-amm-liquidity-providing/">AMM Liquidity Providing</a> | <a href="https://purpleflea.com/blog/agent-market-microstructure/">Market Microstructure</a> | <a href="https://purpleflea.com/blog/agent-options-greeks-guide/">Options Greeks for Agents</a> | <a href="https://purpleflea.com/docs/trading/">Trading API Docs</a></p>
+      </div>
+    </article>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="toc-card">
+        <div class="toc-title">Table of Contents</div>
+        <ul class="toc-list">
+          <li><a href="#lp-fundamentals">LP Fundamentals</a></li>
+          <li><a href="#fee-income" class="toc-sub">Fee Income Calculation</a></li>
+          <li><a href="#liquidity-manager">LiquidityManager Class</a></li>
+          <li><a href="#impermanent-loss">Impermanent Loss</a></li>
+          <li><a href="#auto-rebalancing">Auto-Rebalancing</a></li>
+          <li><a href="#wallet-tracking">Wallet Income Tracking</a></li>
+          <li><a href="#full-agent">Full Agent Example</a></li>
+          <li><a href="#strategy-selection">Strategy Selection</a></li>
+          <li><a href="#purple-flea-lp">Purple Flea Services</a></li>
+          <li><a href="#conclusion">Conclusion</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-card">
+        <div class="toc-title">Related Posts</div>
+        <ul class="toc-list">
+          <li><a href="/blog/agent-amm-liquidity-providing/">AMM Liquidity Providing</a></li>
+          <li><a href="/blog/agent-market-microstructure/">Market Microstructure</a></li>
+          <li><a href="/blog/agent-options-greeks-guide/">Options Greeks</a></li>
+          <li><a href="/blog/perpetual-funding-rates/">Perpetual Funding Rates</a></li>
+          <li><a href="/blog/agent-yield-farming-2026/">Yield Farming 2026</a></li>
+          <li><a href="/blog/agent-defi-yield-stacking/">DeFi Yield Stacking</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-card">
+        <div class="toc-title">Purple Flea Services</div>
+        <ul class="toc-list">
+          <li><a href="https://purpleflea.com/casino">Casino</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet (Free USDC)</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow (1% fee)</a></li>
+          <li><a href="/docs/trading/">Trading API</a></li>
+          <li><a href="/docs/wallet/">Wallet API</a></li>
+          <li><a href="/docs/domains/">Domains API</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <h3>Purple<span style="color:var(--accent)">Flea</span></h3>
+        <p>Blue-chip financial infrastructure for AI agents. Casino, trading, wallets, escrow, faucet, and domain services — all agent-native.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="https://purpleflea.com/casino">Casino</a></li>
+          <li><a href="https://faucet.purpleflea.com">Faucet</a></li>
+          <li><a href="https://escrow.purpleflea.com">Escrow</a></li>
+          <li><a href="/docs/trading/">Trading API</a></li>
+          <li><a href="/docs/wallet/">Wallet API</a></li>
+          <li><a href="/docs/domains/">Domains</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="/blog/">Blog</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="/whitepaper/">Whitepaper</a></li>
+          <li><a href="/changelog/">Changelog</a></li>
+          <li><a href="/for-agents/">For Agents</a></li>
+          <li><a href="/agent-handbook/">Agent Handbook</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="/about/">About</a></li>
+          <li><a href="/roadmap/">Roadmap</a></li>
+          <li><a href="/security/">Security</a></li>
+          <li><a href="/partner/">Partner</a></li>
+          <li><a href="/status/">Status</a></li>
+          <li><a href="/faq/">FAQ</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Purple Flea. Financial infrastructure for the agentic economy.</p>
+      <p><a href="/security/">Security</a> &middot; <a href="/faq/">FAQ</a> &middot; <a href="/blog/">Blog</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Progress bar
+    window.addEventListener('scroll', () => {
+      const doc = document.documentElement;
+      const scrolled = doc.scrollTop || document.body.scrollTop;
+      const total = doc.scrollHeight - doc.clientHeight;
+      const pct = total > 0 ? (scrolled / total) * 100 : 0;
+      document.getElementById('progress-bar').style.width = pct + '%';
+    });
+
+    // TOC active highlighting
+    const headings = document.querySelectorAll('h2[id], h3[id]');
+    const tocLinks = document.querySelectorAll('.toc-list a');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          tocLinks.forEach(a => a.classList.remove('active'));
+          const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+
+    headings.forEach(h => observer.observe(h));
+  </script>
+</body>
+</html>
