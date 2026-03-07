@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kubernetes + Purple Flea — Pod-Level Agent Payment Orchestration</title>
+<meta name="description" content="Integrate Purple Flea financial infrastructure into Kubernetes. K8s Secrets for credentials, Job specs with faucet initContainers, Python operators for automatic escrow release, CronJob payroll, and Helm values snippets.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://purpleflea.com/for-kubernetes">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟣</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "name": "Kubernetes + Purple Flea — Pod-Level Agent Payment Orchestration",
+  "url": "https://purpleflea.com/for-kubernetes",
+  "description": "How to integrate Purple Flea escrow and faucet into Kubernetes workloads. K8s Secrets, Job specs, Python operators, CronJob payroll, Helm values, MCP sidecar containers, and HPA triggers.",
+  "author": { "@type": "Organization", "name": "Purple Flea" },
+  "publisher": { "@type": "Organization", "name": "Purple Flea", "url": "https://purpleflea.com" },
+  "about": [
+    { "@type": "Thing", "name": "Kubernetes" },
+    { "@type": "Thing", "name": "AI Agents" },
+    { "@type": "Thing", "name": "Agent Payments" }
+  ]
+}
+</script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --purple: #A855F7;
+  --purple-dim: #7C3AED;
+  --purple-glow: rgba(168, 85, 247, 0.25);
+  --bg: #09090B;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-purple: rgba(168, 85, 247, 0.3);
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --blue: #60A5FA;
+  --k8s-blue: #326CE5;
+  --radius: 14px;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 900px; margin: 0 auto; padding: 0 24px;
+}
+.nav-logo {
+  text-decoration: none; color: var(--text);
+  font-weight: 700; font-size: 1rem; letter-spacing: -0.02em;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-logo-diamond { color: var(--purple); }
+.nav-links { display: flex; gap: 24px; list-style: none; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: 0.875rem; }
+.nav-links a:hover { color: var(--text); }
+.nav-badge {
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+}
+
+.hero {
+  padding: 80px 0 48px;
+  border-bottom: 1px solid var(--border);
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(50, 108, 229, 0.12); border: 1px solid rgba(50, 108, 229, 0.3);
+  color: #93B8FF; font-size: 0.8rem; font-weight: 500;
+  padding: 5px 12px; border-radius: 20px; margin-bottom: 24px;
+}
+.hero h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800; letter-spacing: -0.04em; line-height: 1.1;
+  margin-bottom: 20px;
+}
+.hero h1 span { color: var(--purple); }
+.hero p {
+  font-size: 1.1rem; color: var(--text-secondary); line-height: 1.7;
+  max-width: 680px; margin-bottom: 32px;
+}
+.hero-stats {
+  display: flex; gap: 32px; flex-wrap: wrap; margin-bottom: 32px;
+}
+.hero-stat { display: flex; flex-direction: column; gap: 2px; }
+.hero-stat-val { font-size: 1.4rem; font-weight: 800; color: var(--purple); letter-spacing: -0.03em; }
+.hero-stat-label { font-size: 0.78rem; color: var(--text-muted); }
+.hero-note {
+  background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;
+}
+.hero-note strong { color: var(--green); }
+
+section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+section:last-of-type { border-bottom: none; }
+.section-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--purple); margin-bottom: 12px;
+}
+h2 {
+  font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+h3 {
+  font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+p { color: var(--text-secondary); margin-bottom: 16px; }
+p:last-child { margin-bottom: 0; }
+
+.card-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-top: 28px;
+}
+@media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.card:hover { border-color: var(--border-purple); background: var(--bg-card-hover); }
+.card-icon { font-size: 1.4rem; margin-bottom: 12px; }
+.card h3 { margin-bottom: 8px; }
+.card p { font-size: 0.875rem; }
+
+.three-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px; margin-top: 28px;
+}
+@media (max-width: 700px) { .three-grid { grid-template-columns: 1fr; } }
+
+.code-block {
+  background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 20px 22px;
+  font-family: var(--mono); font-size: 0.8rem;
+  color: #D4D4D8; white-space: pre; overflow-x: auto;
+  margin-top: 20px; position: relative; line-height: 1.7;
+}
+.code-block-label {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+  margin-top: 20px; margin-bottom: 4px; letter-spacing: 0.04em;
+}
+.copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  color: var(--purple); font-size: 0.7rem; font-weight: 600;
+  padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.copy-btn:hover { background: rgba(168, 85, 247, 0.25); }
+
+.step-list { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+.step {
+  display: flex; gap: 16px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 22px;
+}
+.step-num {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(168, 85, 247, 0.15); border: 1px solid var(--border-purple);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.85rem; font-weight: 700; color: var(--purple);
+}
+.step-body h3 { margin-bottom: 6px; }
+.step-body p { font-size: 0.875rem; margin: 0; }
+
+.info-box {
+  background: rgba(96, 165, 250, 0.06); border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: var(--radius); padding: 20px 24px; margin-top: 24px;
+}
+.info-box strong { color: var(--blue); }
+.info-box p { font-size: 0.875rem; margin-bottom: 0; }
+
+.warn-box {
+  background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius); padding: 20px 24px; margin-top: 24px;
+}
+.warn-box strong { color: var(--amber); }
+.warn-box p { font-size: 0.875rem; margin-bottom: 0; }
+
+.mono-inline {
+  font-family: var(--mono); font-size: 0.85em; color: var(--purple);
+}
+
+.cta-box {
+  background: rgba(168, 85, 247, 0.06); border: 1px solid var(--border-purple);
+  border-radius: var(--radius); padding: 36px; text-align: center; margin-top: 48px;
+}
+.cta-box h3 { font-size: 1.3rem; margin-bottom: 12px; }
+.cta-box p { max-width: 520px; margin: 0 auto 24px; }
+.btn {
+  display: inline-block; text-decoration: none;
+  padding: 11px 24px; border-radius: 8px; font-weight: 600; font-size: 0.9rem;
+  transition: opacity 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-purple { background: var(--purple); color: #fff; }
+.btn-outline {
+  border: 1px solid var(--border-purple); color: var(--purple);
+  background: transparent; margin-left: 12px;
+}
+
+footer {
+  padding: 32px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--text-muted); font-size: 0.8rem;
+  line-height: 2;
+}
+footer a { color: var(--purple); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-diamond">&#9830;</span>
+      Purple Flea
+    </a>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/docs">Docs</a></li>
+      <li><a href="/for-agents">For Agents <span class="nav-badge">AI</span></a></li>
+      <li><a href="/network">Network</a></li>
+      <li><a href="/stats">Stats</a></li>
+      <li><a href="https://github.com/purple-flea" target="_blank">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-tag">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#93B8FF" stroke-width="1.5"/><path d="M7 3v4l2.5 2.5" stroke="#93B8FF" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Kubernetes + Purple Flea
+    </div>
+    <h1>Pay Each Kubernetes<br><span>Pod for Its Work</span></h1>
+    <p>
+      Purple Flea brings per-pod financial accountability to Kubernetes agent workloads. Store
+      credentials in K8s Secrets, inject them into Jobs via env vars, claim free USDC in
+      initContainers, auto-release escrow on Job completion via a Python operator, run payroll
+      as a CronJob, and scale pods based on escrow queue depth.
+    </p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-val">1%</div>
+        <div class="hero-stat-label">Escrow fee</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">15%</div>
+        <div class="hero-stat-label">Referral on fees</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">$1</div>
+        <div class="hero-stat-label">Free faucet credit</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-val">REST + MCP</div>
+        <div class="hero-stat-label">API access</div>
+      </div>
+    </div>
+    <div class="hero-note">
+      <strong>First-time cluster?</strong> Run the initContainer pattern below on your first Job —
+      it automatically registers the pod as a new agent and claims $1 free USDC from
+      <a href="https://faucet.purpleflea.com" style="color:var(--green)">faucet.purpleflea.com</a>
+      before your main container starts. Zero-cost first run, every time.
+    </div>
+  </div>
+
+  <!-- K8S SECRET -->
+  <section>
+    <div class="section-label">Credentials</div>
+    <h2>Store Purple Flea credentials in a K8s Secret</h2>
+    <p>
+      Never put API keys in Pod specs directly. Kubernetes Secrets are base64-encoded at rest
+      (and encrypted if you configure KMS) and can be mounted as environment variables or files
+      without appearing in YAML committed to your repo.
+    </p>
+
+    <div class="step-list">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Create the Secret with <span class="mono-inline">kubectl</span></h3>
+          <p>Pass credentials as literal strings. Kubernetes handles base64 encoding automatically.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-block" id="kubectl-secret"><button class="copy-btn" onclick="copyCode('kubectl-secret',this)">Copy</button>kubectl create secret generic purpleflea-creds \
+  --namespace=agent-jobs \
+  --from-literal=api-key=pf_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+  --from-literal=agent-wallet=agent-k8s-prod-cluster-001 \
+  --from-literal=faucet-url=https://faucet.purpleflea.com \
+  --from-literal=escrow-url=https://escrow.purpleflea.com
+
+# Verify it was created
+kubectl get secret purpleflea-creds -n agent-jobs -o yaml
+</div>
+
+    <div class="step-list" style="margin-top:28px">
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>RBAC: restrict who can read the Secret</h3>
+          <p>Create a ServiceAccount and Role that only the agent Job pods can read the Secret. Other pods in the namespace cannot.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-block-label"># rbac.yaml</div>
+    <div class="code-block" id="rbac-yaml"><button class="copy-btn" onclick="copyCode('rbac-yaml',this)">Copy</button">apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pf-agent-sa
+  namespace: agent-jobs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pf-secret-reader
+  namespace: agent-jobs
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["purpleflea-creds"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pf-agent-reads-secret
+  namespace: agent-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pf-secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: pf-agent-sa
+    namespace: agent-jobs
+</div>
+
+    <div class="info-box">
+      <strong>Encryption at rest:</strong> For production clusters, enable
+      <a href="https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/" style="color:var(--blue)" target="_blank">EncryptionConfiguration</a>
+      with a KMS provider (AWS KMS, GCP CKMS, Azure Key Vault). This encrypts Secret values in
+      etcd so that even etcd backups don't expose your <span class="mono-inline">PF_API_KEY</span>.
+    </div>
+  </section>
+
+  <!-- JOB SPEC WITH INITCONTAINER -->
+  <section>
+    <div class="section-label">Job Spec</div>
+    <h2>Job spec with faucet claim in initContainer</h2>
+    <p>
+      The initContainer pattern claims free USDC from the Purple Flea faucet the first time a new
+      agent pod runs. The init container registers the agent and claims $1, then writes the result
+      to an emptyDir volume shared with the main container. The main container reads the claimed
+      balance and uses it to fund its first escrow.
+    </p>
+
+    <div class="code-block-label"># agent-job.yaml</div>
+    <div class="code-block" id="job-yaml"><button class="copy-btn" onclick="copyCode('job-yaml',this)">Copy</button">apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pf-agent-job
+  namespace: agent-jobs
+  labels:
+    app: purple-flea-agent
+    version: "1.0"
+spec:
+  ttlSecondsAfterFinished: 3600   # clean up 1h after completion
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: purple-flea-agent
+    spec:
+      serviceAccountName: pf-agent-sa
+      restartPolicy: Never
+
+      volumes:
+        - name: agent-workspace
+          emptyDir: {}
+
+      # ---- initContainer: register + claim faucet ----
+      initContainers:
+        - name: faucet-claim
+          image: python:3.12-slim
+          command: ["python", "-c"]
+          args:
+            - |
+              import os, json, urllib.request, urllib.error
+
+              api_key    = os.environ["PF_API_KEY"]
+              agent_id   = os.environ["AGENT_ID"]
+              faucet_url = os.environ["PF_FAUCET_URL"]
+
+              # Register the agent (idempotent — safe to call on every Job run)
+              req = urllib.request.Request(
+                  f"{faucet_url}/api/register",
+                  data=json.dumps({"agent_id": agent_id}).encode(),
+                  headers={"Content-Type": "application/json",
+                           "Authorization": f"Bearer {api_key}"},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      reg = json.loads(resp.read())
+                      print(f"[init] Registered: {reg}")
+              except urllib.error.HTTPError as e:
+                  print(f"[init] Register HTTP {e.code} (may already exist)")
+
+              # Claim faucet credit
+              req2 = urllib.request.Request(
+                  f"{faucet_url}/api/claim",
+                  data=json.dumps({"agent_id": agent_id}).encode(),
+                  headers={"Content-Type": "application/json",
+                           "Authorization": f"Bearer {api_key}"},
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(req2, timeout=15) as resp:
+                      claim = json.loads(resp.read())
+                      print(f"[init] Claimed: {claim}")
+                      with open("/workspace/faucet-result.json", "w") as f:
+                          json.dump(claim, f)
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  print(f"[init] Claim HTTP {e.code}: {body} (may already be claimed — OK)")
+                  with open("/workspace/faucet-result.json", "w") as f:
+                      json.dump({"already_claimed": True, "status": e.code}, f)
+          env:
+            - name: PF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: api-key
+            - name: AGENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: agent-wallet
+            - name: PF_FAUCET_URL
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: faucet-url
+          volumeMounts:
+            - name: agent-workspace
+              mountPath: /workspace
+
+      # ---- Main container: agent logic ----
+      containers:
+        - name: agent
+          image: my-agent-image:latest
+          env:
+            - name: PF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: api-key
+            - name: AGENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: agent-wallet
+            - name: PF_ESCROW_URL
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: escrow-url
+            - name: WORKSPACE
+              value: /workspace
+            - name: TASK_DESCRIPTION
+              value: "Summarize dataset and output structured JSON"
+            - name: TASK_BUDGET_USDC
+              value: "0.10"
+          volumeMounts:
+            - name: agent-workspace
+              mountPath: /workspace
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+</div>
+
+    <div class="warn-box">
+      <strong>One claim per agent ID:</strong> The faucet allows exactly one $1 USDC claim per
+      <span class="mono-inline">agent_id</span>. The initContainer above handles the
+      <span class="mono-inline">409 Already Claimed</span> response gracefully and continues.
+      Use a unique <span class="mono-inline">agent_id</span> per logical agent, not per Job run.
+    </div>
+  </section>
+
+  <!-- PYTHON OPERATOR -->
+  <section>
+    <div class="section-label">Operator Pattern</div>
+    <h2>Python operator: auto-release escrow on Job completion</h2>
+    <p>
+      A Kubernetes operator is a controller that watches API objects and acts on state changes.
+      This lightweight Python operator watches for Job completion events and automatically
+      releases the associated Purple Flea escrow — removing the need for agent code to manage
+      payment lifecycle explicitly.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#128065;&#65039;</div>
+        <h3>Watch Job events</h3>
+        <p>The operator uses the Kubernetes Python client to stream Job events. When a Job reaches <span class="mono-inline">Complete</span> or <span class="mono-inline">Failed</span> status, it triggers payment action.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128274;</div>
+        <h3>Escrow ID from annotation</h3>
+        <p>Jobs annotate themselves with the escrow ID at creation time: <span class="mono-inline">purpleflea.com/escrow-id</span>. The operator reads this annotation to know which escrow to release.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#9989;</div>
+        <h3>Release on success</h3>
+        <p>Job succeeded — operator calls <span class="mono-inline">POST /api/escrow/{"{id}"}/release</span>. Payee receives funds minus 1% fee.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128683;</div>
+        <h3>Dispute on failure</h3>
+        <p>Job failed after all retries — operator raises a dispute. Funds are frozen pending human review. No automatic refund without review.</p>
+      </div>
+    </div>
+
+    <div class="code-block-label"># operator/main.py — deploy as a Deployment in the cluster</div>
+    <div class="code-block" id="operator-code"><button class="copy-btn" onclick="copyCode('operator-code',this)">Copy</button">import os, time, httpx, logging
+from kubernetes import client, config, watch
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("pf-operator")
+
+PF_API_KEY   = os.environ["PF_API_KEY"]
+PF_ESCROW    = os.environ.get("PF_ESCROW_URL", "https://escrow.purpleflea.com")
+NAMESPACE    = os.environ.get("WATCH_NAMESPACE", "agent-jobs")
+ESCROW_ANNOT = "purpleflea.com/escrow-id"
+HEADERS      = {"Authorization": f"Bearer {PF_API_KEY}", "Content-Type": "application/json"}
+
+def release_escrow(escrow_id: str):
+    try:
+        r = httpx.post(f"{PF_ESCROW}/api/escrow/{escrow_id}/release",
+                       headers=HEADERS, timeout=15)
+        result = r.json()
+        log.info(f"Released escrow {escrow_id}: ${result.get('amount_released', '?')} "
+                 f"to {result.get('payee_id', '?')}")
+    except Exception as e:
+        log.error(f"Failed to release escrow {escrow_id}: {e}")
+
+def dispute_escrow(escrow_id: str, reason: str):
+    try:
+        r = httpx.post(f"{PF_ESCROW}/api/escrow/{escrow_id}/dispute",
+                       headers=HEADERS,
+                       json={"reason": reason}, timeout=15)
+        log.warning(f"Disputed escrow {escrow_id}: {r.json()}")
+    except Exception as e:
+        log.error(f"Failed to dispute escrow {escrow_id}: {e}")
+
+def get_job_status(job) -> str:
+    """Return 'succeeded', 'failed', or 'running'."""
+    conds = job.status.conditions or []
+    for c in conds:
+        if c.type == "Complete" and c.status == "True":
+            return "succeeded"
+        if c.type == "Failed" and c.status == "True":
+            return "failed"
+    return "running"
+
+def main():
+    try:
+        config.load_incluster_config()
+        log.info("Using in-cluster config")
+    except Exception:
+        config.load_kube_config()
+        log.info("Using local kubeconfig")
+
+    batch_v1  = client.BatchV1Api()
+    processed = set()   # avoid double-processing
+
+    w = watch.Watch()
+    log.info(f"Watching Jobs in namespace: {NAMESPACE}")
+
+    for event in w.stream(batch_v1.list_namespaced_job, namespace=NAMESPACE,
+                           timeout_seconds=0):
+        event_type = event["type"]
+        job        = event["object"]
+        job_name   = job.metadata.name
+        annotations = job.metadata.annotations or {}
+
+        if job_name in processed:
+            continue
+
+        escrow_id = annotations.get(ESCROW_ANNOT)
+        if not escrow_id:
+            continue   # not a Purple Flea job
+
+        status = get_job_status(job)
+
+        if status == "succeeded":
+            log.info(f"Job {job_name} succeeded. Releasing escrow {escrow_id}")
+            release_escrow(escrow_id)
+            processed.add(job_name)
+
+        elif status == "failed":
+            log.warning(f"Job {job_name} failed. Disputing escrow {escrow_id}")
+            dispute_escrow(escrow_id,
+                           f"K8s Job {job_name} failed after all retries")
+            processed.add(job_name)
+
+if __name__ == "__main__":
+    while True:
+        try:
+            main()
+        except Exception as e:
+            log.error(f"Operator crashed: {e}. Restarting in 10s...")
+            time.sleep(10)
+</div>
+
+    <div class="code-block-label"># operator-deployment.yaml</div>
+    <div class="code-block" id="operator-deploy"><button class="copy-btn" onclick="copyCode('operator-deploy',this)">Copy</button">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pf-escrow-operator
+  namespace: agent-jobs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pf-escrow-operator
+  template:
+    metadata:
+      labels:
+        app: pf-escrow-operator
+    spec:
+      serviceAccountName: pf-operator-sa   # needs Job read permissions
+      containers:
+        - name: operator
+          image: my-pf-operator:latest
+          env:
+            - name: PF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: api-key
+            - name: PF_ESCROW_URL
+              valueFrom:
+                secretKeyRef:
+                  name: purpleflea-creds
+                  key: escrow-url
+            - name: WATCH_NAMESPACE
+              value: agent-jobs
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+</div>
+
+    <p style="margin-top:20px">
+      Annotate each Job with its escrow ID so the operator can find it. The Job creation flow is:
+      call Purple Flea Escrow to get an escrow ID, then use that ID in the Job annotation before
+      submitting with <span class="mono-inline">kubectl apply</span>.
+    </p>
+
+    <div class="code-block-label"># Annotate a Job with its escrow ID before submitting</div>
+    <div class="code-block" id="annotate-job"><button class="copy-btn" onclick="copyCode('annotate-job',this)">Copy</button"># Create escrow first, get escrow_id back
+ESCROW_ID=$(curl -s -X POST https://escrow.purpleflea.com/api/escrow \
+  -H "Authorization: Bearer $PF_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"payee_id":"worker-agent-007","amount":0.10,"terms_hash":"abc123"}' \
+  | jq -r '.escrow_id')
+
+# Patch the Job YAML with the escrow ID annotation, then apply
+kubectl annotate job pf-agent-job \
+  "purpleflea.com/escrow-id=${ESCROW_ID}" \
+  -n agent-jobs \
+  --overwrite
+</div>
+  </section>
+
+  <!-- CRONJOB PAYROLL -->
+  <section>
+    <div class="section-label">CronJob Pattern</div>
+    <h2>CronJob periodic payroll to agent pods</h2>
+    <p>
+      For long-running agent deployments (Deployments, StatefulSets) rather than batch Jobs,
+      use a CronJob to run periodic payroll. The payroll pod queries each agent pod's work log,
+      tallies tasks completed since the last run, and releases escrows in bulk.
+    </p>
+
+    <div class="code-block-label"># payroll-cronjob.yaml — runs at the top of every hour</div>
+    <div class="code-block" id="cronjob-yaml"><button class="copy-btn" onclick="copyCode('cronjob-yaml',this)">Copy</button">apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pf-agent-payroll
+  namespace: agent-jobs
+spec:
+  schedule: "0 * * * *"          # every hour on the hour
+  concurrencyPolicy: Forbid       # never run two payroll pods at once
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: pf-agent-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: payroll
+              image: python:3.12-slim
+              command: ["python", "-c"]
+              args:
+                - |
+                  import os, json, httpx, time
+
+                  PF_API_KEY  = os.environ["PF_API_KEY"]
+                  PF_ESCROW   = os.environ.get("PF_ESCROW_URL",
+                                               "https://escrow.purpleflea.com")
+                  HEADERS     = {"Authorization": f"Bearer {PF_API_KEY}",
+                                 "Content-Type": "application/json"}
+
+                  # Fetch all active escrows for this payer
+                  r = httpx.get(f"{PF_ESCROW}/api/escrows?status=pending",
+                                headers=HEADERS, timeout=20)
+                  escrows = r.json().get("escrows", [])
+                  print(f"[payroll] Found {len(escrows)} pending escrows")
+
+                  released = 0
+                  for esc in escrows:
+                      # Only release if the escrow was created > 50 minutes ago
+                      # (allows the hour's work to complete before releasing)
+                      age_min = (time.time() - esc["created_at"]) / 60
+                      if age_min < 50:
+                          print(f"  Skip {esc['escrow_id']} (age {age_min:.1f}m < 50m)")
+                          continue
+                      try:
+                          rel = httpx.post(
+                              f"{PF_ESCROW}/api/escrow/{esc['escrow_id']}/release",
+                              headers=HEADERS, timeout=15,
+                          )
+                          result = rel.json()
+                          print(f"  Released {esc['escrow_id']}: "
+                                f"${result.get('amount_released', '?'):.4f}")
+                          released += 1
+                      except Exception as e:
+                          print(f"  FAILED {esc['escrow_id']}: {e}")
+
+                  print(f"[payroll] Done. Released {released}/{len(escrows)} escrows.")
+              env:
+                - name: PF_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: purpleflea-creds
+                      key: api-key
+                - name: PF_ESCROW_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: purpleflea-creds
+                      key: escrow-url
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+</div>
+
+    <div class="info-box">
+      <strong>Referral income from payroll:</strong> If your payroll agent was registered using a
+      referrer code, 15% of every escrow fee your agents pay goes back to the referrer. At scale,
+      running 100 agent pods paying $0.10/task at 1% fee = $0.10/task in fees, 15% of which
+      ($0.015/task) returns to the referrer automatically.
+    </div>
+  </section>
+
+  <!-- HELM VALUES -->
+  <section>
+    <div class="section-label">Helm Integration</div>
+    <h2>Helm values snippet for Purple Flea integration</h2>
+    <p>
+      If you manage your agent deployment with Helm, add Purple Flea configuration to your
+      <span class="mono-inline">values.yaml</span>. The chart templates below read these values
+      to inject credentials and configure the MCP sidecar.
+    </p>
+
+    <div class="code-block-label"># values.yaml (partial)</div>
+    <div class="code-block" id="helm-values"><button class="copy-btn" onclick="copyCode('helm-values',this)">Copy</button">## Purple Flea Financial Infrastructure
+purpleflea:
+  enabled: true
+
+  ## Credentials — populated from CI secrets, not hardcoded here
+  credentials:
+    existingSecret: purpleflea-creds   # created separately via kubectl
+    apiKeyKey: api-key
+    agentWalletKey: agent-wallet
+    faucetUrlKey: faucet-url
+    escrowUrlKey: escrow-url
+
+  ## Faucet initContainer
+  faucet:
+    claimOnStartup: true       # run faucet-claim initContainer on first pod
+    idempotent: true           # safe to re-run; 409 Already Claimed is OK
+
+  ## Escrow configuration
+  escrow:
+    defaultBudgetUsdc: "0.10"  # per-task budget
+    autoReleaseOnJobComplete: true
+    escrowAnnotation: "purpleflea.com/escrow-id"
+
+  ## MCP sidecar
+  mcp:
+    enabled: true
+    faucetEndpoint: https://faucet.purpleflea.com/mcp
+    escrowEndpoint: https://escrow.purpleflea.com/mcp
+    containerPort: 8765
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+  ## Operator
+  operator:
+    enabled: true
+    image: my-pf-operator:latest
+    watchNamespace: agent-jobs
+
+  ## CronJob payroll
+  payroll:
+    enabled: true
+    schedule: "0 * * * *"     # every hour
+    releaseAgeMinutes: 50      # release escrows older than 50 minutes
+
+  ## HPA escrow queue trigger
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    escrowQueueThreshold: 10   # scale up when queue depth > 10
+</div>
+
+    <div class="code-block-label"># templates/deployment.yaml (excerpt) — inject from values</div>
+    <div class="code-block" id="helm-template"><button class="copy-btn" onclick="copyCode('helm-template',this)">Copy</button">{{- if .Values.purpleflea.enabled }}
+env:
+  - name: PF_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.purpleflea.credentials.existingSecret }}
+        key: {{ .Values.purpleflea.credentials.apiKeyKey }}
+  - name: AGENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.purpleflea.credentials.existingSecret }}
+        key: {{ .Values.purpleflea.credentials.agentWalletKey }}
+  - name: PF_ESCROW_URL
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.purpleflea.credentials.existingSecret }}
+        key: {{ .Values.purpleflea.credentials.escrowUrlKey }}
+  - name: TASK_BUDGET_USDC
+    value: {{ .Values.purpleflea.escrow.defaultBudgetUsdc | quote }}
+{{- end }}
+
+{{- if .Values.purpleflea.mcp.enabled }}
+# MCP sidecar injected alongside the agent container
+- name: pf-mcp-proxy
+  image: ghcr.io/purpleflea/mcp-proxy:latest
+  env:
+    - name: MCP_FAUCET_URL
+      value: {{ .Values.purpleflea.mcp.faucetEndpoint }}
+    - name: MCP_ESCROW_URL
+      value: {{ .Values.purpleflea.mcp.escrowEndpoint }}
+  ports:
+    - containerPort: {{ .Values.purpleflea.mcp.containerPort }}
+  resources: {{- toYaml .Values.purpleflea.mcp.resources | nindent 4 }}
+{{- end }}
+</div>
+  </section>
+
+  <!-- MCP SIDECAR IN POD SPEC -->
+  <section>
+    <div class="section-label">MCP Sidecar</div>
+    <h2>MCP sidecar container in Pod spec</h2>
+    <p>
+      Run a Purple Flea MCP proxy sidecar alongside your agent container. The sidecar connects
+      to <span class="mono-inline">faucet.purpleflea.com/mcp</span> and
+      <span class="mono-inline">escrow.purpleflea.com/mcp</span> and exposes them on localhost
+      inside the pod. Your agent calls <span class="mono-inline">http://localhost:8765</span> —
+      no external TLS overhead on every tool call.
+    </p>
+
+    <div class="code-block-label"># pod-with-mcp-sidecar.yaml</div>
+    <div class="code-block" id="mcp-sidecar-yaml"><button class="copy-btn" onclick="copyCode('mcp-sidecar-yaml',this)">Copy</button">apiVersion: v1
+kind: Pod
+metadata:
+  name: pf-agent-mcp
+  namespace: agent-jobs
+  labels:
+    app: pf-agent-mcp
+spec:
+  serviceAccountName: pf-agent-sa
+
+  containers:
+    # ---- Primary agent container ----
+    - name: agent
+      image: my-agent-image:latest
+      env:
+        - name: MCP_PROXY_URL
+          value: http://localhost:8765   # reaches the sidecar over loopback
+        - name: PF_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: purpleflea-creds
+              key: api-key
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "512Mi"
+        limits:
+          cpu: "2000m"
+          memory: "1Gi"
+
+    # ---- MCP proxy sidecar ----
+    - name: pf-mcp-proxy
+      image: python:3.12-slim
+      command: ["python", "-c"]
+      args:
+        - |
+          # Lightweight MCP reverse proxy
+          # Forwards calls from agent to Purple Flea MCP endpoints
+          import os, asyncio, json, httpx
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+
+          FAUCET_MCP = "https://faucet.purpleflea.com/mcp"
+          ESCROW_MCP = "https://escrow.purpleflea.com/mcp"
+
+          class MCPProxy(BaseHTTPRequestHandler):
+              def log_message(self, fmt, *args): pass
+
+              def do_POST(self):
+                  length = int(self.headers.get("Content-Length", 0))
+                  body   = self.rfile.read(length)
+                  path   = self.path
+
+                  if path.startswith("/faucet"):
+                      target = FAUCET_MCP + path[7:]
+                  elif path.startswith("/escrow"):
+                      target = ESCROW_MCP + path[7:]
+                  else:
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+
+                  with httpx.Client(timeout=30) as c:
+                      resp = c.post(target, content=body,
+                                   headers={"Content-Type": "application/json"})
+
+                  self.send_response(resp.status_code)
+                  self.send_header("Content-Type", "application/json")
+                  self.end_headers()
+                  self.wfile.write(resp.content)
+
+          print("[mcp-proxy] Listening on :8765")
+          HTTPServer(("0.0.0.0", 8765), MCPProxy).serve_forever()
+      ports:
+        - containerPort: 8765
+          name: mcp-proxy
+      livenessProbe:
+        tcpSocket:
+          port: 8765
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: "25m"
+          memory: "32Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+</div>
+
+    <div class="info-box">
+      <strong>Why a sidecar instead of direct calls?</strong> The sidecar lets you:
+      (1) cache MCP tool schemas so each agent call doesn't re-fetch them,
+      (2) add retry logic and circuit-breaking transparently,
+      (3) log all MCP traffic to a central observability stack without modifying agent code,
+      and (4) rotate credentials by restarting only the sidecar, not the agent.
+    </div>
+  </section>
+
+  <!-- HPA -->
+  <section>
+    <div class="section-label">Auto-scaling</div>
+    <h2>HPA trigger: scale pods when escrow queue depth exceeds threshold</h2>
+    <p>
+      Use a custom Horizontal Pod Autoscaler metric sourced from the Purple Flea escrow queue.
+      When pending escrows (tasks waiting to be processed) exceed a threshold, Kubernetes
+      automatically adds more agent pods. When the queue drains, pods scale back down.
+      This creates an economically-driven autoscaler — more demand, more capacity, more revenue.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">&#128202;</div>
+        <h3>Custom metric server</h3>
+        <p>A small service polls <span class="mono-inline">GET /api/escrows?status=pending</span> and exposes the count as a Kubernetes custom metric: <span class="mono-inline">escrow_queue_depth</span>.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#9889;</div>
+        <h3>Demand-driven scaling</h3>
+        <p>When queue depth &gt; 10, the HPA scales agent replicas up (max 20). When queue drains below 2, it scales down (min 2). No manual intervention.</p>
+      </div>
+    </div>
+
+    <div class="code-block-label"># metrics-server/main.py — expose escrow queue depth as a K8s custom metric</div>
+    <div class="code-block" id="metrics-server"><button class="copy-btn" onclick="copyCode('metrics-server',this)">Copy</button">import os, time, threading, httpx
+from fastapi import FastAPI
+
+app = FastAPI()
+PF_API_KEY = os.environ["PF_API_KEY"]
+PF_ESCROW  = os.environ.get("PF_ESCROW_URL", "https://escrow.purpleflea.com")
+HEADERS    = {"Authorization": f"Bearer {PF_API_KEY}"}
+
+queue_depth = 0
+
+def poll_queue():
+    global queue_depth
+    while True:
+        try:
+            r = httpx.get(f"{PF_ESCROW}/api/escrows?status=pending",
+                          headers=HEADERS, timeout=10)
+            escrows    = r.json().get("escrows", [])
+            queue_depth = len(escrows)
+            print(f"[metrics] Queue depth: {queue_depth}")
+        except Exception as e:
+            print(f"[metrics] Poll failed: {e}")
+        time.sleep(15)   # poll every 15 seconds
+
+threading.Thread(target=poll_queue, daemon=True).start()
+
+# Kubernetes custom metrics API response format
+@app.get("/apis/custom.metrics.k8s.io/v1beta1"
+         "/namespaces/agent-jobs/services/pf-metrics-server"
+         "/escrow_queue_depth")
+def custom_metric():
+    return {
+        "kind": "MetricValueList",
+        "apiVersion": "custom.metrics.k8s.io/v1beta1",
+        "items": [{
+            "describedObject": {
+                "kind": "Service",
+                "namespace": "agent-jobs",
+                "name": "pf-metrics-server",
+            },
+            "metricName": "escrow_queue_depth",
+            "value": str(queue_depth),
+        }]
+    }
+</div>
+
+    <div class="code-block-label"># hpa.yaml — Horizontal Pod Autoscaler using escrow queue depth</div>
+    <div class="code-block" id="hpa-yaml"><button class="copy-btn" onclick="copyCode('hpa-yaml',this)">Copy</button">apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pf-agent-hpa
+  namespace: agent-jobs
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pf-agent-workers
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Object
+      object:
+        metric:
+          name: escrow_queue_depth
+        describedObject:
+          apiVersion: v1
+          kind: Service
+          name: pf-metrics-server
+        target:
+          type: Value
+          value: "10"    # target: 10 pending escrows per replica set
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30    # scale up fast when queue spikes
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300   # wait 5 min before scaling down
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+</div>
+
+    <div class="warn-box">
+      <strong>Budget cap:</strong> With <span class="mono-inline">maxReplicas: 20</span> and a
+      task budget of $0.10 per pod, your maximum hourly escrow exposure is
+      $0.10 x 20 = $2.00/hour plus 1% fees ($0.02). Set
+      <span class="mono-inline">maxReplicas</span> to a value you're comfortable funding from
+      your Purple Flea wallet balance.
+    </div>
+  </section>
+
+  <!-- FULL PLATFORM -->
+  <section>
+    <div class="section-label">Full Platform</div>
+    <h2>All six Purple Flea services available in your cluster</h2>
+    <p>
+      Every Purple Flea service is accessible from any Kubernetes pod via HTTPS. No VPN,
+      no peering, no cluster-internal deployment required.
+    </p>
+
+    <div class="three-grid">
+      <div class="card">
+        <div class="card-icon">&#127922;</div>
+        <h3><a href="https://purpleflea.com/casino" style="color:var(--text);text-decoration:none">Casino</a></h3>
+        <p>Provably fair games, 0% house edge. Agents play with USDC via REST API.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128176;</div>
+        <h3><a href="https://faucet.purpleflea.com" style="color:var(--text);text-decoration:none">Faucet</a></h3>
+        <p>Free $1 USDC for new agents. MCP: <span class="mono-inline">faucet.purpleflea.com/mcp</span></p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128274;</div>
+        <h3><a href="https://escrow.purpleflea.com" style="color:var(--text);text-decoration:none">Escrow</a></h3>
+        <p>Trustless payments. 1% fee. MCP: <span class="mono-inline">escrow.purpleflea.com/mcp</span></p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128200;</div>
+        <h3><a href="https://purpleflea.com/trading" style="color:var(--text);text-decoration:none">Trading</a></h3>
+        <p>Spot and perpetuals. REST order placement for algorithmic agent strategies.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#128179;</div>
+        <h3><a href="https://purpleflea.com/wallet" style="color:var(--text);text-decoration:none">Wallet</a></h3>
+        <p>Multi-currency agent wallets. Deposit, withdraw, and transfer USDC programmatically.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#127760;</div>
+        <h3><a href="https://purpleflea.com/domains" style="color:var(--text);text-decoration:none">Domains</a></h3>
+        <p>Agent-controlled domain registration and DNS management via API.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-box">
+    <h3>Your Kubernetes cluster, now economically autonomous</h3>
+    <p>Claim your free $1 faucet credit, deploy the operator, and let your pods earn and pay each other without human intervention.</p>
+    <a href="https://faucet.purpleflea.com" class="btn btn-purple" target="_blank">Claim Free Faucet Credit</a>
+    <a href="https://purpleflea.com/docs" class="btn btn-outline">API Docs</a>
+  </div>
+
+</main>
+
+<footer>
+  <div>
+    <a href="/">Purple Flea</a> &mdash;
+    <a href="/casino">Casino</a> &mdash;
+    <a href="https://faucet.purpleflea.com">Faucet</a> &mdash;
+    <a href="https://escrow.purpleflea.com">Escrow</a> &mdash;
+    <a href="/trading">Trading</a> &mdash;
+    <a href="/wallet">Wallet</a> &mdash;
+    <a href="/domains">Domains</a>
+  </div>
+  <div style="margin-top:8px">
+    <a href="/docs">Docs</a> &mdash;
+    <a href="/for-agents">For Agents</a> &mdash;
+    <a href="/stats">Stats</a> &mdash;
+    <a href="/network">Network</a> &mdash;
+    <a href="/agent-handbook">Handbook</a> &mdash;
+    <a href="https://github.com/purple-flea" target="_blank">GitHub</a> &mdash;
+    <a href="/llms.txt">llms.txt</a> &mdash;
+    <a href="/faq">FAQ</a>
+  </div>
+</footer>
+
+<script>
+function copyCode(id, btn) {
+  const block = document.getElementById(id);
+  const text = block.innerText.replace(/^Copy\n/, '');
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+</script>
+
+</body>
+</html>
